@@ -1,0 +1,31 @@
+{
+    "project": "JournalApp",
+    "features": [
+        {
+            "id": "fix-ui-dark-mode-v2",
+            "title": "Fix UI Dark Mode & Verify",
+            "description": "Fix unreadable text in dark mode by ensuring NativeWind is correctly configured (Babel, Tailwind) and verify the fix.",
+            "priority": "high",
+            "status": "completed",
+            "passes": true,
+            "tasks": [
+                "task-001-configure-babel",
+                "task-002-verify-styles"
+            ]
+        },
+        {
+            "id": "inline-document-typing",
+            "title": "Document-Style Inline Typing Chat",
+            "description": "Replace traditional textbox with inline document-style typing (like Word/Google Docs). User types directly in the chat flow, press Enter to send. Update AI settings to temp=1.0, max_tokens=16k.",
+            "priority": "high",
+            "status": "completed",
+            "passes": true,
+            "tasks": [
+                "task-003-inline-typing-component",
+                "task-004-update-ai-settings",
+                "task-005-integrate-chat-screen",
+                "task-006-create-tests"
+            ]
+        }
+    ]
+}

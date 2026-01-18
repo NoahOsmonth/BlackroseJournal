@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AI Therapy Chat Interface</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#3b82f6", 
+                        "background-light": "#ffffff",
+                        "background-dark": "#0f172a",
+                        "ai-text": "#4A78B6", // Adjusted to match the specific blue in the screenshot
+                        "user-text": "#333333", // Dark gray for user
+                        "meta-text": "#9CA3AF", // Light gray for metadata
+                    },
+                    fontFamily: {
+                        display: ["Inter", "sans-serif"],
+                        sans: ["Inter", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "12px",
+                        'xl': '12px',
+                    },
+                    boxShadow: {
+                        'btn': '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                    }
+                },
+            },
+        };
+    </script>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-white dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased overflow-hidden">
+<div class="flex flex-col h-screen max-w-md mx-auto relative border-x border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
+<header class="pt-4 px-4 pb-2 bg-white dark:bg-background-dark z-10">
+<div class="flex items-center justify-between">
+<div class="flex items-center space-x-1.5 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-full border border-gray-200 dark:border-slate-700 shadow-sm">
+<div class="w-5 h-5 bg-[#F43F5E] rounded-full flex items-center justify-center">
+<span class="text-[10px] text-white font-bold leading-none mt-[1px]">R</span>
+</div>
+<span class="text-sm font-semibold text-slate-800 dark:text-slate-200">Rosebud</span>
+<span class="material-symbols-outlined text-lg text-slate-400">expand_more</span>
+</div>
+<div class="flex items-center space-x-4">
+<span class="text-[15px] font-semibold text-slate-800 dark:text-slate-300">Drafts</span>
+<button class="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+<span class="material-symbols-outlined text-slate-500 dark:text-slate-400 text-[22px]">close</span>
+</button>
+</div>
+</div>
+<div class="mt-5 mb-1 px-1">
+<span class="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-slate-500">Internal Family Systems</span>
+</div>
+</header>
+<main class="flex-1 overflow-y-auto px-5 py-2 space-y-6 hide-scrollbar pb-4">
+<div class="space-y-4">
+<p class="text-ai-text dark:text-blue-400 text-[15px] leading-[1.5] font-semibold">
+                    I appreciate you bringing this up. It seems like public speaking has been a recurring challenge for you. I remember you mentioned a few experiences recently that relate to this - like backing out of a wedding speech on July 6th and struggling with a board presentation on July 19th. These situations can be really tough.
+                </p>
+<p class="text-ai-text dark:text-blue-400 text-[15px] leading-[1.5] font-semibold">
+                    Can you tell me a bit more about how you're feeling about public speaking right now?
+                </p>
+</div>
+<div class="space-y-4">
+<p class="text-user-text dark:text-slate-200 text-[15px] leading-[1.5] font-bold">
+                    I just feel shame that I can't seem to overcome this
+                </p>
+</div>
+<div class="space-y-4">
+<p class="text-ai-text dark:text-blue-400 text-[15px] leading-[1.5] font-semibold">
+                    I hear you, and I want you to know that feeling shame about this is completely understandable. It's a difficult emotion to sit with. Thank you for sharing that with me.
+                </p>
+<p class="text-ai-text dark:text-blue-400 text-[15px] leading-[1.5] font-semibold">
+                    It sounds like there might be a part of you that's really hard on yourself about this public speaking challenge. Can we take a moment to explore that part a little more?
+                </p>
+<p class="text-ai-text dark:text-blue-400 text-[15px] leading-[1.5] font-semibold">
+                    What does this shame feel like in your body right now?
+                </p>
+</div>
+<div class="space-y-4">
+<p class="text-user-text dark:text-slate-200 text-[15px] leading-[1.5] font-bold">
+                    I feel a sinking feeling in my stomach, like I want to hide my face
+                </p>
+</div>
+<div class="space-y-4">
+<p class="text-ai-text dark:text-blue-400 text-[15px] leading-[1.5] font-semibold">
+                    Thank you for describing that. It's really helpful to recognize how this part shows up physically...
+                </p>
+</div>
+</main>
+<footer class="bg-white dark:bg-background-dark border-t border-slate-100 dark:border-slate-800 pb-8 pt-2">
+<div class="flex items-center justify-between px-6 py-3">
+<div class="flex space-x-6">
+<button class="text-slate-600 dark:text-slate-400 hover:text-slate-900 transition-colors">
+<span class="material-symbols-outlined text-[26px]">mic</span>
+</button>
+<button class="text-slate-600 dark:text-slate-400 hover:text-slate-900 transition-colors">
+<span class="material-symbols-outlined text-[24px]">call</span>
+</button>
+</div>
+<button class="text-slate-600 dark:text-slate-400 hover:text-slate-900 transition-colors">
+<span class="material-symbols-outlined text-[26px]">volume_off</span>
+</button>
+</div>
+<div class="flex gap-3 px-4 mt-1">
+<button class="flex-1 py-3 px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-all active:scale-[0.98] text-[15px]">
+                    Suggest
+                </button>
+<button class="flex-1 py-3 px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-all active:scale-[0.98] text-[15px]">
+                    Finish entry
+                </button>
+</div>
+<div class="flex justify-center mt-6">
+<div class="w-32 h-1.5 bg-gray-200 dark:bg-slate-700 rounded-full"></div>
+</div>
+</footer>
+</div>
+<script>
+        // Automatic Scroll to bottom for simulated chat feel
+        const main = document.querySelector('main');
+        // main.scrollTop = main.scrollHeight; // Disabled auto-scroll to match screenshot view
+        // Dark mode toggle support (optional, for demo)
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+    </script>
+</body></html>

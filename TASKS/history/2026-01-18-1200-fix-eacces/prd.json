@@ -1,0 +1,61 @@
+{
+    "stories": [
+        {
+            "id": "BR-001",
+            "title": "Initialize Expo React Native project (latest)",
+            "priority": 1,
+            "description": "Create a new Expo (latest SDK) React Native app in this repo (TypeScript). This is a design-only build: no backend. Keep the app runnable on Android/iOS and Expo Web.",
+            "acceptanceCriteria": [
+                "Repo contains an Expo app created with create-expo-app@latest (TypeScript)",
+                "App runs via Expo on Android/iOS simulators/devices and on Web (where supported)",
+                "Basic project scripts exist (start/lint/test if configured)",
+                "No backend/network dependency required to view the UI"
+            ],
+            "passes": true,
+            "branchName": "feature/blackrose-expo-init"
+        },
+        {
+            "id": "BR-002",
+            "title": "Recreate chatjournal.html UI as a React Native screen",
+            "priority": 2,
+            "description": "Convert the provided chat UI (chatjournal.html) into a React Native screen with the same layout, spacing, typography, and colors. Update text/labels per requirements: Rosebud -> Blackrose, remove the 'Internal Family Systems' line.",
+            "acceptanceCriteria": [
+                "Header matches the HTML design (pill with avatar letter, name, dropdown icon, Drafts label, close icon)",
+                "Rosebud label is changed to Blackrose (including the avatar letter to 'B')",
+                "The 'Internal Family Systems' label is removed from the UI",
+                "Chat messages render with AI vs user styling matching the HTML (color/weight/size/line-height)",
+                "Main content scrolls and does not show scrollbars (where applicable)"
+            ],
+            "passes": true,
+            "branchName": "feature/blackrose-ui-screen"
+        },
+        {
+            "id": "BR-003",
+            "title": "Implement footer controls and action buttons",
+            "priority": 3,
+            "description": "Build the bottom action area: mic/call icons, volume icon, and the two large action buttons (Suggest / Finish entry). Ensure safe-area handling and a polished, touch-friendly experience.",
+            "acceptanceCriteria": [
+                "Footer layout matches HTML (icon row + two equal-width buttons + home indicator bar)",
+                "Buttons have press states and hit slop appropriate for mobile",
+                "Footer respects safe area insets on iOS/Android and does not overlap system UI",
+                "No text input/back-end integration is required"
+            ],
+            "passes": true,
+            "branchName": "feature/blackrose-footer"
+        },
+        {
+            "id": "BR-004",
+            "title": "Add practical responsiveness and light/dark theming",
+            "priority": 4,
+            "description": "Make the UI responsive across phones/tablets and on web. Implement light/dark theme support driven by system settings. Keep typography consistent (Inter) and match colors from the HTML.",
+            "acceptanceCriteria": [
+                "Light and dark themes match the HTML color intent",
+                "Layout adapts to small phones and larger devices (centered max width on wide screens)",
+                "Uses SafeAreaView and consistent spacing across platforms",
+                "Inter font is used (or best-effort fallback) without runtime crashes"
+            ],
+            "passes": true,
+            "branchName": "feature/blackrose-theme-responsive"
+        }
+    ]
+}

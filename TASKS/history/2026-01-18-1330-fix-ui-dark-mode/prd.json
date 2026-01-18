@@ -1,0 +1,13 @@
+{
+  "project": "JournalApp",
+  "features": [
+    {
+      "id": "fix-ui-dark-mode",
+      "title": "Fix UI Dark Mode Visibility",
+      "description": "Fix unreadable text in dark mode by adding components directory to tailwind content path.",
+      "priority": "high",
+      "status": "completed",
+      "tasks": ["task-002-fix-tailwind-config"]
+    }
+  ]
+}
