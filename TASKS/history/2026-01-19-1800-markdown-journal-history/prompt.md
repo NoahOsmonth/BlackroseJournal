@@ -29,13 +29,6 @@ Quality gate (auto-detect stack):
 - Run lint/typecheck/build/test commands that exist in the repo tooling.
 - Prefer targeted tests over full-suite runs.
 
-Commands for this repo:
-```bash
-npm run lint
-npm test -- --runInBand
-npm run check:design
-```
-
 Progress updates:
 - After each task, update PROGRESS.md: check the task and append an update block with what changed, files edited, commands run, and verification.
 
@@ -46,34 +39,3 @@ Finish:
 - Provide concise, conventional commit messages (one per task).
 - If you cannot run commands, list the exact commands for the user to run.
 - Stop only when all tasks are done.
-
-## Task Execution Order
-
-1. **Task 001: Storage Service** - Foundation for all persistence
-2. **Task 002: Markdown Rendering** - AI response formatting
-3. **Task 003: Therapist Prompt** - AI personality/tone
-4. **Task 004: Journal History Screen** - Main UI matching HTML design
-5. **Task 005: Navigation Flow** - FAB, X button, tabs
-6. **Task 006: Finish Entry** - Save completed entries
-7. **Task 007: Draft Functionality** - Auto-save on close
-
-## Key Design Reference
-
-Match `example-design/journal-history.html` exactly for:
-- Colors (primary: #E91E63, backgrounds, surfaces, text colors)
-- Typography (Inter font, sizes, weights)
-- Component layout (header, entry cards, week sections, FAB, bottom nav)
-- Light/dark mode transitions
-
-## Dependencies to Install
-
-```bash
-npm install @react-native-async-storage/async-storage react-native-markdown-display
-```
-
-## File Size Rules (AGENTS.md)
-
-- Design/UI files: 200-500 lines target, 500 max
-- Functions: 5-15 lines
-- Components: < 200 lines
-- Split when approaching 450 lines

@@ -2,118 +2,113 @@
   "project": "JournalApp",
   "stories": [
     {
-      "id": "MAINT-001",
-      "title": "Add Maintainability Guardrails",
+      "id": "FEAT-001",
+      "title": "Markdown Rendering in React Native",
       "priority": 1,
-      "description": "Add automated checks and scripts to enforce design/UI file size limits (200–500 target, 500 max), encourage modularity thresholds, and prevent separation-of-concerns regressions.",
+      "description": "Implement markdown rendering for AI chat responses in React Native. Support common markdown elements (headers, bold, italic, lists, code blocks, links) with proper sizing that complements the app's typography.",
       "acceptanceCriteria": [
-        "A command exists to check design/UI file line counts and fails if any exceed 500 lines",
-        "Design/UI file globs match AGENTS.md (app/, components/, components/ui/, global.css, constants/theme.ts, theme helpers)",
-        "Tooling output clearly lists offending files and counts",
-        "Checks are documented and runnable via npm scripts"
+        "Install and configure react-native-markdown-display or similar library",
+        "Markdown renders correctly for headers (h1-h6), bold, italic, lists, code blocks, and links",
+        "Font sizes are proportional and complement the existing app typography",
+        "Markdown renders well in both light and dark mode",
+        "ChatMessage component uses markdown rendering for AI responses"
       ],
-      "passes": false,
-      "branchName": "chore/maint-guardrails"
+      "passes": true,
+      "branchName": "feat/markdown-rendering"
     },
     {
-      "id": "MAINT-002",
-      "title": "Modularize Chat Feature (SoC)",
+      "id": "FEAT-002",
+      "title": "Therapist-style AI System Prompt",
       "priority": 2,
-      "description": "Restructure chat feature into clear modules (feature folder + hooks + components), keep app routes thin, and ensure UI/business logic/services are separated.",
+      "description": "Create a thoughtful therapist-style system prompt for the journaling AI. The AI should be reflective, ask open-ended questions, validate emotions, and avoid giving direct advice too quickly. Focus on active listening and helping users explore their thoughts.",
       "acceptanceCriteria": [
-        "Chat screen route files in app/ remain thin (render + wiring only)",
-        "Chat state/streaming orchestration lives in hooks and does not sit in UI components",
-        "UI components do not import/call services directly",
-        "Existing chat tests are updated and pass"
+        "System prompt is added to the AI service configuration",
+        "AI responds with reflective, empathetic tone",
+        "AI asks open-ended questions to help users explore thoughts",
+        "AI validates emotions before offering any suggestions",
+        "AI does not jump to giving advice immediately"
       ],
-      "passes": false,
-      "branchName": "refactor/chat-modular"
+      "passes": true,
+      "branchName": "feat/therapist-system-prompt"
     },
     {
-      "id": "MAINT-003",
-      "title": "Split Oversized Design/UI Files",
+      "id": "FEAT-003",
+      "title": "Journal History Screen",
       "priority": 3,
-      "description": "Scan the repo for any design/UI files over 500 lines (or approaching 450) and split into smaller components/hooks/helpers, targeting 200–500 lines per AGENTS.md.",
+      "description": "Create a Journal History screen that matches the example-design/journal-history.html exactly. Include weekly groupings, entry cards with emoji/title, date headers, and the floating action button (FAB) design.",
       "acceptanceCriteria": [
-        "No design/UI file exceeds 500 lines",
-        "Large components are decomposed to <200 lines where feasible",
-        "No behavior regressions (screens render and core flows still work)",
-        "Associated tests are updated/added and pass"
+        "New JournalHistory screen created with navigation",
+        "Design matches journal-history.html exactly (colors, spacing, typography)",
+        "Entries grouped by week with date headers",
+        "Entry cards show day abbreviation, emoji, and title",
+        "FAB (floating action button) with pink edit icon is present",
+        "Bottom navigation bar with Today, Explore, Entries, Settings tabs",
+        "Light and dark mode supported matching the HTML design"
       ],
-      "passes": false,
-      "branchName": "refactor/split-oversized-ui"
+      "passes": true,
+      "branchName": "feat/journal-history-screen"
     },
     {
-      "id": "MAINT-004",
-      "title": "Strengthen Tests & Quality Gates",
+      "id": "FEAT-004",
+      "title": "Navigation Between Chat and History",
       "priority": 4,
-      "description": "Ensure refactor work is protected with user-centric tests and that lint/test quality gates are consistently runnable for this repo.",
+      "description": "Implement navigation flow: FAB button on history screen creates new chat, X button on chat screen returns to history. Add tab navigation for the main app sections.",
       "acceptanceCriteria": [
-        "Any new hook/service has unit tests covering success + failure paths",
-        "Tests prefer user-visible assertions (text/accessibility) over implementation details",
-        "Quality gate commands are documented and runnable (lint + test; optional typecheck if added)",
-        "All tests pass"
+        "Pressing FAB (edit button) on history screen navigates to new chat",
+        "Pressing X button on chat header returns to journal history",
+        "Tab navigation works for Today, Explore, Entries, Settings",
+        "Navigation state is properly managed"
       ],
-      "passes": false,
-      "branchName": "test/quality-gates"
+      "passes": true,
+      "branchName": "feat/navigation-flow"
     },
     {
-      "id": "MAINT-005",
-      "title": "Consolidate UI Primitives & Theme Helpers",
+      "id": "FEAT-005",
+      "title": "Save and Finish Journal Entry",
       "priority": 5,
-      "description": "Reduce duplication and keep design/UI files small by consolidating reusable primitives (components/ui) and theme/style helpers (constants/theme.ts + helpers).",
+      "description": "Implement 'Finish Entry' functionality that saves the current chat as a completed journal entry to history. Generate a title and extract mood emoji from the conversation.",
       "acceptanceCriteria": [
-        "Shared primitives are in components/ui and used consistently",
-        "Theme/style helpers are centralized and do not create circular imports",
-        "No design/UI file exceeds 500 lines",
-        "Lint and tests pass"
+        "Pressing 'Finish Entry' saves the chat to journal history",
+        "Entry is marked as completed (not draft)",
+        "Title is generated from conversation content (or AI generates it)",
+        "Mood emoji is extracted or inferred from conversation",
+        "Entry appears in journal history with correct date grouping",
+        "After finishing, user is navigated back to history screen"
       ],
-      "passes": false,
-      "branchName": "refactor/ui-primitives"
+      "passes": true,
+      "branchName": "feat/finish-entry"
     },
     {
-      "id": "MAINT-006",
-      "title": "Update Docs & Contribution Workflow",
+      "id": "FEAT-006",
+      "title": "Draft Functionality for Unfinished Entries",
       "priority": 6,
-      "description": "Document the organized repo structure, SoC expectations, and the required quality gates so contributors follow the same standards.",
+      "description": "When user closes a chat (X button) without finishing, auto-save as draft. Drafts appear in a separate tab in journal history and can be resumed.",
       "acceptanceCriteria": [
-        "README documents folder ownership (app/components/hooks/services/constants) and when to create a feature folder",
-        "README documents quality gate commands (lint + test; optional typecheck if added)",
-        "Docs reflect AGENTS.md size limits and testing rules",
-        "No broken links in the documentation"
+        "Pressing X on chat with content saves entry as draft",
+        "Draft entries are stored separately from completed entries",
+        "Drafts tab in header or journal history shows draft entries",
+        "Tapping a draft entry resumes the chat with previous messages",
+        "Draft is converted to completed entry when 'Finish Entry' is pressed"
       ],
-      "passes": false,
-      "branchName": "docs/contributing"
+      "passes": true,
+      "branchName": "feat/draft-entries"
+    },
+    {
+      "id": "FEAT-007",
+      "title": "Journal Entry Storage Service",
+      "priority": 7,
+      "description": "Create a storage service for persisting journal entries (completed and drafts) using AsyncStorage or similar. Include CRUD operations and data model.",
+      "acceptanceCriteria": [
+        "JournalEntry type defined with id, title, emoji, messages, status (draft/completed), createdAt, updatedAt",
+        "Storage service with create, read, update, delete, list operations",
+        "Entries persist across app restarts",
+        "Service is testable with mock storage"
+      ],
+      "passes": true,
+      "branchName": "feat/journal-storage"
     }
   ],
   "archive": {
-    "legacyFeatures": [
-      {
-        "id": "fix-ui-dark-mode-v2",
-        "title": "Fix UI Dark Mode & Verify",
-        "description": "Fix unreadable text in dark mode by ensuring NativeWind is correctly configured (Babel, Tailwind) and verify the fix.",
-        "priority": "high",
-        "status": "completed",
-        "passes": true,
-        "tasks": [
-          "task-001-configure-babel",
-          "task-002-verify-styles"
-        ]
-      },
-      {
-        "id": "inline-document-typing",
-        "title": "Document-Style Inline Typing Chat",
-        "description": "Replace traditional textbox with inline document-style typing (like Word/Google Docs). User types directly in the chat flow, press Enter to send. Update AI settings to temp=1.0, max_tokens=16k.",
-        "priority": "high",
-        "status": "completed",
-        "passes": true,
-        "tasks": [
-          "task-003-inline-typing-component",
-          "task-004-update-ai-settings",
-          "task-005-integrate-chat-screen",
-          "task-006-create-tests"
-        ]
-      }
-    ]
+    "legacyFeatures": []
   }
 }

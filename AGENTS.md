@@ -38,14 +38,35 @@ Keep the repo clean, modular, and easy to maintain while protecting long-term UX
 - Prefer composition over large “all-in-one” components.
 - Extract repeated UI into `components/` and repeated logic into `hooks/`.
 - Keep component props minimal and typed.
-
+## Design Consistency Rules
+Maintain a unified look and feel across the app:
+- **Use theme tokens:** always pull colors, spacing, fonts, and radii from `constants/theme.ts`—never hardcode values.
+- **Consistent spacing:** use a spacing scale (e.g., 4/8/12/16/24) from the theme; avoid magic numbers.
+- **Typography:** stick to the defined font families, sizes, and weights in the theme; add new variants to theme first.
+- **Component patterns:** reuse existing primitives from `components/ui/` before creating new ones.
+- **Naming conventions:** component and style names should be descriptive and follow existing patterns (PascalCase components, camelCase styles/props).
+- **Dark/light mode:** ensure new UI respects both color schemes; test visually when possible.
+- **Animation style:** keep motion subtle and consistent (use Reanimated patterns already in the codebase).
+- **Accessibility:** include accessibility labels/roles; maintain sufficient color contrast.
+- **Review before adding:** if a new pattern or color is needed, discuss or document the rationale to avoid one-offs.
 ## Testing Rules (Required)
 - Every change must include **new or updated tests**.
 - Prefer user-centric assertions (visible text, accessibility labels) over implementation details.
 - Keep snapshots small and intentional; avoid large snapshots.
 - For logic/services: test success + failure paths with mocks.
 - If a test isn’t feasible, document the reason in `PROGRESS.md` and create a follow-up task.
-
+## Test Folder Organization (`__tests__/`)
+Keep the test folder structured to prevent clutter as tests grow:
+- **Flat structure OK for now** (< 10 files), but organize when scaling.
+- **Naming convention:** `<Subject>.test.ts(x)` — match the source file name.
+- **Subfolder strategy (when > 10 tests):**
+  - `__tests__/components/` — component-level tests (ChatMessage, Header, etc.)
+  - `__tests__/hooks/` — hook tests (useChatOrchestration, etc.)
+  - `__tests__/services/` — service/API tests (ai.ts, storage, etc.)
+  - `__tests__/screens/` — integration/screen tests (ChatScreen, etc.)
+- **Colocated helpers:** test utilities can live in `__tests__/helpers/` or inline if small.
+- **Avoid duplication:** shared mocks go in `__tests__/mocks/` or `__mocks__/` (Jest convention).
+- **Max test file size:** aim for **< 300 lines**; split if tests grow too large.
 ## Agent Workflow Plan
 1. Read `PLAN.md`/`TASKS/` and confirm scope.
 2. Identify impacted files and ensure design files stay within the 200–500 line target (max 500).

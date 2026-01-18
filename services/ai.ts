@@ -1,4 +1,5 @@
 import { useCallback, useRef } from 'react';
+import { THERAPIST_SYSTEM_PROMPT } from '../constants/aiPrompts';
 
 const API_BASE_URL = 'https://nano-gpt.com/api/v1';
 const API_KEY = 'sk-nano-3d3458af-c1c3-442c-8b2a-80cc8b911146';
@@ -39,10 +40,15 @@ export async function streamChat(
       },
       body: JSON.stringify({
         model: MODEL,
-        messages: messages.map(m => ({
-          role: m.role,
-          content: m.content,
-        })),
+        messages: [
+          // System message with therapist prompt
+          { role: 'system', content: THERAPIST_SYSTEM_PROMPT },
+          // User and assistant messages
+          ...messages.map(m => ({
+            role: m.role,
+            content: m.content,
+          })),
+        ],
         stream: true,
         temperature: 1.0,
         max_tokens: 16384,
@@ -66,7 +72,7 @@ export async function streamChat(
 
     while (true) {
       const { done, value } = await reader.read();
-      
+
       if (done) {
         break;
       }
@@ -78,7 +84,7 @@ export async function streamChat(
       for (const line of lines) {
         if (line.startsWith('data: ')) {
           const data = line.slice(6);
-          
+
           if (data === '[DONE]') {
             onComplete(fullContent, fullReasoning);
             return;
@@ -89,14 +95,14 @@ export async function streamChat(
             const delta = parsed.choices?.[0]?.delta;
             const content = delta?.content;
             const reasoning = delta?.reasoning || delta?.reasoning_content;
-            
+
             if (content) {
               fullContent += content;
             }
             if (reasoning) {
               fullReasoning += reasoning;
             }
-            
+
             if (content || reasoning) {
               onChunk(content || '', reasoning);
             }
