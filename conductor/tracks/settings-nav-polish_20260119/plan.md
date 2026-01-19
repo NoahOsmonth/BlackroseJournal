@@ -30,10 +30,10 @@ This phase adds the requested data control features to the Settings screen.
 ## Phase 3: Bottom Navigation Redesign
 This phase updates the main navigation bar to match the requested "rounded sheet" aesthetic.
 
-- [~] Task: Refactor Bottom Navigation Styles
-    - [ ] Modify the tab bar container styles (likely in `app/(tabs)/_layout.tsx` or `components/journal/BottomNav.tsx`).
-    - [ ] Apply **rounded top-left and top-right corners** (border-radius).
-    - [ ] Remove bottom floating margins if present, ensuring it sits on the bottom edge.
-    - [ ] Adjust padding to account for the device Safe Area (Home Indicator).
-    - [ ] Verify visual consistency in both Light and Dark modes.
-- [ ] Task: Conductor - User Manual Verification 'Bottom Navigation Redesign' (Protocol in workflow.md)
+- [x] Task: Refactor Bottom Navigation Styles
+    - [x] Modify the tab bar container styles (likely in `app/(tabs)/_layout.tsx` or `components/journal/BottomNav.tsx`).
+    - [x] Apply **rounded top-left and top-right corners** (border-radius).
+    - [x] Remove bottom floating margins if present, ensuring it sits on the bottom edge.
+    - [x] Adjust padding to account for the device Safe Area (Home Indicator).
+    - [x] Verify visual consistency in both Light and Dark modes.
+- [x] Task: Conductor - User Manual Verification 'Bottom Navigation Redesign' (Protocol in workflow.md)
