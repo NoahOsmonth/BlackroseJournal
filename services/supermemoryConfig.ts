@@ -49,7 +49,10 @@ export function getSupermemoryConfig(): SupermemoryConfig {
         readProcessEnv('SUPERMEMORY_API_KEY');
 
     if (!apiKey) {
-        throw new Error('Missing Supermemory configuration: set SUPERMEMORY_API_KEY in your environment.');
+        throw new Error(
+            'Missing Supermemory configuration: set SUPERMEMORY_API_KEY (native) or '
+            + 'EXPO_PUBLIC_SUPERMEMORY_API_KEY (web) in your environment, then reload.'
+        );
     }
 
     const apiBaseUrl =

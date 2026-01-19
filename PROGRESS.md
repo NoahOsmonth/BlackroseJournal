@@ -88,6 +88,12 @@
 - Files: `components/ui/TypingIndicator.tsx`, `components/ChatMessage.tsx`, `app/chat.tsx`, `app/ask-rosebud.tsx`, `__tests__/components/ChatMessage.test.tsx`, `__tests__/ChatScreen.test.tsx`, `__tests__/screens/AskRosebud.test.tsx`.
 - Verification: `npm run lint`, `npm test -- --runInBand`, `npm run check:design`.
 
+### Hotfix: Supermemory env fallback on web
+- Added EXPO_PUBLIC Supermemory fallbacks to app config and clarified missing-key error messaging.
+- Documented EXPO_PUBLIC variables in `.env.example` and added config tests.
+- Files: `services/supermemoryConfig.ts`, `app.config.ts`, `.env.example`, `__tests__/services/supermemoryConfig.test.ts`.
+- Verification: `npm test -- --runInBand __tests__/services/supermemoryConfig.test.ts`.
+
 ---
 
 ## Review Notes (2026-01-19)
