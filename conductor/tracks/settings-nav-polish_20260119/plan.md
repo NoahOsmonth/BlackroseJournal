@@ -15,7 +15,7 @@ This phase establishes the robust theming system (Light/Dark/System) and the UI 
     - [x] Implement UI for switching between Light, Dark, and System.
 - [x] Task: Conductor - User Manual Verification 'Theme Engine & Settings UI' (Protocol in workflow.md)
 
-## Phase 2: Data Management Features
+## Phase 2: Data Management Features [checkpoint: bc4454e]
 This phase adds the requested data control features to the Settings screen.
 
 - [x] Task: Extend Journal Storage Service
