@@ -10,7 +10,17 @@ A React Native/Expo chat journal application with AI integration.
    npm install
    ```
 
-2. Start the app
+2. Configure AI environment variables
+
+   Copy `.env.example` to `.env` and set your API key:
+
+   - `NANO_GPT_API_KEY` (required)
+   - `NANO_GPT_API_BASE_URL` (optional)
+   - `NANO_GPT_MODEL` (optional)
+   - `SUPERMEMORY_API_KEY` (required for memory features)
+   - `SUPERMEMORY_BASE_URL` (optional)
+
+3. Start the app
 
    ```bash
    npx expo start

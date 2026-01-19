@@ -1,10 +1,30 @@
 import { useCallback, useRef } from 'react';
 import { THERAPIST_SYSTEM_PROMPT } from '../constants/aiPrompts';
 import { DailyPrompt } from '../constants/dailyPrompts';
+import { getAiConfig } from './aiConfig';
+import { buildChatMemoryContext, ingestConversation } from './supermemory';
 
-const API_BASE_URL = 'https://nano-gpt.com/api/v1';
-const API_KEY = 'sk-nano-3d3458af-c1c3-442c-8b2a-80cc8b911146';
-const MODEL = 'zai-org/glm-4.7-original:thinking';
+const DEFAULT_TEMPERATURE = 1.0;
+const DEFAULT_MAX_TOKENS = 16384;
+
+type ChatRole = 'system' | 'user' | 'assistant';
+
+interface ChatRequestMessage {
+  role: ChatRole;
+  content: string;
+}
+
+interface ChatRequestPayload {
+  model: string;
+  messages: ChatRequestMessage[];
+  stream: boolean;
+  temperature: number;
+  max_tokens: number;
+}
+
+interface StreamingReader {
+  read: () => Promise<{ done: boolean; value?: Uint8Array }>;
+}
 
 export interface Message {
   id: string;
@@ -26,6 +46,229 @@ export interface ErrorCallback {
   (error: Error): void;
 }
 
+interface ParsedChunk {
+  content?: string;
+  reasoning?: string;
+  done?: boolean;
+}
+
+interface Accumulator {
+  content: string;
+  reasoning: string;
+}
+
+function generateConversationId(): string {
+  const timestamp = Date.now().toString(36);
+  const random = Math.random().toString(36).slice(2, 8);
+  return `chat_${timestamp}_${random}`;
+}
+
+function buildChatPayload(
+  model: string,
+  messages: Message[],
+  systemPrompt: string,
+  stream: boolean
+): ChatRequestPayload {
+  return {
+    model,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      ...messages.map(m => ({
+        role: m.role,
+        content: m.content,
+      })),
+    ],
+    stream,
+    temperature: DEFAULT_TEMPERATURE,
+    max_tokens: DEFAULT_MAX_TOKENS,
+  };
+}
+
+function hasReadableStream(body: unknown): body is { getReader: () => StreamingReader } {
+  return Boolean(body && typeof (body as { getReader?: unknown }).getReader === 'function');
+}
+
+function parseSseLine(line: string): ParsedChunk | null {
+  const trimmed = line.trim();
+
+  if (!trimmed || !trimmed.startsWith('data:')) {
+    return null;
+  }
+
+  const payload = trimmed.replace(/^data:\s?/, '');
+
+  if (!payload) {
+    return null;
+  }
+
+  if (payload === '[DONE]') {
+    return { done: true };
+  }
+
+  try {
+    const parsed = JSON.parse(payload);
+    const delta = parsed.choices?.[0]?.delta;
+
+    return {
+      content: delta?.content,
+      reasoning: delta?.reasoning || delta?.reasoning_content,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function appendChunk(
+  accumulator: Accumulator,
+  chunk: ParsedChunk,
+  onChunk: StreamingCallback
+): void {
+  const { content, reasoning } = chunk;
+
+  if (content) {
+    accumulator.content += content;
+  }
+
+  if (reasoning) {
+    accumulator.reasoning += reasoning;
+  }
+
+  if (content || reasoning) {
+    onChunk(content || '', reasoning);
+  }
+}
+
+function decodeStreamChunk(
+  decoder: TextDecoder,
+  value: Uint8Array | undefined,
+  buffer: string
+): string {
+  if (!value) {
+    return buffer;
+  }
+
+  return buffer + decoder.decode(value, { stream: true });
+}
+
+function splitStreamBuffer(buffer: string): { lines: string[]; remainder: string } {
+  const lines = buffer.split('\n');
+  const remainder = lines.pop() || '';
+
+  return { lines, remainder };
+}
+
+function processStreamLines(
+  lines: string[],
+  accumulator: Accumulator,
+  onChunk: StreamingCallback,
+  onComplete: CompleteCallback
+): boolean {
+  for (const line of lines) {
+    const parsed = parseSseLine(line);
+
+    if (!parsed) {
+      continue;
+    }
+
+    if (parsed.done) {
+      onComplete(accumulator.content, accumulator.reasoning);
+      return true;
+    }
+
+    appendChunk(accumulator, parsed, onChunk);
+  }
+
+  return false;
+}
+
+async function readStreamResponse(
+  body: { getReader: () => StreamingReader },
+  onChunk: StreamingCallback,
+  onComplete: CompleteCallback
+): Promise<void> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  const accumulator: Accumulator = { content: '', reasoning: '' };
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+
+    if (done) {
+      break;
+    }
+
+    buffer = decodeStreamChunk(decoder, value, buffer);
+
+    const { lines, remainder } = splitStreamBuffer(buffer);
+    buffer = remainder;
+
+    if (processStreamLines(lines, accumulator, onChunk, onComplete)) {
+      return;
+    }
+  }
+
+  onComplete(accumulator.content, accumulator.reasoning);
+}
+
+function parseJsonSafely(rawText: string): unknown {
+  try {
+    return JSON.parse(rawText);
+  } catch {
+    return null;
+  }
+}
+
+function extractMessageContent(data: unknown): Accumulator {
+  const message = (data as { choices?: Array<{ message?: { content?: string; reasoning?: string; reasoning_content?: string } }> })
+    ?.choices?.[0]?.message;
+
+  return {
+    content: message?.content || '',
+    reasoning: message?.reasoning || message?.reasoning_content || '',
+  };
+}
+
+async function readNonStreamingResponse(response: Response): Promise<Accumulator> {
+  const rawText = await response.text();
+  const parsed = parseJsonSafely(rawText);
+
+  if (!parsed) {
+    const preview = rawText.slice(0, 200);
+    throw new Error(`AI response was not valid JSON. Preview: ${preview}`);
+  }
+
+  return extractMessageContent(parsed);
+}
+
+async function buildResponseError(
+  response: Response,
+  context: string,
+  streamingAvailable: boolean
+): Promise<Error> {
+  const responseText = await response.text().catch(() => '');
+  const preview = responseText.slice(0, 200);
+  const status = response.status;
+  const details = preview ? ` Preview: ${preview}` : '';
+
+  return new Error(`${context} (status ${status}, streaming=${streamingAvailable}).${details}`);
+}
+
+async function fetchChatCompletion(
+  payload: ChatRequestPayload,
+  apiBaseUrl: string,
+  apiKey: string
+): Promise<Response> {
+  return fetch(`${apiBaseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
 /**
  * Build a system prompt that includes the daily check-in context
  */
@@ -39,6 +282,32 @@ The user is doing a "${prompt.title}" daily check-in. The prompt they're respond
 Begin the conversation with an appropriate greeting for this time of day and gently invite them to share what's on their mind. Use the follow-up style: "${prompt.aiFollowUp}"`;
 }
 
+function mergeSystemPrompt(basePrompt: string, memoryContext?: string): string {
+  if (!memoryContext || !memoryContext.trim()) {
+    return basePrompt;
+  }
+
+  return `${basePrompt}
+
+${memoryContext}`;
+}
+
+async function buildMemoryAwarePrompt(basePrompt: string, query: string): Promise<string> {
+  try {
+    const memoryContext = await buildChatMemoryContext(query);
+    return mergeSystemPrompt(basePrompt, memoryContext);
+  } catch (error) {
+    console.warn('Supermemory context unavailable:', error);
+    return basePrompt;
+  }
+}
+
+function queueConversationIngestion(conversationId: string, messages: Message[]): void {
+  ingestConversation(conversationId, messages).catch((error) => {
+    console.warn('Failed to ingest conversation to Supermemory:', error);
+  });
+}
+
 export async function streamChat(
   messages: Message[],
   onChunk: StreamingCallback,
@@ -47,88 +316,35 @@ export async function streamChat(
   customSystemPrompt?: string
 ): Promise<void> {
   try {
-    const response = await fetch(`${API_BASE_URL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [
-          // System message with therapist prompt (or custom)
-          { role: 'system', content: customSystemPrompt || THERAPIST_SYSTEM_PROMPT },
-          // User and assistant messages
-          ...messages.map(m => ({
-            role: m.role,
-            content: m.content,
-          })),
-        ],
-        stream: true,
-        temperature: 1.0,
-        max_tokens: 16384,
-      }),
-    });
+    const { apiBaseUrl, apiKey, model } = getAiConfig();
+    const systemPrompt = customSystemPrompt || THERAPIST_SYSTEM_PROMPT;
+    const streamPayload = buildChatPayload(model, messages, systemPrompt, true);
+    const response = await fetchChatCompletion(streamPayload, apiBaseUrl, apiKey);
+    const streamingAvailable = hasReadableStream(response.body);
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`API error: ${response.status} - ${errorText}`);
+      throw await buildResponseError(response, 'AI request failed', streamingAvailable);
     }
 
-    if (!response.body) {
-      throw new Error('Response body is null');
+    if (streamingAvailable && response.body) {
+      await readStreamResponse(response.body, onChunk, onComplete);
+      return;
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder('utf-8');
-    let buffer = '';
-    let fullContent = '';
-    let fullReasoning = '';
+    const fallbackPayload = buildChatPayload(model, messages, systemPrompt, false);
+    const fallbackResponse = await fetchChatCompletion(fallbackPayload, apiBaseUrl, apiKey);
 
-    while (true) {
-      const { done, value } = await reader.read();
-
-      if (done) {
-        break;
-      }
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
-
-          if (data === '[DONE]') {
-            onComplete(fullContent, fullReasoning);
-            return;
-          }
-
-          try {
-            const parsed = JSON.parse(data);
-            const delta = parsed.choices?.[0]?.delta;
-            const content = delta?.content;
-            const reasoning = delta?.reasoning || delta?.reasoning_content;
-
-            if (content) {
-              fullContent += content;
-            }
-            if (reasoning) {
-              fullReasoning += reasoning;
-            }
-
-            if (content || reasoning) {
-              onChunk(content || '', reasoning);
-            }
-          } catch {
-            // Skip invalid JSON lines
-          }
-        }
-      }
+    if (!fallbackResponse.ok) {
+      throw await buildResponseError(fallbackResponse, 'AI fallback request failed', false);
     }
 
-    onComplete(fullContent, fullReasoning);
+    const fallbackResult = await readNonStreamingResponse(fallbackResponse);
+
+    if (fallbackResult.content || fallbackResult.reasoning) {
+      onChunk(fallbackResult.content, fallbackResult.reasoning);
+    }
+
+    onComplete(fallbackResult.content, fallbackResult.reasoning);
   } catch (error) {
     if (error instanceof Error) {
       onError(error);
@@ -138,13 +354,33 @@ export async function streamChat(
   }
 }
 
+export async function completeChat(
+  messages: Message[],
+  systemPrompt: string
+): Promise<Accumulator> {
+  const { apiBaseUrl, apiKey, model } = getAiConfig();
+  const payload = buildChatPayload(model, messages, systemPrompt, false);
+  const response = await fetchChatCompletion(payload, apiBaseUrl, apiKey);
+
+  if (!response.ok) {
+    throw await buildResponseError(response, 'AI request failed', false);
+  }
+
+  return readNonStreamingResponse(response);
+}
+
 export function useChat() {
   const messagesRef = useRef<Message[]>([]);
   const systemPromptRef = useRef<string | undefined>(undefined);
+  const conversationIdRef = useRef<string>(generateConversationId());
 
   const setMessages = useCallback((messages: Message[], systemPrompt?: string) => {
     messagesRef.current = messages;
     systemPromptRef.current = systemPrompt;
+  }, []);
+
+  const setConversationId = useCallback((conversationId?: string) => {
+    conversationIdRef.current = conversationId || generateConversationId();
   }, []);
 
   const sendMessage = useCallback(
@@ -163,6 +399,9 @@ export function useChat() {
 
       messagesRef.current = [...messagesRef.current, userMessage];
 
+      const basePrompt = systemPromptRef.current || THERAPIST_SYSTEM_PROMPT;
+      const systemPrompt = await buildMemoryAwarePrompt(basePrompt, content);
+
       await streamChat(
         messagesRef.current,
         onChunk,
@@ -175,10 +414,11 @@ export function useChat() {
             timestamp: Date.now(),
           };
           messagesRef.current = [...messagesRef.current, aiMessage];
+          queueConversationIngestion(conversationIdRef.current, messagesRef.current);
           onComplete(fullContent, fullReasoning);
         },
         onError,
-        systemPromptRef.current
+        systemPrompt
       );
     },
     []
@@ -195,8 +435,9 @@ export function useChat() {
       onComplete: CompleteCallback,
       onError: ErrorCallback
     ) => {
-      // Set the custom system prompt for this conversation
-      systemPromptRef.current = buildDailyCheckInSystemPrompt(prompt);
+      const basePrompt = buildDailyCheckInSystemPrompt(prompt);
+      systemPromptRef.current = basePrompt;
+      const systemPrompt = await buildMemoryAwarePrompt(basePrompt, prompt.promptText);
 
       // Send an empty trigger to get the AI to respond with its greeting
       // We use a minimal user message that the AI will interpret as a conversation starter
@@ -222,10 +463,11 @@ export function useChat() {
           };
           // Replace the trigger with just the AI response for display
           messagesRef.current = [aiMessage];
+          queueConversationIngestion(conversationIdRef.current, messagesRef.current);
           onComplete(fullContent, fullReasoning);
         },
         onError,
-        systemPromptRef.current
+        systemPrompt
       );
     },
     []
@@ -240,6 +482,7 @@ export function useChat() {
     sendMessage,
     sendInitialPrompt,
     setMessages,
+    setConversationId,
     clearMessages,
   };
 }

@@ -1,50 +1,35 @@
-# Epic Plan: Recreating Journal App Design and Core User Flows
+# Plan: Supermemory-powered AI + loading indicators
 
 ## Goal
-Implement the end-to-end user journeys described in the epic spec (Daily check-in, Today dashboard navigation, Stats exploration, Happiness Recipe, Ask Rosebud insights, Entry continue/new, Rewards, Settings), while keeping the repo modular and test-covered.
+1) Integrate Supermemory (profiles + hybrid RAG) so AI responses are personalized across chat, check-ins, new entries, and Ask Rosebud.
+2) Replace Ask Rosebud mocks with real LLM responses grounded in Supermemory context and time ranges.
+3) Add a non-clickable animated ellipsis indicator during AI responses and disable interactions while loading.
 
-## Source of Truth
-- Epic spec (external): `Core_User_Flows.md` (Traycer export)
-	- Path on this machine: `C:\Users\sigmu\AppData\Local\Temp\traycer-epics\0f02090c-8f30-4dd2-ab53-d9f2b5be945f-Recreating_the_Journal_App_Design_and_Functionality\specs\fb8d0fd0-5284-4c15-893b-64bef17de642-Core_User_Flows.md`
+## Key References
+- Supermemory Quickstart: https://supermemory.ai/docs/quickstart
+- Supermemory SDK: https://supermemory.ai/docs/integrations/supermemory-sdk
+- Add memories: https://supermemory.ai/docs/add-memories
+- User profiles: https://supermemory.ai/docs/user-profiles
+- Search (hybrid + filters): https://supermemory.ai/docs/search
+- Filtering metadata: https://supermemory.ai/docs/concepts/filtering
+- Memory vs RAG: https://supermemory.ai/docs/concepts/memory-vs-rag
+- SuperRAG: https://supermemory.ai/docs/concepts/super-rag
 
-## Design References
-- Today dashboard: `example-design/today.html`
-- Entries/history: `example-design/journal-history.html`
-
-## Current Baseline (Already Implemented)
-The repo already includes:
-- Journal entry persistence (AsyncStorage-backed service)
-- Chat markdown rendering for AI responses
-- Therapist-style AI system prompt
-- Entries/history screen + basic navigation (tabs + chat)
-- Finish Entry + draft-on-close
-
-This run focuses on the remaining (or spec-mismatched) flows.
-
-## Scope (What to Build)
-1. Today dashboard UI + weekday selector + calendar shortcut to Entries
-2. Daily check-in flow: time-based prompt selection + chat initialization context
-3. Bottom navigation: 5 items with centered FAB + header navigation (Rewards/Menu)
-4. Stats detail modals for Streak/Entries/Words
-5. Happiness Recipe: ingredients + goals management (add/edit/complete/delete) + completed screen
-6. Ask Rosebud: insights chat with time range selector + tappable entry references
-7. Entry tap action modal: Continue Entry (append messages) vs Create New Entry
-8. Rewards screen (streak + achievements)
-9. Settings screen (theme + stubs for notifications/export/about/privacy)
-10. Typography/theme alignment between example designs (Nunito vs Inter) using theme tokens
-
-## Stack
-- Expo + Expo Router
-- TypeScript
-- NativeWind / Tailwind
-- Jest + @testing-library/react-native
-- AsyncStorage persistence
-
-## Architecture/Separation of Concerns
-- UI: `app/`, `components/`
-- Orchestration/state: `hooks/`
-- I/O/services: `services/`
-- Avoid UI importing services directly (prefer hooks)
+## Scope
+- Supermemory service + config:
+  - New service under `services/` (client wrapper + helpers)
+  - Env handling for `SUPERMEMORY_API_KEY` (+ optional base URL)
+  - Stable user container tag storage
+- Memory ingestion:
+  - Journal entries (create/update) with metadata and customId
+  - Chat conversation updates per session
+- AI context integration:
+  - `services/ai.ts` prompt context builder
+  - `features/chat/hooks/useChatOrchestration.ts` and `app/chat.tsx`
+  - `app/ask-rosebud.tsx` LLM response + time-range search strategy
+- UI loading indicators + disabled interactions:
+  - `components/ChatMessage.tsx`, `components/InlineTypingInput.tsx`
+  - `app/chat.tsx`, `app/ask-rosebud.tsx`, `app/(tabs)/today.tsx`
 
 ## Quality Gate
 ```bash
@@ -54,15 +39,12 @@ npm run check:design
 ```
 
 ## Testing Expectations
-- Add/extend unit tests for new utilities/services.
-- Add component tests for:
-	- Today screen navigation actions
-	- Entry tap action modal
-	- Ask Rosebud time range selector behavior
-- If a feature requires manual-only verification (animations, haptics), document it in PROGRESS and keep `passes=false` for that story.
+- Add service tests for Supermemory wrapper (mocked API calls).
+- Add UI tests for typing indicator + disabled state in chat and Ask Rosebud.
+- Add tests for time-range context selection (week/month vs year/all-time).
 
 ## Definition of Done
-- All acceptance criteria across tasks satisfied
-- Designs match the provided HTML references (spacing, colors, typography)
-- No design/UI file exceeds 500 lines (per AGENTS.md)
-- Quality gate commands pass
+- Supermemory context is injected into all AI flows (chat, daily check-in, new entry, Ask Rosebud).
+- Ask Rosebud uses LLM + Supermemory (no mock responses).
+- Loading indicator uses animated ellipsis and click targets are disabled while AI responds.
+- Tests cover service + UI + time-range behavior.

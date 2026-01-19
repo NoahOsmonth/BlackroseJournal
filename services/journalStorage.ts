@@ -11,6 +11,7 @@ import {
     JournalEntryUpdateInput,
     StorageAdapter,
 } from './journalStorage.types';
+import { ingestJournalEntry } from './supermemory';
 
 const STORAGE_KEY = '@journal_entries';
 
@@ -57,6 +58,10 @@ export async function createEntry(input: JournalEntryCreateInput): Promise<Journ
     entries[entry.id] = entry;
     await saveAllEntries(entries);
 
+    ingestJournalEntry(entry).catch((error) => {
+        console.warn('Failed to ingest journal entry to Supermemory:', error);
+    });
+
     return entry;
 }
 
@@ -89,6 +94,10 @@ export async function updateEntry(
 
     entries[id] = updated;
     await saveAllEntries(entries);
+
+    ingestJournalEntry(updated).catch((error) => {
+        console.warn('Failed to ingest journal entry to Supermemory:', error);
+    });
 
     return updated;
 }

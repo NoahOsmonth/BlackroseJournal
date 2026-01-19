@@ -91,7 +91,6 @@ export default function AskRosebudScreen() {
 
         // Simulate AI response (in production, this would call the AI service)
         setTimeout(() => {
-            const entryCount = filteredEntries.length;
             const response = generateInsightResponse(question, filteredEntries);
 
             setMessages((prev) => [
@@ -174,8 +173,8 @@ export default function AskRosebudScreen() {
                         >
                             <View
                                 className={`max-w-[85%] p-4 rounded-2xl ${msg.role === 'user'
-                                        ? 'bg-primary'
-                                        : isDark ? 'bg-surface-dark' : 'bg-surface-light'
+                                    ? 'bg-primary'
+                                    : isDark ? 'bg-surface-dark' : 'bg-surface-light'
                                     }`}
                             >
                                 <Text

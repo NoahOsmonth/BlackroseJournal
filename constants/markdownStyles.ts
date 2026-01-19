@@ -28,18 +28,26 @@ const colors = {
     },
 };
 
+type MarkdownFontWeight = '400' | '500' | '600' | '700';
+
+interface MarkdownStyleOptions {
+    fontWeight?: MarkdownFontWeight;
+}
+
 /**
  * Get markdown styles for the specified color scheme
  */
-export function getMarkdownStyles(isDark: boolean) {
+export function getMarkdownStyles(isDark: boolean, options: MarkdownStyleOptions = {}) {
     const palette = isDark ? colors.dark : colors.light;
+    const bodyFontWeight = options.fontWeight ?? '400';
 
     return StyleSheet.create({
         // Body text
         body: {
             color: palette.text,
-            fontSize: 16,
-            lineHeight: 26,
+            fontSize: 15,
+            lineHeight: 22,
+            fontWeight: bodyFontWeight,
         },
         // Headers
         heading1: {
@@ -163,6 +171,7 @@ export function getMarkdownStyles(isDark: boolean) {
         // Paragraph
         paragraph: {
             marginVertical: 4,
+            fontWeight: bodyFontWeight,
         },
         // Horizontal rule
         hr: {

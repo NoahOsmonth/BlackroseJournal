@@ -1,6 +1,6 @@
-import { renderHook, act, waitFor } from '@testing-library/react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useThemeSettings } from '@/hooks/useThemeSettings';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { useColorScheme as useNativeWindColorScheme } from 'nativewind';
 
 // Mock AsyncStorage
@@ -16,7 +16,7 @@ jest.mock('nativewind', () => ({
 
 describe('useThemeSettings', () => {
   const mockSetColorScheme = jest.fn();
-  
+
   beforeEach(() => {
     jest.clearAllMocks();
     (useNativeWindColorScheme as jest.Mock).mockReturnValue({
@@ -34,7 +34,7 @@ describe('useThemeSettings', () => {
       expect(AsyncStorage.getItem).toHaveBeenCalledWith('user-theme-preference');
       expect(mockSetColorScheme).toHaveBeenCalledWith('dark');
     });
-    
+
     expect(result.current.theme).toBe('dark');
   });
 
@@ -44,9 +44,7 @@ describe('useThemeSettings', () => {
     const { result } = renderHook(() => useThemeSettings());
 
     await waitFor(() => {
-        // expect(mockSetColorScheme).toHaveBeenCalledWith('system'); 
-        // Note: NativeWind might default to system, but we want to ensure we set it explicitly if needed
-        // or just ensure our internal state is 'system'
+      expect(mockSetColorScheme).toHaveBeenCalledWith('system');
     });
 
     expect(result.current.theme).toBe('system');
@@ -67,20 +65,20 @@ describe('useThemeSettings', () => {
     expect(mockSetColorScheme).toHaveBeenCalledWith('dark');
     expect(result.current.theme).toBe('dark');
   });
-  
+
   it('should handle system theme selection', async () => {
-      (AsyncStorage.getItem as jest.Mock).mockResolvedValue('light');
-  
-      const { result } = renderHook(() => useThemeSettings());
-  
-      await waitFor(() => expect(result.current.theme).toBe('light'));
-  
-      await act(async () => {
-        await result.current.setTheme('system');
-      });
-  
-      expect(AsyncStorage.setItem).toHaveBeenCalledWith('user-theme-preference', 'system');
-      expect(mockSetColorScheme).toHaveBeenCalledWith('system');
-      expect(result.current.theme).toBe('system');
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue('light');
+
+    const { result } = renderHook(() => useThemeSettings());
+
+    await waitFor(() => expect(result.current.theme).toBe('light'));
+
+    await act(async () => {
+      await result.current.setTheme('system');
     });
+
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith('user-theme-preference', 'system');
+    expect(mockSetColorScheme).toHaveBeenCalledWith('system');
+    expect(result.current.theme).toBe('system');
+  });
 });

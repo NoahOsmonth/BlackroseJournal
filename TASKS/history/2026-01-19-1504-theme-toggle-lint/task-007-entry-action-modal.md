@@ -42,4 +42,3 @@ The Entries tab must offer an action modal when a user taps an entry: Continue E
 
 ### Manual
 - Tap an existing entry, choose Continue, append messages, return to Entries, confirm the entry content updated.
-

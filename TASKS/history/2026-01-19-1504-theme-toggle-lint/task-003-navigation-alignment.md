@@ -40,4 +40,3 @@ The spec requires a 5-item bottom navigation with a centered elevated FAB, plus 
 ### Manual
 - Validate FAB press animation and correct navigation.
 - Validate active tab styling matches both designs.
-

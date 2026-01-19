@@ -58,6 +58,18 @@ describe('InlineTypingInput', () => {
     expect(input.props.value).toBe('Hello world');
   });
 
+  it('notifies parent when text changes', () => {
+    const mockOnTextChange = jest.fn();
+    const { getByPlaceholderText } = render(
+      <InlineTypingInput onSubmit={mockOnSubmit} onTextChange={mockOnTextChange} />
+    );
+
+    const input = getByPlaceholderText('Type your thoughts...');
+    fireEvent.changeText(input, 'Hello');
+
+    expect(mockOnTextChange).toHaveBeenCalledWith('Hello');
+  });
+
   it('calls onSubmit with trimmed text on submit', () => {
     const { getByPlaceholderText } = render(
       <InlineTypingInput onSubmit={mockOnSubmit} />

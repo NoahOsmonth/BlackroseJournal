@@ -47,4 +47,3 @@ The spec requires a Happiness Recipe feature where users can add ingredients/goa
 ### Manual
 - Add/edit/complete/delete items; restart app; confirm persistence.
 - Verify gestures feel right on both iOS/Android.
-

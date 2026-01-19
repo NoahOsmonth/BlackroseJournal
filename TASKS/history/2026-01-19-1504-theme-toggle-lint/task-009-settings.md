@@ -40,4 +40,3 @@ The Settings screen needs to match the spec: theme selection (Light/Dark/Auto), 
 ### Manual
 - Toggle theme and confirm app updates.
 - Validate navigation from header menu.
-

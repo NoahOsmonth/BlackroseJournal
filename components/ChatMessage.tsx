@@ -33,7 +33,6 @@ export function ChatMessage({
   const [showCursor, setShowCursor] = useState(false);
   const [showReasoning, setShowReasoning] = useState(false);
   const cursorOpacity = useSharedValue(1);
-  const reasoningHeight = useSharedValue(0);
   const colorScheme = useColorScheme();
 
   useEffect(() => {
@@ -61,7 +60,7 @@ export function ChatMessage({
       setDisplayedText(text);
       setShowCursor(false);
     }
-  }, [text, isStreaming]);
+  }, [text, isStreaming, cursorOpacity]);
 
   useEffect(() => {
     if (showCursor) {
@@ -71,7 +70,7 @@ export function ChatMessage({
 
       return () => clearInterval(blinkInterval);
     }
-  }, [showCursor]);
+  }, [showCursor, cursorOpacity]);
 
   const cursorAnimatedStyle = useAnimatedStyle(() => ({
     opacity: cursorOpacity.value,
@@ -84,36 +83,37 @@ export function ChatMessage({
   };
 
   const hasReasoning = isAi && reasoning && reasoning.trim().length > 0;
+  const markdownStyles = getMarkdownStyles(colorScheme === 'dark', { fontWeight: '600' });
+  const messageTextClassName = isAi
+    ? 'text-[15px] leading-[22px] font-semibold text-text-light dark:text-text-dark'
+    : 'text-[15px] leading-[22px] font-bold text-user-text dark:text-text-main-dark';
 
   return (
     <Animated.View
       entering={FadeInDown.duration(500).springify()}
       layout={Layout.springify()}
-      className={`mb-4 max-w-[85%] shadow-sm ${isReadOnly ? 'opacity-70' : ''} ${isAi
-        ? 'self-start bg-blue-50 dark:bg-slate-800 rounded-2xl rounded-tl-none border border-blue-100 dark:border-slate-700'
-        : 'self-end bg-white dark:bg-slate-700 rounded-2xl rounded-tr-none border border-slate-100 dark:border-slate-600'
-        }`}
+      className={`w-full ${isReadOnly ? 'opacity-70' : ''}`}
     >
       <Pressable
         onPress={toggleReasoning}
-        className="p-4"
+        className="py-1"
         android_ripple={hasReasoning ? { color: 'rgba(0,0,0,0.1)' } : undefined}
       >
         {/* AI messages use markdown rendering when not streaming */}
         {isAi && !isStreaming ? (
-          <Markdown style={getMarkdownStyles(colorScheme === 'dark')}>
+          <Markdown style={markdownStyles}>
             {displayedText}
           </Markdown>
         ) : (
           <Text
-            className={`text-[16px] leading-[26px] font-sans ${isAi
-              ? 'text-blue-800 dark:text-blue-200'
-              : 'text-user-text dark:text-slate-200'
-              }`}
+            className={messageTextClassName}
           >
             {displayedText}
             {showCursor && (
-              <Animated.Text style={cursorAnimatedStyle} className="text-blue-800 dark:text-blue-200">
+              <Animated.Text
+                style={cursorAnimatedStyle}
+                className="text-text-light dark:text-text-dark"
+              >
                 |
               </Animated.Text>
             )}

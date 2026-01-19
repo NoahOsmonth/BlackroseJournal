@@ -1,14 +1,14 @@
-import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
-import { TextInput, View, Platform, NativeSyntheticEvent, TextInputKeyPressEventData } from 'react-native';
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withRepeat, 
-  withSequence, 
-  withTiming,
-  FadeIn 
-} from 'react-native-reanimated';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { NativeSyntheticEvent, Platform, TextInput, TextInputKeyPressEventData, View } from 'react-native';
+import Animated, {
+  FadeIn,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming
+} from 'react-native-reanimated';
 
 export interface InlineTypingInputRef {
   focus: () => void;
@@ -20,21 +20,27 @@ interface InlineTypingInputProps {
   onSubmit: (text: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  onTextChange?: (text: string) => void;
 }
 
 export const InlineTypingInput = forwardRef<InlineTypingInputRef, InlineTypingInputProps>(
-  ({ onSubmit, disabled = false, placeholder = "Type your thoughts..." }, ref) => {
+  ({ onSubmit, disabled = false, placeholder = "Type your thoughts...", onTextChange }, ref) => {
     const [text, setText] = useState('');
     const [isFocused, setIsFocused] = useState(false);
     const inputRef = useRef<TextInput>(null);
     const colorScheme = useColorScheme();
-    
+
     const cursorOpacity = useSharedValue(1);
+
+    const updateText = (nextText: string) => {
+      setText(nextText);
+      onTextChange?.(nextText);
+    };
 
     useImperativeHandle(ref, () => ({
       focus: () => inputRef.current?.focus(),
       blur: () => inputRef.current?.blur(),
-      clear: () => setText(''),
+      clear: () => updateText(''),
     }));
 
     useEffect(() => {
@@ -50,7 +56,7 @@ export const InlineTypingInput = forwardRef<InlineTypingInputRef, InlineTypingIn
       } else {
         cursorOpacity.value = 1;
       }
-    }, [isFocused, text]);
+    }, [isFocused, text, cursorOpacity]);
 
     const cursorStyle = useAnimatedStyle(() => ({
       opacity: cursorOpacity.value,
@@ -70,7 +76,7 @@ export const InlineTypingInput = forwardRef<InlineTypingInputRef, InlineTypingIn
       const trimmed = text.trim();
       if (trimmed && !disabled) {
         onSubmit(trimmed);
-        setText('');
+        updateText('');
       }
     };
 
@@ -81,20 +87,16 @@ export const InlineTypingInput = forwardRef<InlineTypingInputRef, InlineTypingIn
     };
 
     return (
-      <Animated.View 
+      <Animated.View
         entering={FadeIn.duration(300)}
-        className={`mb-4 max-w-[85%] self-end p-4 shadow-sm rounded-2xl rounded-tr-none border ${
-          isFocused 
-            ? 'bg-white dark:bg-slate-700 border-blue-300 dark:border-blue-500' 
-            : 'bg-white/80 dark:bg-slate-700/80 border-slate-100 dark:border-slate-600'
-        } ${disabled ? 'opacity-50' : ''}`}
+        className={`w-full ${disabled ? 'opacity-50' : ''}`}
       >
-        <View className="flex-row items-center">
+        <View className="flex-row items-center py-1">
           <TextInput
             ref={inputRef}
-            className="flex-1 text-[16px] leading-[26px] font-sans text-user-text dark:text-slate-200 min-h-[26px]"
+            className="flex-1 text-[15px] leading-[22px] font-bold text-user-text dark:text-text-main-dark min-h-[22px]"
             value={text}
-            onChangeText={setText}
+            onChangeText={updateText}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
             onKeyPress={handleKeyPress}
@@ -105,14 +107,14 @@ export const InlineTypingInput = forwardRef<InlineTypingInputRef, InlineTypingIn
             blurOnSubmit={false}
             editable={!disabled}
             autoFocus
-            style={{ 
+            style={{
               outlineStyle: 'none',
               borderWidth: 0,
               backgroundColor: 'transparent',
             } as any}
           />
           {isFocused && !text && (
-            <Animated.View 
+            <Animated.View
               style={cursorStyle}
               className="w-0.5 h-5 bg-blue-500 dark:bg-blue-400 ml-0.5"
             />

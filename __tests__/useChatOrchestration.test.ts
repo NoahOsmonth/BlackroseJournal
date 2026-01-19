@@ -7,12 +7,14 @@ import { Message } from '../services/ai';
 const mockSendMessage = jest.fn();
 const mockClearMessages = jest.fn();
 const mockSetMessages = jest.fn();
+const mockSetConversationId = jest.fn();
 
 jest.mock('../services/ai', () => ({
     useChat: () => ({
         sendMessage: mockSendMessage,
         clearMessages: mockClearMessages,
         setMessages: mockSetMessages,
+        setConversationId: mockSetConversationId,
     }),
 }));
 
@@ -43,6 +45,8 @@ describe('useChatOrchestration', () => {
         expect(result.current.messages).toEqual([]);
         expect(result.current.streamingMessage).toBeNull();
         expect(result.current.isLoading).toBe(false);
+        expect(result.current.errorMessage).toBeNull();
+        expect(result.current.canRetry).toBe(false);
     });
 
     it('handles sending a message successfully', async () => {
@@ -76,29 +80,37 @@ describe('useChatOrchestration', () => {
     });
 
     it('handles API errors gracefully', async () => {
-        // Mock error response
-        mockSendMessage.mockImplementation(
-            async (_text: string, _onChunk: Function, _onComplete: Function, onError: Function) => {
-                onError(new Error('API Error'));
-            }
-        );
+        const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
 
-        const { result } = renderHook(() =>
-            useChatOrchestration({
-                scrollViewRef: mockScrollViewRef as any,
-                inputRef: mockInputRef as any,
-            })
-        );
+        try {
+            // Mock error response
+            mockSendMessage.mockImplementation(
+                async (_text: string, _onChunk: Function, _onComplete: Function, onError: Function) => {
+                    onError(new Error('API Error'));
+                }
+            );
 
-        await act(async () => {
-            await result.current.handleSendMessage('Test message');
-        });
+            const { result } = renderHook(() =>
+                useChatOrchestration({
+                    scrollViewRef: mockScrollViewRef as any,
+                    inputRef: mockInputRef as any,
+                })
+            );
 
-        // Should have user message only (AI message failed)
-        expect(result.current.messages).toHaveLength(1);
-        expect(result.current.messages[0].role).toBe('user');
-        expect(result.current.isLoading).toBe(false);
-        expect(result.current.streamingMessage).toBeNull();
+            await act(async () => {
+                await result.current.handleSendMessage('Test message');
+            });
+
+            // Should have user message only (AI message failed)
+            expect(result.current.messages).toHaveLength(1);
+            expect(result.current.messages[0].role).toBe('user');
+            expect(result.current.isLoading).toBe(false);
+            expect(result.current.streamingMessage).toBeNull();
+            expect(result.current.errorMessage).toContain('Please try again');
+            expect(result.current.canRetry).toBe(true);
+        } finally {
+            consoleErrorSpy.mockRestore();
+        }
     });
 
     it('clears messages on new chat', async () => {
@@ -129,6 +141,7 @@ describe('useChatOrchestration', () => {
 
         expect(result.current.messages).toEqual([]);
         expect(mockClearMessages).toHaveBeenCalled();
+        expect(mockSetConversationId).toHaveBeenCalled();
         expect(mockInputRef.current.clear).toHaveBeenCalled();
     });
 

@@ -18,6 +18,20 @@ import { DAILY_PROMPTS, DailyPrompt, PromptPeriod } from '../../../constants/dai
 import { Message, useChat } from '../../../services/ai';
 import { StreamingMessage } from '../types';
 
+const getFriendlyErrorMessage = (error: Error): string => {
+    const message = error.message.toLowerCase();
+
+    if (message.includes('nano_gpt_api_key')) {
+        return 'Missing AI configuration. Set NANO_GPT_API_KEY in .env and restart the app.';
+    }
+
+    if (message.includes('failed to fetch') || message.includes('network')) {
+        return 'Network error while contacting the AI. Please try again.';
+    }
+
+    return 'Something went wrong while contacting the AI. Please try again.';
+};
+
 export type ChatMode = 'freeform' | 'dailyCheckIn' | 'continue';
 
 export interface UseChatOrchestrationOptions {
@@ -27,13 +41,19 @@ export interface UseChatOrchestrationOptions {
     mode?: ChatMode;
     /** Prompt period when in dailyCheckIn mode */
     promptPeriod?: PromptPeriod;
+    /** Stable conversation identifier for Supermemory ingestion */
+    conversationId?: string;
 }
 
 export interface UseChatOrchestrationReturn {
     messages: Message[];
     streamingMessage: StreamingMessage | null;
     isLoading: boolean;
+    errorMessage: string | null;
+    canRetry: boolean;
     handleSendMessage: (text: string) => Promise<void>;
+    retryLastMessage: () => Promise<void>;
+    clearError: () => void;
     handleNewChat: () => void;
     initializeMessages: (initialMessages: Message[]) => void;
     scrollToBottom: () => void;
@@ -46,17 +66,32 @@ export function useChatOrchestration({
     inputRef,
     mode = 'freeform',
     promptPeriod,
+    conversationId,
 }: UseChatOrchestrationOptions): UseChatOrchestrationReturn {
     const [messages, setMessages] = useState<Message[]>([]);
     const [streamingMessage, setStreamingMessage] = useState<StreamingMessage | null>(null);
     const [isLoading, setIsLoading] = useState(false);
-    const { sendMessage, clearMessages, sendInitialPrompt, setMessages: setChatMessages } = useChat();
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [lastUserMessage, setLastUserMessage] = useState<Message | null>(null);
+    const {
+        sendMessage,
+        clearMessages,
+        sendInitialPrompt,
+        setMessages: setChatMessages,
+        setConversationId,
+    } = useChat();
     const hasInitialized = useRef(false);
 
     // Get current prompt for daily check-in mode
     const currentPrompt = mode === 'dailyCheckIn' && promptPeriod
         ? DAILY_PROMPTS[promptPeriod]
         : null;
+
+    useEffect(() => {
+        if (conversationId) {
+            setConversationId(conversationId);
+        }
+    }, [conversationId, setConversationId]);
 
     const scrollToBottom = useCallback(() => {
         setTimeout(() => {
@@ -70,21 +105,39 @@ export function useChatOrchestration({
         }, 200);
     }, [inputRef]);
 
+    const beginStreaming = useCallback(() => {
+        const tempStreamingId = 'streaming-' + Date.now();
+        setStreamingMessage({
+            id: tempStreamingId,
+            role: 'assistant',
+            content: '',
+            reasoning: '',
+            isStreaming: true,
+        });
+        setIsLoading(true);
+        return tempStreamingId;
+    }, []);
+
+    const clearError = useCallback(() => {
+        setErrorMessage(null);
+    }, []);
+
+    const handleAiError = useCallback((error: Error) => {
+        console.error('AI Error:', error);
+        setErrorMessage(getFriendlyErrorMessage(error));
+        setStreamingMessage(null);
+        setIsLoading(false);
+        focusInput();
+    }, [focusInput]);
+
     // Trigger initial AI message for daily check-in mode
     useEffect(() => {
         if (mode === 'dailyCheckIn' && currentPrompt && !hasInitialized.current) {
             hasInitialized.current = true;
 
             // Start loading and trigger AI follow-up
-            setIsLoading(true);
-            const tempStreamingId = 'streaming-' + Date.now();
-            setStreamingMessage({
-                id: tempStreamingId,
-                role: 'assistant',
-                content: '',
-                reasoning: '',
-                isStreaming: true,
-            });
+            clearError();
+            const tempStreamingId = beginStreaming();
 
             sendInitialPrompt(
                 currentPrompt,
@@ -110,7 +163,6 @@ export function useChatOrchestration({
                     focusInput();
                 },
                 (error) => {
-                    console.error('AI Error:', error);
                     // Fallback: show the prompt's AI follow-up text as the initial message
                     setMessages([{
                         id: tempStreamingId,
@@ -118,13 +170,11 @@ export function useChatOrchestration({
                         content: currentPrompt.aiFollowUp,
                         timestamp: Date.now(),
                     }]);
-                    setStreamingMessage(null);
-                    setIsLoading(false);
-                    focusInput();
+                    handleAiError(error);
                 }
             );
         }
-    }, [mode, currentPrompt, sendInitialPrompt, scrollToBottom, focusInput]);
+    }, [mode, currentPrompt, sendInitialPrompt, scrollToBottom, focusInput, beginStreaming, clearError, handleAiError]);
 
     const handleSendMessage = useCallback(async (text: string) => {
         Keyboard.dismiss();
@@ -136,18 +186,12 @@ export function useChatOrchestration({
             timestamp: Date.now(),
         };
 
+        clearError();
         setMessages(prev => [...prev, userMessage]);
-        setIsLoading(true);
+        setLastUserMessage(userMessage);
         scrollToBottom();
 
-        const tempStreamingId = 'streaming-' + Date.now();
-        setStreamingMessage({
-            id: tempStreamingId,
-            role: 'assistant',
-            content: '',
-            reasoning: '',
-            isStreaming: true,
-        });
+        const tempStreamingId = beginStreaming();
 
         try {
             await sendMessage(
@@ -176,19 +220,56 @@ export function useChatOrchestration({
                     scrollToBottom();
                     focusInput();
                 },
-                (error) => {
-                    console.error('AI Error:', error);
+                handleAiError
+            );
+        } catch (error) {
+            handleAiError(error instanceof Error ? error : new Error('Unknown error'));
+        }
+    }, [sendMessage, scrollToBottom, focusInput, beginStreaming, clearError, handleAiError]);
+
+    const retryLastMessage = useCallback(async () => {
+        if (!lastUserMessage || isLoading) {
+            return;
+        }
+
+        clearError();
+        const tempStreamingId = beginStreaming();
+        scrollToBottom();
+        setChatMessages(messages.filter(message => message.id !== lastUserMessage.id));
+
+        try {
+            await sendMessage(
+                lastUserMessage.content,
+                (chunk, reasoning) => {
+                    setStreamingMessage(prev => prev ? {
+                        ...prev,
+                        content: prev.content + chunk,
+                        reasoning: prev.reasoning + (reasoning || ''),
+                    } : null);
+                    scrollToBottom();
+                },
+                (fullContent, fullReasoning) => {
+                    setMessages(prev => [
+                        ...prev,
+                        {
+                            id: tempStreamingId,
+                            role: 'assistant',
+                            content: fullContent,
+                            reasoning: fullReasoning,
+                            timestamp: Date.now(),
+                        },
+                    ]);
                     setStreamingMessage(null);
                     setIsLoading(false);
+                    scrollToBottom();
                     focusInput();
-                }
+                },
+                handleAiError
             );
-        } catch {
-            setStreamingMessage(null);
-            setIsLoading(false);
-            focusInput();
+        } catch (error) {
+            handleAiError(error instanceof Error ? error : new Error('Unknown error'));
         }
-    }, [sendMessage, scrollToBottom, focusInput]);
+    }, [beginStreaming, clearError, focusInput, handleAiError, isLoading, lastUserMessage, messages, scrollToBottom, sendMessage, setChatMessages]);
 
     const handleNewChat = useCallback(() => {
         hasInitialized.current = false;
@@ -196,9 +277,12 @@ export function useChatOrchestration({
         setMessages([]);
         setStreamingMessage(null);
         setIsLoading(false);
+        setErrorMessage(null);
+        setLastUserMessage(null);
+        setConversationId();
         inputRef.current?.clear();
         focusInput();
-    }, [clearMessages, focusInput, inputRef]);
+    }, [clearMessages, focusInput, inputRef, setConversationId]);
 
     const initializeMessages = useCallback((initialMessages: Message[]) => {
         if (initialMessages.length === 0) return;
@@ -207,14 +291,22 @@ export function useChatOrchestration({
         setChatMessages(initialMessages);
         setStreamingMessage(null);
         setIsLoading(false);
+        setErrorMessage(null);
+        setLastUserMessage(null);
         scrollToBottom();
     }, [scrollToBottom, setChatMessages]);
+
+    const canRetry = Boolean(lastUserMessage);
 
     return {
         messages,
         streamingMessage,
         isLoading,
+        errorMessage,
+        canRetry,
         handleSendMessage,
+        retryLastMessage,
+        clearError,
         handleNewChat,
         initializeMessages,
         scrollToBottom,

@@ -11,8 +11,8 @@
 
 import { PromptPeriod } from '@/constants/dailyPrompts';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChatMessage } from '../components/ChatMessage';
 import { FooterActions } from '../components/FooterActions';
@@ -36,6 +36,7 @@ export default function ChatScreen() {
     const scrollViewRef = useRef<ScrollView>(null);
     const inputRef = useRef<InlineTypingInputRef>(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [inputValue, setInputValue] = useState('');
     const [continuedEntry, setContinuedEntry] = useState<JournalEntry | null>(null);
     const [readOnlyMessageCount, setReadOnlyMessageCount] = useState(0);
     const { create, update, getById } = useJournalEntries();
@@ -50,21 +51,29 @@ export default function ChatScreen() {
     const resolvedMode: ChatMode = modeParam === 'dailyCheckIn' || modeParam === 'continue'
         ? modeParam
         : 'freeform';
+    const conversationId = useMemo(
+        () => entryId ?? `chat_${Date.now()}`,
+        [entryId]
+    );
 
     const {
         messages,
         streamingMessage,
         isLoading,
+        errorMessage,
+        canRetry,
         handleSendMessage,
+        retryLastMessage,
+        clearError,
         handleNewChat,
         initializeMessages,
         scrollToBottom,
-        currentPrompt,
     } = useChatOrchestration({
         scrollViewRef,
         inputRef,
         mode: resolvedMode,
         promptPeriod: promptPeriod as PromptPeriod,
+        conversationId,
     });
 
     useEffect(() => {
@@ -98,6 +107,11 @@ export default function ChatScreen() {
         };
     }, [entryId, getById, initializeMessages]);
 
+    const resetChatState = useCallback(() => {
+        setInputValue('');
+        handleNewChat();
+    }, [handleNewChat]);
+
     const handleClose = useCallback(async () => {
         // Save as draft if there's content
         if (hasContent(messages)) {
@@ -126,9 +140,9 @@ export default function ChatScreen() {
         }
 
         // Clear chat and navigate back to entries
-        handleNewChat();
+        resetChatState();
         router.replace('/(tabs)/entries');
-    }, [messages, handleNewChat, router, create, update, entryId, continuedEntry]);
+    }, [messages, resetChatState, router, create, update, entryId, continuedEntry]);
 
     const handleFinishEntry = useCallback(async () => {
         if (!hasContent(messages) || isSaving) return;
@@ -155,16 +169,26 @@ export default function ChatScreen() {
             }
 
             // Clear chat and navigate to entries
-            handleNewChat();
+            resetChatState();
             router.replace('/(tabs)/entries');
         } catch (error) {
             console.error('Failed to save entry:', error);
         } finally {
             setIsSaving(false);
         }
-    }, [messages, isSaving, handleNewChat, router, create, update, entryId]);
+    }, [messages, isSaving, resetChatState, router, create, update, entryId]);
 
     const canFinish = hasContent(messages) && !isLoading && !isSaving;
+    const trimmedInput = inputValue.trim();
+    const canGoDeeper = trimmedInput.length > 0 && !isLoading;
+
+    const handleGoDeeper = useCallback(async () => {
+        if (!trimmedInput || isLoading) return;
+        const message = trimmedInput;
+        setInputValue('');
+        inputRef.current?.clear();
+        await handleSendMessage(message);
+    }, [trimmedInput, isLoading, handleSendMessage]);
 
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
@@ -206,24 +230,62 @@ export default function ChatScreen() {
                             </View>
                         )}
 
+                        {errorMessage && (
+                            <View
+                                accessibilityRole="alert"
+                                accessibilityLabel={errorMessage}
+                                className="rounded-xl border border-divider-light dark:border-divider-dark bg-yellow-300/20 dark:bg-yellow-300/10 p-3"
+                            >
+                                <Text className="text-text-light dark:text-text-dark text-sm">
+                                    {errorMessage}
+                                </Text>
+                                <View className="flex-row items-center justify-end gap-3 mt-3">
+                                    {canRetry && (
+                                        <Pressable
+                                            onPress={retryLastMessage}
+                                            accessibilityRole="button"
+                                            accessibilityLabel="Retry AI request"
+                                            className="px-3 py-1.5 rounded-full bg-primary"
+                                        >
+                                            <Text className="text-surface-light text-xs font-semibold">Retry</Text>
+                                        </Pressable>
+                                    )}
+                                    <Pressable
+                                        onPress={clearError}
+                                        accessibilityRole="button"
+                                        accessibilityLabel="Dismiss error message"
+                                        className="px-2 py-1"
+                                    >
+                                        <Text className="text-text-secondary-light dark:text-text-secondary-dark text-xs">
+                                            Dismiss
+                                        </Text>
+                                    </Pressable>
+                                </View>
+                            </View>
+                        )}
+
                         {/* Inline typing input - document style */}
                         {!isLoading && (
                             <InlineTypingInput
                                 ref={inputRef}
                                 onSubmit={handleSendMessage}
+                                onTextChange={setInputValue}
                                 disabled={isLoading}
                                 placeholder="Type your thoughts..."
                             />
                         )}
+
+                        <View className="pt-4">
+                            <FooterActions
+                                onGoDeeper={handleGoDeeper}
+                                onFinishEntry={handleFinishEntry}
+                                disabled={isLoading || isSaving}
+                                canGoDeeper={canGoDeeper}
+                                canFinish={canFinish}
+                            />
+                        </View>
                     </View>
                 </ScrollView>
-
-                <FooterActions
-                    onNewChat={handleNewChat}
-                    onFinishEntry={handleFinishEntry}
-                    disabled={isLoading || isSaving}
-                    canFinish={canFinish}
-                />
             </View>
         </SafeAreaView>
     );

@@ -30,13 +30,21 @@ const mockHandleSendMessage = jest.fn();
 const mockHandleNewChat = jest.fn();
 const mockScrollToBottom = jest.fn();
 const mockInitializeMessages = jest.fn();
+const mockRetryLastMessage = jest.fn();
+const mockClearError = jest.fn();
+let mockErrorMessage: string | null = null;
+let mockCanRetry = false;
 
 jest.mock('../features/chat', () => ({
   useChatOrchestration: () => ({
     messages: [],
     streamingMessage: null,
     isLoading: false,
+    errorMessage: mockErrorMessage,
+    canRetry: mockCanRetry,
     handleSendMessage: mockHandleSendMessage,
+    retryLastMessage: mockRetryLastMessage,
+    clearError: mockClearError,
     handleNewChat: mockHandleNewChat,
     initializeMessages: mockInitializeMessages,
     scrollToBottom: mockScrollToBottom,
@@ -87,6 +95,10 @@ describe('ChatScreen', () => {
     mockHandleNewChat.mockClear();
     mockScrollToBottom.mockClear();
     mockInitializeMessages.mockClear();
+    mockRetryLastMessage.mockClear();
+    mockClearError.mockClear();
+    mockErrorMessage = null;
+    mockCanRetry = false;
     mockGetById.mockClear();
     mockCreate.mockClear();
     mockUpdate.mockClear();
@@ -109,7 +121,7 @@ describe('ChatScreen', () => {
     expect(screen.getByPlaceholderText('Type your thoughts...')).toBeTruthy();
 
     // Check for Footer buttons
-    expect(screen.getByText('New Chat')).toBeTruthy();
+    expect(screen.getByText('Go deeper')).toBeTruthy();
     expect(screen.getByText('Finish entry')).toBeTruthy();
   });
 
@@ -122,15 +134,18 @@ describe('ChatScreen', () => {
     expect(input.props.value).toBe('Hello AI');
   });
 
-  it('shows New Chat button that calls handleNewChat', () => {
+  it('sends message from Go deeper button', async () => {
     render(<ChatScreen />);
 
-    const newChatButton = screen.getByText('New Chat');
-    expect(newChatButton).toBeTruthy();
+    const input = screen.getByPlaceholderText('Type your thoughts...');
+    fireEvent.changeText(input, 'Hello AI');
 
-    // Press should call the hook's handleNewChat
-    fireEvent.press(newChatButton);
-    expect(mockHandleNewChat).toHaveBeenCalled();
+    const goDeeperButton = screen.getByText('Go deeper');
+    fireEvent.press(goDeeperButton);
+
+    await waitFor(() => {
+      expect(mockHandleSendMessage).toHaveBeenCalledWith('Hello AI');
+    });
   });
 
   it('loads existing entry messages when entryId is provided', async () => {
@@ -159,5 +174,22 @@ describe('ChatScreen', () => {
       { id: 'm1', role: 'user', content: 'Hello', timestamp: 1 },
       { id: 'm2', role: 'assistant', content: 'Hi', timestamp: 2 },
     ]);
+  });
+
+  it('shows an error banner with retry when the hook reports an error', () => {
+    mockErrorMessage = 'Missing AI configuration.';
+    mockCanRetry = true;
+
+    render(<ChatScreen />);
+
+    expect(screen.getByText('Missing AI configuration.')).toBeTruthy();
+
+    const retryButton = screen.getByLabelText('Retry AI request');
+    fireEvent.press(retryButton);
+    expect(mockRetryLastMessage).toHaveBeenCalled();
+
+    const dismissButton = screen.getByLabelText('Dismiss error message');
+    fireEvent.press(dismissButton);
+    expect(mockClearError).toHaveBeenCalled();
   });
 });
