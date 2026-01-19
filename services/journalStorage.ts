@@ -147,3 +147,11 @@ export async function listCompleted(): Promise<JournalEntry[]> {
 export async function clearAllEntries(): Promise<void> {
     await storageAdapter.removeItem(STORAGE_KEY);
 }
+
+/**
+ * Get all entries as a JSON string for export
+ */
+export async function getAllEntriesForExport(): Promise<string> {
+    const list = await listEntries();
+    return JSON.stringify(list, null, 2);
+}

@@ -5,7 +5,7 @@
  */
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { MaterialIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 
@@ -18,13 +18,13 @@ interface BottomNavProps {
 
 interface TabConfig {
     name: TabName;
-    icon: keyof typeof MaterialIcons.glyphMap;
+    icon: keyof typeof Ionicons.glyphMap;
     label: string;
 }
 
 const tabs: TabConfig[] = [
-    { name: 'today', icon: 'wb-sunny', label: 'Today' },
-    { name: 'explore', icon: 'bubble-chart', label: 'Explore' },
+    { name: 'today', icon: 'sunny', label: 'Today' },
+    { name: 'explore', icon: 'grid', label: 'Explore' },
     { name: 'entries', icon: 'book', label: 'Entries' },
     { name: 'settings', icon: 'settings', label: 'Settings' },
 ];
@@ -48,7 +48,7 @@ export function BottomNav({ activeTab, onTabPress }: BottomNavProps) {
                             onPress={() => onTabPress(tab.name)}
                             className={`flex items-center justify-center w-16 ${marginClass}`}
                         >
-                            <MaterialIcons
+                            <Ionicons
                                 name={tab.icon}
                                 size={24}
                                 color={

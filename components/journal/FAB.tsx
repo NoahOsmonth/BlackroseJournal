@@ -5,7 +5,7 @@
  */
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { MaterialIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, View } from 'react-native';
 
@@ -27,7 +27,7 @@ export function FAB({ onPress }: FABProps) {
                     borderColor: isDark ? '#121212' : '#F5F5F7',
                 }}
             >
-                <MaterialIcons name="edit" size={28} color="#FFFFFF" />
+                <Ionicons name="pencil" size={28} color="#FFFFFF" />
             </Pressable>
         </View>
     );

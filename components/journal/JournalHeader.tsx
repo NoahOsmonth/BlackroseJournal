@@ -5,7 +5,7 @@
  */
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { MaterialIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 
@@ -26,8 +26,8 @@ export function JournalHeader({ onMenuPress, onGiftPress }: JournalHeaderProps) 
                 onPress={onGiftPress}
                 className="p-2 -ml-2"
             >
-                <MaterialIcons
-                    name="card-giftcard"
+                <Ionicons
+                    name="gift-outline"
                     size={24}
                     color={isDark ? '#8E8E93' : '#8E8E93'}
                 />
@@ -41,7 +41,7 @@ export function JournalHeader({ onMenuPress, onGiftPress }: JournalHeaderProps) 
                 onPress={onMenuPress}
                 className="p-2 -mr-2"
             >
-                <MaterialIcons
+                <Ionicons
                     name="menu"
                     size={24}
                     color={isDark ? '#E5E5E7' : '#1C1C1E'}

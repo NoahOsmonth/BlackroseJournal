@@ -5,6 +5,8 @@ import 'react-native-reanimated';
 import '../global.css';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useThemeSettings } from '@/hooks/useThemeSettings';
+import { useStagewiseToolbar } from '@/hooks/useStagewiseToolbar';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { Lato_400Regular, Lato_700Bold } from '@expo-google-fonts/lato';
 import { PlayfairDisplay_400Regular, PlayfairDisplay_700Bold, useFonts } from '@expo-google-fonts/playfair-display';
@@ -14,8 +16,10 @@ import { useEffect } from 'react';
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  const { isLoaded: isThemeLoaded } = useThemeSettings();
   const colorScheme = useColorScheme();
-  const [loaded] = useFonts({
+  useStagewiseToolbar();
+  const [fontsLoaded] = useFonts({
     PlayfairDisplayRegular: PlayfairDisplay_400Regular,
     PlayfairDisplayBold: PlayfairDisplay_700Bold,
     LatoRegular: Lato_400Regular,
@@ -26,13 +30,15 @@ export default function RootLayout() {
     InterBold: Inter_700Bold,
   });
 
+  const isReady = fontsLoaded && isThemeLoaded;
+
   useEffect(() => {
-    if (loaded) {
+    if (isReady) {
       SplashScreen.hideAsync();
     }
-  }, [loaded]);
+  }, [isReady]);
 
-  if (!loaded) {
+  if (!isReady) {
     return null;
   }
 
@@ -48,4 +54,3 @@ export default function RootLayout() {
     </ThemeProvider>
   );
 }
-

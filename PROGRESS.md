@@ -181,3 +181,31 @@
 
 **Verification:** Draft saving logic verified; visual verification required for full flow
 
+### Stagewise Toolbar (Web-Only) Integration ✅
+**Completed:** 2026-01-19
+
+**Files Created:**
+- `services/stagewiseToolbar.ts` - Native no-op stagewise setup
+- `services/stagewiseToolbar.web.ts` - Web-only toolbar initialization
+- `hooks/useStagewiseToolbar.ts` - Hook to initialize toolbar on app start
+- `__tests__/stagewiseToolbar.test.ts` - Tests for dev-only init behavior
+- `types/toolbar-esm.d.ts` - Module declaration for the toolbar ESM entry
+
+**Files Modified:**
+- `app/_layout.tsx` - Initialize stagewise toolbar hook
+- `package.json` - Added dev dependency for toolbar
+
+**Changes:**
+- Web builds initialize the Stagewise toolbar only in development
+- Native iOS/Android builds remain unaffected
+- Guarded against double initialization
+- Loader now targets the ESM build to avoid Metro main/exports resolution failures
+
+**Commands Run:**
+- `npm install -D @21st-extension/toolbar`
+- `npm test -- --runInBand --testPathPattern=stagewiseToolbar`
+- `npm test -- --runInBand`
+- `npm run web`
+
+**Verification:** Jest suite passing; web bundler starts successfully (warnings remain about package exports). Note: existing console error in `useChatOrchestration` tests remains.
+
