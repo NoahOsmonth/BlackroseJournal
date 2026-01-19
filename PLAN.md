@@ -1,37 +1,27 @@
-# Epic Plan: Recreating Journal App Design and Core User Flows
+# Epic Plan: Finish Entry Reflection + Suggestions to Habits
 
 ## Goal
-Implement the end-to-end user journeys described in the epic spec (Daily check-in, Today dashboard navigation, Stats exploration, Happiness Recipe, Ask Rosebud insights, Entry continue/new, Rewards, Settings), while keeping the repo modular and test-covered.
-
-## Source of Truth
-- Epic spec (external): `Core_User_Flows.md` (Traycer export)
-	- Path on this machine: `C:\Users\sigmu\AppData\Local\Temp\traycer-epics\0f02090c-8f30-4dd2-ab53-d9f2b5be945f-Recreating_the_Journal_App_Design_and_Functionality\specs\fb8d0fd0-5284-4c15-893b-64bef17de642-Core_User_Flows.md`
+After the user presses **Finish entry** in chat, show an AI-generated **Entry Reflection** screen (reflection + key insight + suggestions) followed by an AI-generated **streak haiku** celebration. Suggestions marked as **HABIT** must be addable to the user’s Happiness Recipe as a new **habit** type displayed **below Ingredients**.
 
 ## Design References
-- Today dashboard: `example-design/today.html`
-- Entries/history: `example-design/journal-history.html`
+- Provided screenshots (Entry Reflection screen, Suggestions list with HABIT badge + Add to list, 1 Day Streak Haiku celebration)
 
-## Current Baseline (Already Implemented)
-The repo already includes:
-- Journal entry persistence (AsyncStorage-backed service)
-- Chat markdown rendering for AI responses
-- Therapist-style AI system prompt
-- Entries/history screen + basic navigation (tabs + chat)
-- Finish Entry + draft-on-close
+## Non-goals / Explicit Exclusions
+- Do **not** implement or show an “Add to long-term memory” upsell section.
 
-This run focuses on the remaining (or spec-mismatched) flows.
+## Current Baseline
+This repo already includes:
+- Chat journaling flow with **Finish entry**
+- Journal persistence via AsyncStorage (`services/journalStorage.ts`)
+- AI service wrapper (`services/ai.ts`)
+- Happiness Recipe (ingredients + goals) (`app/happiness-recipe.tsx`, `services/happinessRecipeStorage.*`)
 
 ## Scope (What to Build)
-1. Today dashboard UI + weekday selector + calendar shortcut to Entries
-2. Daily check-in flow: time-based prompt selection + chat initialization context
-3. Bottom navigation: 5 items with centered FAB + header navigation (Rewards/Menu)
-4. Stats detail modals for Streak/Entries/Words
-5. Happiness Recipe: ingredients + goals management (add/edit/complete/delete) + completed screen
-6. Ask Rosebud: insights chat with time range selector + tappable entry references
-7. Entry tap action modal: Continue Entry (append messages) vs Create New Entry
-8. Rewards screen (streak + achievements)
-9. Settings screen (theme + stubs for notifications/export/about/privacy)
-10. Typography/theme alignment between example designs (Nunito vs Inter) using theme tokens
+1. Finish Entry -> Entry Reflection flow (new screen + navigation)
+2. AI-generated reflection content (reflection body + key insight + suggested habits)
+3. Suggestions list UI (HABIT cards with Add to list)
+4. Add a new Happiness Recipe item type: **habit**, rendered **below Ingredients**
+5. Streak celebration screen/modal with AI-generated haiku
 
 ## Stack
 - Expo + Expo Router
@@ -40,11 +30,11 @@ This run focuses on the remaining (or spec-mismatched) flows.
 - Jest + @testing-library/react-native
 - AsyncStorage persistence
 
-## Architecture/Separation of Concerns
-- UI: `app/`, `components/`
-- Orchestration/state: `hooks/`
-- I/O/services: `services/`
-- Avoid UI importing services directly (prefer hooks)
+## Architecture / Separation of Concerns
+- UI in `app/` + `components/`
+- Orchestration in `hooks/`
+- Persistence/AI in `services/`
+- UI should not import storage/AI services directly; use hooks
 
 ## Quality Gate
 ```bash
@@ -54,15 +44,14 @@ npm run check:design
 ```
 
 ## Testing Expectations
-- Add/extend unit tests for new utilities/services.
-- Add component tests for:
-	- Today screen navigation actions
-	- Entry tap action modal
-	- Ask Rosebud time range selector behavior
-- If a feature requires manual-only verification (animations, haptics), document it in PROGRESS and keep `passes=false` for that story.
+- Update existing tests for Finish Entry navigation and add new tests for:
+  - EntryReflection screen rendering and Continue flow
+  - Suggestions “Add to list” adds a habit item
+  - Happiness Recipe supports habit type and renders it below ingredients
 
 ## Definition of Done
-- All acceptance criteria across tasks satisfied
-- Designs match the provided HTML references (spacing, colors, typography)
-- No design/UI file exceeds 500 lines (per AGENTS.md)
-- Quality gate commands pass
+- Finish Entry reliably navigates into the Reflection flow without breaking save behavior
+- Suggestions add habits to Happiness Recipe and persist across restarts
+- No “long-term memory” UI is present
+- Tests updated/added and quality gate passes
+- UI/design files stay under 500 lines (per AGENTS.md)

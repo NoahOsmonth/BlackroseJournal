@@ -8,7 +8,7 @@ import { useHappinessRecipe } from '@/hooks/useHappinessRecipe';
 import { RecipeItem, RecipeItemType } from '@/services/happinessRecipeStorage.types';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
     Alert,
     Pressable,
@@ -24,8 +24,8 @@ export default function HappinessRecipeScreen() {
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
     const {
-        activeItems,
-        completedItems,
+        items,
+        isLoading,
         addItem,
         toggleItem,
         deleteItem,
@@ -80,6 +80,7 @@ export default function HappinessRecipeScreen() {
 
     const renderItem = (item: RecipeItem) => {
         const isEditing = editingId === item.id;
+        const typePrefix = item.type === 'goal' ? '🎯 ' : item.type === 'habit' ? '🌿 ' : '';
 
         return (
             <View
@@ -116,11 +117,11 @@ export default function HappinessRecipeScreen() {
                     >
                         <Text
                             className={`text-base ${item.completed
-                                    ? 'line-through text-text-secondary-light dark:text-text-secondary-dark'
-                                    : 'text-text-main-light dark:text-text-main-dark'
+                                ? 'line-through text-text-secondary-light dark:text-text-secondary-dark'
+                                : 'text-text-main-light dark:text-text-main-dark'
                                 }`}
                         >
-                            {item.type === 'goal' ? '🎯 ' : ''}{item.text}
+                            {typePrefix}{item.text}
                         </Text>
                         {item.completedAt && (
                             <Text className="text-xs text-text-secondary-light dark:text-text-secondary-dark mt-1">
@@ -148,13 +149,15 @@ export default function HappinessRecipeScreen() {
     const renderAddInput = () => {
         if (!addingType) return null;
 
+        const addIcon = addingType === 'goal' ? 'flag' : addingType === 'habit' ? 'spa' : 'favorite';
+
         return (
             <View
                 className={`flex-row items-center p-4 mb-4 rounded-xl ${isDark ? 'bg-surface-dark' : 'bg-surface-light'
                     }`}
             >
                 <MaterialIcons
-                    name={addingType === 'goal' ? 'flag' : 'favorite'}
+                    name={addIcon}
                     size={20}
                     color="#E91E63"
                     style={{ marginRight: 12 }}
@@ -174,6 +177,56 @@ export default function HappinessRecipeScreen() {
                 <Pressable onPress={handleAddItem} className="p-2">
                     <MaterialIcons name="check" size={20} color="#E91E63" />
                 </Pressable>
+            </View>
+        );
+    };
+
+    const completedSorter = useMemo(() => {
+        return (a: RecipeItem, b: RecipeItem) => {
+            const aTime = a.completedAt ? new Date(a.completedAt).getTime() : 0;
+            const bTime = b.completedAt ? new Date(b.completedAt).getTime() : 0;
+            return bTime - aTime;
+        };
+    }, []);
+
+    const sections = useMemo(() => {
+        const byType = (type: RecipeItemType) => {
+            const typeItems = items.filter((i) => i.type === type);
+            const active = typeItems.filter((i) => !i.completed);
+            const completed = typeItems.filter((i) => i.completed).sort(completedSorter);
+            return { active, completed };
+        };
+
+        return {
+            ingredients: byType('ingredient'),
+            habits: byType('habit'),
+            goals: byType('goal'),
+        };
+    }, [items, completedSorter]);
+
+    const renderSection = (
+        title: string,
+        sectionItems: { active: RecipeItem[]; completed: RecipeItem[] },
+        emptyText: string
+    ) => {
+        const hasAny = sectionItems.active.length > 0 || sectionItems.completed.length > 0;
+
+        return (
+            <View className="mb-8">
+                <Text className="text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide mb-3 ml-1">
+                    {title}
+                </Text>
+
+                {sectionItems.active.map(renderItem)}
+                {sectionItems.completed.map(renderItem)}
+
+                {!hasAny && !isLoading && items.length > 0 && (
+                    <View className="p-4 rounded-xl bg-surface-light dark:bg-surface-dark">
+                        <Text className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
+                            {emptyText}
+                        </Text>
+                    </View>
+                )}
             </View>
         );
     };
@@ -223,28 +276,12 @@ export default function HappinessRecipeScreen() {
 
                     {renderAddInput()}
 
-                    {/* Active items */}
-                    {activeItems.length > 0 && (
-                        <View className="mb-6">
-                            <Text className="text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide mb-3">
-                                Active ({activeItems.length})
-                            </Text>
-                            {activeItems.map(renderItem)}
-                        </View>
-                    )}
+                    {renderSection('Ingredients', sections.ingredients, 'Add ingredients that consistently help you feel better.')}
+                    {renderSection('Habits', sections.habits, 'Habits you add from Suggestions will show up here.')}
+                    {renderSection('Goals', sections.goals, 'Set goals you want to work toward over time.')}
 
-                    {/* Completed items */}
-                    {completedItems.length > 0 && (
-                        <View className="mb-6">
-                            <Text className="text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide mb-3">
-                                Completed ({completedItems.length})
-                            </Text>
-                            {completedItems.map(renderItem)}
-                        </View>
-                    )}
-
-                    {/* Empty state */}
-                    {activeItems.length === 0 && completedItems.length === 0 && (
+                    {/* Global empty state */}
+                    {items.length === 0 && !isLoading && (
                         <View className="items-center py-12">
                             <MaterialIcons
                                 name="favorite-border"
@@ -255,7 +292,7 @@ export default function HappinessRecipeScreen() {
                                 No items yet
                             </Text>
                             <Text className="text-sm text-text-secondary-light dark:text-text-secondary-dark mt-1">
-                                Add ingredients and goals to build your happiness recipe
+                                Add ingredients and goals (and habits from suggestions) to build your recipe
                             </Text>
                         </View>
                     )}

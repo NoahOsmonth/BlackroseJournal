@@ -5,8 +5,8 @@ import 'react-native-reanimated';
 import '../global.css';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useThemeSettings } from '@/hooks/useThemeSettings';
 import { useStagewiseToolbar } from '@/hooks/useStagewiseToolbar';
+import { useThemeSettings } from '@/hooks/useThemeSettings';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { Lato_400Regular, Lato_700Bold } from '@expo-google-fonts/lato';
 import { PlayfairDisplay_400Regular, PlayfairDisplay_700Bold, useFonts } from '@expo-google-fonts/playfair-display';
@@ -47,6 +47,12 @@ export default function RootLayout() {
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="chat" options={{ headerShown: false }} />
+        <Stack.Screen name="entry-reflection" options={{ headerShown: false }} />
+        <Stack.Screen name="suggestions" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="streak-haiku"
+          options={{ headerShown: false, presentation: 'modal' }}
+        />
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>

@@ -57,4 +57,3 @@ The epic spec requires a Today dashboard that matches `example-design/today.html
 - Visually compare to `example-design/today.html` (including dark mode).
 - Tap weekday buttons and confirm highlight changes.
 - Tap calendar icon and confirm Entries opens.
-

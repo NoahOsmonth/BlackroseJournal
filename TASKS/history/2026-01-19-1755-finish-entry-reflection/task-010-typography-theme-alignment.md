@@ -43,4 +43,3 @@ The spec also requires using theme tokens and consistent light/dark behavior.
 
 ### Manual
 - Visual compare Today + Entries against their HTML references in both light/dark.
-

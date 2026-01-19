@@ -43,4 +43,3 @@ Ask Rosebud is an insights chat that analyzes journal history over selectable ti
 
 ### Manual
 - Create a few entries, then Ask Rosebud for patterns; verify references navigate correctly.
-

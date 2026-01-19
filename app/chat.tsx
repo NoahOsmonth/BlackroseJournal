@@ -11,7 +11,7 @@
 
 import { PromptPeriod } from '@/constants/dailyPrompts';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChatMessage } from '../components/ChatMessage';
@@ -138,6 +138,8 @@ export default function ChatScreen() {
             const title = generateTitle(messages);
             const emoji = inferMoodEmoji(messages);
 
+            let savedEntryId = entryId;
+
             if (entryId) {
                 await update(entryId, {
                     title,
@@ -146,17 +148,22 @@ export default function ChatScreen() {
                     status: 'completed',
                 });
             } else {
-                await create({
+                const created = await create({
                     title,
                     emoji,
                     messages,
                     status: 'completed',
                 });
+                savedEntryId = created.id;
             }
 
-            // Clear chat and navigate to entries
+            // Clear chat and navigate to post-finish reflection
             handleNewChat();
-            router.replace('/(tabs)/entries');
+            if (savedEntryId) {
+                router.replace({ pathname: '/entry-reflection', params: { entryId: savedEntryId } });
+            } else {
+                router.replace('/(tabs)/entries');
+            }
         } catch (error) {
             console.error('Failed to save entry:', error);
         } finally {

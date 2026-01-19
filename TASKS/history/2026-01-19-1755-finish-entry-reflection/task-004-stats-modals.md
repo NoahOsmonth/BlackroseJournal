@@ -43,4 +43,3 @@ Today’s stat cards must open modals with detailed breakdowns (calendar streak 
 ### Manual
 - Validate animation feel and backdrop dismiss.
 - Validate charts render without layout overflow.
-

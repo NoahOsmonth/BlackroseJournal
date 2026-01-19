@@ -39,6 +39,10 @@ async function saveRecipeItems(items: RecipeItem[]): Promise<void> {
     }
 }
 
+function normalizeRecipeText(text: string): string {
+    return text.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
 /**
  * Add a new recipe item
  */
@@ -49,10 +53,23 @@ export async function addRecipeItem(
     const items = await loadRecipeItems();
     const now = new Date().toISOString();
 
+    const trimmed = text.trim();
+
+    // Dedupe HABIT items (case-insensitive) to avoid repeated additions from suggestions
+    if (type === 'habit') {
+        const normalized = normalizeRecipeText(trimmed);
+        const existing = items.find(
+            (item) => item.type === 'habit' && normalizeRecipeText(item.text) === normalized
+        );
+        if (existing) {
+            return existing;
+        }
+    }
+
     const newItem: RecipeItem = {
         id: `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
         type,
-        text,
+        text: trimmed,
         completed: false,
         createdAt: now,
         updatedAt: now,

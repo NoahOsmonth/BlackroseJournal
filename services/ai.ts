@@ -2,9 +2,34 @@ import { useCallback, useRef } from 'react';
 import { THERAPIST_SYSTEM_PROMPT } from '../constants/aiPrompts';
 import { DailyPrompt } from '../constants/dailyPrompts';
 
-const API_BASE_URL = 'https://nano-gpt.com/api/v1';
-const API_KEY = 'sk-nano-3d3458af-c1c3-442c-8b2a-80cc8b911146';
-const MODEL = 'zai-org/glm-4.7-original:thinking';
+const DEFAULT_API_BASE_URL = 'https://nano-gpt.com/api/v1';
+const DEFAULT_MODEL = 'zai-org/glm-4.7-original:thinking';
+
+function getEnv(key: string): string | undefined {
+  // In Expo, only EXPO_PUBLIC_* is guaranteed to be available at runtime.
+  // In Jest/Node, process.env is available.
+  try {
+    return (process.env as Record<string, string | undefined>)[key];
+  } catch {
+    return undefined;
+  }
+}
+
+function getApiConfig() {
+  const apiKey =
+    getEnv('EXPO_PUBLIC_NANO_GPT_API_KEY') ??
+    getEnv('NANO_GPT_API_KEY');
+  const baseUrl =
+    getEnv('EXPO_PUBLIC_NANO_GPT_API_BASE_URL') ??
+    getEnv('NANO_GPT_API_BASE_URL') ??
+    DEFAULT_API_BASE_URL;
+  const model =
+    getEnv('EXPO_PUBLIC_NANO_GPT_MODEL') ??
+    getEnv('NANO_GPT_MODEL') ??
+    DEFAULT_MODEL;
+
+  return { apiKey, baseUrl, model };
+}
 
 export interface Message {
   id: string;
@@ -24,6 +49,175 @@ export interface CompleteCallback {
 
 export interface ErrorCallback {
   (error: Error): void;
+}
+
+type ChatRole = 'system' | 'user' | 'assistant';
+
+interface ChatCompletionMessage {
+  role: ChatRole;
+  content: string;
+}
+
+interface EntryReflectionSuggestion {
+  type: 'HABIT';
+  text: string;
+}
+
+export interface EntryReflectionResult {
+  reflection: string;
+  keyInsight: string;
+  suggestions: EntryReflectionSuggestion[];
+}
+
+function extractFirstJsonObject(text: string): string | null {
+  const start = text.indexOf('{');
+  if (start === -1) return null;
+
+  let depth = 0;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '{') depth++;
+    if (ch === '}') depth--;
+    if (depth === 0) {
+      return text.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
+async function completeChatOnce(
+  messages: ChatCompletionMessage[],
+  options?: { temperature?: number; maxTokens?: number }
+): Promise<string> {
+  const { apiKey, baseUrl, model } = getApiConfig();
+  if (!apiKey) {
+    throw new Error('Missing NanoGPT API key (EXPO_PUBLIC_NANO_GPT_API_KEY)');
+  }
+
+  const response = await fetch(`${baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      stream: false,
+      temperature: options?.temperature ?? 0.7,
+      max_tokens: options?.maxTokens ?? 2048,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`API error: ${response.status} - ${errorText}`);
+  }
+
+  const json = await response.json();
+  const content =
+    json?.choices?.[0]?.message?.content ??
+    json?.choices?.[0]?.text ??
+    '';
+  return typeof content === 'string' ? content : '';
+}
+
+export async function generateEntryReflection(input: {
+  entryText: string;
+}): Promise<EntryReflectionResult> {
+  const system = `You are a journaling reflection assistant.
+Return ONLY valid JSON with the exact shape:
+{
+  "reflection": string,
+  "keyInsight": string,
+  "suggestions": [{"type":"HABIT","text":string}]
+}
+
+Rules:
+- Keep reflection warm and concise (2-5 sentences).
+- Key insight should be 1 sentence.
+- Provide 3-6 HABIT suggestions that are specific, small, and actionable.`;
+
+  const raw = await completeChatOnce(
+    [
+      { role: 'system', content: system },
+      { role: 'user', content: `Entry:\n${input.entryText}` },
+    ],
+    { temperature: 0.8, maxTokens: 900 }
+  );
+
+  const jsonText = extractFirstJsonObject(raw) ?? raw;
+  try {
+    const parsed = JSON.parse(jsonText) as EntryReflectionResult;
+    const suggestions = Array.isArray(parsed.suggestions)
+      ? parsed.suggestions
+        .filter((s) => s && s.type === 'HABIT' && typeof s.text === 'string')
+        .map((s) => ({ type: 'HABIT' as const, text: s.text.trim() }))
+      : [];
+
+    return {
+      reflection: typeof parsed.reflection === 'string' ? parsed.reflection.trim() : '',
+      keyInsight: typeof parsed.keyInsight === 'string' ? parsed.keyInsight.trim() : '',
+      suggestions,
+    };
+  } catch {
+    // Graceful fallback when the model doesn't comply perfectly.
+    return {
+      reflection: raw.trim() || 'Thanks for sharing—your entry shows real self-awareness.',
+      keyInsight: 'A small consistent step today can shift tomorrow.',
+      suggestions: [
+        { type: 'HABIT', text: 'Take a 10-minute walk' },
+        { type: 'HABIT', text: 'Write one sentence of gratitude' },
+        { type: 'HABIT', text: 'Do 3 slow breaths before bed' },
+      ],
+    };
+  }
+}
+
+export async function generateStreakHaiku(input: {
+  entryText: string;
+  streakCount: number;
+}): Promise<[string, string, string]> {
+  const system = `You write uplifting, grounded haiku.
+Return ONLY valid JSON with the exact shape: {"lines":[string,string,string]}
+Rules:
+- 3 lines only
+- Each line <= 40 characters
+- Refer subtly to journaling and streak count
+- Tone: warm, celebratory, not cheesy`;
+
+  const raw = await completeChatOnce(
+    [
+      { role: 'system', content: system },
+      {
+        role: 'user',
+        content: `Streak: ${input.streakCount} day(s)\nEntry:\n${input.entryText}`,
+      },
+    ],
+    { temperature: 0.9, maxTokens: 200 }
+  );
+
+  const jsonText = extractFirstJsonObject(raw) ?? raw;
+  try {
+    const parsed = JSON.parse(jsonText) as { lines?: unknown };
+    const lines = Array.isArray(parsed.lines) ? parsed.lines : [];
+    const clean = lines
+      .filter((l) => typeof l === 'string')
+      .map((l) => (l as string).trim())
+      .filter(Boolean)
+      .slice(0, 3);
+    if (clean.length === 3) {
+      return [clean[0], clean[1], clean[2]];
+    }
+  } catch {
+    // ignore
+  }
+
+  return [
+    `Day ${input.streakCount}—still here`,
+    'Words become gentle lanterns',
+    'You are learning yourself',
+  ];
 }
 
 /**
@@ -47,14 +241,18 @@ export async function streamChat(
   customSystemPrompt?: string
 ): Promise<void> {
   try {
-    const response = await fetch(`${API_BASE_URL}/chat/completions`, {
+    const { apiKey, baseUrl, model } = getApiConfig();
+    if (!apiKey) {
+      throw new Error('Missing NanoGPT API key (EXPO_PUBLIC_NANO_GPT_API_KEY)');
+    }
+    const response = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`,
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: MODEL,
+        model,
         messages: [
           // System message with therapist prompt (or custom)
           { role: 'system', content: customSystemPrompt || THERAPIST_SYSTEM_PROMPT },

@@ -6,17 +6,19 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 }));
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import React from 'react';
 import ChatScreen from '../app/chat';
 
 // Mock navigation/router
 const mockUseLocalSearchParams = jest.fn();
+const mockRouterPush = jest.fn();
+const mockRouterReplace = jest.fn();
+const mockRouterBack = jest.fn();
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({
-    push: jest.fn(),
-    back: jest.fn(),
-    replace: jest.fn(),
+    push: mockRouterPush,
+    back: mockRouterBack,
+    replace: mockRouterReplace,
   }),
   useLocalSearchParams: () => mockUseLocalSearchParams(),
 }));
@@ -30,12 +32,14 @@ const mockHandleSendMessage = jest.fn();
 const mockHandleNewChat = jest.fn();
 const mockScrollToBottom = jest.fn();
 const mockInitializeMessages = jest.fn();
+let mockMessages: any[] = [];
+let mockIsLoading = false;
 
 jest.mock('../features/chat', () => ({
   useChatOrchestration: () => ({
-    messages: [],
+    messages: mockMessages,
     streamingMessage: null,
-    isLoading: false,
+    isLoading: mockIsLoading,
     handleSendMessage: mockHandleSendMessage,
     handleNewChat: mockHandleNewChat,
     initializeMessages: mockInitializeMessages,
@@ -90,7 +94,12 @@ describe('ChatScreen', () => {
     mockGetById.mockClear();
     mockCreate.mockClear();
     mockUpdate.mockClear();
+    mockRouterPush.mockClear();
+    mockRouterReplace.mockClear();
+    mockRouterBack.mockClear();
     mockUseLocalSearchParams.mockReturnValue({});
+    mockMessages = [];
+    mockIsLoading = false;
   });
 
   it('renders correctly with Blackrose header and inline typing input', () => {
@@ -159,5 +168,31 @@ describe('ChatScreen', () => {
       { id: 'm1', role: 'user', content: 'Hello', timestamp: 1 },
       { id: 'm2', role: 'assistant', content: 'Hi', timestamp: 2 },
     ]);
+  });
+
+  it('finishing an entry navigates to Entry Reflection with entryId', async () => {
+    mockMessages = [{ id: 'm1', role: 'user', content: 'Today was a lot.', timestamp: 1 }];
+    mockCreate.mockResolvedValue({
+      id: 'entry-999',
+      title: 'Test',
+      emoji: '📝',
+      messages: mockMessages,
+      status: 'completed',
+      createdAt: 1,
+      updatedAt: 1,
+    });
+
+    render(<ChatScreen />);
+
+    fireEvent.press(screen.getByText('Finish entry'));
+
+    await waitFor(() => {
+      expect(mockRouterReplace).toHaveBeenCalledWith({
+        pathname: '/entry-reflection',
+        params: { entryId: 'entry-999' },
+      });
+    });
+
+    expect(mockHandleNewChat).toHaveBeenCalled();
   });
 });

@@ -54,7 +54,7 @@ export function useHappinessRecipe(): UseHappinessRecipeReturn {
         if (!text.trim()) return null;
         try {
             const newItem = await addRecipeItem(type, text.trim());
-            setItems((prev) => [...prev, newItem]);
+            setItems((prev) => (prev.some((i) => i.id === newItem.id) ? prev : [...prev, newItem]));
             return newItem;
         } catch {
             return null;

@@ -38,4 +38,3 @@ The spec requires a Rewards screen reachable via the gift icon, showing streak i
 
 ### Manual
 - Create entries to unlock an achievement and confirm UI updates.
-

@@ -49,13 +49,6 @@ Finish:
 
 ## Task Execution Order
 
-1. Task 001: Today Dashboard Screen
-2. Task 002: Daily Check-In Prompts + Chat Context
-3. Task 003: Navigation Alignment (5-item Tab Bar + Header)
-4. Task 004: Stats Detail Modals
-5. Task 005: Happiness Recipe
-6. Task 006: Ask Rosebud
-7. Task 007: Entry Action Modal (Continue vs New)
-8. Task 008: Rewards
-9. Task 009: Settings
-10. Task 010: Typography & Theme Token Alignment
+1. Task 001: Finish Entry -> Entry Reflection screen
+2. Task 002: Suggestions list -> add HABIT below Ingredients
+3. Task 003: Streak haiku celebration after reflection

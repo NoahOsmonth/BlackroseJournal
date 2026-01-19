@@ -52,4 +52,3 @@ The Daily Check-In flow requires time-based prompts and a chat initialization pa
 ### Manual
 - Change device time (or mock Date in dev build) and confirm prompt changes.
 - Tap Today > Check in now and confirm prompt appears as system message.
-

@@ -2,7 +2,7 @@
  * Happiness Recipe Storage Types
  */
 
-export type RecipeItemType = 'ingredient' | 'goal';
+export type RecipeItemType = 'ingredient' | 'habit' | 'goal';
 
 export interface RecipeItem {
     id: string;
