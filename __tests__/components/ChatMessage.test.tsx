@@ -50,4 +50,12 @@ describe('ChatMessage', () => {
         fireEvent.press(getByText('Hide reasoning'));
         expect(queryByText('AI Reasoning')).toBeNull();
     });
+
+    it('does not allow reasoning toggle while streaming', () => {
+        const { queryByText } = render(
+            <ChatMessage text="Streaming" isAi reasoning="Because." isStreaming />
+        );
+
+        expect(queryByText('View AI reasoning')).toBeNull();
+    });
 });

@@ -14,7 +14,7 @@
         "Chat conversations are appended using customId/conversationId to enable incremental updates",
         "Unit tests cover Supermemory service calls and error handling"
       ],
-      "passes": false,
+      "passes": true,
       "branchName": "feat/supermemory-service"
     },
     {
@@ -30,7 +30,7 @@
         "Memory queries include metadata filters for entry dates when available",
         "Tests verify context building and Ask Rosebud time-range behavior"
       ],
-      "passes": false,
+      "passes": true,
       "branchName": "feat/supermemory-ai-flows"
     },
     {
@@ -45,7 +45,7 @@
         "ChatMessage interactions (reasoning toggle) are disabled during streaming",
         "UI tests cover loading/disabled states"
       ],
-      "passes": false,
+      "passes": true,
       "branchName": "feat/ai-loading-indicator"
     }
   ],

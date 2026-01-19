@@ -1,295 +1,295 @@
 {
-  "project": "JournalApp",
-  "stories": [
-    {
-      "id": "BUG-001",
-      "title": "Fix web theme toggle + persistence",
-      "priority": 1,
-      "description": "Fix Settings theme selection (Light/Dark/System) on web by aligning NativeWind manual theme toggling with Tailwind's dark mode configuration, and ensure the preference persists correctly.",
-      "acceptanceCriteria": [
-        "Switching theme in Settings works on web without runtime errors",
-        "NativeWind color scheme can be manually overridden (Light/Dark/System)",
-        "Theme preference persists across reloads (AsyncStorage)",
-        "System theme option respects OS appearance changes (where supported)",
-        "Regression tests cover loading and saving theme preference"
-      ],
-      "passes": true,
-      "branchName": "fix/theme-toggle-web"
-    },
-    {
-      "id": "CHORE-001",
-      "title": "Eliminate lint + test warnings",
-      "priority": 2,
-      "description": "Resolve all warnings from expo lint and Jest test runs so CI/local output is clean.",
-      "acceptanceCriteria": [
-        "npm run lint reports 0 errors and 0 warnings",
-        "npm test -- --runInBand passes and does not emit unexpected console warnings/errors",
-        "Any rule changes (if unavoidable) are documented in PROGRESS.md and justified"
-      ],
-      "passes": true,
-      "branchName": "chore/zero-warnings"
-    },
-    {
-      "id": "FEAT-008",
-      "title": "Today Dashboard Screen (Design + Day Navigation)",
-      "priority": 1,
-      "description": "Build the Today dashboard screen to match example-design/today.html and implement the weekday selector and calendar shortcut navigation.",
-      "acceptanceCriteria": [
-        "Today screen matches example-design/today.html (layout, colors, typography, spacing)",
-        "Header shows gift icon (Rewards), date title, and menu icon (Settings)",
-        "Weekday selector supports selecting days and visually highlighting the selected day",
-        "Calendar icon navigates to Entries tab",
-        "Daily Journaling card is present with a Check in now CTA",
-        "Happiness Recipe section is present (Completed dropdown + Add ingredient + Add goal buttons)",
-        "Ask Rosebud section is present with current time range selector UI"
-      ],
-      "passes": true,
-      "branchName": "feat/today-dashboard"
-    },
-    {
-      "id": "FEAT-009",
-      "title": "Daily Check-In Prompts (Time-Based) + Chat Context",
-      "priority": 2,
-      "description": "Implement time-based daily check-in prompts and ensure chat launches with the correct prompt context (system message + AI follow-up).",
-      "acceptanceCriteria": [
-        "Time-based prompt selection matches spec windows (Morning/Afternoon/Evening/Night)",
-        "Pressing Today > Check in now opens chat initialized for daily check-in",
-        "Chat shows a system message with the chosen prompt title and prompt text",
-        "AI sends a follow-up question based on the prompt",
-        "Chat input is disabled while AI responds and re-enabled after",
-        "Streaming AI responses remain supported"
-      ],
-      "passes": true,
-      "branchName": "feat/daily-check-in-prompts"
-    },
-    {
-      "id": "FEAT-010",
-      "title": "Navigation Alignment (5-item Tab Bar + Header Links)",
-      "priority": 3,
-      "description": "Align navigation to the spec: 5-item bottom nav (Today, Explore, centered FAB, Entries, Settings) and header actions (Gift -> Rewards, Menu -> Settings).",
-      "acceptanceCriteria": [
-        "Bottom navigation renders 5 items with centered elevated FAB (per today.html)",
-        "Active tab styling matches designs",
-        "FAB always visible and creates a new entry (opens chat)",
-        "Gift icon navigates to Rewards screen",
-        "Menu icon navigates to Settings tab",
-        "Navigation works across Today/Explore/Entries/Settings"
-      ],
-      "passes": true,
-      "branchName": "feat/navigation-alignment"
-    },
-    {
-      "id": "FEAT-011",
-      "title": "Entry Action Modal (Continue vs New)",
-      "priority": 4,
-      "description": "When tapping an entry in Entries, show an action modal allowing Continue Entry (append messages) or Create New Entry.",
-      "acceptanceCriteria": [
-        "Tapping an entry card opens an action modal (Continue Entry / Create New Entry / Cancel)",
-        "Continue Entry opens chat preloaded with existing messages, with prior messages visually indicated as read-only",
-        "New messages append to the same entry when continuing",
-        "Create New Entry opens a blank chat flow",
-        "Modal is dismissible (X or tap outside)"
-      ],
-      "passes": true,
-      "branchName": "feat/entry-action-modal"
-    },
-    {
-      "id": "FEAT-012",
-      "title": "Stats Detail Modals (Streak / Entries / Words)",
-      "priority": 5,
-      "description": "Implement tappable stat cards on Today that open detail modals with breakdowns/charts.",
-      "acceptanceCriteria": [
-        "Tapping Streak opens a modal with streak calendar view + stats",
-        "Tapping Entries opens a modal with monthly breakdown and totals",
-        "Tapping Words opens a modal with word-count trend and average",
-        "Modals slide up and dismiss smoothly",
-        "Close button (X) present"
-      ],
-      "passes": true,
-      "branchName": "feat/stats-modals"
-    },
-    {
-      "id": "FEAT-013",
-      "title": "Happiness Recipe (Ingredients + Goals CRUD)",
-      "priority": 6,
-      "description": "Implement Happiness Recipe management: add/edit/complete/delete ingredients & goals, plus completed screen.",
-      "acceptanceCriteria": [
-        "Add ingredient and Add goal flows use inline input with save/cancel",
-        "Items can be toggled completed and move between active/completed sections",
-        "Items can be edited (long-press) and deleted (swipe) with undo toast",
-        "Completed dropdown navigates to Happiness Recipe screen showing active + completed lists",
-        "Haptics/animations are used where appropriate"
-      ],
-      "passes": true,
-      "branchName": "feat/happiness-recipe"
-    },
-    {
-      "id": "FEAT-014",
-      "title": "Ask Rosebud (Insights Chat + Time Range)",
-      "priority": 7,
-      "description": "Build Ask Rosebud chat: time range selector, suggested questions, AI insights based on journal history with tappable entry references.",
-      "acceptanceCriteria": [
-        "Ask Rosebud screen exists and is reachable from Today",
-        "Time range selector supports All-time/This year/This month/This week",
-        "Suggested question cards trigger analysis",
-        "AI uses journal history to provide insights and references specific entries with dates",
-        "Entry references are tappable and navigate to that entry"
-      ],
-      "passes": true,
-      "branchName": "feat/ask-rosebud"
-    },
-    {
-      "id": "FEAT-015",
-      "title": "Rewards Screen (Achievements)",
-      "priority": 8,
-      "description": "Add a Rewards screen accessible via gift icon, showing streak and achievements with progress.",
-      "acceptanceCriteria": [
-        "Rewards screen exists and is reachable via header gift icon",
-        "Shows current streak and basic achievement grid",
-        "Locked achievements show grayscale and progress indicators",
-        "Tapping an achievement shows details",
-        "Newly unlocked achievements have a celebration animation (manual verification acceptable)"
-      ],
-      "passes": true,
-      "branchName": "feat/rewards"
-    },
-    {
-      "id": "FEAT-016",
-      "title": "Settings Screen (Theme/Export/About/Privacy)",
-      "priority": 9,
-      "description": "Implement Settings screen per spec with theme selection and stubs for other options.",
-      "acceptanceCriteria": [
-        "Settings tab exists and can be reached via bottom nav and header menu",
-        "Theme selection supports Light/Dark/Auto and persists",
-        "Notifications entry exists (may be stubbed)",
-        "Export Journal entry exists (may be stubbed or basic JSON export)",
-        "About and Privacy Policy entries exist"
-      ],
-      "passes": true,
-      "branchName": "feat/settings"
-    },
-    {
-      "id": "FEAT-017",
-      "title": "Typography & Theme Token Alignment",
-      "priority": 10,
-      "description": "Align typography/colors across screens using theme tokens while matching both example designs (today.html uses Nunito; journal-history.html uses Inter).",
-      "acceptanceCriteria": [
-        "Typography decisions documented (single font or per-screen) and implemented consistently",
-        "No hardcoded magic colors in UI (use constants/theme.ts tokens)",
-        "Today and Entries screens each match their reference HTML designs",
-        "Light/dark mode styling remains legible and consistent"
-      ],
-      "passes": true,
-      "branchName": "feat/typography-theme-alignment"
-    },
-    {
-      "id": "FEAT-001",
-      "title": "Markdown Rendering in React Native",
-      "priority": 20,
-      "description": "Implement markdown rendering for AI chat responses in React Native. Support common markdown elements (headers, bold, italic, lists, code blocks, links) with proper sizing that complements the app's typography.",
-      "acceptanceCriteria": [
-        "Install and configure react-native-markdown-display or similar library",
-        "Markdown renders correctly for headers (h1-h6), bold, italic, lists, code blocks, and links",
-        "Font sizes are proportional and complement the existing app typography",
-        "Markdown renders well in both light and dark mode",
-        "ChatMessage component uses markdown rendering for AI responses"
-      ],
-      "passes": true,
-      "branchName": "feat/markdown-rendering"
-    },
-    {
-      "id": "FEAT-002",
-      "title": "Therapist-style AI System Prompt",
-      "priority": 21,
-      "description": "Create a thoughtful therapist-style system prompt for the journaling AI. The AI should be reflective, ask open-ended questions, validate emotions, and avoid giving direct advice too quickly. Focus on active listening and helping users explore their thoughts.",
-      "acceptanceCriteria": [
-        "System prompt is added to the AI service configuration",
-        "AI responds with reflective, empathetic tone",
-        "AI asks open-ended questions to help users explore thoughts",
-        "AI validates emotions before offering any suggestions",
-        "AI does not jump to giving advice immediately"
-      ],
-      "passes": true,
-      "branchName": "feat/therapist-system-prompt"
-    },
-    {
-      "id": "FEAT-003",
-      "title": "Journal History Screen",
-      "priority": 22,
-      "description": "Create a Journal History screen that matches the example-design/journal-history.html exactly. Include weekly groupings, entry cards with emoji/title, date headers, and the floating action button (FAB) design.",
-      "acceptanceCriteria": [
-        "New JournalHistory screen created with navigation",
-        "Design matches journal-history.html exactly (colors, spacing, typography)",
-        "Entries grouped by week with date headers",
-        "Entry cards show day abbreviation, emoji, and title",
-        "FAB (floating action button) with pink edit icon is present",
-        "Bottom navigation bar with Today, Explore, Entries, Settings tabs",
-        "Light and dark mode supported matching the HTML design"
-      ],
-      "passes": true,
-      "branchName": "feat/journal-history-screen"
-    },
-    {
-      "id": "FEAT-004",
-      "title": "Navigation Between Chat and History",
-      "priority": 23,
-      "description": "Implement navigation flow: FAB button on history screen creates new chat, X button on chat screen returns to history. Add tab navigation for the main app sections.",
-      "acceptanceCriteria": [
-        "Pressing FAB (edit button) on history screen navigates to new chat",
-        "Pressing X button on chat header returns to journal history",
-        "Tab navigation works for Today, Explore, Entries, Settings",
-        "Navigation state is properly managed"
-      ],
-      "passes": true,
-      "branchName": "feat/navigation-flow"
-    },
-    {
-      "id": "FEAT-005",
-      "title": "Save and Finish Journal Entry",
-      "priority": 24,
-      "description": "Implement 'Finish Entry' functionality that saves the current chat as a completed journal entry to history. Generate a title and extract mood emoji from the conversation.",
-      "acceptanceCriteria": [
-        "Pressing 'Finish Entry' saves the chat to journal history",
-        "Entry is marked as completed (not draft)",
-        "Title is generated from conversation content (or AI generates it)",
-        "Mood emoji is extracted or inferred from conversation",
-        "Entry appears in journal history with correct date grouping",
-        "After finishing, user is navigated back to history screen"
-      ],
-      "passes": true,
-      "branchName": "feat/finish-entry"
-    },
-    {
-      "id": "FEAT-006",
-      "title": "Draft Functionality for Unfinished Entries",
-      "priority": 25,
-      "description": "When user closes a chat (X button) without finishing, auto-save as draft. Drafts appear in a separate tab in journal history and can be resumed.",
-      "acceptanceCriteria": [
-        "Pressing X on chat with content saves entry as draft",
-        "Draft entries are stored separately from completed entries",
-        "Drafts tab in header or journal history shows draft entries",
-        "Tapping a draft entry resumes the chat with previous messages",
-        "Draft is converted to completed entry when 'Finish Entry' is pressed"
-      ],
-      "passes": true,
-      "branchName": "feat/draft-entries"
-    },
-    {
-      "id": "FEAT-007",
-      "title": "Journal Entry Storage Service",
-      "priority": 26,
-      "description": "Create a storage service for persisting journal entries (completed and drafts) using AsyncStorage or similar. Include CRUD operations and data model.",
-      "acceptanceCriteria": [
-        "JournalEntry type defined with id, title, emoji, messages, status (draft/completed), createdAt, updatedAt",
-        "Storage service with create, read, update, delete, list operations",
-        "Entries persist across app restarts",
-        "Service is testable with mock storage"
-      ],
-      "passes": true,
-      "branchName": "feat/journal-storage"
+    "project": "JournalApp",
+    "stories": [
+        {
+            "id": "BUG-001",
+            "title": "Fix web theme toggle + persistence",
+            "priority": 1,
+            "description": "Fix Settings theme selection (Light/Dark/System) on web by aligning NativeWind manual theme toggling with Tailwind's dark mode configuration, and ensure the preference persists correctly.",
+            "acceptanceCriteria": [
+                "Switching theme in Settings works on web without runtime errors",
+                "NativeWind color scheme can be manually overridden (Light/Dark/System)",
+                "Theme preference persists across reloads (AsyncStorage)",
+                "System theme option respects OS appearance changes (where supported)",
+                "Regression tests cover loading and saving theme preference"
+            ],
+            "passes": true,
+            "branchName": "fix/theme-toggle-web"
+        },
+        {
+            "id": "CHORE-001",
+            "title": "Eliminate lint + test warnings",
+            "priority": 2,
+            "description": "Resolve all warnings from expo lint and Jest test runs so CI/local output is clean.",
+            "acceptanceCriteria": [
+                "npm run lint reports 0 errors and 0 warnings",
+                "npm test -- --runInBand passes and does not emit unexpected console warnings/errors",
+                "Any rule changes (if unavoidable) are documented in PROGRESS.md and justified"
+            ],
+            "passes": true,
+            "branchName": "chore/zero-warnings"
+        },
+        {
+            "id": "FEAT-008",
+            "title": "Today Dashboard Screen (Design + Day Navigation)",
+            "priority": 1,
+            "description": "Build the Today dashboard screen to match example-design/today.html and implement the weekday selector and calendar shortcut navigation.",
+            "acceptanceCriteria": [
+                "Today screen matches example-design/today.html (layout, colors, typography, spacing)",
+                "Header shows gift icon (Rewards), date title, and menu icon (Settings)",
+                "Weekday selector supports selecting days and visually highlighting the selected day",
+                "Calendar icon navigates to Entries tab",
+                "Daily Journaling card is present with a Check in now CTA",
+                "Happiness Recipe section is present (Completed dropdown + Add ingredient + Add goal buttons)",
+                "Ask Rosebud section is present with current time range selector UI"
+            ],
+            "passes": true,
+            "branchName": "feat/today-dashboard"
+        },
+        {
+            "id": "FEAT-009",
+            "title": "Daily Check-In Prompts (Time-Based) + Chat Context",
+            "priority": 2,
+            "description": "Implement time-based daily check-in prompts and ensure chat launches with the correct prompt context (system message + AI follow-up).",
+            "acceptanceCriteria": [
+                "Time-based prompt selection matches spec windows (Morning/Afternoon/Evening/Night)",
+                "Pressing Today > Check in now opens chat initialized for daily check-in",
+                "Chat shows a system message with the chosen prompt title and prompt text",
+                "AI sends a follow-up question based on the prompt",
+                "Chat input is disabled while AI responds and re-enabled after",
+                "Streaming AI responses remain supported"
+            ],
+            "passes": true,
+            "branchName": "feat/daily-check-in-prompts"
+        },
+        {
+            "id": "FEAT-010",
+            "title": "Navigation Alignment (5-item Tab Bar + Header Links)",
+            "priority": 3,
+            "description": "Align navigation to the spec: 5-item bottom nav (Today, Explore, centered FAB, Entries, Settings) and header actions (Gift -> Rewards, Menu -> Settings).",
+            "acceptanceCriteria": [
+                "Bottom navigation renders 5 items with centered elevated FAB (per today.html)",
+                "Active tab styling matches designs",
+                "FAB always visible and creates a new entry (opens chat)",
+                "Gift icon navigates to Rewards screen",
+                "Menu icon navigates to Settings tab",
+                "Navigation works across Today/Explore/Entries/Settings"
+            ],
+            "passes": true,
+            "branchName": "feat/navigation-alignment"
+        },
+        {
+            "id": "FEAT-011",
+            "title": "Entry Action Modal (Continue vs New)",
+            "priority": 4,
+            "description": "When tapping an entry in Entries, show an action modal allowing Continue Entry (append messages) or Create New Entry.",
+            "acceptanceCriteria": [
+                "Tapping an entry card opens an action modal (Continue Entry / Create New Entry / Cancel)",
+                "Continue Entry opens chat preloaded with existing messages, with prior messages visually indicated as read-only",
+                "New messages append to the same entry when continuing",
+                "Create New Entry opens a blank chat flow",
+                "Modal is dismissible (X or tap outside)"
+            ],
+            "passes": true,
+            "branchName": "feat/entry-action-modal"
+        },
+        {
+            "id": "FEAT-012",
+            "title": "Stats Detail Modals (Streak / Entries / Words)",
+            "priority": 5,
+            "description": "Implement tappable stat cards on Today that open detail modals with breakdowns/charts.",
+            "acceptanceCriteria": [
+                "Tapping Streak opens a modal with streak calendar view + stats",
+                "Tapping Entries opens a modal with monthly breakdown and totals",
+                "Tapping Words opens a modal with word-count trend and average",
+                "Modals slide up and dismiss smoothly",
+                "Close button (X) present"
+            ],
+            "passes": true,
+            "branchName": "feat/stats-modals"
+        },
+        {
+            "id": "FEAT-013",
+            "title": "Happiness Recipe (Ingredients + Goals CRUD)",
+            "priority": 6,
+            "description": "Implement Happiness Recipe management: add/edit/complete/delete ingredients & goals, plus completed screen.",
+            "acceptanceCriteria": [
+                "Add ingredient and Add goal flows use inline input with save/cancel",
+                "Items can be toggled completed and move between active/completed sections",
+                "Items can be edited (long-press) and deleted (swipe) with undo toast",
+                "Completed dropdown navigates to Happiness Recipe screen showing active + completed lists",
+                "Haptics/animations are used where appropriate"
+            ],
+            "passes": true,
+            "branchName": "feat/happiness-recipe"
+        },
+        {
+            "id": "FEAT-014",
+            "title": "Ask Rosebud (Insights Chat + Time Range)",
+            "priority": 7,
+            "description": "Build Ask Rosebud chat: time range selector, suggested questions, AI insights based on journal history with tappable entry references.",
+            "acceptanceCriteria": [
+                "Ask Rosebud screen exists and is reachable from Today",
+                "Time range selector supports All-time/This year/This month/This week",
+                "Suggested question cards trigger analysis",
+                "AI uses journal history to provide insights and references specific entries with dates",
+                "Entry references are tappable and navigate to that entry"
+            ],
+            "passes": true,
+            "branchName": "feat/ask-rosebud"
+        },
+        {
+            "id": "FEAT-015",
+            "title": "Rewards Screen (Achievements)",
+            "priority": 8,
+            "description": "Add a Rewards screen accessible via gift icon, showing streak and achievements with progress.",
+            "acceptanceCriteria": [
+                "Rewards screen exists and is reachable via header gift icon",
+                "Shows current streak and basic achievement grid",
+                "Locked achievements show grayscale and progress indicators",
+                "Tapping an achievement shows details",
+                "Newly unlocked achievements have a celebration animation (manual verification acceptable)"
+            ],
+            "passes": true,
+            "branchName": "feat/rewards"
+        },
+        {
+            "id": "FEAT-016",
+            "title": "Settings Screen (Theme/Export/About/Privacy)",
+            "priority": 9,
+            "description": "Implement Settings screen per spec with theme selection and stubs for other options.",
+            "acceptanceCriteria": [
+                "Settings tab exists and can be reached via bottom nav and header menu",
+                "Theme selection supports Light/Dark/Auto and persists",
+                "Notifications entry exists (may be stubbed)",
+                "Export Journal entry exists (may be stubbed or basic JSON export)",
+                "About and Privacy Policy entries exist"
+            ],
+            "passes": true,
+            "branchName": "feat/settings"
+        },
+        {
+            "id": "FEAT-017",
+            "title": "Typography & Theme Token Alignment",
+            "priority": 10,
+            "description": "Align typography/colors across screens using theme tokens while matching both example designs (today.html uses Nunito; journal-history.html uses Inter).",
+            "acceptanceCriteria": [
+                "Typography decisions documented (single font or per-screen) and implemented consistently",
+                "No hardcoded magic colors in UI (use constants/theme.ts tokens)",
+                "Today and Entries screens each match their reference HTML designs",
+                "Light/dark mode styling remains legible and consistent"
+            ],
+            "passes": true,
+            "branchName": "feat/typography-theme-alignment"
+        },
+        {
+            "id": "FEAT-001",
+            "title": "Markdown Rendering in React Native",
+            "priority": 20,
+            "description": "Implement markdown rendering for AI chat responses in React Native. Support common markdown elements (headers, bold, italic, lists, code blocks, links) with proper sizing that complements the app's typography.",
+            "acceptanceCriteria": [
+                "Install and configure react-native-markdown-display or similar library",
+                "Markdown renders correctly for headers (h1-h6), bold, italic, lists, code blocks, and links",
+                "Font sizes are proportional and complement the existing app typography",
+                "Markdown renders well in both light and dark mode",
+                "ChatMessage component uses markdown rendering for AI responses"
+            ],
+            "passes": true,
+            "branchName": "feat/markdown-rendering"
+        },
+        {
+            "id": "FEAT-002",
+            "title": "Therapist-style AI System Prompt",
+            "priority": 21,
+            "description": "Create a thoughtful therapist-style system prompt for the journaling AI. The AI should be reflective, ask open-ended questions, validate emotions, and avoid giving direct advice too quickly. Focus on active listening and helping users explore their thoughts.",
+            "acceptanceCriteria": [
+                "System prompt is added to the AI service configuration",
+                "AI responds with reflective, empathetic tone",
+                "AI asks open-ended questions to help users explore thoughts",
+                "AI validates emotions before offering any suggestions",
+                "AI does not jump to giving advice immediately"
+            ],
+            "passes": true,
+            "branchName": "feat/therapist-system-prompt"
+        },
+        {
+            "id": "FEAT-003",
+            "title": "Journal History Screen",
+            "priority": 22,
+            "description": "Create a Journal History screen that matches the example-design/journal-history.html exactly. Include weekly groupings, entry cards with emoji/title, date headers, and the floating action button (FAB) design.",
+            "acceptanceCriteria": [
+                "New JournalHistory screen created with navigation",
+                "Design matches journal-history.html exactly (colors, spacing, typography)",
+                "Entries grouped by week with date headers",
+                "Entry cards show day abbreviation, emoji, and title",
+                "FAB (floating action button) with pink edit icon is present",
+                "Bottom navigation bar with Today, Explore, Entries, Settings tabs",
+                "Light and dark mode supported matching the HTML design"
+            ],
+            "passes": true,
+            "branchName": "feat/journal-history-screen"
+        },
+        {
+            "id": "FEAT-004",
+            "title": "Navigation Between Chat and History",
+            "priority": 23,
+            "description": "Implement navigation flow: FAB button on history screen creates new chat, X button on chat screen returns to history. Add tab navigation for the main app sections.",
+            "acceptanceCriteria": [
+                "Pressing FAB (edit button) on history screen navigates to new chat",
+                "Pressing X button on chat header returns to journal history",
+                "Tab navigation works for Today, Explore, Entries, Settings",
+                "Navigation state is properly managed"
+            ],
+            "passes": true,
+            "branchName": "feat/navigation-flow"
+        },
+        {
+            "id": "FEAT-005",
+            "title": "Save and Finish Journal Entry",
+            "priority": 24,
+            "description": "Implement 'Finish Entry' functionality that saves the current chat as a completed journal entry to history. Generate a title and extract mood emoji from the conversation.",
+            "acceptanceCriteria": [
+                "Pressing 'Finish Entry' saves the chat to journal history",
+                "Entry is marked as completed (not draft)",
+                "Title is generated from conversation content (or AI generates it)",
+                "Mood emoji is extracted or inferred from conversation",
+                "Entry appears in journal history with correct date grouping",
+                "After finishing, user is navigated back to history screen"
+            ],
+            "passes": true,
+            "branchName": "feat/finish-entry"
+        },
+        {
+            "id": "FEAT-006",
+            "title": "Draft Functionality for Unfinished Entries",
+            "priority": 25,
+            "description": "When user closes a chat (X button) without finishing, auto-save as draft. Drafts appear in a separate tab in journal history and can be resumed.",
+            "acceptanceCriteria": [
+                "Pressing X on chat with content saves entry as draft",
+                "Draft entries are stored separately from completed entries",
+                "Drafts tab in header or journal history shows draft entries",
+                "Tapping a draft entry resumes the chat with previous messages",
+                "Draft is converted to completed entry when 'Finish Entry' is pressed"
+            ],
+            "passes": true,
+            "branchName": "feat/draft-entries"
+        },
+        {
+            "id": "FEAT-007",
+            "title": "Journal Entry Storage Service",
+            "priority": 26,
+            "description": "Create a storage service for persisting journal entries (completed and drafts) using AsyncStorage or similar. Include CRUD operations and data model.",
+            "acceptanceCriteria": [
+                "JournalEntry type defined with id, title, emoji, messages, status (draft/completed), createdAt, updatedAt",
+                "Storage service with create, read, update, delete, list operations",
+                "Entries persist across app restarts",
+                "Service is testable with mock storage"
+            ],
+            "passes": true,
+            "branchName": "feat/journal-storage"
+        }
+    ],
+    "archive": {
+        "legacyFeatures": []
     }
-  ],
-  "archive": {
-    "legacyFeatures": []
-  }
 }

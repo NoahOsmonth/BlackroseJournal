@@ -1,5 +1,5 @@
 import { THERAPIST_SYSTEM_PROMPT } from '../constants/aiPrompts';
-import { Message, completeChat } from './ai';
+import { completeChat, Message } from './ai';
 import { buildAskRosebudContext, TimeRange } from './supermemory';
 
 const TIME_RANGE_LABELS: Record<TimeRange, string> = {

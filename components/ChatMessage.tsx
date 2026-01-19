@@ -1,3 +1,4 @@
+import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { getMarkdownStyles } from '@/constants/markdownStyles';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -8,10 +9,7 @@ import Animated, {
   FadeIn,
   FadeInDown,
   FadeOut,
-  Layout,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming
+  Layout
 } from 'react-native-reanimated';
 
 interface ChatMessageProps {
@@ -30,59 +28,26 @@ export function ChatMessage({
   isReadOnly = false,
 }: ChatMessageProps) {
   const [displayedText, setDisplayedText] = useState('');
-  const [showCursor, setShowCursor] = useState(false);
   const [showReasoning, setShowReasoning] = useState(false);
-  const cursorOpacity = useSharedValue(1);
   const colorScheme = useColorScheme();
 
   useEffect(() => {
     if (isStreaming) {
       setDisplayedText('');
-      setShowCursor(true);
-      cursorOpacity.value = 1;
-
-      let index = 0;
-      const charArray = text.split('');
-
-      const interval = setInterval(() => {
-        if (index < charArray.length) {
-          setDisplayedText(charArray.slice(0, index + 1).join(''));
-          index++;
-        } else {
-          clearInterval(interval);
-          setShowCursor(false);
-          cursorOpacity.value = withTiming(0, { duration: 200 });
-        }
-      }, 15);
-
-      return () => clearInterval(interval);
-    } else {
-      setDisplayedText(text);
-      setShowCursor(false);
+      return;
     }
-  }, [text, isStreaming, cursorOpacity]);
 
-  useEffect(() => {
-    if (showCursor) {
-      const blinkInterval = setInterval(() => {
-        cursorOpacity.value = cursorOpacity.value === 1 ? 0 : 1;
-      }, 500);
-
-      return () => clearInterval(blinkInterval);
-    }
-  }, [showCursor, cursorOpacity]);
-
-  const cursorAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: cursorOpacity.value,
-  }));
+    setDisplayedText(text);
+  }, [text, isStreaming]);
 
   const toggleReasoning = () => {
-    if (reasoning && isAi) {
+    if (reasoning && isAi && !isStreaming) {
       setShowReasoning(!showReasoning);
     }
   };
 
   const hasReasoning = isAi && reasoning && reasoning.trim().length > 0;
+  const canToggleReasoning = hasReasoning && !isStreaming;
   const markdownStyles = getMarkdownStyles(colorScheme === 'dark', { fontWeight: '600' });
   const messageTextClassName = isAi
     ? 'text-[15px] leading-[22px] font-semibold text-text-light dark:text-text-dark'
@@ -96,11 +61,16 @@ export function ChatMessage({
     >
       <Pressable
         onPress={toggleReasoning}
+        disabled={!canToggleReasoning}
         className="py-1"
-        android_ripple={hasReasoning ? { color: 'rgba(0,0,0,0.1)' } : undefined}
+        android_ripple={canToggleReasoning ? { color: 'rgba(0,0,0,0.1)' } : undefined}
       >
         {/* AI messages use markdown rendering when not streaming */}
-        {isAi && !isStreaming ? (
+        {isAi && isStreaming ? (
+          <View className="py-1">
+            <TypingIndicator colorClassName="text-text-secondary-light dark:text-text-secondary-dark" />
+          </View>
+        ) : isAi ? (
           <Markdown style={markdownStyles}>
             {displayedText}
           </Markdown>
@@ -109,14 +79,6 @@ export function ChatMessage({
             className={messageTextClassName}
           >
             {displayedText}
-            {showCursor && (
-              <Animated.Text
-                style={cursorAnimatedStyle}
-                className="text-text-light dark:text-text-dark"
-              >
-                |
-              </Animated.Text>
-            )}
           </Text>
         )}
 

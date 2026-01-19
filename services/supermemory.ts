@@ -139,7 +139,11 @@ async function buildSupermemoryError(response: Response, context: string): Promi
     return new Error(`${context} (status ${response.status}).${details}`);
 }
 
-async function requestSupermemory<T>(path: string, body: unknown): Promise<T> {
+async function requestSupermemory<T>(
+    path: string,
+    body: unknown,
+    expectJson = true
+): Promise<T> {
     const { apiBaseUrl, apiKey } = getSupermemoryConfig();
     const response = await fetch(`${apiBaseUrl}${path}`, {
         method: 'POST',
@@ -154,7 +158,15 @@ async function requestSupermemory<T>(path: string, body: unknown): Promise<T> {
         throw await buildSupermemoryError(response, 'Supermemory request failed');
     }
 
+    if (!expectJson) {
+        return undefined as T;
+    }
+
     const parsed = await parseJsonSafely(response);
+    if (!parsed) {
+        throw new Error('Supermemory response was not valid JSON.');
+    }
+
     return parsed as T;
 }
 
@@ -202,7 +214,7 @@ export async function ingestJournalEntry(entry: JournalEntry): Promise<void> {
         containerTag,
         customId: entry.id,
         metadata,
-    });
+    }, false);
 }
 
 export async function ingestConversation(
@@ -223,7 +235,7 @@ export async function ingestConversation(
         },
     };
 
-    await requestSupermemory('/v4/conversations', payload);
+    await requestSupermemory('/v4/conversations', payload, false);
 }
 
 function formatProfileSection(title: string, values: string[] | undefined): string {

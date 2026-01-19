@@ -12,13 +12,13 @@
 import { PromptPeriod } from '@/constants/dailyPrompts';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChatMessage } from '../components/ChatMessage';
 import { FooterActions } from '../components/FooterActions';
 import { Header } from '../components/Header';
 import { InlineTypingInput, InlineTypingInputRef } from '../components/InlineTypingInput';
-import { TintColors } from '../constants/theme';
+import { TypingIndicator } from '../components/ui/TypingIndicator';
 import { ChatMode, useChatOrchestration } from '../features/chat';
 import { generateTitle, hasContent, inferMoodEmoji } from '../hooks/useEntryUtils';
 import { useJournalEntries } from '../hooks/useJournalEntries';
@@ -225,8 +225,8 @@ export default function ChatScreen() {
 
                         {isLoading && !streamingMessage && (
                             <View className="flex-row items-center gap-2 ml-4">
-                                <ActivityIndicator size="small" color={TintColors.light} />
-                                <Text className="text-slate-500 dark:text-slate-400 text-sm">AI is thinking...</Text>
+                                <TypingIndicator colorClassName="text-slate-500 dark:text-slate-400" sizeClassName="text-sm" />
+                                <Text className="text-slate-500 dark:text-slate-400 text-sm">AI is thinking</Text>
                             </View>
                         )}
 

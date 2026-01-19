@@ -34,12 +34,14 @@ const mockRetryLastMessage = jest.fn();
 const mockClearError = jest.fn();
 let mockErrorMessage: string | null = null;
 let mockCanRetry = false;
+let mockStreamingMessage: any = null;
+let mockIsLoading = false;
 
 jest.mock('../features/chat', () => ({
   useChatOrchestration: () => ({
     messages: [],
-    streamingMessage: null,
-    isLoading: false,
+    streamingMessage: mockStreamingMessage,
+    isLoading: mockIsLoading,
     errorMessage: mockErrorMessage,
     canRetry: mockCanRetry,
     handleSendMessage: mockHandleSendMessage,
@@ -99,6 +101,8 @@ describe('ChatScreen', () => {
     mockClearError.mockClear();
     mockErrorMessage = null;
     mockCanRetry = false;
+    mockStreamingMessage = null;
+    mockIsLoading = false;
     mockGetById.mockClear();
     mockCreate.mockClear();
     mockUpdate.mockClear();
@@ -191,5 +195,21 @@ describe('ChatScreen', () => {
     const dismissButton = screen.getByLabelText('Dismiss error message');
     fireEvent.press(dismissButton);
     expect(mockClearError).toHaveBeenCalled();
+  });
+
+  it('shows typing indicator while streaming', () => {
+    mockStreamingMessage = {
+      id: 'streaming-1',
+      role: 'assistant',
+      content: '',
+      reasoning: '',
+      isStreaming: true,
+    };
+    mockIsLoading = true;
+
+    render(<ChatScreen />);
+
+    expect(screen.getByLabelText('AI typing indicator')).toBeTruthy();
+    expect(screen.queryByPlaceholderText('Type your thoughts...')).toBeNull();
   });
 });

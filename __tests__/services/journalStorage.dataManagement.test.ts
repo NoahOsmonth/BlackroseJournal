@@ -1,13 +1,17 @@
 // Mock AsyncStorage first
 jest.mock('@react-native-async-storage/async-storage', () =>
-  require('@react-native-async-storage/async-storage/jest/async-storage-mock')
+    require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 );
+
+jest.mock('@/services/supermemory', () => ({
+    ingestJournalEntry: jest.fn().mockResolvedValue(undefined),
+}));
 
 import {
     clearAllEntries,
+    createEntry,
     getAllEntriesForExport,
-    setStorageAdapter,
-    createEntry
+    setStorageAdapter
 } from '@/services/journalStorage';
 import { StorageAdapter } from '@/services/journalStorage.types';
 
@@ -44,7 +48,7 @@ describe('Journal Storage Data Management', () => {
         it('should return a JSON string of all entries', async () => {
             const exportData = await getAllEntriesForExport();
             const parsed = JSON.parse(exportData);
-            
+
             expect(Array.isArray(parsed)).toBe(true);
             expect(parsed.length).toBe(2);
             expect(parsed[0]).toHaveProperty('id');

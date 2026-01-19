@@ -9,6 +9,9 @@
 - [x] Task 006: Fix web AI env loading
 - [x] Task 007: Align chat document layout
 - [x] Task 008: Add Go deeper send button
+- [x] FEAT-SMEM-001: Supermemory service + ingestion pipeline
+- [x] FEAT-SMEM-002: Memory-aware AI flows (chat/check-in/new entry/Ask Rosebud)
+- [x] FEAT-UI-001: AI typing indicator + disabled interactions
 
 ## Updates
 
@@ -63,6 +66,27 @@
 - Added InlineTypingInput text-change coverage and updated ChatScreen tests for Go deeper behavior.
 - Files: `app/chat.tsx`, `components/FooterActions.tsx`, `components/InlineTypingInput.tsx`, `__tests__/ChatScreen.test.tsx`, `__tests__/InlineTypingInput.test.tsx`.
 - Verification: `npm test -- --runInBand`.
+
+### FEAT-SMEM-001: Supermemory service + ingestion pipeline
+- Added Supermemory config + service wrapper with container tags, profile/search helpers, and ingestion for journal entries and chat transcripts.
+- Wired journal create/update flows to ingest entries and added test coverage for service calls.
+- Added Jest AsyncStorage mock and Supermemory ingest mocks for storage tests.
+- Files: `services/supermemory.ts`, `services/supermemoryConfig.ts`, `services/journalStorage.ts`, `features/chat/hooks/useChatOrchestration.ts`, `services/ai.ts`, `app/chat.tsx`, `app.config.ts`, `.env.example`, `README.md`, `jest.setup.js`, `__tests__/services/supermemory.test.ts`, `__tests__/services/ai.test.ts`, `__tests__/journalStorage.test.ts`, `__tests__/services/journalStorage.dataManagement.test.ts`.
+- Verification: `npm run lint`, `npm test -- --runInBand`, `npm run check:design`.
+
+### FEAT-SMEM-002: Memory-aware AI flows (chat/check-in/new entry/Ask Rosebud)
+- Injected Supermemory profile + memory context into chat flows, added Ask Rosebud LLM path with time-range query modes, and created Ask Rosebud hook/service.
+- Updated chat orchestration to track conversation IDs and ingest AI transcripts for memory updates.
+- Added tests for Ask Rosebud time-range logic and memory context formatting.
+- Files: `services/ai.ts`, `services/askRosebud.ts`, `hooks/useAskRosebud.ts`, `app/ask-rosebud.tsx`, `features/chat/hooks/useChatOrchestration.ts`, `app/chat.tsx`, `services/supermemory.ts`, `__tests__/services/supermemory.test.ts`, `__tests__/screens/AskRosebud.test.tsx`, `__tests__/useChatOrchestration.test.ts`.
+- Verification: `npm run lint`, `npm test -- --runInBand`, `npm run check:design`.
+
+### FEAT-UI-001: AI typing indicator + disabled interactions
+- Added animated ellipsis typing indicator and integrated it into chat and Ask Rosebud loading states.
+- Disabled reasoning toggle and question cards while AI is streaming.
+- Updated UI tests to cover loading/disabled behavior.
+- Files: `components/ui/TypingIndicator.tsx`, `components/ChatMessage.tsx`, `app/chat.tsx`, `app/ask-rosebud.tsx`, `__tests__/components/ChatMessage.test.tsx`, `__tests__/ChatScreen.test.tsx`, `__tests__/screens/AskRosebud.test.tsx`.
+- Verification: `npm run lint`, `npm test -- --runInBand`, `npm run check:design`.
 
 ---
 

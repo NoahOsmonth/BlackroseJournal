@@ -10,6 +10,10 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
     removeItem: jest.fn(),
 }));
 
+jest.mock('../services/supermemory', () => ({
+    ingestJournalEntry: jest.fn().mockResolvedValue(undefined),
+}));
+
 import { Message } from '../services/ai';
 import {
     clearAllEntries,

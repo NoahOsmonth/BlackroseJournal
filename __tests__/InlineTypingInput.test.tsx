@@ -1,5 +1,5 @@
+import { fireEvent, render } from '@testing-library/react-native';
 import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import { InlineTypingInput } from '../components/InlineTypingInput';
 
 // Mock the hooks
@@ -10,7 +10,7 @@ jest.mock('@/hooks/use-color-scheme', () => ({
 // Mock Reanimated
 jest.mock('react-native-reanimated', () => {
   const Reanimated = require('react-native-reanimated/mock');
-  Reanimated.default.call = () => {};
+  Reanimated.default.call = () => { };
   return {
     ...Reanimated,
     FadeIn: {

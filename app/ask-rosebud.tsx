@@ -3,14 +3,15 @@
  * AI-powered insights from journal entries with time range selection
  */
 
+import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useAskRosebud } from '@/hooks/useAskRosebud';
 import { useJournalEntries } from '@/hooks/useJournalEntries';
-import { JournalEntry } from '@/services/journalStorage.types';
+import { TimeRange } from '@/services/supermemory';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
     Pressable,
     ScrollView,
     Text,
@@ -18,8 +19,6 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-type TimeRange = 'all-time' | 'this-year' | 'this-month' | 'this-week';
 
 const TIME_RANGE_LABELS: Record<TimeRange, string> = {
     'all-time': 'All-time',
@@ -35,22 +34,15 @@ const SUGGESTED_QUESTIONS = [
     'How has my mindset changed over time?',
 ];
 
-interface Message {
-    id: string;
-    role: 'user' | 'assistant';
-    content: string;
-}
-
 export default function AskRosebudScreen() {
     const router = useRouter();
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
     const { completed } = useJournalEntries();
+    const { messages, isLoading, errorMessage, sendQuestion } = useAskRosebud();
 
     const [timeRange, setTimeRange] = useState<TimeRange>('all-time');
-    const [messages, setMessages] = useState<Message[]>([]);
     const [inputText, setInputText] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
 
     // Filter entries by time range
     const filteredEntries = useMemo(() => {
@@ -79,31 +71,9 @@ export default function AskRosebudScreen() {
     const handleSendMessage = useCallback(async (question: string) => {
         if (!question.trim() || isLoading) return;
 
-        const userMessage: Message = {
-            id: Date.now().toString(),
-            role: 'user',
-            content: question.trim(),
-        };
-
-        setMessages((prev) => [...prev, userMessage]);
         setInputText('');
-        setIsLoading(true);
-
-        // Simulate AI response (in production, this would call the AI service)
-        setTimeout(() => {
-            const response = generateInsightResponse(question, filteredEntries);
-
-            setMessages((prev) => [
-                ...prev,
-                {
-                    id: (Date.now() + 1).toString(),
-                    role: 'assistant',
-                    content: response,
-                },
-            ]);
-            setIsLoading(false);
-        }, 1500);
-    }, [filteredEntries, isLoading]);
+        await sendQuestion(question, timeRange);
+    }, [isLoading, sendQuestion, timeRange]);
 
     const cycleTimeRange = () => {
         const ranges: TimeRange[] = ['all-time', 'this-year', 'this-month', 'this-week'];
@@ -154,14 +124,23 @@ export default function AskRosebudScreen() {
                                 <Pressable
                                     key={i}
                                     onPress={() => handleSendMessage(q)}
+                                    disabled={isLoading}
                                     className={`p-4 mb-2 rounded-xl ${isDark ? 'bg-surface-dark' : 'bg-surface-light'
-                                        }`}
+                                        } ${isLoading ? 'opacity-50' : ''}`}
                                 >
                                     <Text className="text-text-main-light dark:text-text-main-dark">
                                         {q}
                                     </Text>
                                 </Pressable>
                             ))}
+                        </View>
+                    )}
+
+                    {errorMessage && (
+                        <View className="mb-4 rounded-xl border border-divider-light dark:border-divider-dark bg-yellow-300/20 dark:bg-yellow-300/10 p-3">
+                            <Text className="text-sm text-text-main-light dark:text-text-main-dark">
+                                {errorMessage}
+                            </Text>
                         </View>
                     )}
 
@@ -194,7 +173,7 @@ export default function AskRosebudScreen() {
                     {isLoading && (
                         <View className="items-start mb-4">
                             <View className={`p-4 rounded-2xl ${isDark ? 'bg-surface-dark' : 'bg-surface-light'}`}>
-                                <ActivityIndicator size="small" color="#E91E63" />
+                                <TypingIndicator colorClassName="text-primary" />
                             </View>
                         </View>
                     )}
@@ -230,28 +209,4 @@ export default function AskRosebudScreen() {
             </View>
         </SafeAreaView>
     );
-}
-
-/**
- * Generate a mock insight response based on entries
- */
-function generateInsightResponse(question: string, entries: JournalEntry[]): string {
-    if (entries.length === 0) {
-        return "I don't have any journal entries in this time range to analyze. Try selecting a broader time range or add some journal entries first!";
-    }
-
-    const entryCount = entries.length;
-    const recentEntry = entries[0];
-    const recentDate = new Date(recentEntry.createdAt).toLocaleDateString();
-
-    // Generate a contextual response
-    if (question.toLowerCase().includes('pattern')) {
-        return `Based on your ${entryCount} entries, I notice you tend to journal more in the evenings. Your most recent entry on ${recentDate} shows thoughtful self-reflection. Keep it up! 🌟`;
-    } else if (question.toLowerCase().includes('happy')) {
-        return `Looking at your ${entryCount} entries, you seem happiest when spending time with loved ones and working on creative projects. Your entry on ${recentDate} had particularly positive energy!`;
-    } else if (question.toLowerCase().includes('stress')) {
-        return `From your ${entryCount} entries, work-related pressures appear most often. Consider the journaling techniques you've found helpful, as noted in your entry from ${recentDate}.`;
-    } else {
-        return `I've analyzed your ${entryCount} entries. You've been consistent with your journaling practice! Your most recent entry on ${recentDate} shows great self-awareness. Would you like me to explore any specific aspect?`;
-    }
 }

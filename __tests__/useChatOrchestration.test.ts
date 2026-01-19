@@ -7,12 +7,14 @@ import { Message } from '../services/ai';
 const mockSendMessage = jest.fn();
 const mockClearMessages = jest.fn();
 const mockSetMessages = jest.fn();
+const mockSendInitialPrompt = jest.fn();
 const mockSetConversationId = jest.fn();
 
 jest.mock('../services/ai', () => ({
     useChat: () => ({
         sendMessage: mockSendMessage,
         clearMessages: mockClearMessages,
+        sendInitialPrompt: mockSendInitialPrompt,
         setMessages: mockSetMessages,
         setConversationId: mockSetConversationId,
     }),
