@@ -62,6 +62,36 @@ describe('happinessRecipeStorage', () => {
             expect(item.type).toBe('goal');
             expect(item.text).toBe('Learn guitar');
         });
+
+        it('adds a new habit', async () => {
+            const item = await addRecipeItem('habit', 'Take a short walk');
+
+            expect(item.type).toBe('habit');
+            expect(item.text).toBe('Take a short walk');
+            expect(AsyncStorage.setItem).toHaveBeenCalled();
+        });
+
+        it('dedupes habits with case-insensitive match', async () => {
+            const existing = [
+                {
+                    id: 'habit-1',
+                    type: 'habit',
+                    text: 'Take a short walk',
+                    completed: false,
+                    createdAt: '',
+                    updatedAt: '',
+                },
+            ];
+            (AsyncStorage.getItem as jest.Mock).mockResolvedValue(
+                JSON.stringify({ items: existing })
+            );
+
+            const item = await addRecipeItem('habit', '  take   a SHORT walk  ');
+
+            expect(item.id).toBe('habit-1');
+            expect(item.type).toBe('habit');
+            expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+        });
     });
 
     describe('updateRecipeItem', () => {

@@ -2,54 +2,51 @@
   "project": "JournalApp",
   "stories": [
     {
-      "id": "FEAT-SMEM-001",
-      "title": "Supermemory client + ingestion pipeline",
+      "id": "FEAT-018",
+      "title": "Finish Entry -> Entry Reflection screen",
       "priority": 1,
-      "description": "Add a Supermemory service layer, user container tagging, and ingestion of journal entries + chat transcripts so AI memory is built automatically.",
+      "description": "After pressing Finish entry, navigate to an Entry Reflection screen that shows AI-generated reflection content (reflection + key insight) and an entry-specific Suggestions entry point. Must not show any long-term memory upsell.",
       "acceptanceCriteria": [
-        "A Supermemory client/service exists under services/ with add/search/profile helpers",
-        "SUPERMEMORY_API_KEY (and optional SUPERMEMORY_BASE_URL) are read from Expo env/config like other AI settings",
-        "Each user has a stable container tag (stored locally) used for profile + search",
-        "Journal entry create/update stores content in Supermemory with metadata (entryId, type, createdAt)",
-        "Chat conversations are appended using customId/conversationId to enable incremental updates",
-        "Unit tests cover Supermemory service calls and error handling"
+        "Pressing Finish entry still saves the journal entry as completed (no regressions)",
+        "After saving, user is navigated to an Entry Reflection screen for the finished entry",
+        "Entry Reflection shows: reflection body text and a Key Insight section (AI-generated)",
+        "Entry Reflection includes a Suggestions row/CTA that opens the Suggestions list",
+        "Entry Reflection includes a Continue button to proceed in the flow",
+        "No UI for 'Add to long-term memory' exists anywhere in this flow"
       ],
       "passes": true,
-      "branchName": "feat/supermemory-service"
+      "branchName": "feat/finish-entry-reflection"
     },
     {
-      "id": "FEAT-SMEM-002",
-      "title": "Memory-aware AI across chat, check-in, new entry, Ask Rosebud",
+      "id": "FEAT-019",
+      "title": "Suggestions list -> add HABIT below Ingredients",
       "priority": 2,
-      "description": "Inject Supermemory context into all AI responses and replace Ask Rosebud mock responses with LLM-backed answers using profile + RAG search based on time range.",
+      "description": "Implement a Suggestions list UI (HABIT cards) and allow adding suggestions to Happiness Recipe as a new item type 'habit' rendered below Ingredients.",
       "acceptanceCriteria": [
-        "Chat (freeform, daily check-in, continue) uses Supermemory profile + relevant memories in system prompt",
-        "New entry flow includes memory context before the first user message",
-        "Ask Rosebud uses the LLM + Supermemory (no mocked responses)",
-        "Time range mapping: week/month uses profile + query search; year/all-time uses hybrid RAG search",
-        "Memory queries include metadata filters for entry dates when available",
-        "Tests verify context building and Ask Rosebud time-range behavior"
+        "Entry Reflection -> Suggestions opens a Suggestions list screen",
+        "Suggestions list renders HABIT suggestion cards with an 'Add to list' button",
+        "Pressing 'Add to list' creates a Happiness Recipe item of type 'habit'",
+        "Happiness Recipe screen renders a Habits section below Ingredients",
+        "Habit items persist across restarts and are included in existing completed/active behavior",
+        "Duplicate habit additions are prevented (case-insensitive match)"
       ],
       "passes": true,
-      "branchName": "feat/supermemory-ai-flows"
+      "branchName": "feat/suggestions-to-habits"
     },
     {
-      "id": "FEAT-UI-001",
-      "title": "AI typing indicator + disable interactions during response",
+      "id": "FEAT-020",
+      "title": "Streak haiku celebration after reflection",
       "priority": 3,
-      "description": "Show animated ellipsis typing indicator during AI responses and disable clickables while the AI is generating (chat, daily check-in, Ask Rosebud).",
+      "description": "After the Entry Reflection, show a streak celebration screen/modal that displays 'X DAY STREAK' and an AI-generated haiku. Provide Continue and Close affordances.",
       "acceptanceCriteria": [
-        "Chat shows a non-clickable animated ellipsis bubble while AI is streaming",
-        "Check-in now flow shows the same indicator for the initial AI response",
-        "Ask Rosebud shows the indicator and disables suggested question cards + input during loading",
-        "ChatMessage interactions (reasoning toggle) are disabled during streaming",
-        "UI tests cover loading/disabled states"
+        "After Entry Reflection Continue, a streak celebration view is shown",
+        "Celebration view displays current streak count (e.g., '1 DAY STREAK')",
+        "Celebration view displays an AI-generated haiku (3 lines) related to the entry",
+        "Celebration view supports Continue to exit back to the app (Today or Entries)",
+        "Celebration view supports Close (X) to skip"
       ],
       "passes": true,
-      "branchName": "feat/ai-loading-indicator"
+      "branchName": "feat/streak-haiku"
     }
-  ],
-  "archive": {
-    "legacyFeatures": []
-  }
+  ]
 }

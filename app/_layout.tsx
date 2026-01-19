@@ -44,16 +44,20 @@ export default function RootLayout() {
   }
 
   return (
-    <SafeAreaProvider>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="chat" options={{ headerShown: false }} />
-          <Stack.Screen name="index" options={{ headerShown: false }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-        </Stack>
-        <StatusBar style="auto" />
-      </ThemeProvider>
-    </SafeAreaProvider>
+    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <Stack>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="chat" options={{ headerShown: false }} />
+        <Stack.Screen name="entry-reflection" options={{ headerShown: false }} />
+        <Stack.Screen name="suggestions" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="streak-haiku"
+          options={{ headerShown: false, presentation: 'modal' }}
+        />
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+      </Stack>
+      <StatusBar style="auto" />
+    </ThemeProvider>
   );
 }

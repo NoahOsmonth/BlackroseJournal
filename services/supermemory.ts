@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import { Message } from './ai';
 import { JournalEntry, StorageAdapter } from './journalStorage.types';
 import { getSupermemoryConfig } from './supermemoryConfig';
@@ -139,23 +140,53 @@ async function buildSupermemoryError(response: Response, context: string): Promi
     return new Error(`${context} (status ${response.status}).${details}`);
 }
 
+/**
+ * Makes a request to the Supermemory API.
+ * On web, routes through a local API proxy to avoid CORS issues.
+ * On native platforms, calls the API directly.
+ */
 async function requestSupermemory<T>(
     path: string,
     body: unknown,
-    expectJson = true
+    expectJson = true,
+    defaultOnNotFound?: T
 ): Promise<T> {
-    const { apiBaseUrl, apiKey } = getSupermemoryConfig();
-    const response = await fetch(`${apiBaseUrl}${path}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify(body),
-    });
+    console.log('[Supermemory] Request:', path, JSON.stringify(body));
+
+    let response: Response;
+
+    if (Platform.OS === 'web') {
+        // On web, use the local API proxy to avoid CORS issues
+        response = await fetch('/api/supermemory', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ path, ...body as object }),
+        });
+    } else {
+        // On native, call the API directly
+        const { apiBaseUrl, apiKey } = getSupermemoryConfig();
+        response = await fetch(`${apiBaseUrl}${path}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify(body),
+        });
+    }
+
+    // Handle 404 gracefully - container/memories may not exist yet
+    if (response.status === 404 && defaultOnNotFound !== undefined) {
+        console.log('[Supermemory] Resource not found, returning default');
+        return defaultOnNotFound;
+    }
 
     if (!response.ok) {
-        throw await buildSupermemoryError(response, 'Supermemory request failed');
+        const error = await buildSupermemoryError(response, 'Supermemory request failed');
+        console.error('[Supermemory] Error:', error.message);
+        throw error;
     }
 
     if (!expectJson) {
@@ -163,12 +194,23 @@ async function requestSupermemory<T>(
     }
 
     const parsed = await parseJsonSafely(response);
+    console.log('[Supermemory] Response:', JSON.stringify(parsed));
     if (!parsed) {
         throw new Error('Supermemory response was not valid JSON.');
     }
 
     return parsed as T;
 }
+
+const EMPTY_PROFILE_RESPONSE: SupermemoryProfileResponse = {
+    profile: { static: [], dynamic: [] },
+    searchResults: { results: [], total: 0 },
+};
+
+const EMPTY_SEARCH_RESPONSE: SupermemorySearchResponse = {
+    results: [],
+    total: 0,
+};
 
 export async function getSupermemoryProfile(
     containerTag: string,
@@ -181,7 +223,12 @@ export async function getSupermemoryProfile(
         threshold,
     };
 
-    return requestSupermemory<SupermemoryProfileResponse>('/v4/profile', body);
+    return requestSupermemory<SupermemoryProfileResponse>(
+        '/v4/profile',
+        body,
+        true,
+        EMPTY_PROFILE_RESPONSE
+    );
 }
 
 export async function searchMemories(options: {
@@ -201,7 +248,12 @@ export async function searchMemories(options: {
         threshold: options.threshold ?? DEFAULT_THRESHOLD,
     };
 
-    return requestSupermemory<SupermemorySearchResponse>('/v4/search', body);
+    return requestSupermemory<SupermemorySearchResponse>(
+        '/v4/search',
+        body,
+        true,
+        EMPTY_SEARCH_RESPONSE
+    );
 }
 
 export async function ingestJournalEntry(entry: JournalEntry): Promise<void> {

@@ -43,9 +43,11 @@ export function useAskRosebud(): UseAskRosebudResult {
             const response = await askRosebud(trimmed, timeRange);
             setMessages(prev => [...prev, buildMessage('assistant', response)]);
         } catch (error) {
-            const fallback = 'I hit a snag while looking through your memories. Please try again.';
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            console.error('[Ask Rosebud] Error:', errorMessage, error);
+            const fallback = `I hit a snag while looking through your memories: ${errorMessage}`;
             setErrorMessage(fallback);
-            setMessages(prev => [...prev, buildMessage('assistant', fallback)]);
+            setMessages(prev => [...prev, buildMessage('assistant', 'Sorry, I encountered an issue. Please check the console for details.')]);
         } finally {
             setIsLoading(false);
         }

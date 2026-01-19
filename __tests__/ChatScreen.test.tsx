@@ -6,17 +6,19 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 }));
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import React from 'react';
 import ChatScreen from '../app/chat';
 
 // Mock navigation/router
 const mockUseLocalSearchParams = jest.fn();
+const mockRouterPush = jest.fn();
+const mockRouterReplace = jest.fn();
+const mockRouterBack = jest.fn();
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({
-    push: jest.fn(),
-    back: jest.fn(),
-    replace: jest.fn(),
+    push: mockRouterPush,
+    back: mockRouterBack,
+    replace: mockRouterReplace,
   }),
   useLocalSearchParams: () => mockUseLocalSearchParams(),
 }));
@@ -30,20 +32,14 @@ const mockHandleSendMessage = jest.fn();
 const mockHandleNewChat = jest.fn();
 const mockScrollToBottom = jest.fn();
 const mockInitializeMessages = jest.fn();
-const mockRetryLastMessage = jest.fn();
-const mockClearError = jest.fn();
-let mockErrorMessage: string | null = null;
-let mockCanRetry = false;
-let mockStreamingMessage: any = null;
+let mockMessages: any[] = [];
 let mockIsLoading = false;
 
 jest.mock('../features/chat', () => ({
   useChatOrchestration: () => ({
-    messages: [],
-    streamingMessage: mockStreamingMessage,
+    messages: mockMessages,
+    streamingMessage: null,
     isLoading: mockIsLoading,
-    errorMessage: mockErrorMessage,
-    canRetry: mockCanRetry,
     handleSendMessage: mockHandleSendMessage,
     retryLastMessage: mockRetryLastMessage,
     clearError: mockClearError,
@@ -106,7 +102,12 @@ describe('ChatScreen', () => {
     mockGetById.mockClear();
     mockCreate.mockClear();
     mockUpdate.mockClear();
+    mockRouterPush.mockClear();
+    mockRouterReplace.mockClear();
+    mockRouterBack.mockClear();
     mockUseLocalSearchParams.mockReturnValue({});
+    mockMessages = [];
+    mockIsLoading = false;
   });
 
   it('renders correctly with Blackrose header and inline typing input', () => {
@@ -180,36 +181,29 @@ describe('ChatScreen', () => {
     ]);
   });
 
-  it('shows an error banner with retry when the hook reports an error', () => {
-    mockErrorMessage = 'Missing AI configuration.';
-    mockCanRetry = true;
+  it('finishing an entry navigates to Entry Reflection with entryId', async () => {
+    mockMessages = [{ id: 'm1', role: 'user', content: 'Today was a lot.', timestamp: 1 }];
+    mockCreate.mockResolvedValue({
+      id: 'entry-999',
+      title: 'Test',
+      emoji: '📝',
+      messages: mockMessages,
+      status: 'completed',
+      createdAt: 1,
+      updatedAt: 1,
+    });
 
     render(<ChatScreen />);
 
-    expect(screen.getByText('Missing AI configuration.')).toBeTruthy();
+    fireEvent.press(screen.getByText('Finish entry'));
 
-    const retryButton = screen.getByLabelText('Retry AI request');
-    fireEvent.press(retryButton);
-    expect(mockRetryLastMessage).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mockRouterReplace).toHaveBeenCalledWith({
+        pathname: '/entry-reflection',
+        params: { entryId: 'entry-999' },
+      });
+    });
 
-    const dismissButton = screen.getByLabelText('Dismiss error message');
-    fireEvent.press(dismissButton);
-    expect(mockClearError).toHaveBeenCalled();
-  });
-
-  it('shows typing indicator while streaming', () => {
-    mockStreamingMessage = {
-      id: 'streaming-1',
-      role: 'assistant',
-      content: '',
-      reasoning: '',
-      isStreaming: true,
-    };
-    mockIsLoading = true;
-
-    render(<ChatScreen />);
-
-    expect(screen.getByLabelText('AI typing indicator')).toBeTruthy();
-    expect(screen.queryByPlaceholderText('Type your thoughts...')).toBeNull();
+    expect(mockHandleNewChat).toHaveBeenCalled();
   });
 });

@@ -39,3 +39,9 @@ Finish:
 - Provide concise, conventional commit messages (one per task).
 - If you cannot run commands, list the exact commands for the user to run.
 - Stop only when all tasks are done.
+
+## Task Execution Order
+
+1. Task 001: Finish Entry -> Entry Reflection screen
+2. Task 002: Suggestions list -> add HABIT below Ingredients
+3. Task 003: Streak haiku celebration after reflection
