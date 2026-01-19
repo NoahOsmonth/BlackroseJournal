@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Journal Dashboard Today View</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&amp;display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet" />
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#e91e63", // Pink color from the screenshot
+                        "primary-dark": "#c2185b",
+                        "background-light": "#f5f5f5", // Light gray background
+                        "background-dark": "#121212", // Dark mode background
+                        "surface-light": "#ffffff",
+                        "surface-dark": "#1e1e1e",
+                        "text-main-light": "#333333",
+                        "text-main-dark": "#e0e0e0",
+                        "text-secondary-light": "#757575",
+                        "text-secondary-dark": "#a0a0a0",
+                        "border-light": "#e0e0e0",
+                        "border-dark": "#333333",
+                    },
+                    fontFamily: {
+                        display: ["Nunito", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "12px",
+                        'xl': "16px",
+                        '2xl': "20px",
+                    },
+                    boxShadow: {
+                        'nav': '0 -2px 10px rgba(0, 0, 0, 0.05)',
+                        'card': '0 2px 5px rgba(0, 0, 0, 0.03)',
+                    }
+                },
+            },
+        };
+    </script>
+    <style>
+        body {
+            font-family: 'Nunito', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+    <style>
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+</head>
+
+<body
+    class="bg-background-light dark:bg-background-dark text-text-main-light dark:text-text-main-dark transition-colors duration-300 min-h-screen flex justify-center overflow-hidden">
+    <div
+        class="w-full max-w-md bg-background-light dark:bg-background-dark h-full min-h-screen flex flex-col relative shadow-2xl overflow-hidden">
+        <header
+            class="flex items-center justify-between px-6 py-4 bg-background-light dark:bg-background-dark z-10 sticky top-0">
+            <button
+                class="p-2 -ml-2 text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors">
+                <span class="material-icons-round" style="font-size: 24px;">card_giftcard</span>
+            </button>
+            <h1 class="text-lg font-bold text-text-main-light dark:text-text-main-dark">Sunday, Jan 18th</h1>
+            <button
+                class="p-2 -mr-2 text-text-main-light dark:text-text-main-dark hover:text-primary transition-colors">
+                <span class="material-icons-round" style="font-size: 24px;">menu</span>
+            </button>
+        </header>
+        <main class="flex-1 overflow-y-auto hide-scrollbar pb-24 px-4 space-y-6">
+            <div class="flex justify-between items-center py-2 px-1">
+                <div
+                    class="flex flex-col items-center justify-center w-10 h-10 rounded-full border border-primary bg-primary/10 text-primary font-bold text-sm">
+                    S
+                </div>
+                <div
+                    class="flex flex-col items-center justify-center w-10 h-10 rounded-full border border-border-light dark:border-border-dark bg-transparent text-text-secondary-light dark:text-text-secondary-dark font-semibold text-sm">
+                    M
+                </div>
+                <div
+                    class="flex flex-col items-center justify-center w-10 h-10 rounded-full border border-border-light dark:border-border-dark bg-transparent text-text-secondary-light dark:text-text-secondary-dark font-semibold text-sm">
+                    T
+                </div>
+                <div
+                    class="flex flex-col items-center justify-center w-10 h-10 rounded-full border border-border-light dark:border-border-dark bg-transparent text-text-secondary-light dark:text-text-secondary-dark font-semibold text-sm">
+                    W
+                </div>
+                <div
+                    class="flex flex-col items-center justify-center w-10 h-10 rounded-full border border-border-light dark:border-border-dark bg-transparent text-text-secondary-light dark:text-text-secondary-dark font-semibold text-sm">
+                    T
+                </div>
+                <div
+                    class="flex flex-col items-center justify-center w-10 h-10 rounded-full border border-border-light dark:border-border-dark bg-transparent text-text-secondary-light dark:text-text-secondary-dark font-semibold text-sm">
+                    F
+                </div>
+                <div
+                    class="flex flex-col items-center justify-center w-10 h-10 rounded-full border border-border-light dark:border-border-dark bg-transparent text-text-secondary-light dark:text-text-secondary-dark font-semibold text-sm">
+                    S
+                </div>
+                <div
+                    class="flex flex-col items-center justify-center w-10 h-10 rounded-full border border-border-light dark:border-border-dark bg-transparent text-text-secondary-light dark:text-text-secondary-dark font-semibold text-sm">
+                    <span class="material-icons-round" style="font-size: 16px;">calendar_today</span>
+                </div>
+            </div>
+            <div class="grid grid-cols-3 gap-3">
+                <div
+                    class="bg-surface-light dark:bg-surface-dark rounded-xl p-3 shadow-card flex flex-col items-center justify-center h-20 border border-transparent dark:border-border-dark">
+                    <span
+                        class="text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark mb-1">Streak</span>
+                    <span class="text-xl font-bold text-text-main-light dark:text-text-main-dark">—</span>
+                </div>
+                <div
+                    class="bg-surface-light dark:bg-surface-dark rounded-xl p-3 shadow-card flex flex-col items-center justify-center h-20 border border-transparent dark:border-border-dark">
+                    <span
+                        class="text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark mb-1">Entries</span>
+                    <span class="text-xl font-bold text-text-main-light dark:text-text-main-dark">14</span>
+                </div>
+                <div
+                    class="bg-surface-light dark:bg-surface-dark rounded-xl p-3 shadow-card flex flex-col items-center justify-center h-20 border border-transparent dark:border-border-dark">
+                    <span
+                        class="text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark mb-1">Words</span>
+                    <span class="text-xl font-bold text-text-main-light dark:text-text-main-dark">882</span>
+                </div>
+            </div>
+            <div class="space-y-3">
+                <h2
+                    class="text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide ml-1">
+                    Daily Journaling</h2>
+                <div
+                    class="bg-surface-light dark:bg-surface-dark rounded-xl p-5 shadow-card relative border border-transparent dark:border-border-dark">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="space-y-3 max-w-[70%]">
+                            <span
+                                class="inline-block bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-bold px-3 py-1 rounded-full">Daily
+                                check-in</span>
+                            <h3 class="text-xl font-bold text-text-main-light dark:text-text-main-dark leading-tight">
+                                Evening Reflection</h3>
+                            <p class="text-text-secondary-light dark:text-text-secondary-dark text-sm leading-relaxed">
+                                How was your day? Take a moment to reflect.
+                            </p>
+                        </div>
+                        <div class="w-16 h-16 flex-shrink-0 relative">
+                            <span class="material-icons-round text-blue-200"
+                                style="font-size: 64px; position: absolute; top: -10px; right: -10px;">bedtime</span>
+                            <span class="material-icons-round text-yellow-300 absolute top-0 right-0 animate-pulse"
+                                style="font-size: 16px;">star</span>
+                            <span class="material-icons-round text-yellow-300 absolute bottom-2 left-0 animate-pulse"
+                                style="font-size: 12px; animation-delay: 0.5s;">star</span>
+                        </div>
+                    </div>
+                    <button
+                        class="w-full bg-primary hover:bg-primary-dark text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center transition-colors shadow-lg shadow-primary/30">
+                        <span class="material-icons-round mr-2" style="font-size: 20px;">edit</span>
+                        Check in now
+                    </button>
+                </div>
+            </div>
+            <div class="space-y-3">
+                <div class="flex justify-between items-center ml-1">
+                    <h2
+                        class="text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide">
+                        Happiness Recipe</h2>
+                    <button
+                        class="text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark hover:text-primary">Edit</button>
+                </div>
+                <div
+                    class="bg-surface-light dark:bg-surface-dark rounded-xl p-4 shadow-card flex justify-between items-center border border-transparent dark:border-border-dark cursor-pointer">
+                    <span class="font-bold text-text-main-light dark:text-text-main-dark">Completed</span>
+                    <div class="flex items-center text-text-main-light dark:text-text-main-dark font-bold">
+                        3
+                        <span class="material-icons-round ml-2" style="font-size: 20px;">expand_more</span>
+                    </div>
+                </div>
+                <button
+                    class="w-full bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-border-dark hover:bg-gray-50 dark:hover:bg-gray-800 text-text-main-light dark:text-text-main-dark font-bold py-3 px-4 rounded-xl flex items-center justify-center transition-colors shadow-sm">
+                    <span class="material-icons-round mr-2 text-sm" style="font-size: 18px;">add</span>
+                    Add ingredient
+                </button>
+                <button
+                    class="w-full bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-border-dark hover:bg-gray-50 dark:hover:bg-gray-800 text-text-main-light dark:text-text-main-dark font-bold py-3 px-4 rounded-xl flex items-center justify-center transition-colors shadow-sm">
+                    <span class="material-icons-round mr-2 text-blue-300" style="font-size: 18px;">landscape</span>
+                    Add goal
+                </button>
+            </div>
+            <div class="flex justify-between items-center ml-1 pt-2">
+                <h2
+                    class="text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide">
+                    Ask Rosebud</h2>
+                <div
+                    class="flex items-center text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark cursor-pointer">
+                    All-time
+                    <span class="material-icons-round ml-1" style="font-size: 16px;">expand_more</span>
+                </div>
+            </div>
+            <div class="h-6"></div>
+        </main>
+        <nav
+            class="absolute bottom-0 w-full bg-surface-light dark:bg-surface-dark border-t border-gray-200 dark:border-border-dark pb-6 pt-3 px-6 shadow-nav flex justify-between items-end z-20 rounded-t-2xl">
+            <button class="flex flex-col items-center justify-center w-16 text-primary group">
+                <span class="material-icons-round mb-1" style="font-size: 24px;">wb_sunny</span>
+                <span class="text-[10px] font-bold">Today</span>
+            </button>
+            <button
+                class="flex flex-col items-center justify-center w-16 text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors group">
+                <span class="material-icons-round mb-1 group-hover:scale-110 transition-transform"
+                    style="font-size: 24px;">bubble_chart</span>
+                <span class="text-[10px] font-medium">Explore</span>
+            </button>
+            <div class="relative -top-8 mx-2">
+                <button
+                    class="w-16 h-16 rounded-full bg-primary hover:bg-primary-dark text-white shadow-lg shadow-primary/40 flex items-center justify-center transform transition-transform active:scale-95 border-4 border-background-light dark:border-background-dark">
+                    <span class="material-icons-round" style="font-size: 28px;">edit</span>
+                </button>
+            </div>
+            <button
+                class="flex flex-col items-center justify-center w-16 text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors group">
+                <span class="material-icons-round mb-1 group-hover:scale-110 transition-transform"
+                    style="font-size: 24px;">style</span>
+                <span class="text-[10px] font-medium">Entries</span>
+            </button>
+            <button
+                class="flex flex-col items-center justify-center w-16 text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors group">
+                <span class="material-icons-round mb-1 group-hover:scale-110 transition-transform"
+                    style="font-size: 24px;">settings</span>
+                <span class="text-[10px] font-medium">Settings</span>
+            </button>
+        </nav>
+        <button
+            class="absolute top-20 right-4 p-2 bg-gray-200 dark:bg-gray-700 rounded-full shadow-lg z-50 opacity-50 hover:opacity-100 transition-opacity"
+            onclick="document.documentElement.classList.toggle('dark')">
+            <span class="material-icons-round text-gray-800 dark:text-yellow-300 text-sm">dark_mode</span>
+        </button>
+    </div>
+
+</body>
+
+</html>

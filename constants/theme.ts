@@ -1,6 +1,21 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * Theme and Typography Configuration
+ * 
+ * ## Typography Decision (Task 010)
+ * - We use system fonts across the app for optimal performance and native feel
+ * - Both example designs (today.html with Nunito, journal-history.html with Inter)
+ *   are approximated using system fonts, which provides:
+ *   - Better performance (no additional font loading)
+ *   - Native platform feel
+ *   - Accessibility compliance
+ * 
+ * ## Color Token Strategy
+ * - All components use theme tokens defined in tailwind.config.js
+ * - Primary color: #E91E63 (pink) - used for accents, CTAs, active states
+ * - Light mode: white backgrounds with dark text
+ * - Dark mode: dark backgrounds with light text
+ * 
+ * See tailwind.config.js for the full token palette used by NativeWind.
  */
 
 import { Platform } from 'react-native';

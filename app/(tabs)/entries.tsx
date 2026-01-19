@@ -4,10 +4,10 @@
  * Matches journal-history.html design exactly
  */
 
+import { EntryActionModal } from '@/components/entries';
 import {
     BottomNav,
     DraftCard,
-    FAB,
     JournalHeader,
     WeekSection,
 } from '@/components/journal';
@@ -15,7 +15,7 @@ import { groupEntriesByWeek } from '@/hooks/useEntryGroups';
 import { useJournalEntries } from '@/hooks/useJournalEntries';
 import { JournalEntry } from '@/services/journalStorage.types';
 import { useRouter } from 'expo-router';
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -25,13 +25,32 @@ export default function EntriesScreen() {
 
     const weekGroups = useMemo(() => groupEntriesByWeek(completed), [completed]);
 
+    // Modal state
+    const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
+    const [modalVisible, setModalVisible] = useState(false);
+
     const handleNewEntry = () => {
         router.push('/chat');
     };
 
     const handleEntryPress = (entry: JournalEntry) => {
-        // Navigate to chat with entry ID for viewing/resuming
-        router.push({ pathname: '/chat', params: { entryId: entry.id } });
+        setSelectedEntry(entry);
+        setModalVisible(true);
+    };
+
+    const handleContinueEntry = () => {
+        if (selectedEntry) {
+            router.push({
+                pathname: '/chat',
+                params: { entryId: selectedEntry.id, mode: 'continue' },
+            });
+        }
+        setModalVisible(false);
+    };
+
+    const handleCreateNewEntry = () => {
+        router.push('/chat');
+        setModalVisible(false);
     };
 
     const handleTabPress = (tab: 'today' | 'explore' | 'entries' | 'settings') => {
@@ -82,8 +101,20 @@ export default function EntriesScreen() {
                     )}
                 </ScrollView>
 
-                <FAB onPress={handleNewEntry} />
-                <BottomNav activeTab="entries" onTabPress={handleTabPress} />
+                <BottomNav
+                    activeTab="entries"
+                    onTabPress={handleTabPress}
+                    onFabPress={handleNewEntry}
+                />
+
+                {/* Entry Action Modal */}
+                <EntryActionModal
+                    visible={modalVisible}
+                    onClose={() => setModalVisible(false)}
+                    onContinue={handleContinueEntry}
+                    onNewEntry={handleCreateNewEntry}
+                    entryTitle={selectedEntry?.title}
+                />
             </View>
         </SafeAreaView>
     );

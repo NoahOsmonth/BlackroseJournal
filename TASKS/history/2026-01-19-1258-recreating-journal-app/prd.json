@@ -1,0 +1,114 @@
+{
+    "project": "JournalApp",
+    "stories": [
+        {
+            "id": "FEAT-001",
+            "title": "Markdown Rendering in React Native",
+            "priority": 1,
+            "description": "Implement markdown rendering for AI chat responses in React Native. Support common markdown elements (headers, bold, italic, lists, code blocks, links) with proper sizing that complements the app's typography.",
+            "acceptanceCriteria": [
+                "Install and configure react-native-markdown-display or similar library",
+                "Markdown renders correctly for headers (h1-h6), bold, italic, lists, code blocks, and links",
+                "Font sizes are proportional and complement the existing app typography",
+                "Markdown renders well in both light and dark mode",
+                "ChatMessage component uses markdown rendering for AI responses"
+            ],
+            "passes": true,
+            "branchName": "feat/markdown-rendering"
+        },
+        {
+            "id": "FEAT-002",
+            "title": "Therapist-style AI System Prompt",
+            "priority": 2,
+            "description": "Create a thoughtful therapist-style system prompt for the journaling AI. The AI should be reflective, ask open-ended questions, validate emotions, and avoid giving direct advice too quickly. Focus on active listening and helping users explore their thoughts.",
+            "acceptanceCriteria": [
+                "System prompt is added to the AI service configuration",
+                "AI responds with reflective, empathetic tone",
+                "AI asks open-ended questions to help users explore thoughts",
+                "AI validates emotions before offering any suggestions",
+                "AI does not jump to giving advice immediately"
+            ],
+            "passes": true,
+            "branchName": "feat/therapist-system-prompt"
+        },
+        {
+            "id": "FEAT-003",
+            "title": "Journal History Screen",
+            "priority": 3,
+            "description": "Create a Journal History screen that matches the example-design/journal-history.html exactly. Include weekly groupings, entry cards with emoji/title, date headers, and the floating action button (FAB) design.",
+            "acceptanceCriteria": [
+                "New JournalHistory screen created with navigation",
+                "Design matches journal-history.html exactly (colors, spacing, typography)",
+                "Entries grouped by week with date headers",
+                "Entry cards show day abbreviation, emoji, and title",
+                "FAB (floating action button) with pink edit icon is present",
+                "Bottom navigation bar with Today, Explore, Entries, Settings tabs",
+                "Light and dark mode supported matching the HTML design"
+            ],
+            "passes": true,
+            "branchName": "feat/journal-history-screen"
+        },
+        {
+            "id": "FEAT-004",
+            "title": "Navigation Between Chat and History",
+            "priority": 4,
+            "description": "Implement navigation flow: FAB button on history screen creates new chat, X button on chat screen returns to history. Add tab navigation for the main app sections.",
+            "acceptanceCriteria": [
+                "Pressing FAB (edit button) on history screen navigates to new chat",
+                "Pressing X button on chat header returns to journal history",
+                "Tab navigation works for Today, Explore, Entries, Settings",
+                "Navigation state is properly managed"
+            ],
+            "passes": true,
+            "branchName": "feat/navigation-flow"
+        },
+        {
+            "id": "FEAT-005",
+            "title": "Save and Finish Journal Entry",
+            "priority": 5,
+            "description": "Implement 'Finish Entry' functionality that saves the current chat as a completed journal entry to history. Generate a title and extract mood emoji from the conversation.",
+            "acceptanceCriteria": [
+                "Pressing 'Finish Entry' saves the chat to journal history",
+                "Entry is marked as completed (not draft)",
+                "Title is generated from conversation content (or AI generates it)",
+                "Mood emoji is extracted or inferred from conversation",
+                "Entry appears in journal history with correct date grouping",
+                "After finishing, user is navigated back to history screen"
+            ],
+            "passes": true,
+            "branchName": "feat/finish-entry"
+        },
+        {
+            "id": "FEAT-006",
+            "title": "Draft Functionality for Unfinished Entries",
+            "priority": 6,
+            "description": "When user closes a chat (X button) without finishing, auto-save as draft. Drafts appear in a separate tab in journal history and can be resumed.",
+            "acceptanceCriteria": [
+                "Pressing X on chat with content saves entry as draft",
+                "Draft entries are stored separately from completed entries",
+                "Drafts tab in header or journal history shows draft entries",
+                "Tapping a draft entry resumes the chat with previous messages",
+                "Draft is converted to completed entry when 'Finish Entry' is pressed"
+            ],
+            "passes": true,
+            "branchName": "feat/draft-entries"
+        },
+        {
+            "id": "FEAT-007",
+            "title": "Journal Entry Storage Service",
+            "priority": 7,
+            "description": "Create a storage service for persisting journal entries (completed and drafts) using AsyncStorage or similar. Include CRUD operations and data model.",
+            "acceptanceCriteria": [
+                "JournalEntry type defined with id, title, emoji, messages, status (draft/completed), createdAt, updatedAt",
+                "Storage service with create, read, update, delete, list operations",
+                "Entries persist across app restarts",
+                "Service is testable with mock storage"
+            ],
+            "passes": true,
+            "branchName": "feat/journal-storage"
+        }
+    ],
+    "archive": {
+        "legacyFeatures": []
+    }
+}

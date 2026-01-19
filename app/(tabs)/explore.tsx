@@ -3,7 +3,7 @@
  * Will be implemented with journaling prompts and insights
  */
 
-import { BottomNav, FAB } from '@/components/journal';
+import { BottomNav } from '@/components/journal';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { Text, View } from 'react-native';
@@ -31,8 +31,11 @@ export default function ExploreScreen() {
                 <Text className="text-subtext-light dark:text-subtext-dark">
                     Coming soon...
                 </Text>
-                <FAB onPress={handleNewEntry} />
-                <BottomNav activeTab="explore" onTabPress={handleTabPress} />
+                <BottomNav
+                    activeTab="explore"
+                    onTabPress={handleTabPress}
+                    onFabPress={handleNewEntry}
+                />
             </View>
         </SafeAreaView>
     );

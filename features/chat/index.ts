@@ -7,6 +7,7 @@
 // Hooks
 export { useChatOrchestration } from './hooks';
 export type {
+    ChatMode,
     UseChatOrchestrationOptions,
     UseChatOrchestrationReturn
 } from './hooks';

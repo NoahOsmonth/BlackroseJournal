@@ -5,6 +5,7 @@
 
 export { useChatOrchestration } from './useChatOrchestration';
 export type {
+    ChatMode,
     UseChatOrchestrationOptions,
     UseChatOrchestrationReturn
 } from './useChatOrchestration';

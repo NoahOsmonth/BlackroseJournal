@@ -1,15 +1,18 @@
 import { act, renderHook } from '@testing-library/react-native';
 import { Keyboard } from 'react-native';
 import { useChatOrchestration } from '../features/chat/hooks/useChatOrchestration';
+import { Message } from '../services/ai';
 
 // Mock the AI service
 const mockSendMessage = jest.fn();
 const mockClearMessages = jest.fn();
+const mockSetMessages = jest.fn();
 
 jest.mock('../services/ai', () => ({
     useChat: () => ({
         sendMessage: mockSendMessage,
         clearMessages: mockClearMessages,
+        setMessages: mockSetMessages,
     }),
 }));
 
@@ -127,6 +130,29 @@ describe('useChatOrchestration', () => {
         expect(result.current.messages).toEqual([]);
         expect(mockClearMessages).toHaveBeenCalled();
         expect(mockInputRef.current.clear).toHaveBeenCalled();
+    });
+
+    it('initializes messages for continue entry', () => {
+        const initialMessages: Message[] = [
+            { id: '1', role: 'user', content: 'Hello', timestamp: 1 },
+            { id: '2', role: 'assistant', content: 'Hi there', timestamp: 2 },
+        ];
+
+        const { result } = renderHook(() =>
+            useChatOrchestration({
+                scrollViewRef: mockScrollViewRef as any,
+                inputRef: mockInputRef as any,
+            })
+        );
+
+        act(() => {
+            result.current.initializeMessages(initialMessages);
+            jest.runAllTimers();
+        });
+
+        expect(result.current.messages).toEqual(initialMessages);
+        expect(mockSetMessages).toHaveBeenCalledWith(initialMessages);
+        expect(result.current.isLoading).toBe(false);
     });
 
     it('scrolls to bottom after sending message', async () => {

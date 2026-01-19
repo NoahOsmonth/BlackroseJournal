@@ -1,11 +1,11 @@
-import { BottomNav, FAB } from '@/components/journal';
-import { useRouter } from 'expo-router';
-import React from 'react';
-import { Text, View, ScrollView, TouchableOpacity, Alert, Share } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useThemeSettings, ThemePreference } from '@/hooks/useThemeSettings';
+import { BottomNav } from '@/components/journal';
+import { ThemePreference, useThemeSettings } from '@/hooks/useThemeSettings';
 import { clearAllEntries, getAllEntriesForExport } from '@/services/journalStorage';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import React from 'react';
+import { Alert, ScrollView, Share, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SettingsScreen() {
     const router = useRouter();
@@ -63,22 +63,20 @@ export default function SettingsScreen() {
     const ThemeOption = ({ label, value }: { label: string, value: ThemePreference }) => {
         const isActive = theme === value;
         return (
-            <TouchableOpacity 
+            <TouchableOpacity
                 onPress={() => setTheme(value)}
-                className={`flex-1 items-center justify-center py-3 rounded-xl border ${
-                    isActive
-                    ? 'bg-primary border-transparent' 
+                className={`flex-1 items-center justify-center py-3 rounded-xl border ${isActive
+                    ? 'bg-primary border-transparent'
                     : 'bg-transparent border-divider-light dark:border-divider-dark'
-                }`}
+                    }`}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: isActive }}
                 accessibilityLabel={`Select ${label} theme`}
             >
-                <Text className={`font-semibold ${
-                    isActive
-                    ? 'text-white' 
+                <Text className={`font-semibold ${isActive
+                    ? 'text-white'
                     : 'text-text-light dark:text-text-dark'
-                }`}>
+                    }`}>
                     {label}
                 </Text>
             </TouchableOpacity>
@@ -110,8 +108,8 @@ export default function SettingsScreen() {
                         <Text className="text-sm font-bold text-subtext-light dark:text-subtext-dark uppercase tracking-wider mb-4">
                             Data Management
                         </Text>
-                        
-                        <TouchableOpacity 
+
+                        <TouchableOpacity
                             onPress={handleExportData}
                             className="flex-row items-center justify-between py-3 border-b border-divider-light dark:border-divider-dark mb-2"
                         >
@@ -126,7 +124,7 @@ export default function SettingsScreen() {
                             <Ionicons name="chevron-forward" size={20} className="text-subtext-light dark:text-subtext-dark" color="#9CA3AF" />
                         </TouchableOpacity>
 
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             onPress={handleClearData}
                             className="flex-row items-center justify-between py-3 mt-2"
                         >
@@ -141,13 +139,50 @@ export default function SettingsScreen() {
                             <Ionicons name="chevron-forward" size={20} className="text-subtext-light dark:text-subtext-dark" color="#9CA3AF" />
                         </TouchableOpacity>
                     </View>
+
+                    {/* About Section */}
+                    <View className="bg-surface-light dark:bg-surface-dark rounded-2xl p-5 shadow-sm mb-6">
+                        <Text className="text-sm font-bold text-subtext-light dark:text-subtext-dark uppercase tracking-wider mb-4">
+                            About
+                        </Text>
+
+                        <TouchableOpacity
+                            onPress={() => Alert.alert('About', 'Journal App v1.0.0\n\nYour personal AI-powered journaling companion for self-reflection and growth.')}
+                            className="flex-row items-center justify-between py-3 border-b border-divider-light dark:border-divider-dark mb-2"
+                        >
+                            <View className="flex-row items-center gap-3">
+                                <View className="bg-purple-100 dark:bg-purple-900/30 p-2 rounded-lg">
+                                    <Ionicons name="information-circle-outline" size={20} color="#9333EA" />
+                                </View>
+                                <Text className="text-text-light dark:text-text-dark font-medium text-base">
+                                    About
+                                </Text>
+                            </View>
+                            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            onPress={() => Alert.alert('Privacy Policy', 'Your journal entries are stored locally on your device. We do not collect or share your personal data.')}
+                            className="flex-row items-center justify-between py-3"
+                        >
+                            <View className="flex-row items-center gap-3">
+                                <View className="bg-green-100 dark:bg-green-900/30 p-2 rounded-lg">
+                                    <Ionicons name="shield-checkmark-outline" size={20} color="#16A34A" />
+                                </View>
+                                <Text className="text-text-light dark:text-text-dark font-medium text-base">
+                                    Privacy Policy
+                                </Text>
+                            </View>
+                            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                        </TouchableOpacity>
+                    </View>
                 </ScrollView>
 
-                <FAB onPress={handleNewEntry} />
-                
-                <View className="absolute bottom-0 left-0 right-0">
-                    <BottomNav activeTab="settings" onTabPress={handleTabPress} />
-                </View>
+                <BottomNav
+                    activeTab="settings"
+                    onTabPress={handleTabPress}
+                    onFabPress={handleNewEntry}
+                />
             </View>
         </SafeAreaView>
     );

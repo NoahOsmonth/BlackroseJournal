@@ -19,9 +19,16 @@ interface ChatMessageProps {
   isAi?: boolean;
   isStreaming?: boolean;
   reasoning?: string;
+  isReadOnly?: boolean;
 }
 
-export function ChatMessage({ text, isAi = false, isStreaming = false, reasoning }: ChatMessageProps) {
+export function ChatMessage({
+  text,
+  isAi = false,
+  isStreaming = false,
+  reasoning,
+  isReadOnly = false,
+}: ChatMessageProps) {
   const [displayedText, setDisplayedText] = useState('');
   const [showCursor, setShowCursor] = useState(false);
   const [showReasoning, setShowReasoning] = useState(false);
@@ -82,9 +89,9 @@ export function ChatMessage({ text, isAi = false, isStreaming = false, reasoning
     <Animated.View
       entering={FadeInDown.duration(500).springify()}
       layout={Layout.springify()}
-      className={`mb-4 max-w-[85%] shadow-sm ${isAi
-          ? 'self-start bg-blue-50 dark:bg-slate-800 rounded-2xl rounded-tl-none border border-blue-100 dark:border-slate-700'
-          : 'self-end bg-white dark:bg-slate-700 rounded-2xl rounded-tr-none border border-slate-100 dark:border-slate-600'
+      className={`mb-4 max-w-[85%] shadow-sm ${isReadOnly ? 'opacity-70' : ''} ${isAi
+        ? 'self-start bg-blue-50 dark:bg-slate-800 rounded-2xl rounded-tl-none border border-blue-100 dark:border-slate-700'
+        : 'self-end bg-white dark:bg-slate-700 rounded-2xl rounded-tr-none border border-slate-100 dark:border-slate-600'
         }`}
     >
       <Pressable
@@ -100,8 +107,8 @@ export function ChatMessage({ text, isAi = false, isStreaming = false, reasoning
         ) : (
           <Text
             className={`text-[16px] leading-[26px] font-sans ${isAi
-                ? 'text-blue-800 dark:text-blue-200'
-                : 'text-user-text dark:text-slate-200'
+              ? 'text-blue-800 dark:text-blue-200'
+              : 'text-user-text dark:text-slate-200'
               }`}
           >
             {displayedText}

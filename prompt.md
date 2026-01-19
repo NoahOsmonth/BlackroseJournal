@@ -49,31 +49,13 @@ Finish:
 
 ## Task Execution Order
 
-1. **Task 001: Storage Service** - Foundation for all persistence
-2. **Task 002: Markdown Rendering** - AI response formatting
-3. **Task 003: Therapist Prompt** - AI personality/tone
-4. **Task 004: Journal History Screen** - Main UI matching HTML design
-5. **Task 005: Navigation Flow** - FAB, X button, tabs
-6. **Task 006: Finish Entry** - Save completed entries
-7. **Task 007: Draft Functionality** - Auto-save on close
-
-## Key Design Reference
-
-Match `example-design/journal-history.html` exactly for:
-- Colors (primary: #E91E63, backgrounds, surfaces, text colors)
-- Typography (Inter font, sizes, weights)
-- Component layout (header, entry cards, week sections, FAB, bottom nav)
-- Light/dark mode transitions
-
-## Dependencies to Install
-
-```bash
-npm install @react-native-async-storage/async-storage react-native-markdown-display
-```
-
-## File Size Rules (AGENTS.md)
-
-- Design/UI files: 200-500 lines target, 500 max
-- Functions: 5-15 lines
-- Components: < 200 lines
-- Split when approaching 450 lines
+1. Task 001: Today Dashboard Screen
+2. Task 002: Daily Check-In Prompts + Chat Context
+3. Task 003: Navigation Alignment (5-item Tab Bar + Header)
+4. Task 004: Stats Detail Modals
+5. Task 005: Happiness Recipe
+6. Task 006: Ask Rosebud
+7. Task 007: Entry Action Modal (Continue vs New)
+8. Task 008: Rewards
+9. Task 009: Settings
+10. Task 010: Typography & Theme Token Alignment
