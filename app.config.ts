@@ -14,5 +14,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
             process.env.SUPERMEMORY_API_KEY || process.env.EXPO_PUBLIC_SUPERMEMORY_API_KEY,
         SUPERMEMORY_BASE_URL:
             process.env.SUPERMEMORY_BASE_URL || process.env.EXPO_PUBLIC_SUPERMEMORY_BASE_URL,
+        SUPABASE_URL: process.env.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL,
+        SUPABASE_ANON_KEY:
+            process.env.SUPABASE_ANON_KEY || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
     },
 });

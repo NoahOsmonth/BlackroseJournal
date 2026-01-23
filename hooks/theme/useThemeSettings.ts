@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useColorScheme } from 'nativewind';
 import { useCallback, useEffect, useState } from 'react';
+import { loadRemoteUserSettings, saveRemoteUserSettings } from '@/services/settings/userSettingsRemote';
 
 export type ThemePreference = 'light' | 'dark' | 'system';
 export type EmojiStylePreference = 'native' | 'flat' | '3d';
@@ -43,7 +44,8 @@ export function useThemeSettings() {
             try {
                 // Load Theme
                 const savedTheme = await AsyncStorage.getItem(THEME_PREFERENCE_STORAGE_KEY);
-                const nextTheme: ThemePreference = isThemePreference(savedTheme) ? savedTheme : 'system';
+                const hasLocalTheme = isThemePreference(savedTheme);
+                const nextTheme: ThemePreference = hasLocalTheme ? savedTheme : 'system';
 
                 const didApply = applyTheme(nextTheme);
                 if (didApply && isMounted) {
@@ -52,8 +54,37 @@ export function useThemeSettings() {
 
                 // Load Emoji Style
                 const savedEmoji = await AsyncStorage.getItem(EMOJI_PREFERENCE_STORAGE_KEY);
-                if (isEmojiPreference(savedEmoji) && isMounted) {
+                const hasLocalEmoji = isEmojiPreference(savedEmoji);
+                if (hasLocalEmoji && isMounted) {
                     setEmojiStyleState(savedEmoji);
+                }
+
+                const remote = await loadRemoteUserSettings();
+                if (remote && isMounted) {
+                    if (!hasLocalTheme && remote.theme) {
+                        const didApplyRemote = applyTheme(remote.theme);
+                        if (didApplyRemote) {
+                            setThemeState(remote.theme);
+                            await AsyncStorage.setItem(THEME_PREFERENCE_STORAGE_KEY, remote.theme);
+                        }
+                    }
+
+                    if (!hasLocalEmoji && remote.emojiStyle) {
+                        setEmojiStyleState(remote.emojiStyle);
+                        await AsyncStorage.setItem(EMOJI_PREFERENCE_STORAGE_KEY, remote.emojiStyle);
+                    }
+                } else if (!remote && (hasLocalTheme || hasLocalEmoji)) {
+                    const emojiValue = hasLocalEmoji
+                        ? (savedEmoji as EmojiStylePreference)
+                        : undefined;
+                    try {
+                        await saveRemoteUserSettings({
+                            theme: hasLocalTheme ? nextTheme : undefined,
+                            emojiStyle: emojiValue,
+                        });
+                    } catch (error) {
+                        console.error('Failed to seed remote settings', error);
+                    }
                 }
 
             } catch (error) {
@@ -86,8 +117,14 @@ export function useThemeSettings() {
             } catch (error) {
                 console.error('Failed to save theme preference', error);
             }
+
+            try {
+                await saveRemoteUserSettings({ theme: newTheme, emojiStyle });
+            } catch (error) {
+                console.error('Failed to sync theme preference', error);
+            }
         },
-        [applyTheme]
+        [applyTheme, emojiStyle]
     );
 
     const setEmojiStyle = useCallback(async (newStyle: EmojiStylePreference) => {
@@ -97,7 +134,13 @@ export function useThemeSettings() {
         } catch (error) {
             console.error('Failed to save emoji preference', error);
         }
-    }, []);
+
+        try {
+            await saveRemoteUserSettings({ theme, emojiStyle: newStyle });
+        } catch (error) {
+            console.error('Failed to sync emoji preference', error);
+        }
+    }, [theme]);
 
     return {
         theme,

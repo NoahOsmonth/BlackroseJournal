@@ -12,12 +12,22 @@ import {
     toggleRecipeItemCompletion,
     updateRecipeItem,
 } from '../../services/happinessRecipeStorage';
+import {
+    queueRecipeItemDelete,
+    queueRecipeItemUpsert,
+} from '../../services/happiness-recipe/happinessRecipeRemote';
 
 // Mock AsyncStorage
 jest.mock('@react-native-async-storage/async-storage', () => ({
     getItem: jest.fn(() => Promise.resolve(null)),
     setItem: jest.fn(() => Promise.resolve()),
     removeItem: jest.fn(() => Promise.resolve()),
+}));
+
+jest.mock('../../services/happiness-recipe/happinessRecipeRemote', () => ({
+    loadRemoteRecipeItems: jest.fn(),
+    queueRecipeItemUpsert: jest.fn(),
+    queueRecipeItemDelete: jest.fn(),
 }));
 
 describe('happinessRecipeStorage', () => {
@@ -54,6 +64,7 @@ describe('happinessRecipeStorage', () => {
             expect(item.completed).toBe(false);
             expect(item.id).toBeTruthy();
             expect(AsyncStorage.setItem).toHaveBeenCalled();
+            expect(queueRecipeItemUpsert).toHaveBeenCalledWith(item);
         });
 
         it('adds a new goal', async () => {
@@ -69,6 +80,7 @@ describe('happinessRecipeStorage', () => {
             expect(item.type).toBe('habit');
             expect(item.text).toBe('Take a short walk');
             expect(AsyncStorage.setItem).toHaveBeenCalled();
+            expect(queueRecipeItemUpsert).toHaveBeenCalledWith(item);
         });
 
         it('dedupes habits with case-insensitive match', async () => {
@@ -107,6 +119,7 @@ describe('happinessRecipeStorage', () => {
 
             expect(updated?.text).toBe('New text');
             expect(AsyncStorage.setItem).toHaveBeenCalled();
+            expect(queueRecipeItemUpsert).toHaveBeenCalled();
         });
 
         it('returns null for non-existent item', async () => {
@@ -142,6 +155,7 @@ describe('happinessRecipeStorage', () => {
 
             expect(success).toBe(true);
             expect(AsyncStorage.setItem).toHaveBeenCalled();
+            expect(queueRecipeItemDelete).toHaveBeenCalledWith('1');
         });
 
         it('returns false for non-existent item', async () => {

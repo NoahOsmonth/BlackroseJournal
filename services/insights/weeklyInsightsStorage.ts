@@ -5,6 +5,11 @@
 
 import { WeeklyInsightsResult } from '@/services/ai/ai';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+    deleteRemoteWeeklyInsights,
+    loadRemoteWeeklyInsights,
+    saveRemoteWeeklyInsights,
+} from './weeklyInsightsRemote';
 
 const STORAGE_KEY = '@weekly_insights_cache';
 
@@ -43,12 +48,38 @@ export function getCurrentWeekKey(): string {
 export async function loadCachedInsights(weekKey: string): Promise<CachedWeeklyInsights | null> {
     try {
         const json = await AsyncStorage.getItem(STORAGE_KEY);
-        if (!json) return null;
+        if (!json) {
+            const remote = await loadRemoteWeeklyInsights(weekKey);
+            if (remote) {
+                const cache: CachedWeeklyInsights = {
+                    weekKey: remote.weekKey,
+                    insights: remote.insights,
+                    cachedAt: remote.cachedAt,
+                    entryCount: remote.entryCount,
+                };
+                await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(cache));
+                return cache;
+            }
+            return null;
+        }
 
         const cache = JSON.parse(json) as CachedWeeklyInsights;
         if (cache.weekKey === weekKey) {
             return cache;
         }
+
+        const remote = await loadRemoteWeeklyInsights(weekKey);
+        if (remote) {
+            const synced: CachedWeeklyInsights = {
+                weekKey: remote.weekKey,
+                insights: remote.insights,
+                cachedAt: remote.cachedAt,
+                entryCount: remote.entryCount,
+            };
+            await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(synced));
+            return synced;
+        }
+
         return null;
     } catch (error) {
         console.error('Failed to load cached insights:', error);
@@ -72,6 +103,11 @@ export async function saveCachedInsights(
             entryCount,
         };
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(cache));
+        try {
+            await saveRemoteWeeklyInsights(weekKey, insights, entryCount);
+        } catch (error) {
+            console.error('Failed to sync remote insights:', error);
+        }
     } catch (error) {
         console.error('Failed to save cached insights:', error);
         throw error;
@@ -84,6 +120,11 @@ export async function saveCachedInsights(
 export async function clearCachedInsights(): Promise<void> {
     try {
         await AsyncStorage.removeItem(STORAGE_KEY);
+        try {
+            await deleteRemoteWeeklyInsights(getCurrentWeekKey());
+        } catch (error) {
+            console.error('Failed to clear remote insights:', error);
+        }
     } catch (error) {
         console.error('Failed to clear cached insights:', error);
         throw error;

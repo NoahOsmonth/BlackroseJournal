@@ -6,8 +6,27 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { HappinessRecipeState, RecipeItem, RecipeItemType } from './happinessRecipeStorage.types';
+import {
+    loadRemoteRecipeItems,
+    queueRecipeItemDelete,
+    queueRecipeItemUpsert,
+} from './happinessRecipeRemote';
 
 const STORAGE_KEY = '@happiness_recipe_items';
+let hasSeededRemote = false;
+
+async function seedRemoteItems(items: RecipeItem[]): Promise<void> {
+    if (hasSeededRemote || items.length === 0) {
+        return;
+    }
+
+    try {
+        await Promise.all(items.map((item) => queueRecipeItemUpsert(item)));
+        hasSeededRemote = true;
+    } catch (error) {
+        console.error('Failed to seed remote recipe items:', error);
+    }
+}
 
 /**
  * Load all recipe items from storage
@@ -17,7 +36,14 @@ export async function loadRecipeItems(): Promise<RecipeItem[]> {
         const json = await AsyncStorage.getItem(STORAGE_KEY);
         if (json) {
             const state: HappinessRecipeState = JSON.parse(json);
-            return state.items || [];
+            const items = state.items || [];
+            await seedRemoteItems(items);
+            return items;
+        }
+        const remoteItems = await loadRemoteRecipeItems();
+        if (remoteItems) {
+            await saveRecipeItems(remoteItems);
+            return remoteItems;
         }
         return [];
     } catch (error) {
@@ -77,6 +103,11 @@ export async function addRecipeItem(
 
     items.push(newItem);
     await saveRecipeItems(items);
+    try {
+        await queueRecipeItemUpsert(newItem);
+    } catch (error) {
+        console.error('Failed to queue recipe item sync:', error);
+    }
     return newItem;
 }
 
@@ -110,6 +141,11 @@ export async function updateRecipeItem(
 
     items[index] = updatedItem;
     await saveRecipeItems(items);
+    try {
+        await queueRecipeItemUpsert(updatedItem);
+    } catch (error) {
+        console.error('Failed to queue recipe item sync:', error);
+    }
     return updatedItem;
 }
 
@@ -125,6 +161,11 @@ export async function deleteRecipeItem(id: string): Promise<boolean> {
     }
 
     await saveRecipeItems(filteredItems);
+    try {
+        await queueRecipeItemDelete(id);
+    } catch (error) {
+        console.error('Failed to queue recipe item delete:', error);
+    }
     return true;
 }
 
@@ -146,5 +187,13 @@ export async function toggleRecipeItemCompletion(id: string): Promise<RecipeItem
  * Clear all recipe items (for testing/reset)
  */
 export async function clearAllRecipeItems(): Promise<void> {
+    const items = await loadRecipeItems();
+    await Promise.all(items.map(async (item) => {
+        try {
+            await queueRecipeItemDelete(item.id);
+        } catch (error) {
+            console.error('Failed to queue recipe item delete:', error);
+        }
+    }));
     await AsyncStorage.removeItem(STORAGE_KEY);
 }

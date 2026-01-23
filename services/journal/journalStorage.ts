@@ -12,18 +12,32 @@ import {
     JournalEntryUpdateInput,
     StorageAdapter,
 } from './journalStorage.types';
+import {
+    fetchRemoteJournalEntries,
+    mergeEntries,
+    pushJournalEntries,
+    queueJournalEntryDelete,
+    queueJournalEntryUpsert,
+} from './journalRemote';
 
 const STORAGE_KEY = '@journal_entries';
 
 // Default to AsyncStorage, but allow injection for testing
 let storageAdapter: StorageAdapter = AsyncStorage;
+let hasPulledRemote = false;
+let hasPushedLocal = false;
+let remoteSyncPromise: Promise<void> | null = null;
 
 export function setStorageAdapter(adapter: StorageAdapter): void {
     storageAdapter = adapter;
+    hasPulledRemote = false;
+    hasPushedLocal = false;
 }
 
 export function resetStorageAdapter(): void {
     storageAdapter = AsyncStorage;
+    hasPulledRemote = false;
+    hasPushedLocal = false;
 }
 
 function generateId(): string {
@@ -37,6 +51,43 @@ async function getAllEntriesMap(): Promise<Record<string, JournalEntry>> {
 
 async function saveAllEntries(entries: Record<string, JournalEntry>): Promise<void> {
     await storageAdapter.setItem(STORAGE_KEY, JSON.stringify(entries));
+}
+
+async function syncFromRemoteIfNeeded(): Promise<void> {
+    if (remoteSyncPromise) {
+        return remoteSyncPromise;
+    }
+
+    remoteSyncPromise = (async () => {
+        const entries = await getAllEntriesMap();
+        const hasLocal = Object.keys(entries).length > 0;
+
+        if (!hasLocal && !hasPulledRemote) {
+            const remoteEntries = await fetchRemoteJournalEntries();
+            if (remoteEntries !== null) {
+                hasPulledRemote = true;
+                const merged = mergeEntries(entries, remoteEntries);
+                await saveAllEntries(merged);
+            }
+        }
+
+        if (hasLocal && !hasPushedLocal) {
+            try {
+                const pushed = await pushJournalEntries(Object.values(entries));
+                if (pushed) {
+                    hasPushedLocal = true;
+                }
+            } catch (error) {
+                console.warn('Failed to push journal entries:', error);
+            }
+        }
+    })();
+
+    try {
+        await remoteSyncPromise;
+    } finally {
+        remoteSyncPromise = null;
+    }
 }
 
 /**
@@ -58,6 +109,12 @@ export async function createEntry(input: JournalEntryCreateInput): Promise<Journ
     entries[entry.id] = entry;
     await saveAllEntries(entries);
 
+    try {
+        await queueJournalEntryUpsert(entry);
+    } catch (error) {
+        console.warn('Failed to queue journal entry sync:', error);
+    }
+
     ingestJournalEntry(entry).catch((error) => {
         console.warn('Failed to ingest journal entry to Supermemory:', error);
     });
@@ -69,6 +126,7 @@ export async function createEntry(input: JournalEntryCreateInput): Promise<Journ
  * Get a single entry by ID
  */
 export async function getEntry(id: string): Promise<JournalEntry | null> {
+    await syncFromRemoteIfNeeded();
     const entries = await getAllEntriesMap();
     return entries[id] || null;
 }
@@ -95,6 +153,12 @@ export async function updateEntry(
     entries[id] = updated;
     await saveAllEntries(entries);
 
+    try {
+        await queueJournalEntryUpsert(updated);
+    } catch (error) {
+        console.warn('Failed to queue journal entry sync:', error);
+    }
+
     ingestJournalEntry(updated).catch((error) => {
         console.warn('Failed to ingest journal entry to Supermemory:', error);
     });
@@ -112,6 +176,11 @@ export async function deleteEntry(id: string): Promise<boolean> {
 
     delete entries[id];
     await saveAllEntries(entries);
+    try {
+        await queueJournalEntryDelete(id);
+    } catch (error) {
+        console.warn('Failed to queue journal entry delete:', error);
+    }
 
     return true;
 }
@@ -123,6 +192,7 @@ export async function deleteEntry(id: string): Promise<boolean> {
 export async function listEntries(
     status?: 'draft' | 'completed'
 ): Promise<JournalEntry[]> {
+    await syncFromRemoteIfNeeded();
     const entries = await getAllEntriesMap();
     let list = Object.values(entries);
 
@@ -154,6 +224,14 @@ export async function listCompleted(): Promise<JournalEntry[]> {
  * Clear all entries (useful for testing)
  */
 export async function clearAllEntries(): Promise<void> {
+    const entries = await getAllEntriesMap();
+    await Promise.all(Object.keys(entries).map(async (entryId) => {
+        try {
+            await queueJournalEntryDelete(entryId);
+        } catch (error) {
+            console.warn('Failed to queue journal entry delete:', error);
+        }
+    }));
     await storageAdapter.removeItem(STORAGE_KEY);
 }
 

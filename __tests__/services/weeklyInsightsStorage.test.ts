@@ -6,11 +6,22 @@ import {
     loadCachedInsights,
     saveCachedInsights,
 } from '../../services/weeklyInsightsStorage';
+import {
+    deleteRemoteWeeklyInsights,
+    loadRemoteWeeklyInsights,
+    saveRemoteWeeklyInsights,
+} from '../../services/insights/weeklyInsightsRemote';
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
     getItem: jest.fn(),
     setItem: jest.fn(),
     removeItem: jest.fn(),
+}));
+
+jest.mock('../../services/insights/weeklyInsightsRemote', () => ({
+    loadRemoteWeeklyInsights: jest.fn(),
+    saveRemoteWeeklyInsights: jest.fn(),
+    deleteRemoteWeeklyInsights: jest.fn(),
 }));
 
 describe('weeklyInsightsStorage', () => {
@@ -34,6 +45,7 @@ describe('weeklyInsightsStorage', () => {
     describe('loadCachedInsights', () => {
         it('should return null when no cache exists', async () => {
             (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
+            (loadRemoteWeeklyInsights as jest.Mock).mockResolvedValue(null);
 
             const result = await loadCachedInsights('2026-W04');
 
@@ -80,6 +92,28 @@ describe('weeklyInsightsStorage', () => {
             expect(result).toEqual(cached);
         });
 
+        it('should load remote insights when local cache is missing', async () => {
+            const remote = {
+                weekKey: '2026-W04',
+                insights: {
+                    emotionalLandscape: [],
+                    keyThemes: [],
+                    castOfCharacters: [],
+                    weeklySummary: 'Remote summary',
+                },
+                cachedAt: Date.now(),
+                entryCount: 1,
+            };
+
+            (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
+            (loadRemoteWeeklyInsights as jest.Mock).mockResolvedValue(remote);
+
+            const result = await loadCachedInsights('2026-W04');
+
+            expect(result).toEqual(remote);
+            expect(AsyncStorage.setItem).toHaveBeenCalled();
+        });
+
         it('should handle storage errors gracefully', async () => {
             (AsyncStorage.getItem as jest.Mock).mockRejectedValue(new Error('Storage error'));
 
@@ -104,6 +138,7 @@ describe('weeklyInsightsStorage', () => {
                 '@weekly_insights_cache',
                 expect.stringContaining('2026-W04')
             );
+            expect(saveRemoteWeeklyInsights).toHaveBeenCalledWith('2026-W04', insights, 5);
 
             const savedData = JSON.parse(
                 (AsyncStorage.setItem as jest.Mock).mock.calls[0][1]
@@ -133,6 +168,7 @@ describe('weeklyInsightsStorage', () => {
             await clearCachedInsights();
 
             expect(AsyncStorage.removeItem).toHaveBeenCalledWith('@weekly_insights_cache');
+            expect(deleteRemoteWeeklyInsights).toHaveBeenCalled();
         });
 
         it('should throw on storage errors', async () => {

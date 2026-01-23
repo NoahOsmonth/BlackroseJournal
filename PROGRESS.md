@@ -42,3 +42,9 @@
   - Fixed AI insights test mock to target `services/ai/aiConfig`.
   - Corrected web re-export in `services/stagewiseToolbar.web.ts`.
   - Re-ran Jest: all 168 tests passing.
+- **2026-01-23**: Supabase database integration (anonymous auth, local-first sync):
+  - Added Supabase client + sync queue (`services/supabase/`).
+  - Added remote sync modules for journal, weekly insights, happiness recipe, and user settings.
+  - Wired local storage to enqueue remote upserts/deletes and remote bootstrap reads.
+  - Added Supabase schema SQL at `scripts/supabase/schema.sql` and setup notes in `notes/supabase-setup.md`.
+  - Updated theme settings to sync remotely; added/updated tests for sync behaviors.

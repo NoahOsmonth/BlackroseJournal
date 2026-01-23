@@ -7,6 +7,20 @@ jest.mock('@/services/supermemory', () => ({
     ingestJournalEntry: jest.fn().mockResolvedValue(undefined),
 }));
 
+jest.mock('@/services/journal/journalRemote', () => ({
+    fetchRemoteJournalEntries: jest.fn().mockResolvedValue([]),
+    pushJournalEntries: jest.fn().mockResolvedValue(true),
+    queueJournalEntryUpsert: jest.fn().mockResolvedValue(undefined),
+    queueJournalEntryDelete: jest.fn().mockResolvedValue(undefined),
+    mergeEntries: (localMap: Record<string, unknown>, remoteEntries: Array<{ id: string }>) => ({
+        ...localMap,
+        ...remoteEntries.reduce((acc, entry) => {
+            acc[entry.id] = entry;
+            return acc;
+        }, {} as Record<string, unknown>),
+    }),
+}));
+
 import {
     clearAllEntries,
     createEntry,

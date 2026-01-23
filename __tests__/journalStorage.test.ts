@@ -14,6 +14,20 @@ jest.mock('../services/supermemory', () => ({
     ingestJournalEntry: jest.fn().mockResolvedValue(undefined),
 }));
 
+jest.mock('../services/journal/journalRemote', () => ({
+    fetchRemoteJournalEntries: jest.fn().mockResolvedValue([]),
+    pushJournalEntries: jest.fn().mockResolvedValue(true),
+    queueJournalEntryUpsert: jest.fn().mockResolvedValue(undefined),
+    queueJournalEntryDelete: jest.fn().mockResolvedValue(undefined),
+    mergeEntries: (localMap: Record<string, unknown>, remoteEntries: Array<{ id: string }>) => ({
+        ...localMap,
+        ...remoteEntries.reduce((acc, entry) => {
+            acc[entry.id] = entry;
+            return acc;
+        }, {} as Record<string, unknown>),
+    }),
+}));
+
 import { Message } from '../services/ai';
 import {
     clearAllEntries,
@@ -28,6 +42,10 @@ import {
     updateEntry,
 } from '../services/journalStorage';
 import { StorageAdapter } from '../services/journalStorage.types';
+import {
+    queueJournalEntryDelete,
+    queueJournalEntryUpsert,
+} from '../services/journal/journalRemote';
 
 // Mock storage implementation for testing
 function createMockStorage(): StorageAdapter & { data: Record<string, string> } {
@@ -97,6 +115,15 @@ describe('journalStorage', () => {
             });
 
             expect(mockStorage.setItem).toHaveBeenCalled();
+        });
+
+        it('queues entry sync for remote storage', async () => {
+            const entry = await createEntry({
+                messages: mockMessages,
+                status: 'draft',
+            });
+
+            expect(queueJournalEntryUpsert).toHaveBeenCalledWith(entry);
         });
     });
 
@@ -171,6 +198,7 @@ describe('journalStorage', () => {
 
             const deleted = await deleteEntry(created.id);
             expect(deleted).toBe(true);
+            expect(queueJournalEntryDelete).toHaveBeenCalledWith(created.id);
 
             const retrieved = await getEntry(created.id);
             expect(retrieved).toBeNull();

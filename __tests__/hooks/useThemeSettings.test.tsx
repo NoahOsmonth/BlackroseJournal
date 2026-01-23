@@ -2,6 +2,7 @@ import { useThemeSettings } from '@/hooks/useThemeSettings';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { useColorScheme as useNativeWindColorScheme } from 'nativewind';
+import { loadRemoteUserSettings, saveRemoteUserSettings } from '@/services/settings/userSettingsRemote';
 
 // Mock AsyncStorage
 jest.mock('@react-native-async-storage/async-storage', () => ({
@@ -14,6 +15,11 @@ jest.mock('nativewind', () => ({
   useColorScheme: jest.fn(),
 }));
 
+jest.mock('@/services/settings/userSettingsRemote', () => ({
+  loadRemoteUserSettings: jest.fn(),
+  saveRemoteUserSettings: jest.fn(),
+}));
+
 describe('useThemeSettings', () => {
   const mockSetColorScheme = jest.fn();
 
@@ -23,6 +29,7 @@ describe('useThemeSettings', () => {
       colorScheme: 'light',
       setColorScheme: mockSetColorScheme,
     });
+    (loadRemoteUserSettings as jest.Mock).mockResolvedValue(null);
   });
 
   it('should load theme from storage on mount', async () => {
@@ -62,6 +69,10 @@ describe('useThemeSettings', () => {
     });
 
     expect(AsyncStorage.setItem).toHaveBeenCalledWith('user-theme-preference', 'dark');
+    expect(saveRemoteUserSettings).toHaveBeenCalledWith({
+      theme: 'dark',
+      emojiStyle: 'native',
+    });
     expect(mockSetColorScheme).toHaveBeenCalledWith('dark');
     expect(result.current.theme).toBe('dark');
   });
@@ -78,7 +89,49 @@ describe('useThemeSettings', () => {
     });
 
     expect(AsyncStorage.setItem).toHaveBeenCalledWith('user-theme-preference', 'system');
+    expect(saveRemoteUserSettings).toHaveBeenCalledWith({
+      theme: 'system',
+      emojiStyle: 'native',
+    });
     expect(mockSetColorScheme).toHaveBeenCalledWith('system');
     expect(result.current.theme).toBe('system');
+  });
+
+  it('should update emoji style and persist remotely', async () => {
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue('light');
+
+    const { result } = renderHook(() => useThemeSettings());
+
+    await waitFor(() => expect(result.current.theme).toBe('light'));
+
+    await act(async () => {
+      await result.current.setEmojiStyle('flat');
+    });
+
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith('user-emoji-preference', 'flat');
+    expect(saveRemoteUserSettings).toHaveBeenCalledWith({
+      theme: 'light',
+      emojiStyle: 'flat',
+    });
+    expect(result.current.emojiStyle).toBe('flat');
+  });
+
+  it('should load remote settings when local values are missing', async () => {
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
+    (loadRemoteUserSettings as jest.Mock).mockResolvedValue({
+      theme: 'dark',
+      emojiStyle: 'flat',
+    });
+
+    const { result } = renderHook(() => useThemeSettings());
+
+    await waitFor(() => {
+      expect(mockSetColorScheme).toHaveBeenCalledWith('dark');
+      expect(result.current.theme).toBe('dark');
+      expect(result.current.emojiStyle).toBe('flat');
+    });
+
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith('user-theme-preference', 'dark');
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith('user-emoji-preference', 'flat');
   });
 });
