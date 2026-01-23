@@ -11,9 +11,9 @@ import { useMemo } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-interface StreakHaikuParams {
+type StreakHaikuParams = {
     entryId?: string;
-}
+};
 
 export default function StreakHaikuScreen() {
     const router = useRouter();
@@ -87,7 +87,7 @@ export default function StreakHaikuScreen() {
                                     Your haiku
                                 </Text>
                                 <Text className="text-base leading-7 text-text-main-light dark:text-text-main-dark">
-                                    {lines[0]}\n{lines[1]}\n{lines[2]}
+                                    {lines[0]}{"\n"}{lines[1]}{"\n"}{lines[2]}
                                 </Text>
 
                                 <View className="flex-row items-center justify-end mt-4">

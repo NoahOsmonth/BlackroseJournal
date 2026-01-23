@@ -16,6 +16,7 @@ export default function TabsLayout() {
             <Tabs.Screen name="today" />
             <Tabs.Screen name="explore" />
             <Tabs.Screen name="entries" />
+            <Tabs.Screen name="insights" />
             <Tabs.Screen name="settings" />
         </Tabs>
     );

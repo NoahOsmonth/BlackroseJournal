@@ -4,10 +4,9 @@
  * Matches today.html design
  */
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { DayInfo } from '@/hooks/useSelectedDay';
+import { useColorScheme } from '@/hooks/theme/use-color-scheme';
+import { DayInfo } from '@/hooks/today/useSelectedDay';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 
@@ -15,20 +14,17 @@ interface WeekdaySelectorProps {
     weekDays: DayInfo[];
     selectedDayIndex: number;
     onDaySelect: (dayIndex: number) => void;
+    onCalendarPress: () => void;
 }
 
 export function WeekdaySelector({
     weekDays,
     selectedDayIndex,
     onDaySelect,
+    onCalendarPress,
 }: WeekdaySelectorProps) {
-    const router = useRouter();
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
-
-    const handleCalendarPress = () => {
-        router.push('/(tabs)/entries');
-    };
 
     return (
         <View className="flex-row justify-between items-center py-2 px-1">
@@ -43,16 +39,16 @@ export function WeekdaySelector({
                         accessibilityRole="button"
                         accessibilityState={{ selected: isSelected }}
                         className={`flex items-center justify-center w-10 h-10 rounded-full border ${isSelected
-                                ? 'border-primary bg-primary/10'
-                                : isDark
-                                    ? 'border-border-dark bg-transparent'
-                                    : 'border-border-light bg-transparent'
+                            ? 'border-primary bg-primary/10'
+                            : isDark
+                                ? 'border-border-dark bg-transparent'
+                                : 'border-border-light bg-transparent'
                             }`}
                     >
                         <Text
                             className={`text-sm font-semibold ${isSelected
-                                    ? 'text-primary font-bold'
-                                    : 'text-text-secondary-light dark:text-text-secondary-dark'
+                                ? 'text-primary font-bold'
+                                : 'text-text-secondary-light dark:text-text-secondary-dark'
                                 }`}
                         >
                             {day.label}
@@ -63,7 +59,7 @@ export function WeekdaySelector({
 
             {/* Calendar icon */}
             <Pressable
-                onPress={handleCalendarPress}
+                onPress={onCalendarPress}
                 accessibilityLabel="Open calendar view"
                 accessibilityRole="button"
                 className={`flex items-center justify-center w-10 h-10 rounded-full border ${isDark ? 'border-border-dark' : 'border-border-light'

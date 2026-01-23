@@ -51,11 +51,19 @@ describe('ChatMessage', () => {
         expect(queryByText('AI Reasoning')).toBeNull();
     });
 
-    it('does not allow reasoning toggle while streaming', () => {
-        const { queryByText } = render(
+    it('allows reasoning toggle while streaming', () => {
+        const { getByText, queryByText } = render(
             <ChatMessage text="Streaming" isAi reasoning="Because." isStreaming />
         );
 
-        expect(queryByText('View AI reasoning')).toBeNull();
+        // Expect the button to be present with the streaming indicator
+        const toggleBtn = getByText(/View AI reasoning/); 
+        expect(toggleBtn).toBeTruthy();
+
+        // Verify it works
+        expect(queryByText('AI Reasoning')).toBeNull();
+        fireEvent.press(toggleBtn);
+        expect(getByText('AI Reasoning')).toBeTruthy();
+        expect(getByText('Because.')).toBeTruthy();
     });
 });

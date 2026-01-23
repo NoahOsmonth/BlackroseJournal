@@ -11,9 +11,11 @@ import TodayScreen from '../../app/(tabs)/today';
 
 // Mock navigation/router
 const mockPush = jest.fn();
+const mockNavigate = jest.fn();
 jest.mock('expo-router', () => ({
     useRouter: () => ({
         push: mockPush,
+        navigate: mockNavigate,
         back: jest.fn(),
         replace: jest.fn(),
     }),
@@ -26,12 +28,12 @@ jest.mock('@expo/vector-icons', () => ({
 }));
 
 // Mock color scheme hook
-jest.mock('@/hooks/use-color-scheme', () => ({
+jest.mock('@/hooks/theme/use-color-scheme', () => ({
     useColorScheme: () => 'light',
 }));
 
 // Mock journal entries hook
-jest.mock('@/hooks/useJournalEntries', () => ({
+jest.mock('@/hooks/journal/useJournalEntries', () => ({
     useJournalEntries: () => ({
         completed: [
             {
@@ -59,6 +61,7 @@ jest.mock('react-native-safe-area-context', () => ({
 describe('TodayScreen', () => {
     beforeEach(() => {
         mockPush.mockClear();
+        mockNavigate.mockClear();
     });
 
     it('renders the header with formatted date', () => {
@@ -134,7 +137,7 @@ describe('TodayScreen', () => {
         const menuButton = screen.getByLabelText('Open settings');
         fireEvent.press(menuButton);
 
-        expect(mockPush).toHaveBeenCalledWith('/(tabs)/settings');
+        expect(mockNavigate).toHaveBeenCalledWith('/(tabs)/settings');
     });
 
     it('navigates to rewards when gift icon is pressed', () => {
@@ -152,7 +155,7 @@ describe('TodayScreen', () => {
         const calendarButton = screen.getByLabelText('Open calendar view');
         fireEvent.press(calendarButton);
 
-        expect(mockPush).toHaveBeenCalledWith('/(tabs)/entries');
+        expect(mockNavigate).toHaveBeenCalledWith('/(tabs)/entries');
     });
 
     it('allows selecting different weekdays', () => {

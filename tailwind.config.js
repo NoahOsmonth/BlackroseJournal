@@ -21,11 +21,14 @@ module.exports = {
         "text-dark": "#E5E5E7",
         "text-main-light": "#333333",
         "text-main-dark": "#E0E0E0",
+        // Text primary colors (from insights.html)
+        "text-primary-light": "#111827",
+        "text-primary-dark": "#F9FAFB",
         // Text secondary colors
         "subtext-light": "#8E8E93",
         "subtext-dark": "#8E8E93",
-        "text-secondary-light": "#757575",
-        "text-secondary-dark": "#A0A0A0",
+        "text-secondary-light": "#6B7280",
+        "text-secondary-dark": "#9CA3AF",
         // Border colors
         "divider-light": "#E5E5EA",
         "divider-dark": "#2C2C2E",

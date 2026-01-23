@@ -12,9 +12,9 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-interface SuggestionsParams {
+type SuggestionsParams = {
     entryId?: string;
-}
+};
 
 function normalize(text: string): string {
     return text.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -127,13 +127,13 @@ export default function SuggestionsScreen() {
                                                 disabled={alreadyAdded || isAdding}
                                                 accessibilityLabel={`Add habit: ${s.text}`}
                                                 className={`px-4 py-2 rounded-xl ${alreadyAdded
-                                                        ? 'bg-slate-200 dark:bg-slate-800'
-                                                        : 'bg-primary'
+                                                    ? 'bg-slate-200 dark:bg-slate-800'
+                                                    : 'bg-primary'
                                                     }`}
                                             >
                                                 <Text className={`text-sm font-bold ${alreadyAdded
-                                                        ? 'text-slate-500 dark:text-slate-400'
-                                                        : 'text-white'
+                                                    ? 'text-slate-500 dark:text-slate-400'
+                                                    : 'text-white'
                                                     }`}>
                                                     {alreadyAdded ? 'Added' : isAdding ? 'Adding…' : 'Add to list'}
                                                 </Text>

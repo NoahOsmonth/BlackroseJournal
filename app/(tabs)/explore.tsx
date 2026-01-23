@@ -16,7 +16,7 @@ export default function ExploreScreen() {
         router.push('/chat');
     };
 
-    const handleTabPress = (tab: 'today' | 'explore' | 'entries' | 'settings') => {
+    const handleTabPress = (tab: 'today' | 'explore' | 'entries' | 'settings' | 'insights') => {
         if (tab !== 'explore') {
             router.push(`/(tabs)/${tab}`);
         }

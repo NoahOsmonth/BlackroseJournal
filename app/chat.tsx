@@ -11,8 +11,8 @@
 
 import { PromptPeriod } from '@/constants/dailyPrompts';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChatMessage } from '../components/ChatMessage';
 import { FooterActions } from '../components/FooterActions';
@@ -22,13 +22,14 @@ import { TypingIndicator } from '../components/ui/TypingIndicator';
 import { ChatMode, useChatOrchestration } from '../features/chat';
 import { generateTitle, hasContent, inferMoodEmoji } from '../hooks/useEntryUtils';
 import { useJournalEntries } from '../hooks/useJournalEntries';
+import { generateEntryTitle } from '../services/ai';
 import { JournalEntry } from '../services/journalStorage.types';
 
-interface ChatParams {
-    mode?: ChatMode;
-    promptPeriod?: PromptPeriod;
+type ChatParams = {
+    mode?: string;
+    promptPeriod?: string;
     entryId?: string;
-}
+};
 
 export default function ChatScreen() {
     const router = useRouter();
@@ -149,7 +150,19 @@ export default function ChatScreen() {
 
         setIsSaving(true);
         try {
-            const title = generateTitle(messages);
+            let title = generateTitle(messages); // Fallback
+            try {
+                const entryText = messages
+                    .filter(m => m.role === 'user')
+                    .map(m => m.content)
+                    .join('\n\n');
+                if (entryText.trim()) {
+                    title = await generateEntryTitle({ entryText });
+                }
+            } catch (err) {
+                console.warn('AI title generation failed, using fallback', err);
+            }
+
             const emoji = inferMoodEmoji(messages);
 
             let savedEntryId = entryId;
@@ -226,6 +239,7 @@ export default function ChatScreen() {
                                 key={streamingMessage.id}
                                 isAi={true}
                                 text={streamingMessage.content}
+                                reasoning={streamingMessage.reasoning}
                                 isStreaming={true}
                             />
                         )}

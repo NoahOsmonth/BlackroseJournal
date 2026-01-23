@@ -7,6 +7,5 @@ export { BottomNav } from './BottomNav';
 export { DraftCard } from './DraftCard';
 export { EntryCard } from './EntryCard';
 export { FAB } from './FAB';
-export { JournalHeader } from './JournalHeader';
 export { WeekSection } from './WeekSection';
 

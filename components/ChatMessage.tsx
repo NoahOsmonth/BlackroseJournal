@@ -41,14 +41,20 @@ export function ChatMessage({
   }, [text, isStreaming]);
 
   const toggleReasoning = () => {
-    if (reasoning && isAi && !isStreaming) {
+    if (reasoning && isAi) {
       setShowReasoning(!showReasoning);
     }
   };
 
   const hasReasoning = isAi && reasoning && reasoning.trim().length > 0;
-  const canToggleReasoning = hasReasoning && !isStreaming;
+  const canToggleReasoning = hasReasoning;
   const markdownStyles = getMarkdownStyles(colorScheme === 'dark', { fontWeight: '600' });
+  const reasoningMarkdownStyles = getMarkdownStyles(colorScheme === 'dark', {
+    color: colorScheme === 'dark' ? '#cbd5e1' : '#475569',
+    fontSize: 14,
+    fontStyle: 'italic'
+  });
+
   const messageTextClassName = isAi
     ? 'text-[15px] leading-[22px] font-semibold text-text-light dark:text-text-dark'
     : 'text-[15px] leading-[22px] font-bold text-user-text dark:text-text-main-dark';
@@ -66,7 +72,7 @@ export function ChatMessage({
         android_ripple={canToggleReasoning ? { color: 'rgba(0,0,0,0.1)' } : undefined}
       >
         {/* AI messages use markdown rendering when not streaming */}
-        {isAi && isStreaming ? (
+        {isAi && isStreaming && displayedText.length === 0 ? (
           <View className="py-1">
             <TypingIndicator colorClassName="text-text-secondary-light dark:text-text-secondary-dark" />
           </View>
@@ -83,7 +89,7 @@ export function ChatMessage({
         )}
 
         {/* Reasoning indicator */}
-        {hasReasoning && !isStreaming && (
+        {hasReasoning && (
           <View className="flex-row items-center mt-3 pt-2 border-t border-blue-100 dark:border-slate-600">
             <MaterialIcons
               name={showReasoning ? "expand-less" : "psychology"}
@@ -92,6 +98,7 @@ export function ChatMessage({
             />
             <Text className="ml-1.5 text-xs text-blue-600 dark:text-blue-300 font-medium">
               {showReasoning ? 'Hide reasoning' : 'View AI reasoning'}
+              {isStreaming && ' (thinking...)'}
             </Text>
           </View>
         )}
@@ -115,9 +122,9 @@ export function ChatMessage({
                 AI Reasoning
               </Text>
             </View>
-            <Text className="text-[14px] leading-[22px] text-slate-600 dark:text-slate-300 italic">
+            <Markdown style={reasoningMarkdownStyles}>
               {reasoning}
-            </Text>
+            </Markdown>
           </View>
         </Animated.View>
       )}

@@ -19,11 +19,12 @@ function getTimeAgo(timestamp: number): string {
     const minutes = Math.floor(diff / 60000);
     const hours = Math.floor(diff / 3600000);
     const days = Math.floor(diff / 86400000);
+    const months = Math.floor(days / 30);
 
-    if (minutes < 60) return `${minutes} minutes ago`;
-    if (hours < 24) return `${hours} hours ago`;
-    if (days < 30) return `${days} days ago`;
-    return `${Math.floor(days / 30)} months ago`;
+    if (minutes < 60) return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'} ago`;
+    if (hours < 24) return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
+    if (days < 30) return `${days} ${days === 1 ? 'day' : 'days'} ago`;
+    return `${months} ${months === 1 ? 'month' : 'months'} ago`;
 }
 
 export function DraftCard({ entry, onPress }: DraftCardProps) {

@@ -22,8 +22,8 @@ describe('BottomNav', () => {
         
         expect(getByText('Today')).toBeTruthy();
         expect(getByText('Explore')).toBeTruthy();
-        expect(getByText('Entries')).toBeTruthy();
-        expect(getByText('Settings')).toBeTruthy();
+        expect(getByText('History')).toBeTruthy();
+        expect(getByText('Insights')).toBeTruthy();
     });
 
     it('handles tab press', () => {
@@ -32,8 +32,8 @@ describe('BottomNav', () => {
             <BottomNav activeTab="today" onTabPress={onTabPress} />
         );
         
-        fireEvent.press(getByText('Settings'));
-        expect(onTabPress).toHaveBeenCalledWith('settings');
+        fireEvent.press(getByText('Insights'));
+        expect(onTabPress).toHaveBeenCalledWith('insights');
     });
 
     it('adjusts for dark mode', () => {

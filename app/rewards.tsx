@@ -65,7 +65,7 @@ export default function RewardsScreen() {
                         </View>
                         <View className="border-t border-divider-light dark:border-divider-dark pt-4">
                             <Text className="text-text-secondary-light dark:text-text-secondary-dark">
-                                Longest streak: <Text className="font-bold">{longestStreak} days</Text>
+                                Longest streak: <Text className="font-bold">{longestStreak} {longestStreak === 1 ? 'day' : 'days'}</Text>
                             </Text>
                         </View>
                     </View>

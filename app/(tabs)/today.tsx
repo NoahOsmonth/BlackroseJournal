@@ -5,6 +5,7 @@
  */
 
 import { BottomNav } from '@/components/journal';
+import { AppHeader } from '@/components/navigation';
 import { EntriesModal, StreakModal, WordsModal } from '@/components/stats';
 import {
     AskRosebudSection,
@@ -12,12 +13,13 @@ import {
     HappinessRecipeSection,
     StatCardsGrid,
     TimeRange,
-    TodayHeader,
     WeekdaySelector,
 } from '@/components/today';
 import { selectDailyPrompt } from '@/constants/dailyPrompts';
-import { useJournalEntries } from '@/hooks/useJournalEntries';
-import { useSelectedDay } from '@/hooks/useSelectedDay';
+import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
+import { useHeaderActions } from '@/hooks/navigation/useHeaderActions';
+import { useTabNavigation } from '@/hooks/navigation/useTabNavigation';
+import { useSelectedDay } from '@/hooks/today/useSelectedDay';
 import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { ScrollView, View } from 'react-native';
@@ -27,6 +29,8 @@ export default function TodayScreen() {
     const router = useRouter();
     const { weekDays, selectedDay, selectDay, formattedDate } = useSelectedDay();
     const { completed } = useJournalEntries();
+    const { openRewards, openSettings } = useHeaderActions();
+    const { goToTab } = useTabNavigation();
     const [timeRange, setTimeRange] = useState<TimeRange>('all-time');
 
     // Modal visibility state
@@ -85,9 +89,9 @@ export default function TodayScreen() {
         });
     };
 
-    const handleTabPress = (tab: 'today' | 'explore' | 'entries' | 'settings') => {
+    const handleTabPress = (tab: 'today' | 'explore' | 'entries' | 'settings' | 'insights') => {
         if (tab !== 'today') {
-            router.push(`/(tabs)/${tab}`);
+            goToTab(tab);
         }
     };
 
@@ -134,7 +138,12 @@ export default function TodayScreen() {
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
             <View className="flex-1 max-w-md mx-auto w-full">
-                <TodayHeader dateTitle={formattedDate} />
+                <AppHeader
+                    title={formattedDate}
+                    variant="today"
+                    onLeftPress={openRewards}
+                    onRightPress={openSettings}
+                />
 
                 <ScrollView
                     className="flex-1 px-4"
@@ -146,6 +155,7 @@ export default function TodayScreen() {
                         weekDays={weekDays}
                         selectedDayIndex={selectedDay.dayIndex}
                         onDaySelect={selectDay}
+                        onCalendarPress={() => goToTab('entries')}
                     />
 
                     {/* Stats cards */}

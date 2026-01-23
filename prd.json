@@ -47,6 +47,50 @@
       ],
       "passes": true,
       "branchName": "feat/streak-haiku"
+    },
+    {
+      "id": "FEAT-INSIGHTS-001",
+      "title": "AI Service for Weekly Insights",
+      "priority": 10,
+      "description": "Implement AI service capabilities to analyze a week's worth of journal entries and generate structured insights: Emotional Landscape, Key Themes, and Cast of Characters.",
+      "acceptanceCriteria": [
+        "New function `generateWeeklyInsights(entries)` in `services/ai.ts`",
+        "Returns valid JSON with emotional landscape (emotions + values), key themes (list), and cast of characters (list)",
+        "Handles empty or insufficient data gracefully",
+        "Includes unit tests with mocked AI responses"
+      ],
+      "passes": true,
+      "branchName": "feat/insights-backend"
+    },
+    {
+      "id": "FEAT-INSIGHTS-002",
+      "title": "Insights Page UI Implementation",
+      "priority": 11,
+      "description": "Build the Insights page matching `example-design/insights.html` strictly. Includes Weekly Report card, Writing Stats card (with chart), and Week So Far card (Emotional Landscape chart, Themes, Characters).",
+      "acceptanceCriteria": [
+        "Screen `app/(tabs)/insights.tsx` created and added to navigation",
+        "Matches design: Weekly Report card with 'Unlocks Saturday' logic",
+        "Matches design: Writing Stats with Words/Entries count and Daily Words bar chart",
+        "Matches design: Week So Far with Emotional Landscape bar chart (emojis), Key Themes chips, and Cast of Characters",
+        "Uses `NativeWind` for styling, strictly adhering to design spacing/colors",
+        "Connects to real data (via hook) from AI service and Journal Storage"
+      ],
+      "passes": true,
+      "branchName": "feat/insights-ui"
+    },
+    {
+      "id": "FEAT-INSIGHTS-003",
+      "title": "Emoji Settings & Customization",
+      "priority": 12,
+      "description": "Allow users to customize the emoji style used in the Emotional Landscape chart via a settings interface.",
+      "acceptanceCriteria": [
+        "Settings screen (or section) allows selecting Emoji Style (e.g., Default, Minimal, etc.)",
+        "Selection persists in storage",
+        "Insights page reflects the selected emoji style in the Emotional Landscape chart",
+        "Unit/Integration tests for setting persistence and UI update"
+      ],
+      "passes": true,
+      "branchName": "feat/emoji-settings"
     }
   ]
 }

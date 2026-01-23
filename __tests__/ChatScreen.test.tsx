@@ -32,14 +32,21 @@ const mockHandleSendMessage = jest.fn();
 const mockHandleNewChat = jest.fn();
 const mockScrollToBottom = jest.fn();
 const mockInitializeMessages = jest.fn();
+const mockRetryLastMessage = jest.fn();
+const mockClearError = jest.fn();
 let mockMessages: any[] = [];
 let mockIsLoading = false;
+let mockErrorMessage: string | null = null;
+let mockCanRetry = false;
+let mockStreamingMessage: any = null;
 
 jest.mock('../features/chat', () => ({
   useChatOrchestration: () => ({
     messages: mockMessages,
-    streamingMessage: null,
+    streamingMessage: mockStreamingMessage,
     isLoading: mockIsLoading,
+    errorMessage: mockErrorMessage,
+    canRetry: mockCanRetry,
     handleSendMessage: mockHandleSendMessage,
     retryLastMessage: mockRetryLastMessage,
     clearError: mockClearError,
@@ -65,6 +72,10 @@ jest.mock('../hooks/useJournalEntries', () => ({
 // Mock color scheme hook
 jest.mock('@/hooks/use-color-scheme', () => ({
   useColorScheme: () => 'light',
+}));
+
+jest.mock('../services/ai', () => ({
+  generateEntryTitle: jest.fn().mockResolvedValue('AI Title'),
 }));
 
 // Mock Reanimated

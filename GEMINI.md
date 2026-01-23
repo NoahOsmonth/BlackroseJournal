@@ -82,3 +82,45 @@ Keep the test folder structured to prevent clutter as tests grow:
 - Tests added/updated and passing.
 - No new lint/type errors.
 - `PROGRESS.md` updated with what changed.
+
+## How to Run Tests
+
+### Run All Tests
+```bash
+npm test
+```
+
+### Run Tests with Pattern Matching
+```bash
+# Run specific test file
+npm test -- --testPathPattern="ChatScreen"
+
+# Run tests matching multiple patterns
+npm test -- --testPathPattern="EmotionalLandscape|KeyThemes"
+
+# Run all tests in a folder
+npm test -- --testPathPattern="services"
+npm test -- --testPathPattern="components"
+npm test -- --testPathPattern="screens"
+npm test -- --testPathPattern="hooks"
+```
+
+### Run Tests in Watch Mode
+```bash
+npm test -- --watch
+```
+
+### Run Tests with Verbose Output
+```bash
+npm test -- --verbose
+```
+
+### Run TypeScript Type Check
+```bash
+npx tsc --noEmit
+```
+
+### Run Linting
+```bash
+npm run lint
+```

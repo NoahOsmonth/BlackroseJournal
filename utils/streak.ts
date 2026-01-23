@@ -1,4 +1,4 @@
-import type { JournalEntry } from '@/services/journalStorage.types';
+import type { JournalEntry } from '@/services/journal/journalStorage.types';
 
 function dayKeyForTimezone(date: Date, timeZoneOffsetMinutes: number): string {
     // Convert `date` to a stable day key using the supplied timezone offset.

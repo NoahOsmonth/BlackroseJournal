@@ -11,9 +11,9 @@ import { useMemo } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-interface EntryReflectionParams {
+type EntryReflectionParams = {
     entryId?: string;
-}
+};
 
 export default function EntryReflectionScreen() {
     const router = useRouter();

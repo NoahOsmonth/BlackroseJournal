@@ -1,5 +1,5 @@
 import { BottomNav } from '@/components/journal';
-import { ThemePreference, useThemeSettings } from '@/hooks/useThemeSettings';
+import { EmojiStylePreference, ThemePreference, useThemeSettings } from '@/hooks/useThemeSettings';
 import { clearAllEntries, getAllEntriesForExport } from '@/services/journalStorage';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -9,13 +9,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SettingsScreen() {
     const router = useRouter();
-    const { theme, setTheme } = useThemeSettings();
+    const { theme, setTheme, emojiStyle, setEmojiStyle } = useThemeSettings();
 
     const handleNewEntry = () => {
         router.push('/chat');
     };
 
-    const handleTabPress = (tab: 'today' | 'explore' | 'entries' | 'settings') => {
+    const handleTabPress = (tab: 'today' | 'explore' | 'entries' | 'settings' | 'insights') => {
         if (tab !== 'settings') {
             router.push(`/(tabs)/${tab}`);
         }
@@ -83,6 +83,29 @@ export default function SettingsScreen() {
         );
     };
 
+    const EmojiOption = ({ label, value }: { label: string, value: EmojiStylePreference }) => {
+        const isActive = emojiStyle === value;
+        return (
+            <TouchableOpacity
+                onPress={() => setEmojiStyle(value)}
+                className={`flex-1 items-center justify-center py-3 rounded-xl border ${isActive
+                    ? 'bg-primary border-transparent'
+                    : 'bg-transparent border-divider-light dark:border-divider-dark'
+                    }`}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: isActive }}
+                accessibilityLabel={`Select ${label} emoji style`}
+            >
+                <Text className={`font-semibold ${isActive
+                    ? 'text-white'
+                    : 'text-text-light dark:text-text-dark'
+                    }`}>
+                    {label}
+                </Text>
+            </TouchableOpacity>
+        );
+    };
+
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
             <View className="flex-1 max-w-md mx-auto w-full relative">
@@ -96,10 +119,18 @@ export default function SettingsScreen() {
                         <Text className="text-sm font-bold text-subtext-light dark:text-subtext-dark uppercase tracking-wider mb-4">
                             Appearance
                         </Text>
-                        <View className="flex-row gap-3">
+                        <Text className="text-sm text-text-light dark:text-text-dark mb-2 font-medium">Theme</Text>
+                        <View className="flex-row gap-3 mb-6">
                             <ThemeOption label="Light" value="light" />
                             <ThemeOption label="Dark" value="dark" />
                             <ThemeOption label="System" value="system" />
+                        </View>
+
+                        <Text className="text-sm text-text-light dark:text-text-dark mb-2 font-medium">Emoji Style</Text>
+                        <View className="flex-row gap-3">
+                            <EmojiOption label="Native" value="native" />
+                            <EmojiOption label="Flat" value="flat" />
+                            <EmojiOption label="3D" value="3d" />
                         </View>
                     </View>
 

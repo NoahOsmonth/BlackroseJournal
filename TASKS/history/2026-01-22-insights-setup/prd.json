@@ -1,0 +1,52 @@
+{
+  "project": "JournalApp",
+  "stories": [
+    {
+      "id": "FEAT-018",
+      "title": "Finish Entry -> Entry Reflection screen",
+      "priority": 1,
+      "description": "After pressing Finish entry, navigate to an Entry Reflection screen that shows AI-generated reflection content (reflection + key insight) and an entry-specific Suggestions entry point. Must not show any long-term memory upsell.",
+      "acceptanceCriteria": [
+        "Pressing Finish entry still saves the journal entry as completed (no regressions)",
+        "After saving, user is navigated to an Entry Reflection screen for the finished entry",
+        "Entry Reflection shows: reflection body text and a Key Insight section (AI-generated)",
+        "Entry Reflection includes a Suggestions row/CTA that opens the Suggestions list",
+        "Entry Reflection includes a Continue button to proceed in the flow",
+        "No UI for 'Add to long-term memory' exists anywhere in this flow"
+      ],
+      "passes": true,
+      "branchName": "feat/finish-entry-reflection"
+    },
+    {
+      "id": "FEAT-019",
+      "title": "Suggestions list -> add HABIT below Ingredients",
+      "priority": 2,
+      "description": "Implement a Suggestions list UI (HABIT cards) and allow adding suggestions to Happiness Recipe as a new item type 'habit' rendered below Ingredients.",
+      "acceptanceCriteria": [
+        "Entry Reflection -> Suggestions opens a Suggestions list screen",
+        "Suggestions list renders HABIT suggestion cards with an 'Add to list' button",
+        "Pressing 'Add to list' creates a Happiness Recipe item of type 'habit'",
+        "Happiness Recipe screen renders a Habits section below Ingredients",
+        "Habit items persist across restarts and are included in existing completed/active behavior",
+        "Duplicate habit additions are prevented (case-insensitive match)"
+      ],
+      "passes": true,
+      "branchName": "feat/suggestions-to-habits"
+    },
+    {
+      "id": "FEAT-020",
+      "title": "Streak haiku celebration after reflection",
+      "priority": 3,
+      "description": "After the Entry Reflection, show a streak celebration screen/modal that displays 'X DAY STREAK' and an AI-generated haiku. Provide Continue and Close affordances.",
+      "acceptanceCriteria": [
+        "After Entry Reflection Continue, a streak celebration view is shown",
+        "Celebration view displays current streak count (e.g., '1 DAY STREAK')",
+        "Celebration view displays an AI-generated haiku (3 lines) related to the entry",
+        "Celebration view supports Continue to exit back to the app (Today or Entries)",
+        "Celebration view supports Close (X) to skip"
+      ],
+      "passes": true,
+      "branchName": "feat/streak-haiku"
+    }
+  ]
+}

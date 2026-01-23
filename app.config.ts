@@ -3,6 +3,8 @@ import { ConfigContext, ExpoConfig } from 'expo/config';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
     ...config,
+    name: config.name ?? 'JournalApp',
+    slug: config.slug ?? 'journal-app',
     extra: {
         ...config.extra,
         NANO_GPT_API_KEY: process.env.NANO_GPT_API_KEY,

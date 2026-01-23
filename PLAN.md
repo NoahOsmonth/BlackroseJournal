@@ -1,40 +1,26 @@
-# Epic Plan: Finish Entry Reflection + Suggestions to Habits
+# Epic Plan: Weekly Insights & Analytics
 
 ## Goal
-After the user presses **Finish entry** in chat, show an AI-generated **Entry Reflection** screen (reflection + key insight + suggestions) followed by an AI-generated **streak haiku** celebration. Suggestions marked as **HABIT** must be addable to the user’s Happiness Recipe as a new **habit** type displayed **below Ingredients**.
+Implement a fully functional **Insights** tab that provides AI-powered weekly analysis of the user's journal entries. The design must strictly follow `example-design/insights.html`. Key features include an Emotional Landscape chart, Key Themes, Cast of Characters, and writing statistics. Additionally, users must be able to customize the emoji style used in the analytics.
 
 ## Design References
-- Provided screenshots (Entry Reflection screen, Suggestions list with HABIT badge + Add to list, 1 Day Streak Haiku celebration)
+- `example-design/insights.html` (Strict adherence required)
+- `AGENTS.md` (Code style and limits)
 
-## Non-goals / Explicit Exclusions
-- Do **not** implement or show an “Add to long-term memory” upsell section.
+## Scope
+1.  **AI Backend:** new `generateWeeklyInsights` in `services/ai.ts`.
+2.  **Data Logic:** `hooks/useWeeklyInsights.ts` to aggregate data and call AI.
+3.  **UI Implementation:**
+    -   `app/(tabs)/insights.tsx`
+    -   Components: `WeeklyReportCard`, `WritingStatsCard`, `WeekSoFarCard` (with charts).
+    -   Navigation update.
+4.  **Settings:** Emoji style customization.
 
-## Current Baseline
-This repo already includes:
-- Chat journaling flow with **Finish entry**
-- Journal persistence via AsyncStorage (`services/journalStorage.ts`)
-- AI service wrapper (`services/ai.ts`)
-- Happiness Recipe (ingredients + goals) (`app/happiness-recipe.tsx`, `services/happinessRecipeStorage.*`)
-
-## Scope (What to Build)
-1. Finish Entry -> Entry Reflection flow (new screen + navigation)
-2. AI-generated reflection content (reflection body + key insight + suggested habits)
-3. Suggestions list UI (HABIT cards with Add to list)
-4. Add a new Happiness Recipe item type: **habit**, rendered **below Ingredients**
-5. Streak celebration screen/modal with AI-generated haiku
-
-## Stack
-- Expo + Expo Router
-- TypeScript
-- NativeWind / Tailwind
-- Jest + @testing-library/react-native
-- AsyncStorage persistence
-
-## Architecture / Separation of Concerns
-- UI in `app/` + `components/`
-- Orchestration in `hooks/`
-- Persistence/AI in `services/`
-- UI should not import storage/AI services directly; use hooks
+## Architecture
+- **Service Layer:** `services/ai.ts` handles prompt engineering and JSON parsing for insights.
+- **Hook Layer:** `hooks/useWeeklyInsights.ts` manages state, storage access, and AI calls.
+- **UI Layer:** Pure presentational components in `components/insights/` composed in `app/(tabs)/insights.tsx`.
+- **State/Settings:** `hooks/useThemeSettings.ts` or similar for persisting emoji preference.
 
 ## Quality Gate
 ```bash
@@ -43,15 +29,17 @@ npm test -- --runInBand
 npm run check:design
 ```
 
-## Testing Expectations
-- Update existing tests for Finish Entry navigation and add new tests for:
-  - EntryReflection screen rendering and Continue flow
-  - Suggestions “Add to list” adds a habit item
-  - Happiness Recipe supports habit type and renders it below ingredients
+## Testing Strategy
+-   **Unit Tests:**
+    -   `services/ai.ts`: Mock network calls, verify JSON parsing and fallback logic.
+    -   `hooks/useWeeklyInsights.ts`: Verify data aggregation (word counts) and loading states.
+    -   Components: Snapshot tests for charts and cards.
+-   **Integration:**
+    -   Verify the full flow from "Settings change" -> "Insights update".
 
 ## Definition of Done
-- Finish Entry reliably navigates into the Reflection flow without breaking save behavior
-- Suggestions add habits to Happiness Recipe and persist across restarts
-- No “long-term memory” UI is present
-- Tests updated/added and quality gate passes
-- UI/design files stay under 500 lines (per AGENTS.md)
+-   Insights tab matches the HTML design pixel-perfect (within RN constraints).
+-   "Daily Words" and "Emotional Landscape" charts render correctly with dynamic data.
+-   AI analysis returns valid themes and characters.
+-   Emoji settings work and persist.
+-   Code complies with `AGENTS.md` (file size limits).

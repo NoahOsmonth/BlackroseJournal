@@ -8,6 +8,13 @@
 				"--api-key",
 				"ctx7sk-4aac2ed1-6722-418f-86f6-aff1b666d888"
 			],
+		},
+		"playwriter": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"playwriter@latest"
+			]
 		}
 	},
 	"inputs": []

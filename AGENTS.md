@@ -26,6 +26,18 @@ Keep the repo clean, modular, and easy to maintain while protecting long-term UX
 - `constants/`: theme and static configuration values.
 - `__tests__/`: Jest tests (prefer colocated test helpers when needed).
 
+### Folder Organization (Required)
+- **Feature folders for hooks/services:**
+	- `hooks/<feature>/...` (e.g., `hooks/journal`, `hooks/insights`, `hooks/theme`)
+	- `services/<feature>/...` (e.g., `services/ai`, `services/journal`, `services/supermemory`)
+- Legacy root-level files may exist **only as re-exports**. New code should import from the feature folder paths.
+
+### Navigation Rules
+- Use the shared `AppHeader` (in `components/navigation`) for Today + History headers.
+- Use navigation hooks for behavior:
+	- `useHeaderActions` for Settings/Rewards.
+	- `useTabNavigation` for switching tabs (prefer `router.navigate` over `push`).
+
 ## Separation of Concerns Rules
 - UI components **do not** call network/services directly.
 - Services **do not** import UI components.
@@ -82,3 +94,45 @@ Keep the test folder structured to prevent clutter as tests grow:
 - Tests added/updated and passing.
 - No new lint/type errors.
 - `PROGRESS.md` updated with what changed.
+
+## How to Run Tests
+
+### Run All Tests
+```bash
+npm test
+```
+
+### Run Tests with Pattern Matching
+```bash
+# Run specific test file
+npm test -- --testPathPattern="ChatScreen"
+
+# Run tests matching multiple patterns
+npm test -- --testPathPattern="EmotionalLandscape|KeyThemes"
+
+# Run all tests in a folder
+npm test -- --testPathPattern="services"
+npm test -- --testPathPattern="components"
+npm test -- --testPathPattern="screens"
+npm test -- --testPathPattern="hooks"
+```
+
+### Run Tests in Watch Mode
+```bash
+npm test -- --watch
+```
+
+### Run Tests with Verbose Output
+```bash
+npm test -- --verbose
+```
+
+### Run TypeScript Type Check
+```bash
+npx tsc --noEmit
+```
+
+### Run Linting
+```bash
+npm run lint
+```

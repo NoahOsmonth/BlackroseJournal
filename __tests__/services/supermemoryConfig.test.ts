@@ -14,7 +14,7 @@ describe('getSupermemoryConfig', () => {
             },
         }));
 
-        let getSupermemoryConfig: typeof import('../../services/supermemoryConfig').getSupermemoryConfig;
+        let getSupermemoryConfig!: typeof import('../../services/supermemoryConfig').getSupermemoryConfig;
 
         jest.isolateModules(() => {
             ({ getSupermemoryConfig } = require('../../services/supermemoryConfig'));

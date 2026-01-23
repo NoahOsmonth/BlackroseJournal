@@ -8,12 +8,14 @@ import { EntryActionModal } from '@/components/entries';
 import {
     BottomNav,
     DraftCard,
-    JournalHeader,
     WeekSection,
 } from '@/components/journal';
-import { groupEntriesByWeek } from '@/hooks/useEntryGroups';
-import { useJournalEntries } from '@/hooks/useJournalEntries';
-import { JournalEntry } from '@/services/journalStorage.types';
+import { AppHeader } from '@/components/navigation';
+import { groupEntriesByWeek } from '@/hooks/journal/useEntryGroups';
+import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
+import { useHeaderActions } from '@/hooks/navigation/useHeaderActions';
+import { useTabNavigation } from '@/hooks/navigation/useTabNavigation';
+import { JournalEntry } from '@/services/journal/journalStorage.types';
 import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
@@ -22,6 +24,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function EntriesScreen() {
     const router = useRouter();
     const { completed, drafts, isLoading } = useJournalEntries();
+    const { openRewards, openSettings } = useHeaderActions();
+    const { goToTab } = useTabNavigation();
 
     const weekGroups = useMemo(() => groupEntriesByWeek(completed), [completed]);
 
@@ -53,16 +57,21 @@ export default function EntriesScreen() {
         setModalVisible(false);
     };
 
-    const handleTabPress = (tab: 'today' | 'explore' | 'entries' | 'settings') => {
+    const handleTabPress = (tab: 'today' | 'explore' | 'entries' | 'settings' | 'insights') => {
         if (tab !== 'entries') {
-            router.push(`/(tabs)/${tab}`);
+            goToTab(tab);
         }
     };
 
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
             <View className="flex-1 max-w-md mx-auto w-full">
-                <JournalHeader />
+                <AppHeader
+                    title="Journal"
+                    variant="journal"
+                    onLeftPress={openRewards}
+                    onRightPress={openSettings}
+                />
 
                 <ScrollView
                     className="flex-1 px-4 pt-4"

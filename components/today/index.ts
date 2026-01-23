@@ -9,6 +9,5 @@ export { DailyJournalingCard } from './DailyJournalingCard';
 export { HappinessRecipeSection } from './HappinessRecipeSection';
 export { StatCard } from './StatCard';
 export { StatCardsGrid } from './StatCardsGrid';
-export { TodayHeader } from './TodayHeader';
 export { WeekdaySelector } from './WeekdaySelector';
 

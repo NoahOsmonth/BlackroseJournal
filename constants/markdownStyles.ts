@@ -32,6 +32,9 @@ type MarkdownFontWeight = '400' | '500' | '600' | '700';
 
 interface MarkdownStyleOptions {
     fontWeight?: MarkdownFontWeight;
+    color?: string;
+    fontSize?: number;
+    fontStyle?: 'normal' | 'italic';
 }
 
 /**
@@ -40,14 +43,18 @@ interface MarkdownStyleOptions {
 export function getMarkdownStyles(isDark: boolean, options: MarkdownStyleOptions = {}) {
     const palette = isDark ? colors.dark : colors.light;
     const bodyFontWeight = options.fontWeight ?? '400';
+    const bodyColor = options.color ?? palette.text;
+    const bodyFontSize = options.fontSize ?? 15;
+    const bodyFontStyle = options.fontStyle ?? 'normal';
 
     return StyleSheet.create({
         // Body text
         body: {
-            color: palette.text,
-            fontSize: 15,
+            color: bodyColor,
+            fontSize: bodyFontSize,
             lineHeight: 22,
             fontWeight: bodyFontWeight,
+            fontStyle: bodyFontStyle,
         },
         // Headers
         heading1: {

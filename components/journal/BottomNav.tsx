@@ -10,7 +10,7 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-type TabName = 'today' | 'explore' | 'entries' | 'settings';
+type TabName = 'today' | 'explore' | 'entries' | 'insights' | 'settings';
 
 interface BottomNavProps {
     activeTab: TabName;
@@ -31,8 +31,8 @@ const leftTabs: TabConfig[] = [
 ];
 
 const rightTabs: TabConfig[] = [
-    { name: 'entries', icon: 'style', label: 'Entries' },
-    { name: 'settings', icon: 'settings', label: 'Settings' },
+    { name: 'insights', icon: 'lightbulb', label: 'Insights' },
+    { name: 'entries', icon: 'menu-book', label: 'History' },
 ];
 
 export function BottomNav({ activeTab, onTabPress, onFabPress }: BottomNavProps) {
