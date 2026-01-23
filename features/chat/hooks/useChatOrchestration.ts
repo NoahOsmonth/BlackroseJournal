@@ -21,8 +21,12 @@ import { StreamingMessage } from '../types';
 const getFriendlyErrorMessage = (error: Error): string => {
     const message = error.message.toLowerCase();
 
-    if (message.includes('nano_gpt_api_key')) {
-        return 'Missing AI configuration. Set NANO_GPT_API_KEY in .env and restart the app.';
+    if (message.includes('agent_api_key') || message.includes('authorization') || message.includes('unauthorized')) {
+        return 'Missing or invalid agent API key. Check AGENT_API_KEY on the backend and EXPO_PUBLIC_AGENT_API_KEY on the app.';
+    }
+
+    if (message.includes('agent_base_url')) {
+        return 'Missing agent backend URL. Set EXPO_PUBLIC_AGENT_BASE_URL and restart the app.';
     }
 
     if (message.includes('failed to fetch') || message.includes('network')) {

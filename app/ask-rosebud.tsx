@@ -7,7 +7,7 @@ import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAskRosebud } from '@/hooks/useAskRosebud';
 import { useJournalEntries } from '@/hooks/useJournalEntries';
-import { TimeRange } from '@/services/supermemory';
+import { TimeRange } from '@/services/ask-rosebud/askRosebud';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';

@@ -4,7 +4,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { MaterialIcons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import Markdown from 'react-native-markdown-display';
+import Markdown from 'react-native-marked';
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -54,6 +54,10 @@ export function ChatMessage({
     fontSize: 14,
     fontStyle: 'italic'
   });
+  const markdownListProps = {
+    scrollEnabled: false,
+    style: { backgroundColor: 'transparent' },
+  };
 
   const messageTextClassName = isAi
     ? 'text-[15px] leading-[22px] font-semibold text-text-light dark:text-text-dark'
@@ -77,9 +81,11 @@ export function ChatMessage({
             <TypingIndicator colorClassName="text-text-secondary-light dark:text-text-secondary-dark" />
           </View>
         ) : isAi ? (
-          <Markdown style={markdownStyles}>
-            {displayedText}
-          </Markdown>
+          <Markdown
+            value={displayedText}
+            styles={markdownStyles}
+            flatListProps={markdownListProps}
+          />
         ) : (
           <Text
             className={messageTextClassName}
@@ -122,9 +128,11 @@ export function ChatMessage({
                 AI Reasoning
               </Text>
             </View>
-            <Markdown style={reasoningMarkdownStyles}>
-              {reasoning}
-            </Markdown>
+            <Markdown
+              value={reasoning}
+              styles={reasoningMarkdownStyles}
+              flatListProps={markdownListProps}
+            />
           </View>
         </Animated.View>
       )}

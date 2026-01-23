@@ -1,11 +1,13 @@
 import { THERAPIST_SYSTEM_PROMPT } from '@/constants/aiPrompts';
 import { DailyPrompt } from '@/constants/dailyPrompts';
-import { buildChatMemoryContext, ingestConversation } from '@/services/supermemory/supermemory';
+import { postAgent } from '@/services/agent/agentClient';
+import { getOrCreateMemoryNamespace } from '@/services/memory/memoryNamespace';
 import { useCallback, useRef } from 'react';
 import { getAiConfig } from './aiConfig';
 
 const DEFAULT_TEMPERATURE = 1.0;
 const DEFAULT_MAX_TOKENS = 8192;
+const DEFAULT_AGENT_MODEL = 'agent-default';
 
 type ChatRole = 'system' | 'user' | 'assistant';
 
@@ -20,6 +22,8 @@ interface ChatRequestPayload {
     stream: boolean;
     temperature: number;
     max_tokens: number;
+    memoryNamespace?: string;
+    conversationId?: string;
 }
 
 interface StreamingReader {
@@ -44,6 +48,12 @@ export interface CompleteCallback {
 
 export interface ErrorCallback {
     (error: Error): void;
+}
+
+interface StreamChatOptions {
+    systemPrompt?: string;
+    memoryNamespace?: string;
+    conversationId?: string;
 }
 
 interface ParsedChunk {
@@ -361,7 +371,9 @@ function buildChatPayload(
     model: string,
     messages: Message[],
     systemPrompt: string,
-    stream: boolean
+    stream: boolean,
+    memoryNamespace?: string,
+    conversationId?: string
 ): ChatRequestPayload {
     return {
         model,
@@ -375,6 +387,8 @@ function buildChatPayload(
         stream,
         temperature: DEFAULT_TEMPERATURE,
         max_tokens: DEFAULT_MAX_TOKENS,
+        memoryNamespace,
+        conversationId,
     };
 }
 
@@ -548,19 +562,20 @@ async function buildResponseError(
     return new Error(`${context} (status ${status}, streaming=${streamingAvailable}).${details}`);
 }
 
-async function fetchChatCompletion(
-    payload: ChatRequestPayload,
-    apiBaseUrl: string,
-    apiKey: string
-): Promise<Response> {
-    return fetch(`${apiBaseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify(payload),
-    });
+async function fetchChatCompletion(payload: ChatRequestPayload): Promise<Response> {
+    return postAgent('/v1/chat/completions', payload);
+}
+
+function resolveStreamOptions(options?: string | StreamChatOptions): StreamChatOptions {
+    if (!options) {
+        return {};
+    }
+
+    if (typeof options === 'string') {
+        return { systemPrompt: options };
+    }
+
+    return options;
 }
 
 /**
@@ -576,45 +591,28 @@ The user is doing a "${prompt.title}" daily check-in. The prompt they're respond
 Begin the conversation with an appropriate greeting for this time of day and gently invite them to share what's on their mind. Use the follow-up style: "${prompt.aiFollowUp}"`;
 }
 
-function mergeSystemPrompt(basePrompt: string, memoryContext?: string): string {
-    if (!memoryContext || !memoryContext.trim()) {
-        return basePrompt;
-    }
-
-    return `${basePrompt}
-
-${memoryContext}`;
-}
-
-async function buildMemoryAwarePrompt(basePrompt: string, query: string): Promise<string> {
-    try {
-        const memoryContext = await buildChatMemoryContext(query);
-        return mergeSystemPrompt(basePrompt, memoryContext);
-    } catch (error) {
-        console.warn('Supermemory context unavailable:', error);
-        return basePrompt;
-    }
-}
-
-function queueConversationIngestion(conversationId: string, messages: Message[]): void {
-    ingestConversation(conversationId, messages).catch((error) => {
-        console.warn('Failed to ingest conversation to Supermemory:', error);
-    });
-}
-
 export async function streamChat(
     messages: Message[],
     onChunk: StreamingCallback,
     onComplete: CompleteCallback,
     onError: ErrorCallback,
-    customSystemPrompt?: string
+    options?: string | StreamChatOptions
 ): Promise<void> {
     try {
-        const { apiBaseUrl, apiKey, model } = getAiConfig();
-        const systemPrompt = customSystemPrompt || THERAPIST_SYSTEM_PROMPT;
-        const streamPayload = buildChatPayload(model, messages, systemPrompt, true);
-        const response = await fetchChatCompletion(streamPayload, apiBaseUrl, apiKey);
-        const streamingAvailable = hasReadableStream(response.body);
+        const resolved = resolveStreamOptions(options);
+        const systemPrompt = resolved.systemPrompt || THERAPIST_SYSTEM_PROMPT;
+        const model = DEFAULT_AGENT_MODEL;
+        const streamPayload = buildChatPayload(
+            model,
+            messages,
+            systemPrompt,
+            true,
+            resolved.memoryNamespace,
+            resolved.conversationId
+        );
+        const response = await fetchChatCompletion(streamPayload);
+        const streamingAvailable = hasReadableStream(response.body)
+            && (response.headers.get('content-type') || '').includes('text/event-stream');
 
         if (!response.ok) {
             throw await buildResponseError(response, 'AI request failed', streamingAvailable);
@@ -625,14 +623,7 @@ export async function streamChat(
             return;
         }
 
-        const fallbackPayload = buildChatPayload(model, messages, systemPrompt, false);
-        const fallbackResponse = await fetchChatCompletion(fallbackPayload, apiBaseUrl, apiKey);
-
-        if (!fallbackResponse.ok) {
-            throw await buildResponseError(fallbackResponse, 'AI fallback request failed', false);
-        }
-
-        const fallbackResult = await readNonStreamingResponse(fallbackResponse);
+        const fallbackResult = await readNonStreamingResponse(response);
 
         if (fallbackResult.content || fallbackResult.reasoning) {
             onChunk(fallbackResult.content, fallbackResult.reasoning);
@@ -650,11 +641,18 @@ export async function streamChat(
 
 export async function completeChat(
     messages: Message[],
-    systemPrompt: string
+    systemPrompt: string,
+    options?: { memoryNamespace?: string; conversationId?: string }
 ): Promise<Accumulator> {
-    const { apiBaseUrl, apiKey, model } = getAiConfig();
-    const payload = buildChatPayload(model, messages, systemPrompt, false);
-    const response = await fetchChatCompletion(payload, apiBaseUrl, apiKey);
+    const payload = buildChatPayload(
+        DEFAULT_AGENT_MODEL,
+        messages,
+        systemPrompt,
+        false,
+        options?.memoryNamespace,
+        options?.conversationId
+    );
+    const response = await fetchChatCompletion(payload);
 
     if (!response.ok) {
         throw await buildResponseError(response, 'AI request failed', false);
@@ -667,6 +665,7 @@ export function useChat() {
     const messagesRef = useRef<Message[]>([]);
     const systemPromptRef = useRef<string | undefined>(undefined);
     const conversationIdRef = useRef<string>(generateConversationId());
+    const memoryNamespaceRef = useRef<string | null>(null);
 
     const setMessages = useCallback((messages: Message[], systemPrompt?: string) => {
         messagesRef.current = messages;
@@ -675,6 +674,21 @@ export function useChat() {
 
     const setConversationId = useCallback((conversationId?: string) => {
         conversationIdRef.current = conversationId || generateConversationId();
+    }, []);
+
+    const getMemoryNamespace = useCallback(async (): Promise<string | undefined> => {
+        if (memoryNamespaceRef.current) {
+            return memoryNamespaceRef.current;
+        }
+
+        try {
+            const namespace = await getOrCreateMemoryNamespace();
+            memoryNamespaceRef.current = namespace;
+            return namespace;
+        } catch (error) {
+            console.warn('Failed to read memory namespace:', error);
+            return undefined;
+        }
     }, []);
 
     const sendMessage = useCallback(
@@ -694,7 +708,7 @@ export function useChat() {
             messagesRef.current = [...messagesRef.current, userMessage];
 
             const basePrompt = systemPromptRef.current || THERAPIST_SYSTEM_PROMPT;
-            const systemPrompt = await buildMemoryAwarePrompt(basePrompt, content);
+            const memoryNamespace = await getMemoryNamespace();
 
             await streamChat(
                 messagesRef.current,
@@ -708,14 +722,17 @@ export function useChat() {
                         timestamp: Date.now(),
                     };
                     messagesRef.current = [...messagesRef.current, aiMessage];
-                    queueConversationIngestion(conversationIdRef.current, messagesRef.current);
                     onComplete(fullContent, fullReasoning);
                 },
                 onError,
-                systemPrompt
+                {
+                    systemPrompt: basePrompt,
+                    memoryNamespace,
+                    conversationId: conversationIdRef.current,
+                }
             );
         },
-        []
+        [getMemoryNamespace]
     );
 
     /**
@@ -731,7 +748,7 @@ export function useChat() {
         ) => {
             const basePrompt = buildDailyCheckInSystemPrompt(prompt);
             systemPromptRef.current = basePrompt;
-            const systemPrompt = await buildMemoryAwarePrompt(basePrompt, prompt.promptText);
+            const memoryNamespace = await getMemoryNamespace();
 
             // Send an empty trigger to get the AI to respond with its greeting
             // We use a minimal user message that the AI will interpret as a conversation starter
@@ -757,14 +774,17 @@ export function useChat() {
                     };
                     // Replace the trigger with just the AI response for display
                     messagesRef.current = [aiMessage];
-                    queueConversationIngestion(conversationIdRef.current, messagesRef.current);
                     onComplete(fullContent, fullReasoning);
                 },
                 onError,
-                systemPrompt
+                {
+                    systemPrompt: basePrompt,
+                    memoryNamespace,
+                    conversationId: conversationIdRef.current,
+                }
             );
         },
-        []
+        [getMemoryNamespace]
     );
 
     const clearMessages = useCallback(() => {

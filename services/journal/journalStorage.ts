@@ -4,7 +4,6 @@
  * Designed with dependency injection for testability
  */
 
-import { ingestJournalEntry } from '@/services/supermemory/supermemory';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
     JournalEntry,
@@ -115,10 +114,6 @@ export async function createEntry(input: JournalEntryCreateInput): Promise<Journ
         console.warn('Failed to queue journal entry sync:', error);
     }
 
-    ingestJournalEntry(entry).catch((error) => {
-        console.warn('Failed to ingest journal entry to Supermemory:', error);
-    });
-
     return entry;
 }
 
@@ -158,10 +153,6 @@ export async function updateEntry(
     } catch (error) {
         console.warn('Failed to queue journal entry sync:', error);
     }
-
-    ingestJournalEntry(updated).catch((error) => {
-        console.warn('Failed to ingest journal entry to Supermemory:', error);
-    });
 
     return updated;
 }

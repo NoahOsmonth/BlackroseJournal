@@ -45,27 +45,28 @@ const createReader = (chunks: string[]) => {
 };
 
 describe('streamChat', () => {
-    const originalApiKey = process.env.NANO_GPT_API_KEY;
-    const originalPublicApiKey = process.env.EXPO_PUBLIC_NANO_GPT_API_KEY;
+    const originalAgentApiKey = process.env.EXPO_PUBLIC_AGENT_API_KEY;
+    const originalAgentBaseUrl = process.env.EXPO_PUBLIC_AGENT_BASE_URL;
 
     beforeEach(() => {
         Object.keys(mockExtra).forEach(key => delete mockExtra[key]);
-        process.env.NANO_GPT_API_KEY = 'test-key';
-        delete process.env.EXPO_PUBLIC_NANO_GPT_API_KEY;
+        mockExtra.AGENT_BASE_URL = 'http://agent.test';
+        delete process.env.EXPO_PUBLIC_AGENT_BASE_URL;
+        delete process.env.EXPO_PUBLIC_AGENT_API_KEY;
         global.fetch = jest.fn();
     });
 
     afterEach(() => {
         jest.clearAllMocks();
-        if (originalApiKey === undefined) {
-            delete process.env.NANO_GPT_API_KEY;
+        if (originalAgentApiKey === undefined) {
+            delete process.env.EXPO_PUBLIC_AGENT_API_KEY;
         } else {
-            process.env.NANO_GPT_API_KEY = originalApiKey;
+            process.env.EXPO_PUBLIC_AGENT_API_KEY = originalAgentApiKey;
         }
-        if (originalPublicApiKey === undefined) {
-            delete process.env.EXPO_PUBLIC_NANO_GPT_API_KEY;
+        if (originalAgentBaseUrl === undefined) {
+            delete process.env.EXPO_PUBLIC_AGENT_BASE_URL;
         } else {
-            process.env.EXPO_PUBLIC_NANO_GPT_API_KEY = originalPublicApiKey;
+            process.env.EXPO_PUBLIC_AGENT_BASE_URL = originalAgentBaseUrl;
         }
     });
 
@@ -80,6 +81,9 @@ describe('streamChat', () => {
             ok: true,
             status: 200,
             body: { getReader: () => reader },
+            headers: {
+                get: () => 'text/event-stream',
+            },
         });
 
         const onChunk = jest.fn();
@@ -93,28 +97,26 @@ describe('streamChat', () => {
         expect(onComplete).toHaveBeenCalledWith('Helloworld', 'Reason two');
     });
 
-    it('falls back to non-streaming when response body is null', async () => {
-        (global.fetch as jest.Mock)
-            .mockResolvedValueOnce({
-                ok: true,
-                status: 200,
-                body: null,
-            })
-            .mockResolvedValueOnce({
-                ok: true,
-                status: 200,
-                text: async () =>
-                    JSON.stringify({
-                        choices: [
-                            {
-                                message: {
-                                    content: 'Fallback content',
-                                    reasoning: 'Fallback reasoning',
-                                },
+    it('falls back to non-streaming when response is JSON', async () => {
+        (global.fetch as jest.Mock).mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            body: null,
+            headers: {
+                get: () => 'application/json',
+            },
+            text: async () =>
+                JSON.stringify({
+                    choices: [
+                        {
+                            message: {
+                                content: 'Fallback content',
+                                reasoning: 'Fallback reasoning',
                             },
-                        ],
-                    }),
-            });
+                        },
+                    ],
+                }),
+        });
 
         const onChunk = jest.fn();
         const onComplete = jest.fn();
@@ -129,12 +131,8 @@ describe('streamChat', () => {
         const firstPayload = JSON.parse(
             (global.fetch as jest.Mock).mock.calls[0][1].body as string
         );
-        const secondPayload = JSON.parse(
-            (global.fetch as jest.Mock).mock.calls[1][1].body as string
-        );
 
         expect(firstPayload.stream).toBe(true);
-        expect(secondPayload.stream).toBe(false);
     });
 
     it('reports HTTP errors with context', async () => {
@@ -143,6 +141,9 @@ describe('streamChat', () => {
             status: 401,
             text: async () => 'Unauthorized',
             body: null,
+            headers: {
+                get: () => '',
+            },
         });
 
         const onChunk = jest.fn();
@@ -159,30 +160,27 @@ describe('streamChat', () => {
         expect(onComplete).not.toHaveBeenCalled();
     });
 
-    it('uses EXPO_PUBLIC api key when available', async () => {
-        delete process.env.NANO_GPT_API_KEY;
-        process.env.EXPO_PUBLIC_NANO_GPT_API_KEY = 'public-key';
+    it('uses EXPO_PUBLIC agent api key when available', async () => {
+        process.env.EXPO_PUBLIC_AGENT_API_KEY = 'public-key';
 
-        (global.fetch as jest.Mock)
-            .mockResolvedValueOnce({
-                ok: true,
-                status: 200,
-                body: null,
-            })
-            .mockResolvedValueOnce({
-                ok: true,
-                status: 200,
-                text: async () =>
-                    JSON.stringify({
-                        choices: [
-                            {
-                                message: {
-                                    content: 'Public content',
-                                },
+        (global.fetch as jest.Mock).mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            body: null,
+            headers: {
+                get: () => 'application/json',
+            },
+            text: async () =>
+                JSON.stringify({
+                    choices: [
+                        {
+                            message: {
+                                content: 'Public content',
                             },
-                        ],
-                    }),
-            });
+                        },
+                    ],
+                }),
+        });
 
         const onChunk = jest.fn();
         const onComplete = jest.fn();
@@ -198,10 +196,28 @@ describe('streamChat', () => {
         expect(onComplete).toHaveBeenCalledWith('Public content', '');
     });
 
-    it('fails fast when the API key is missing', async () => {
-        delete process.env.NANO_GPT_API_KEY;
-        delete process.env.EXPO_PUBLIC_NANO_GPT_API_KEY;
+    it('defaults to the agent base URL when no env override is set', async () => {
         Object.keys(mockExtra).forEach(key => delete mockExtra[key]);
+        delete process.env.EXPO_PUBLIC_AGENT_BASE_URL;
+
+        (global.fetch as jest.Mock).mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            body: null,
+            headers: {
+                get: () => 'application/json',
+            },
+            text: async () =>
+                JSON.stringify({
+                    choices: [
+                        {
+                            message: {
+                                content: 'Default content',
+                            },
+                        },
+                    ],
+                }),
+        });
 
         const onChunk = jest.fn();
         const onComplete = jest.fn();
@@ -209,11 +225,8 @@ describe('streamChat', () => {
 
         await streamChat(baseMessages, onChunk, onComplete, onError);
 
-        expect(onError).toHaveBeenCalledWith(
-            expect.objectContaining({
-                message: expect.stringContaining('NANO_GPT_API_KEY'),
-            })
-        );
-        expect(global.fetch).not.toHaveBeenCalled();
+        expect(onError).not.toHaveBeenCalled();
+        const url = (global.fetch as jest.Mock).mock.calls[0][0] as string;
+        expect(url).toContain('/v1/chat/completions');
     });
 });

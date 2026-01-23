@@ -48,3 +48,28 @@
   - Wired local storage to enqueue remote upserts/deletes and remote bootstrap reads.
   - Added Supabase schema SQL at `scripts/supabase/schema.sql` and setup notes in `notes/supabase-setup.md`.
   - Updated theme settings to sync remotely; added/updated tests for sync behaviors.
+- **2026-01-23**: Verified sync queue behavior and tests:
+  - Updated sync queue flushing to process tasks added during a flush.
+  - Ran targeted Jest suite: `npm test -- --testPathPattern="supabaseSyncQueue|weeklyInsightsStorage|happinessRecipeStorage|useThemeSettings|journalStorage"` (52 tests passing).
+- **2026-01-23**: Dependency audit cleanup:
+  - Added npm override to pin `tar@7.5.6` to reduce audit findings.
+  - Remaining audit issue: `markdown-it` moderate vulnerability via `react-native-markdown-display` (no fix available).
+- **2026-01-23**: Supabase CLI setup:
+  - Linked project `tovejzoqyduelgzsajru` and pushed migrations (remote database up to date).
+  - Audit status confirmed: only `markdown-it` moderate vulnerability remained at the time (resolved later the same day).
+- **2026-01-23**: Markdown renderer swap + test fix:
+  - Replaced `react-native-markdown-display` with `react-native-marked` and updated `constants/markdownStyles.ts`.
+  - Added manual Jest mock for `react-native-marked` to avoid ESM transform issues.
+  - Ran `npm test -- --testPathPattern="ChatMessage"` (3 tests passing).
+  - Audit status (prod deps) now clean: `npm audit --omit=dev` shows 0 vulnerabilities.
+- **2026-01-23**: MCP-ready backend agent + chat wiring:
+  - Added Node backend in `backend/` with MCP registry, stdio/HTTP transports, memory planner, and chat/ask-rosebud routes.
+  - Added Railway config (`railway.toml`) to deploy backend only.
+  - Updated chat + Ask Rosebud to call backend agent; added persistent memory namespace helper; removed client-side Supermemory ingestion.
+  - Tests added/updated:
+    - `backend/tests/mcpConfig.test.ts`
+    - `backend/tests/memoryTools.test.ts`
+    - `__tests__/services/ai.test.ts` (agent API)
+    - `__tests__/services/memoryNamespace.test.ts`
+  - Verified tests: `npm test -- --runInBand` and `cd backend && npm test`.
+  - Lint + typecheck clean: fixed unused SafeAreaProvider import, updated hook deps, widened sync payload typing, ran `npm run lint` and `npx tsc --noEmit`.

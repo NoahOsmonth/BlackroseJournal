@@ -1,5 +1,4 @@
-import { askRosebud } from '@/services/ask-rosebud/askRosebud';
-import { TimeRange } from '@/services/supermemory/supermemory';
+import { askRosebud, TimeRange } from '@/services/ask-rosebud/askRosebud';
 import { useCallback, useState } from 'react';
 
 export interface AskRosebudMessage {

@@ -11,7 +11,7 @@ export interface SyncTask {
     id: string;
     table: string;
     operation: SyncOperation;
-    payload?: Record<string, unknown>;
+    payload?: object;
     primaryKey?: string;
     primaryValue?: string | number;
     onConflict?: string;
@@ -112,9 +112,10 @@ export async function enqueueSyncTask(
 
 async function applyTask(client: SupabaseClient, task: SyncTask): Promise<boolean> {
     if (task.operation === 'upsert' && task.payload) {
+        const payload = task.payload as Record<string, unknown>;
         const { error } = await client
             .from(task.table)
-            .upsert(task.payload, task.onConflict ? { onConflict: task.onConflict } : undefined);
+            .upsert(payload, task.onConflict ? { onConflict: task.onConflict } : undefined);
 
         if (error) {
             console.warn('Supabase sync upsert failed:', error.message);
@@ -147,29 +148,50 @@ export async function flushSyncQueue(): Promise<void> {
     }
 
     flushPromise = (async () => {
-        const queue = await loadQueue();
-        if (queue.length === 0) {
-            return;
-        }
-
-        const client = await ensureSupabaseSession();
-        if (!client) {
-            return;
-        }
-
-        const remaining: SyncTask[] = [];
-
-        for (let i = 0; i < queue.length; i += 1) {
-            const task = queue[i];
-            const success = await applyTask(client, task);
-
-            if (!success) {
-                remaining.push(task, ...queue.slice(i + 1));
-                break;
+        while (true) {
+            const queue = await loadQueue();
+            if (queue.length === 0) {
+                return;
             }
-        }
 
-        await saveQueue(remaining);
+            const client = await ensureSupabaseSession();
+            if (!client) {
+                return;
+            }
+
+            const processedIds = new Set<string>();
+            let failedIndex: number | null = null;
+
+            for (let i = 0; i < queue.length; i += 1) {
+                const task = queue[i];
+                const success = await applyTask(client, task);
+
+                if (!success) {
+                    failedIndex = i;
+                    break;
+                }
+
+                processedIds.add(task.id);
+            }
+
+            const latestQueue = await loadQueue();
+            const nextQueue = latestQueue.filter((task) => !processedIds.has(task.id));
+
+            if (failedIndex !== null) {
+                const pending = queue.slice(failedIndex);
+                const pendingIds = new Set(nextQueue.map((task) => task.id));
+                pending.forEach((task) => {
+                    if (!pendingIds.has(task.id)) {
+                        nextQueue.push(task);
+                    }
+                });
+
+                await saveQueue(nextQueue);
+                return;
+            }
+
+            await saveQueue(nextQueue);
+        }
     })();
 
     try {

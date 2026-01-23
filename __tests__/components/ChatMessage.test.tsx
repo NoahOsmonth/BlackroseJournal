@@ -10,6 +10,8 @@ jest.mock('@expo/vector-icons', () => ({
     MaterialIcons: 'MaterialIcons',
 }));
 
+jest.mock('react-native-marked');
+
 jest.mock('react-native-reanimated', () => {
     const Reanimated = require('react-native-reanimated/mock');
     Reanimated.default.call = () => { };

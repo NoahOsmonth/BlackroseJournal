@@ -1,45 +1,31 @@
-import { THERAPIST_SYSTEM_PROMPT } from '@/constants/aiPrompts';
-import { completeChat, Message } from '@/services/ai/ai';
-import { buildAskRosebudContext, TimeRange } from '@/services/supermemory/supermemory';
+import { postAgent } from '@/services/agent/agentClient';
+import { getOrCreateMemoryNamespace } from '@/services/memory/memoryNamespace';
 
-const TIME_RANGE_LABELS: Record<TimeRange, string> = {
-    'all-time': 'All-time',
-    'this-year': 'This year',
-    'this-month': 'This month',
-    'this-week': 'This week',
-};
+export type TimeRange = 'all-time' | 'this-year' | 'this-month' | 'this-week';
 
-const ASK_ROSEBUD_SYSTEM_PROMPT = `${THERAPIST_SYSTEM_PROMPT}
-
-## Ask Rosebud Guidance
-You are Rosebud, an AI that provides reflective insights based on the user's journal history.
-- Ground answers in the provided memory context.
-- Be clear about uncertainty when memories are missing.
-- Keep responses concise and supportive.`;
-
-function buildAskRosebudPrompt(memoryContext: string, timeRange: TimeRange): string {
-    const label = TIME_RANGE_LABELS[timeRange] || TIME_RANGE_LABELS['all-time'];
-
-    return `${ASK_ROSEBUD_SYSTEM_PROMPT}
-
-Time range: ${label}
-
-${memoryContext}`.trim();
-}
-
-function buildUserMessage(content: string): Message {
-    return {
-        id: Date.now().toString(),
-        role: 'user',
-        content,
-        timestamp: Date.now(),
+interface AskRosebudResponse {
+    data?: {
+        answer?: string;
+    };
+    error?: {
+        message?: string;
     };
 }
 
 export async function askRosebud(question: string, timeRange: TimeRange): Promise<string> {
-    const memoryContext = await buildAskRosebudContext({ question, timeRange });
-    const systemPrompt = buildAskRosebudPrompt(memoryContext, timeRange);
-    const response = await completeChat([buildUserMessage(question)], systemPrompt);
+    const memoryNamespace = await getOrCreateMemoryNamespace();
+    const response = await postAgent('/v1/ask-rosebud', {
+        question,
+        timeRange,
+        memoryNamespace,
+    });
 
-    return response.content;
+    if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        throw new Error(`Ask Rosebud failed (${response.status}). ${text}`);
+    }
+
+    const json = await response.json().catch(() => null) as AskRosebudResponse | null;
+    const answer = json?.data?.answer;
+    return typeof answer === 'string' ? answer : '';
 }

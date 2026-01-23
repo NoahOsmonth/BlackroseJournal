@@ -196,7 +196,7 @@ export default function ChatScreen() {
         } finally {
             setIsSaving(false);
         }
-    }, [messages, isSaving, resetChatState, router, create, update, entryId]);
+    }, [messages, isSaving, router, create, update, entryId, handleNewChat]);
 
     const canFinish = hasContent(messages) && !isLoading && !isSaving;
     const trimmedInput = inputValue.trim();

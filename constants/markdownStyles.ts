@@ -1,9 +1,10 @@
 /**
  * Markdown Styles Configuration
- * Defines styles for react-native-markdown-display matching app theme
+ * Defines styles for react-native-marked matching app theme
  * Supports light and dark mode with Inter-compatible sizing
  */
 
+import type { MarkedStyles } from 'react-native-marked';
 import { StyleSheet } from 'react-native';
 
 // Colors matching the app theme
@@ -40,24 +41,28 @@ interface MarkdownStyleOptions {
 /**
  * Get markdown styles for the specified color scheme
  */
-export function getMarkdownStyles(isDark: boolean, options: MarkdownStyleOptions = {}) {
+export function getMarkdownStyles(
+    isDark: boolean,
+    options: MarkdownStyleOptions = {}
+): MarkedStyles {
     const palette = isDark ? colors.dark : colors.light;
     const bodyFontWeight = options.fontWeight ?? '400';
     const bodyColor = options.color ?? palette.text;
     const bodyFontSize = options.fontSize ?? 15;
     const bodyFontStyle = options.fontStyle ?? 'normal';
 
-    return StyleSheet.create({
-        // Body text
-        body: {
+    return StyleSheet.create<MarkedStyles>({
+        text: {
             color: bodyColor,
             fontSize: bodyFontSize,
             lineHeight: 22,
             fontWeight: bodyFontWeight,
             fontStyle: bodyFontStyle,
         },
-        // Headers
-        heading1: {
+        paragraph: {
+            paddingVertical: 4,
+        },
+        h1: {
             color: palette.heading,
             fontSize: 28,
             fontWeight: '700',
@@ -65,7 +70,7 @@ export function getMarkdownStyles(isDark: boolean, options: MarkdownStyleOptions
             marginTop: 16,
             lineHeight: 34,
         },
-        heading2: {
+        h2: {
             color: palette.heading,
             fontSize: 24,
             fontWeight: '700',
@@ -73,7 +78,7 @@ export function getMarkdownStyles(isDark: boolean, options: MarkdownStyleOptions
             marginTop: 14,
             lineHeight: 30,
         },
-        heading3: {
+        h3: {
             color: palette.heading,
             fontSize: 20,
             fontWeight: '600',
@@ -81,7 +86,7 @@ export function getMarkdownStyles(isDark: boolean, options: MarkdownStyleOptions
             marginTop: 12,
             lineHeight: 26,
         },
-        heading4: {
+        h4: {
             color: palette.heading,
             fontSize: 18,
             fontWeight: '600',
@@ -89,7 +94,7 @@ export function getMarkdownStyles(isDark: boolean, options: MarkdownStyleOptions
             marginTop: 10,
             lineHeight: 24,
         },
-        heading5: {
+        h5: {
             color: palette.heading,
             fontSize: 16,
             fontWeight: '700',
@@ -97,7 +102,7 @@ export function getMarkdownStyles(isDark: boolean, options: MarkdownStyleOptions
             marginTop: 8,
             lineHeight: 22,
         },
-        heading6: {
+        h6: {
             color: palette.heading,
             fontSize: 14,
             fontWeight: '700',
@@ -105,41 +110,32 @@ export function getMarkdownStyles(isDark: boolean, options: MarkdownStyleOptions
             marginTop: 6,
             lineHeight: 20,
         },
-        // Text formatting
         strong: {
             fontWeight: '700',
         },
         em: {
             fontStyle: 'italic',
         },
-        // Links
+        strikethrough: {
+            textDecorationLine: 'line-through',
+        },
         link: {
             color: palette.link,
             textDecorationLine: 'underline',
         },
-        // Lists
-        bullet_list: {
+        list: {
             marginLeft: 8,
             marginVertical: 4,
         },
-        ordered_list: {
-            marginLeft: 8,
-            marginVertical: 4,
-        },
-        list_item: {
-            flexDirection: 'row',
+        li: {
+            color: bodyColor,
+            fontSize: bodyFontSize,
+            lineHeight: 22,
+            fontWeight: bodyFontWeight,
+            fontStyle: bodyFontStyle,
             marginVertical: 2,
         },
-        bullet_list_icon: {
-            marginRight: 8,
-            fontSize: 16,
-        },
-        ordered_list_icon: {
-            marginRight: 8,
-            fontSize: 14,
-        },
-        // Code
-        code_inline: {
+        codespan: {
             backgroundColor: palette.code,
             color: palette.codeText,
             fontFamily: 'monospace',
@@ -148,25 +144,12 @@ export function getMarkdownStyles(isDark: boolean, options: MarkdownStyleOptions
             paddingVertical: 2,
             borderRadius: 4,
         },
-        code_block: {
+        code: {
             backgroundColor: palette.code,
-            color: palette.codeText,
-            fontFamily: 'monospace',
-            fontSize: 14,
             padding: 12,
             borderRadius: 8,
             marginVertical: 8,
         },
-        fence: {
-            backgroundColor: palette.code,
-            color: palette.codeText,
-            fontFamily: 'monospace',
-            fontSize: 14,
-            padding: 12,
-            borderRadius: 8,
-            marginVertical: 8,
-        },
-        // Blockquote
         blockquote: {
             backgroundColor: palette.blockquoteBg,
             borderLeftWidth: 4,
@@ -175,16 +158,20 @@ export function getMarkdownStyles(isDark: boolean, options: MarkdownStyleOptions
             paddingVertical: 8,
             marginVertical: 8,
         },
-        // Paragraph
-        paragraph: {
-            marginVertical: 4,
-            fontWeight: bodyFontWeight,
-        },
-        // Horizontal rule
         hr: {
             backgroundColor: isDark ? '#2C2C2E' : '#E5E5EA',
             height: 1,
             marginVertical: 16,
+        },
+        table: {
+            borderWidth: 1,
+            borderColor: isDark ? '#2C2C2E' : '#E5E5EA',
+        },
+        tableRow: {
+            flexDirection: 'row',
+        },
+        tableCell: {
+            padding: 8,
         },
     });
 }

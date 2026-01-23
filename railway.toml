@@ -1,0 +1,8 @@
+[build]
+builder = "NIXPACKS"
+rootDirectory = "backend"
+buildCommand = "npm run build"
+
+[deploy]
+startCommand = "npm start"
+healthcheckPath = "/health"
