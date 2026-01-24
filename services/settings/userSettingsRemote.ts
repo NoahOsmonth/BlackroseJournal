@@ -1,5 +1,6 @@
 import { ensureSupabaseSession, getSupabaseUserId } from '@/services/supabase/supabaseClient';
 import { enqueueSyncTask } from '@/services/supabase/syncQueue';
+import { logSupabaseError } from '@/services/supabase/supabaseErrors';
 
 const SETTINGS_TABLE = 'user_settings';
 
@@ -30,7 +31,7 @@ export async function loadRemoteUserSettings(): Promise<RemoteUserSettings | nul
         .limit(1);
 
     if (error) {
-        console.warn('Failed to load remote user settings:', error.message);
+        logSupabaseError('Failed to load remote user settings', SETTINGS_TABLE, error.message);
         return null;
     }
 

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Rosebud Persona Selection</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Outlined|Material+Icons+Round"
+        rel="stylesheet" />
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#E11D48", // Rose-600 for the brand logo accent
+                        "background-light": "#F9FAFB",
+                        "background-dark": "#050505", // Deep black
+                        "surface-light": "#FFFFFF",
+                        "surface-dark": "#121212", // Slightly lighter black for sheets
+                        "accent-blue-light": "#2563EB",
+                        "accent-blue-dark": "#60A5FA",
+                    },
+                    fontFamily: {
+                        display: ["Inter", "sans-serif"],
+                        sans: ["Inter", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "0.5rem",
+                        'xl': "0.75rem",
+                        '2xl': "1rem",
+                        '3xl': "1.5rem",
+                    },
+                },
+            },
+        };
+    </script>
+    <style>
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        .geo-pattern {
+            background-color: #2DD4BF;
+            background-image:
+                linear-gradient(30deg, #14B8A6 12%, transparent 12.5%, transparent 87%, #14B8A6 87.5%, #14B8A6),
+                linear-gradient(150deg, #14B8A6 12%, transparent 12.5%, transparent 87%, #14B8A6 87.5%, #14B8A6),
+                linear-gradient(30deg, #14B8A6 12%, transparent 12.5%, transparent 87%, #14B8A6 87.5%, #14B8A6),
+                linear-gradient(150deg, #14B8A6 12%, transparent 12.5%, transparent 87%, #14B8A6 87.5%, #14B8A6),
+                linear-gradient(60deg, #5EEAD4 25%, transparent 25.5%, transparent 75%, #5EEAD4 75%, #5EEAD4),
+                linear-gradient(60deg, #5EEAD4 25%, transparent 25.5%, transparent 75%, #5EEAD4 75%, #5EEAD4);
+            background-size: 20px 35px;
+            background-position: 0 0, 0 0, 10px 18px, 10px 18px, 0 0, 10px 18px;
+            opacity: 1;
+        }
+    </style>
+    <style>
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+</head>
+
+<body
+    class="bg-background-light dark:bg-background-dark text-gray-900 dark:text-gray-100 font-sans h-screen overflow-hidden flex flex-col relative antialiased selection:bg-primary selection:text-white">
+    <header class="flex justify-between items-center px-4 pt-6 pb-2 z-10">
+        <button
+            class="flex items-center space-x-2 bg-gray-100 dark:bg-gray-900 rounded-full pl-1 pr-3 py-1 border border-gray-200 dark:border-gray-800 transition-colors">
+            <div class="bg-primary h-6 w-6 rounded-full flex items-center justify-center">
+                <span class="material-icons-round text-white text-sm">local_florist</span>
+            </div>
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-200">Rosebud</span>
+            <span class="material-icons-round text-gray-400 dark:text-gray-500 text-lg">expand_more</span>
+        </button>
+        <div class="flex items-center space-x-4">
+            <span
+                class="text-sm font-medium text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-800 dark:hover:text-gray-200 transition-colors">Drafts</span>
+            <button
+                class="text-gray-400 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white transition-colors">
+                <span class="material-icons-round text-2xl">close</span>
+            </button>
+        </div>
+    </header>
+    <main class="flex-1 overflow-y-auto px-5 pt-4 pb-32 no-scrollbar">
+        <div class="flex items-center space-x-2 mb-6">
+            <span class="text-xs font-semibold tracking-wider text-gray-400 dark:text-gray-600 uppercase">Fri, Jan
+                23</span>
+            <span class="material-icons-outlined text-sm text-gray-400 dark:text-gray-600">settings</span>
+        </div>
+        <div class="space-y-6">
+            <div>
+                <p class="text-accent-blue-light dark:text-accent-blue-dark text-lg font-medium leading-relaxed">
+                    What's on your mind?
+                </p>
+            </div>
+            <div>
+                <p class="text-gray-800 dark:text-gray-300 text-lg font-medium leading-relaxed">
+                    Wellbeing and personal goals
+                </p>
+            </div>
+            <div class="space-y-3">
+                <p class="text-accent-blue-light dark:text-accent-blue-dark text-lg leading-relaxed font-normal">
+                    Ah, I've noticed wellbeing has been on your mind lately, Sigmund. I'm curious - when you think about
+                    wellbeing and your personal goals, what specific connection do you see between the two? How do you
+                    feel they influence each other?
+                </p>
+                <div class="flex items-center space-x-5 pt-1">
+                    <button
+                        class="text-accent-blue-light dark:text-accent-blue-dark hover:opacity-80 transition-opacity">
+                        <span class="material-icons-outlined text-2xl">play_arrow</span>
+                    </button>
+                    <button
+                        class="text-accent-blue-light dark:text-accent-blue-dark hover:opacity-80 transition-opacity">
+                        <span class="material-icons-outlined text-xl">content_copy</span>
+                    </button>
+                    <button
+                        class="text-accent-blue-light dark:text-accent-blue-dark hover:opacity-80 transition-opacity">
+                        <span class="material-icons-outlined text-xl">thumb_up</span>
+                    </button>
+                    <button
+                        class="text-accent-blue-light dark:text-accent-blue-dark hover:opacity-80 transition-opacity">
+                        <span class="material-icons-outlined text-xl">thumb_down</span>
+                    </button>
+                    <button
+                        class="text-accent-blue-light dark:text-accent-blue-dark hover:opacity-80 transition-opacity">
+                        <span class="material-icons-outlined text-xl">ios_share</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="mt-8 mb-2">
+            <p class="text-gray-400 dark:text-gray-600 text-lg">Write</p>
+        </div>
+    </main>
+    <div class="fixed inset-0 bg-black/60 dark:bg-black/80 z-20 backdrop-blur-[1px]"></div>
+    <div
+        class="fixed bottom-0 left-0 right-0 bg-surface-light dark:bg-surface-dark rounded-t-3xl z-30 transform transition-transform duration-300 ease-out shadow-2xl border-t border-gray-200 dark:border-gray-800">
+        <div class="w-full flex justify-center pt-3 pb-1">
+            <div class="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
+        </div>
+        <div class="px-6 py-3 flex justify-between items-center relative">
+            <div class="w-6"></div>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Choose persona</h2>
+            <button
+                class="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
+                <span class="material-icons-round">grid_view</span>
+            </button>
+        </div>
+        <div class="pt-2 pb-10 pl-4 overflow-x-hidden flex items-center">
+            <div
+                class="flex-shrink-0 w-8 h-64 bg-gray-100 dark:bg-gray-800 rounded-r-2xl border-y border-r border-gray-200 dark:border-gray-700 opacity-50 mr-4">
+            </div>
+            <div
+                class="flex-shrink-0 w-[80%] max-w-sm bg-transparent border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-3xl p-6 flex flex-col items-center justify-between text-center relative h-[380px]">
+                <div class="flex-1 flex flex-col items-center justify-center space-y-5">
+                    <div
+                        class="w-24 h-24 rounded-full flex items-center justify-center relative overflow-hidden ring-4 ring-white/10 dark:ring-white/5 shadow-lg">
+                        <div class="absolute inset-0 geo-pattern opacity-90"></div>
+                        <div class="absolute inset-0 bg-gradient-to-tr from-teal-500/40 to-transparent"></div>
+                        <span class="material-icons-round text-white text-4xl relative z-10 drop-shadow-md">add</span>
+                    </div>
+                    <div class="space-y-1">
+                        <h3 class="text-xl font-bold text-gray-900 dark:text-white">New persona</h3>
+                        <p class="text-gray-500 dark:text-gray-400 font-medium">Build your dream team</p>
+                    </div>
+                </div>
+                <button
+                    class="w-full bg-gray-900 hover:bg-black dark:bg-white dark:hover:bg-gray-200 text-white dark:text-black font-semibold py-4 rounded-2xl transition-colors shadow-lg">
+                    Create
+                </button>
+            </div>
+            <div class="w-4 flex-shrink-0"></div>
+        </div>
+    </div>
+    <script>
+        // Force dark mode for the preview to match the screenshot initially
+        document.documentElement.classList.add('dark');
+    </script>
+
+</body>
+
+</html>

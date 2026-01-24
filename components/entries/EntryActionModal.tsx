@@ -4,6 +4,7 @@
  */
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useThemeColor } from '@/hooks/use-theme-color';
 import { MaterialIcons } from '@expo/vector-icons';
 import React from 'react';
 import { Modal, Pressable, Text, View } from 'react-native';
@@ -25,6 +26,7 @@ export function EntryActionModal({
 }: EntryActionModalProps) {
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
+    const primaryColor = useThemeColor({}, 'primary');
 
     return (
         <Modal
@@ -57,7 +59,7 @@ export function EntryActionModal({
                             }`}
                     >
                         <View className="w-10 h-10 rounded-full bg-primary/10 items-center justify-center mr-3">
-                            <MaterialIcons name="edit" size={20} color="#E91E63" />
+                            <MaterialIcons name="edit" size={20} color={primaryColor} />
                         </View>
                         <View className="flex-1">
                             <Text className="text-base font-bold text-text-main-light dark:text-text-main-dark">

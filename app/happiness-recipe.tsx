@@ -5,6 +5,7 @@
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useHappinessRecipe } from '@/hooks/useHappinessRecipe';
+import { useThemeColor } from '@/hooks/use-theme-color';
 import { RecipeItem, RecipeItemType } from '@/services/happinessRecipeStorage.types';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -23,6 +24,8 @@ export default function HappinessRecipeScreen() {
     const router = useRouter();
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
+    const primaryColor = useThemeColor({}, 'primary');
+    const mutedColor = useThemeColor({}, 'icon');
     const {
         items,
         isLoading,
@@ -96,7 +99,7 @@ export default function HappinessRecipeScreen() {
                     <MaterialIcons
                         name={item.completed ? 'check-circle' : 'radio-button-unchecked'}
                         size={24}
-                        color={item.completed ? '#E91E63' : isDark ? '#666' : '#999'}
+                        color={item.completed ? primaryColor : mutedColor}
                     />
                 </Pressable>
 
@@ -159,7 +162,7 @@ export default function HappinessRecipeScreen() {
                 <MaterialIcons
                     name={addIcon}
                     size={20}
-                    color="#E91E63"
+                    color={primaryColor}
                     style={{ marginRight: 12 }}
                 />
                 <TextInput
@@ -175,7 +178,7 @@ export default function HappinessRecipeScreen() {
                     <MaterialIcons name="close" size={20} color={isDark ? '#666' : '#999'} />
                 </Pressable>
                 <Pressable onPress={handleAddItem} className="p-2">
-                    <MaterialIcons name="check" size={20} color="#E91E63" />
+                    <MaterialIcons name="check" size={20} color={primaryColor} />
                 </Pressable>
             </View>
         );
@@ -257,7 +260,7 @@ export default function HappinessRecipeScreen() {
                                 onPress={() => setAddingType('ingredient')}
                                 className="flex-1 flex-row items-center justify-center py-3 rounded-xl bg-primary/10"
                             >
-                                <MaterialIcons name="add" size={20} color="#E91E63" />
+                                <MaterialIcons name="add" size={20} color={primaryColor} />
                                 <Text className="text-primary font-bold ml-2">
                                     Add ingredient
                                 </Text>
@@ -266,7 +269,7 @@ export default function HappinessRecipeScreen() {
                                 onPress={() => setAddingType('goal')}
                                 className="flex-1 flex-row items-center justify-center py-3 rounded-xl bg-primary/10"
                             >
-                                <MaterialIcons name="add" size={20} color="#E91E63" />
+                                <MaterialIcons name="add" size={20} color={primaryColor} />
                                 <Text className="text-primary font-bold ml-2">
                                     Add goal
                                 </Text>

@@ -1,7 +1,7 @@
 /**
  * Markdown Styles Configuration
  * Defines styles for react-native-marked matching app theme
- * Supports light and dark mode with Inter-compatible sizing
+ * Supports light and dark mode with Plus Jakarta Sans-compatible sizing
  */
 
 import type { MarkedStyles } from 'react-native-marked';
@@ -10,22 +10,22 @@ import { StyleSheet } from 'react-native';
 // Colors matching the app theme
 const colors = {
     light: {
-        text: '#1C1C1E',
-        heading: '#1C1C1E',
-        link: '#E91E63',
-        code: '#e8e8ec',
-        codeText: '#2C3E50',
-        blockquoteBg: '#F5F5F7',
-        blockquoteBorder: '#E91E63',
+        text: '#111827',
+        heading: '#111827',
+        link: '#FF9F0A',
+        code: '#F3F4F6',
+        codeText: '#1F2937',
+        blockquoteBg: '#F2F2F7',
+        blockquoteBorder: '#FF9F0A',
     },
     dark: {
-        text: '#E5E5E7',
-        heading: '#E5E5E7',
-        link: '#F48FB1',
-        code: '#2C2C2E',
-        codeText: '#E5E5E7',
-        blockquoteBg: '#1E1E1E',
-        blockquoteBorder: '#E91E63',
+        text: '#F9FAFB',
+        heading: '#F9FAFB',
+        link: '#FFB340',
+        code: '#1C1C1E',
+        codeText: '#F9FAFB',
+        blockquoteBg: '#1C1C1E',
+        blockquoteBorder: '#FFB340',
     },
 };
 
@@ -159,13 +159,13 @@ export function getMarkdownStyles(
             marginVertical: 8,
         },
         hr: {
-            backgroundColor: isDark ? '#2C2C2E' : '#E5E5EA',
+            backgroundColor: isDark ? '#2C2C2E' : '#E5E7EB',
             height: 1,
             marginVertical: 16,
         },
         table: {
             borderWidth: 1,
-            borderColor: isDark ? '#2C2C2E' : '#E5E5EA',
+            borderColor: isDark ? '#2C2C2E' : '#E5E7EB',
         },
         tableRow: {
             flexDirection: 'row',

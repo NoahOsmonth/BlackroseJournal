@@ -17,14 +17,14 @@ describe('useSelectedDay', () => {
 
         expect(result.current.weekDays).toHaveLength(7);
         expect(result.current.weekDays.map((d) => d.label)).toEqual([
-            'S', 'M', 'T', 'W', 'T', 'F', 'S',
+            'Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa',
         ]);
     });
 
     it('formats date correctly', () => {
         const { result } = renderHook(() => useSelectedDay(testDate));
 
-        expect(result.current.formattedDate).toBe('Sunday, Jan 19th');
+        expect(result.current.formattedDate).toBe('Sunday, January 19th');
     });
 
     it('allows selecting a different day', () => {
@@ -35,7 +35,7 @@ describe('useSelectedDay', () => {
         });
 
         expect(result.current.selectedDay.dayIndex).toBe(1);
-        expect(result.current.formattedDate).toBe('Monday, Jan 20th');
+        expect(result.current.formattedDate).toBe('Monday, January 20th');
     });
 
     it('ignores invalid day indices', () => {
@@ -66,26 +66,26 @@ describe('useSelectedDay', () => {
         // Test 1st (1st)
         const jan1 = new Date(2025, 0, 1); // Wednesday
         const { result: result1 } = renderHook(() => useSelectedDay(jan1));
-        expect(result1.current.formattedDate).toBe('Wednesday, Jan 1st');
+        expect(result1.current.formattedDate).toBe('Wednesday, January 1st');
 
         // Test 2nd
         const jan2 = new Date(2025, 0, 2); // Thursday
         const { result: result2 } = renderHook(() => useSelectedDay(jan2));
-        expect(result2.current.formattedDate).toBe('Thursday, Jan 2nd');
+        expect(result2.current.formattedDate).toBe('Thursday, January 2nd');
 
         // Test 3rd
         const jan3 = new Date(2025, 0, 3); // Friday
         const { result: result3 } = renderHook(() => useSelectedDay(jan3));
-        expect(result3.current.formattedDate).toBe('Friday, Jan 3rd');
+        expect(result3.current.formattedDate).toBe('Friday, January 3rd');
 
         // Test 11th (special case)
         const jan11 = new Date(2025, 0, 11); // Saturday
         const { result: result11 } = renderHook(() => useSelectedDay(jan11));
-        expect(result11.current.formattedDate).toBe('Saturday, Jan 11th');
+        expect(result11.current.formattedDate).toBe('Saturday, January 11th');
 
         // Test 21st
         const jan21 = new Date(2025, 0, 21); // Tuesday
         const { result: result21 } = renderHook(() => useSelectedDay(jan21));
-        expect(result21.current.formattedDate).toBe('Tuesday, Jan 21st');
+        expect(result21.current.formattedDate).toBe('Tuesday, January 21st');
     });
 });

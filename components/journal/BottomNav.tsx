@@ -1,10 +1,8 @@
 /**
  * Bottom Navigation Component
- * Tab bar with Today, Explore, FAB, Entries, Settings
- * Matches example-design/today.html exactly
+ * Matches updated today/history designs (glass dark nav + center FAB).
  */
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { MaterialIcons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
@@ -24,24 +22,22 @@ interface TabConfig {
     label: string;
 }
 
-// Tabs split around FAB: left side and right side
 const leftTabs: TabConfig[] = [
-    { name: 'today', icon: 'wb-sunny', label: 'Today' },
-    { name: 'explore', icon: 'bubble-chart', label: 'Explore' },
+    { name: 'today', icon: 'today', label: 'Today' },
+    { name: 'explore', icon: 'explore', label: 'Explore' },
 ];
 
 const rightTabs: TabConfig[] = [
     { name: 'insights', icon: 'lightbulb', label: 'Insights' },
-    { name: 'entries', icon: 'menu-book', label: 'History' },
+    { name: 'entries', icon: 'history-edu', label: 'History' },
 ];
 
 export function BottomNav({ activeTab, onTabPress, onFabPress }: BottomNavProps) {
-    const colorScheme = useColorScheme();
-    const isDark = colorScheme === 'dark';
     const insets = useSafeAreaInsets();
 
     const renderTab = (tab: TabConfig) => {
         const isActive = activeTab === tab.name;
+        const color = isActive ? '#FFFFFF' : '#6B7280';
 
         return (
             <Pressable
@@ -50,20 +46,10 @@ export function BottomNav({ activeTab, onTabPress, onFabPress }: BottomNavProps)
                 accessibilityLabel={tab.label}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: isActive }}
-                className="flex items-center justify-center w-16"
+                className="flex items-center justify-center w-14"
             >
-                <MaterialIcons
-                    name={tab.icon}
-                    size={24}
-                    color={isActive ? '#E91E63' : isDark ? '#A0A0A0' : '#757575'}
-                    style={{ marginBottom: 4 }}
-                />
-                <Text
-                    className={`text-[10px] ${isActive
-                            ? 'font-bold text-primary'
-                            : 'font-medium text-text-secondary-light dark:text-text-secondary-dark'
-                        }`}
-                >
+                <MaterialIcons name={tab.icon} size={26} color={color} />
+                <Text className={`text-[10px] font-medium ${isActive ? 'text-white' : 'text-gray-500'}`}>
                     {tab.label}
                 </Text>
             </Pressable>
@@ -72,50 +58,34 @@ export function BottomNav({ activeTab, onTabPress, onFabPress }: BottomNavProps)
 
     return (
         <View
-            className="absolute bottom-0 w-full bg-surface-light dark:bg-surface-dark rounded-t-2xl z-30"
-            style={{
-                paddingBottom: insets.bottom > 0 ? insets.bottom : 24,
-                paddingTop: 12,
-                borderTopWidth: 1,
-                borderColor: isDark ? '#333333' : '#E5E7EB',
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: -2 },
-                shadowOpacity: 0.05,
-                shadowRadius: 10,
-                elevation: 10,
-            }}
+            className="absolute bottom-0 left-0 right-0 border-t border-white/10 bg-black/90 px-6 pt-3 pb-8 z-30"
+            style={{ paddingBottom: (insets.bottom || 0) + 16 }}
         >
-            <View className="flex-row justify-between items-end px-6">
-                {/* Left tabs */}
-                <View className="flex-row">
-                    {leftTabs.map(renderTab)}
-                </View>
+            <View className="flex-row items-end justify-between">
+                {leftTabs.map(renderTab)}
 
-                {/* Center FAB */}
-                <View className="relative -top-8 mx-2">
+                <View className="relative w-16 items-center">
                     <Pressable
                         onPress={onFabPress}
                         accessibilityLabel="Create new entry"
                         accessibilityRole="button"
-                        className="w-16 h-16 rounded-full bg-primary items-center justify-center"
+                        className="w-16 h-16 rounded-full bg-white items-center justify-center"
                         style={{
-                            borderWidth: 4,
-                            borderColor: isDark ? '#121212' : '#F5F5F5',
-                            shadowColor: '#E91E63',
+                            shadowColor: '#000',
+                            shadowOpacity: 0.35,
+                            shadowRadius: 12,
                             shadowOffset: { width: 0, height: 4 },
-                            shadowOpacity: 0.4,
-                            shadowRadius: 8,
-                            elevation: 8,
+                            elevation: 10,
                         }}
                     >
-                        <MaterialIcons name="edit" size={28} color="#FFFFFF" />
+                        <MaterialIcons name="add" size={32} color="#000000" />
                     </Pressable>
                 </View>
 
-                {/* Right tabs */}
-                <View className="flex-row">
-                    {rightTabs.map(renderTab)}
-                </View>
+                {rightTabs.map(renderTab)}
+            </View>
+            <View className="items-center mt-3">
+                <View className="w-32 h-1 rounded-full bg-white/20" />
             </View>
         </View>
     );

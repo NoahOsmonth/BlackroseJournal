@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import SuggestionsScreen from '@/app/suggestions';
 
@@ -92,10 +92,12 @@ describe('SuggestionsScreen', () => {
         expect(screen.getByText('Added')).toBeTruthy();
     });
 
-    it('adds a habit when tapping Add to list', () => {
+    it('adds a habit when tapping Add to list', async () => {
         render(<SuggestionsScreen />);
 
         fireEvent.press(screen.getByText('Add to list'));
-        expect(mockAddItem).toHaveBeenCalledWith('habit', 'Drink a glass of water');
+        await waitFor(() => {
+            expect(mockAddItem).toHaveBeenCalledWith('habit', 'Drink a glass of water');
+        });
     });
 });

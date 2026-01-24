@@ -787,6 +787,51 @@ export function useChat() {
         [getMemoryNamespace]
     );
 
+    const sendInitialMessage = useCallback(
+        async (
+            systemPrompt: string,
+            triggerText: string,
+            onChunk: StreamingCallback,
+            onComplete: CompleteCallback,
+            onError: ErrorCallback
+        ) => {
+            systemPromptRef.current = systemPrompt;
+            const memoryNamespace = await getMemoryNamespace();
+
+            const triggerMessage: Message = {
+                id: 'trigger-' + Date.now(),
+                role: 'user',
+                content: triggerText,
+                timestamp: Date.now(),
+            };
+
+            messagesRef.current = [triggerMessage];
+
+            await streamChat(
+                messagesRef.current,
+                onChunk,
+                (fullContent, fullReasoning) => {
+                    const aiMessage: Message = {
+                        id: (Date.now() + 1).toString(),
+                        role: 'assistant',
+                        content: fullContent,
+                        reasoning: fullReasoning,
+                        timestamp: Date.now(),
+                    };
+                    messagesRef.current = [aiMessage];
+                    onComplete(fullContent, fullReasoning);
+                },
+                onError,
+                {
+                    systemPrompt,
+                    memoryNamespace,
+                    conversationId: conversationIdRef.current,
+                }
+            );
+        },
+        [getMemoryNamespace]
+    );
+
     const clearMessages = useCallback(() => {
         messagesRef.current = [];
         systemPromptRef.current = undefined;
@@ -795,6 +840,7 @@ export function useChat() {
     return {
         sendMessage,
         sendInitialPrompt,
+        sendInitialMessage,
         setMessages,
         setConversationId,
         clearMessages,

@@ -1,11 +1,21 @@
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import SettingsScreen from '@/app/(tabs)/settings';
+import { useAuthSession } from '@/hooks/auth/useAuthSession';
 import { useThemeSettings } from '@/hooks/useThemeSettings';
 import { Alert, Share } from 'react-native';
 import { clearAllEntries, getAllEntriesForExport } from '@/services/journalStorage';
+import { signOut } from '@/services/auth/authService';
 
 jest.mock('@/hooks/useThemeSettings', () => ({
   useThemeSettings: jest.fn(),
+}));
+
+jest.mock('@/hooks/auth/useAuthSession', () => ({
+  useAuthSession: jest.fn(),
+}));
+
+jest.mock('@/services/auth/authService', () => ({
+  signOut: jest.fn(),
 }));
 
 jest.mock('expo-router', () => ({
@@ -35,14 +45,23 @@ jest.mock('react-native-safe-area-context', () => ({
 
 describe('SettingsScreen', () => {
   const mockSetTheme = jest.fn();
+  const mockSetEmojiStyle = jest.fn();
 
   beforeEach(() => {
     jest.clearAllMocks();
     (useThemeSettings as jest.Mock).mockReturnValue({
       theme: 'system',
       setTheme: mockSetTheme,
+      emojiStyle: 'native',
+      setEmojiStyle: mockSetEmojiStyle,
       isLoaded: true,
     });
+    (useAuthSession as jest.Mock).mockReturnValue({
+      user: null,
+      isLoading: false,
+      isAnonymous: true,
+    });
+    (signOut as jest.Mock).mockResolvedValue(undefined);
   });
 
   it('renders theme options', () => {

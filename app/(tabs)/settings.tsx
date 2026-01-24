@@ -1,15 +1,21 @@
 import { BottomNav } from '@/components/journal';
+import { useAuthSession } from '@/hooks/auth/useAuthSession';
 import { EmojiStylePreference, ThemePreference, useThemeSettings } from '@/hooks/useThemeSettings';
+import { signOut } from '@/services/auth/authService';
 import { clearAllEntries, getAllEntriesForExport } from '@/services/journalStorage';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { Alert, ScrollView, Share, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SettingsScreen() {
     const router = useRouter();
     const { theme, setTheme, emojiStyle, setEmojiStyle } = useThemeSettings();
+    const { user, isLoading: isAuthLoading } = useAuthSession();
+    const [isSigningOut, setIsSigningOut] = useState(false);
+
+    const isEmailUser = useMemo(() => Boolean(user?.email), [user?.email]);
 
     const handleNewEntry = () => {
         router.push('/chat');
@@ -58,6 +64,23 @@ export default function SettingsScreen() {
                 }
             ]
         );
+    };
+
+    const handleSignOut = async () => {
+        if (isSigningOut) {
+            return;
+        }
+
+        setIsSigningOut(true);
+        try {
+            await signOut();
+            Alert.alert('Signed out', 'You have been signed out successfully.');
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to sign out.';
+            Alert.alert('Error', message);
+        } finally {
+            setIsSigningOut(false);
+        }
     };
 
     const ThemeOption = ({ label, value }: { label: string, value: ThemePreference }) => {
@@ -169,6 +192,66 @@ export default function SettingsScreen() {
                             </View>
                             <Ionicons name="chevron-forward" size={20} className="text-subtext-light dark:text-subtext-dark" color="#9CA3AF" />
                         </TouchableOpacity>
+                    </View>
+
+                    {/* Account Section */}
+                    <View className="bg-surface-light dark:bg-surface-dark rounded-2xl p-5 shadow-sm mb-6">
+                        <Text className="text-sm font-bold text-subtext-light dark:text-subtext-dark uppercase tracking-wider mb-4">
+                            Account
+                        </Text>
+
+                        {isEmailUser ? (
+                            <View>
+                                <Text className="text-text-light dark:text-text-dark font-medium text-base">
+                                    Signed in as {user?.email}
+                                </Text>
+                                <Text className="text-sm text-subtext-light dark:text-subtext-dark mt-2">
+                                    Sessions stay active until you sign out.
+                                </Text>
+                                <TouchableOpacity
+                                    onPress={handleSignOut}
+                                    disabled={isSigningOut}
+                                    className={`mt-4 rounded-xl py-3 ${isSigningOut ? 'bg-primary/70' : 'bg-primary'}`}
+                                >
+                                    <Text className="text-white font-semibold text-center">
+                                        {isSigningOut ? 'Signing out...' : 'Sign out'}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        ) : (
+                            <View>
+                                <Text className="text-text-light dark:text-text-dark font-medium text-base">
+                                    Sign in to sync your journal
+                                </Text>
+                                <Text className="text-sm text-subtext-light dark:text-subtext-dark mt-2">
+                                    {isAuthLoading
+                                        ? 'Checking session...'
+                                        : 'Create an account to keep your journal safe across devices.'}
+                                </Text>
+
+                                <TouchableOpacity
+                                    onPress={() => router.push('/login')}
+                                    className="mt-4 rounded-xl py-3 bg-primary"
+                                >
+                                    <Text className="text-white font-semibold text-center">Sign in</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    onPress={() => router.push('/signup')}
+                                    className="mt-3 rounded-xl py-3 border border-divider-light dark:border-divider-dark"
+                                >
+                                    <Text className="text-text-light dark:text-text-dark font-semibold text-center">
+                                        Create account
+                                    </Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity onPress={() => router.push('/forgot-password')} className="mt-3">
+                                    <Text className="text-sm text-primary font-semibold text-center">
+                                        Forgot password?
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
                     </View>
 
                     {/* About Section */}

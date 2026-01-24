@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Advanced Settings</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet" />
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#7DD3C6", // Teal accent color from screenshot
+                        "background-light": "#F2F2F7", // iOS System Light Gray
+                        "background-dark": "#000000", // iOS System Black
+                        "surface-light": "#FFFFFF",
+                        "surface-dark": "#1C1C1E", // iOS Secondary System Fill
+                        "header-dark": "#121212",
+                        "border-dark": "#38383A",
+                        "text-secondary-light": "#6E6E73",
+                        "text-secondary-dark": "#8E8E93",
+                    },
+                    fontFamily: {
+                        display: ["Inter", "sans-serif"],
+                        sans: ["Inter", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "0.75rem", // Standard iOS rounded corners
+                    },
+                },
+            },
+        };
+    </script>
+    <style>
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+</head>
+
+<body
+    class="bg-background-light dark:bg-background-dark text-black dark:text-white font-sans antialiased min-h-screen flex flex-col">
+    <header
+        class="flex items-center px-4 py-3 bg-white dark:bg-header-dark border-b border-gray-200 dark:border-transparent sticky top-0 z-20">
+        <button
+            class="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50">
+            <span class="material-icons-round text-2xl dark:text-white text-black">arrow_back</span>
+        </button>
+        <h1 class="ml-2 text-[20px] font-semibold tracking-tight">Advanced</h1>
+    </header>
+    <main class="flex-1 w-full max-w-md mx-auto px-4 py-6 sm:px-6">
+        <div class="mb-2 pl-4">
+            <h2
+                class="text-[13px] font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide">
+                Intelligence</h2>
+        </div>
+        <div class="bg-surface-light dark:bg-surface-dark rounded-xl overflow-hidden shadow-sm">
+            <div
+                class="group relative flex items-center justify-between p-4 active:bg-gray-50 dark:active:bg-[#2C2C2E] transition-colors cursor-pointer select-none">
+                <div class="flex items-center gap-3">
+                    <div class="flex items-center justify-center w-8 h-8">
+                        <span
+                            class="material-icons-round text-[26px] text-blue-400 dark:text-blue-300">auto_awesome</span>
+                    </div>
+                    <span class="text-[17px] font-medium leading-tight">AI Model</span>
+                </div>
+                <div class="flex items-center gap-1 text-text-secondary-light dark:text-text-secondary-dark">
+                    <span class="text-[17px] leading-tight">Claude 3.5 Sonnet</span>
+                    <span class="material-icons-round text-gray-400 dark:text-gray-500 text-xl">chevron_right</span>
+                </div>
+            </div>
+            <div class="pl-[3.75rem]">
+                <div class="h-[0.5px] w-full bg-gray-200 dark:bg-border-dark"></div>
+            </div>
+            <div class="p-4 pt-4 pb-5">
+                <div class="flex items-center justify-between mb-4 select-none">
+                    <div class="flex items-center gap-3">
+                        <div class="flex items-center justify-center w-8 h-8">
+                            <span
+                                class="material-icons-round text-[28px] bg-gradient-to-br from-green-400 via-teal-400 to-purple-400 bg-clip-text text-transparent"
+                                style="-webkit-background-clip: text;">psychology</span>
+                        </div>
+                        <span class="text-[17px] font-medium leading-tight">Imagination</span>
+                    </div>
+                    <div class="text-[17px] text-text-secondary-light dark:text-text-secondary-dark">
+                        Consistent
+                    </div>
+                </div>
+                <div class="pl-[3.25rem] pr-1">
+                    <div class="relative h-6 flex items-center w-full">
+                        <div class="w-full h-[4px] bg-gray-200 dark:bg-[#3A3A3C] rounded-full overflow-hidden">
+                            <div class="h-full bg-primary w-[25%] rounded-full"></div>
+                        </div>
+                        <div
+                            class="absolute left-[25%] top-1/2 -translate-y-1/2 -translate-x-1/2 w-[22px] h-[22px] bg-primary rounded-full shadow-[0_2px_4px_rgba(0,0,0,0.3)] border-[3px] border-white dark:border-[#2C2C2E] cursor-pointer hover:scale-110 active:scale-95 transition-transform">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="mt-3 px-4">
+            <p class="text-[13px] leading-[1.4] text-text-secondary-light dark:text-text-secondary-dark">
+                Lower imagination yields consistent responses. <br class="hidden sm:block" /> Higher sparks variety.
+            </p>
+        </div>
+    </main>
+
+</body>
+
+</html>

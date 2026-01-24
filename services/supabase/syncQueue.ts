@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ensureSupabaseSession } from './supabaseClient';
+import { logSupabaseError } from './supabaseErrors';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 const SYNC_QUEUE_KEY = '@supabase_sync_queue';
@@ -118,7 +119,7 @@ async function applyTask(client: SupabaseClient, task: SyncTask): Promise<boolea
             .upsert(payload, task.onConflict ? { onConflict: task.onConflict } : undefined);
 
         if (error) {
-            console.warn('Supabase sync upsert failed:', error.message);
+            logSupabaseError('Supabase sync upsert failed', task.table, error.message);
             return false;
         }
 
@@ -132,7 +133,7 @@ async function applyTask(client: SupabaseClient, task: SyncTask): Promise<boolea
             .eq(task.primaryKey, task.primaryValue ?? '');
 
         if (error) {
-            console.warn('Supabase sync delete failed:', error.message);
+            logSupabaseError('Supabase sync delete failed', task.table, error.message);
             return false;
         }
 

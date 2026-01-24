@@ -1,5 +1,6 @@
 import { ensureSupabaseSession } from '@/services/supabase/supabaseClient';
 import { enqueueSyncTask } from '@/services/supabase/syncQueue';
+import { logSupabaseError } from '@/services/supabase/supabaseErrors';
 import { RecipeItem } from './happinessRecipeStorage.types';
 
 const RECIPE_TABLE = 'happiness_recipe_items';
@@ -51,7 +52,7 @@ export async function loadRemoteRecipeItems(): Promise<RecipeItem[] | null> {
 
     if (error || !data) {
         if (error) {
-            console.warn('Failed to load remote recipe items:', error.message);
+            logSupabaseError('Failed to load remote recipe items', RECIPE_TABLE, error.message);
         }
         return null;
     }

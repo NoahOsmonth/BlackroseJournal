@@ -1,4 +1,3 @@
-import { Colors } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { MaterialIcons } from '@expo/vector-icons';
 import React from 'react';
@@ -35,7 +34,7 @@ export function FooterActions({
           accessibilityLabel="Go deeper"
         >
           <View className="flex-row items-center justify-center gap-2">
-            <MaterialIcons name="south" size={18} color={Colors.light.background} />
+            <MaterialIcons name="south" size={18} className="text-surface-light" />
             <Text className="font-bold text-[15px] text-surface-light">Go deeper</Text>
           </View>
         </Pressable>
@@ -60,4 +59,3 @@ export function FooterActions({
     </View>
   );
 }
-

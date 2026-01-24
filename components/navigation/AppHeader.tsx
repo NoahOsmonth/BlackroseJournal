@@ -1,113 +1,134 @@
 /**
  * AppHeader Component
- * Shared header for Today and Journal History screens
+ * Shared header for Today and History screens
  */
 
 import { useColorScheme } from '@/hooks/theme/use-color-scheme';
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 
-type HeaderVariant = 'today' | 'journal';
+type HeaderVariant = 'today' | 'history';
 
 interface AppHeaderProps {
-    title: string;
     variant: HeaderVariant;
+    title?: string;
+    streakCount?: number;
     onLeftPress?: () => void;
     onRightPress?: () => void;
+    weekRange?: string;
+    draftCount?: number;
+    onDraftsPress?: () => void;
 }
 
-interface IconConfig {
-    iconSet: 'ion' | 'material';
-    name: string;
-    color: string;
-    size: number;
+function TodayHeader({
+    title,
+    streakCount,
+    onLeftPress,
+    onRightPress,
+}: Pick<AppHeaderProps, 'title' | 'streakCount' | 'onLeftPress' | 'onRightPress'>) {
+    return (
+        <View className="px-4 pt-2">
+            <View className="flex-row items-center justify-between py-3">
+                <Pressable
+                    onPress={onLeftPress}
+                    className="flex-row items-center gap-1.5"
+                    accessibilityLabel="Open streak view"
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: !onLeftPress }}
+                    hitSlop={8}
+                >
+                    <MaterialIcons name="local-fire-department" size={20} color="#FF9500" />
+                    <Text className="text-sm font-bold text-text-light dark:text-white">
+                        {streakCount ?? 0}
+                    </Text>
+                </Pressable>
+
+                <Text className="text-base font-semibold text-text-light dark:text-white">
+                    {title ?? ''}
+                </Text>
+
+                <Pressable
+                    onPress={onRightPress}
+                    className="w-8 h-8 rounded-full items-center justify-center"
+                    accessibilityLabel="Open settings"
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: !onRightPress }}
+                    hitSlop={8}
+                >
+                    <MaterialIcons
+                        name="settings"
+                        size={20}
+                        color="#9CA3AF"
+                    />
+                </Pressable>
+            </View>
+        </View>
+    );
 }
 
-function getVariantStyles(variant: HeaderVariant) {
-    if (variant === 'journal') {
-        return {
-            containerClassName:
-                'bg-surface-light/95 dark:bg-surface-dark/95 border-b border-divider-light ' +
-                'dark:border-divider-dark px-4 py-3 flex-row items-center justify-between z-10',
-            titleClassName: 'text-lg font-bold tracking-tight text-text-light dark:text-text-dark',
-        };
-    }
-
-    return {
-        containerClassName: 'flex-row items-center justify-between px-6 py-4 z-10',
-        titleClassName: 'text-lg font-bold text-text-main-light dark:text-text-main-dark',
-    };
+function HistoryHeader({
+    weekRange,
+    draftCount,
+    onDraftsPress,
+}: Pick<AppHeaderProps, 'weekRange' | 'draftCount' | 'onDraftsPress'>) {
+    return (
+        <View className="px-4 pt-6 pb-2">
+            <View className="items-center gap-4">
+                <View className="w-full bg-surface-light dark:bg-surface-dark p-4 rounded-2xl shadow-soft">
+                    <Text className="text-base font-semibold text-text-light dark:text-white text-center mb-1">
+                        This week
+                    </Text>
+                    <Text className="text-xs text-text-secondary-light dark:text-text-secondary-dark font-medium text-center">
+                        {weekRange}
+                    </Text>
+                </View>
+                <Pressable
+                    onPress={onDraftsPress}
+                    className="flex-row items-center gap-2 bg-surface-light dark:bg-secondary-dark px-5 py-2.5 rounded-full shadow-soft"
+                    accessibilityLabel="Open drafts"
+                    accessibilityRole="button"
+                >
+                    <View className="w-2 h-2 rounded-full bg-black dark:bg-white" />
+                    <Text className="text-sm font-medium text-text-light dark:text-gray-200">
+                        {draftCount ?? 0} drafts
+                    </Text>
+                    <MaterialIcons name="chevron-right" size={18} color="#9CA3AF" />
+                </Pressable>
+            </View>
+        </View>
+    );
 }
 
-function getIconConfig(variant: HeaderVariant, isDark: boolean) {
-    const leftIcon: IconConfig =
-        variant === 'journal'
-            ? { iconSet: 'ion', name: 'gift-outline', color: '#8E8E93', size: 24 }
-            : {
-                iconSet: 'material',
-                name: 'card-giftcard',
-                color: isDark ? '#A0A0A0' : '#757575',
-                size: 24,
-            };
-
-    const rightIcon: IconConfig =
-        variant === 'journal'
-            ? {
-                iconSet: 'ion',
-                name: 'menu',
-                color: isDark ? '#E5E5E7' : '#1C1C1E',
-                size: 24,
-            }
-            : {
-                iconSet: 'material',
-                name: 'menu',
-                color: isDark ? '#E0E0E0' : '#333333',
-                size: 24,
-            };
-
-    return { leftIcon, rightIcon };
-}
-
-function renderIcon(icon: IconConfig) {
-    if (icon.iconSet === 'ion') {
-        return <Ionicons name={icon.name as never} size={icon.size} color={icon.color} />;
-    }
-
-    return <MaterialIcons name={icon.name as never} size={icon.size} color={icon.color} />;
-}
-
-export function AppHeader({ title, variant, onLeftPress, onRightPress }: AppHeaderProps) {
+export function AppHeader({
+    variant,
+    title,
+    streakCount,
+    onLeftPress,
+    onRightPress,
+    weekRange,
+    draftCount,
+    onDraftsPress,
+}: AppHeaderProps) {
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
-    const styles = getVariantStyles(variant);
-    const icons = getIconConfig(variant, isDark);
 
     return (
-        <View className={styles.containerClassName}>
-            <Pressable
-                onPress={onLeftPress}
-                className="p-2 -ml-2"
-                hitSlop={8}
-                accessibilityLabel="Open rewards"
-                accessibilityRole="button"
-                accessibilityState={{ disabled: !onLeftPress }}
-            >
-                {renderIcon(icons.leftIcon)}
-            </Pressable>
-
-            <Text className={styles.titleClassName}>{title}</Text>
-
-            <Pressable
-                onPress={onRightPress}
-                className="p-2 -mr-2"
-                hitSlop={8}
-                accessibilityLabel="Open settings"
-                accessibilityRole="button"
-                accessibilityState={{ disabled: !onRightPress }}
-            >
-                {renderIcon(icons.rightIcon)}
-            </Pressable>
+        <View className={isDark ? 'bg-background-dark' : 'bg-background-light'}>
+            {variant === 'today' ? (
+                <TodayHeader
+                    title={title}
+                    streakCount={streakCount}
+                    onLeftPress={onLeftPress}
+                    onRightPress={onRightPress}
+                />
+            ) : (
+                <HistoryHeader
+                    weekRange={weekRange}
+                    draftCount={draftCount}
+                    onDraftsPress={onDraftsPress}
+                />
+            )}
         </View>
     );
 }

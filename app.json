@@ -7,11 +7,13 @@
     "icon": "./assets/images/icon.png",
     "scheme": "app",
     "userInterfaceStyle": "automatic",
+    "jsEngine": "hermes",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
     "android": {
+      "package": "com.sigmundprivate.journalapp",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -26,6 +28,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "expo-dev-client",
       "expo-router",
       [
         "expo-splash-screen",
@@ -43,7 +46,21 @@
     ],
     "experiments": {
       "typedRoutes": true,
-      "reactCompiler": true
+      "reactCompiler": false
+    },
+    "extra": {
+      "NANO_GPT_API_KEY": "sk-nano-3d3458af-c1c3-442c-8b2a-80cc8b911146",
+      "NANO_GPT_API_BASE_URL": "https://nano-gpt.com/api/v1",
+      "NANO_GPT_MODEL": "zai-org/glm-4.7-original:thinking",
+      "AGENT_BASE_URL": "http://localhost:8787",
+      "SUPERMEMORY_API_KEY": "sm_jQEDicjuZoiAiXCG8PHQRV_RGMzDwDvQFggiVYfNFIkGBVbpOiDYcOudsRldrvFYtbgooUdUeISjJxxCGeyqBcb",
+      "SUPERMEMORY_BASE_URL": "https://api.supermemory.ai",
+      "SUPABASE_URL": "https://tovejzoqyduelgzsajru.supabase.co",
+      "SUPABASE_ANON_KEY": "sb_publishable_XOJ9jggogTPoYds1OApa0w_B0mZaWLu",
+      "router": {},
+      "eas": {
+        "projectId": "5ee0dd10-9057-4cdb-a5c6-f6df5d95dc43"
+      }
     }
   }
 }

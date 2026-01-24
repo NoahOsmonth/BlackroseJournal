@@ -1,93 +1,101 @@
 /**
  * Today Screen
- * Main dashboard with daily check-in, stats, happiness recipe, and Ask Rosebud
- * Matches example-design/today.html
+ * Matches updated example design for Today + My Intentions + Goals.
  */
+
+import React, { useMemo, useState } from 'react';
+import { Pressable, ScrollView, Share, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Clipboard from 'expo-clipboard';
+import { useRouter } from 'expo-router';
 
 import { BottomNav } from '@/components/journal';
 import { AppHeader } from '@/components/navigation';
-import { EntriesModal, StreakModal, WordsModal } from '@/components/stats';
+import { GoalQuickAddModal } from '@/components/goals/GoalQuickAddModal';
 import {
-    AskRosebudSection,
-    DailyJournalingCard,
-    HappinessRecipeSection,
-    StatCardsGrid,
-    TimeRange,
-    WeekdaySelector,
+    EntryInsightsCard,
+    GoalsSection,
+    IntentionActionCard,
+    MyIntentionsSection,
+    PersonalizeButton,
 } from '@/components/today';
-import { selectDailyPrompt } from '@/constants/dailyPrompts';
+import { useGoals } from '@/hooks/goals/useGoals';
+import { useIntentions } from '@/hooks/intentions/useIntentions';
+import { useIntentionCheckIns } from '@/hooks/intentions/useIntentionCheckIns';
+import { useEntryInsightQuestion } from '@/hooks/insights/useEntryInsightQuestion';
 import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
 import { useHeaderActions } from '@/hooks/navigation/useHeaderActions';
 import { useTabNavigation } from '@/hooks/navigation/useTabNavigation';
 import { useSelectedDay } from '@/hooks/today/useSelectedDay';
-import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
-import { ScrollView, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSavedInsights } from '@/hooks/saved-insights/useSavedInsights';
+import { WeekdaySelector } from '@/components/today/WeekdaySelector';
+import { getLocalDateKey } from '@/utils/date';
+import { calculateStreakStats } from '@/utils/streakStats';
+
+const morningImage = require('@/assets/today/morning-intention.png');
+const eveningImage = require('@/assets/today/evening-reflection.png');
 
 export default function TodayScreen() {
     const router = useRouter();
-    const { weekDays, selectedDay, selectDay, formattedDate } = useSelectedDay();
-    const { completed } = useJournalEntries();
-    const { openRewards, openSettings } = useHeaderActions();
+    const { weekDays, selectedDay, selectDay, monthLabel, shortDateLabel } = useSelectedDay();
+    const { completed: entries } = useJournalEntries();
+    const { completed: checkIns } = useIntentionCheckIns();
+    const { activeIntentions } = useIntentions();
+    const { goals } = useGoals();
+    const { question, refresh, sourceDate } = useEntryInsightQuestion(entries);
+    const { add: saveInsight } = useSavedInsights();
+    const { openStreakView, openSettings } = useHeaderActions();
     const { goToTab } = useTabNavigation();
-    const [timeRange, setTimeRange] = useState<TimeRange>('all-time');
 
-    // Modal visibility state
-    const [streakModalVisible, setStreakModalVisible] = useState(false);
-    const [entriesModalVisible, setEntriesModalVisible] = useState(false);
-    const [wordsModalVisible, setWordsModalVisible] = useState(false);
+    const [showAddGoal, setShowAddGoal] = useState(false);
+    const [moreVisible, setMoreVisible] = useState(false);
+    const [isInsightHidden, setInsightHidden] = useState(false);
 
-    // Calculate stats from entries
-    const stats = useMemo(() => {
-        const totalEntries = completed.length;
-        const totalWords = completed.reduce((sum, entry) => {
-            const wordCount = entry.messages
-                .filter((m) => m.role === 'user')
-                .reduce((acc, m) => acc + m.content.split(/\s+/).filter(Boolean).length, 0);
-            return sum + wordCount;
-        }, 0);
+    const dateKey = useMemo(() => getLocalDateKey(selectedDay.date), [selectedDay.date]);
 
-        // Calculate streak (consecutive days with entries)
-        // Simple implementation - counts consecutive days ending today
-        let streak = 0;
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+    const completionKeys = useMemo(() => {
+        const keys = new Set<string>();
+        entries.forEach((entry) => keys.add(getLocalDateKey(new Date(entry.createdAt))));
+        checkIns.forEach((checkIn) => keys.add(getLocalDateKey(new Date(checkIn.createdAt))));
+        return keys;
+    }, [entries, checkIns]);
 
-        const entriesByDate = new Map<string, boolean>();
-        completed.forEach((entry) => {
-            const date = new Date(entry.createdAt);
-            date.setHours(0, 0, 0, 0);
-            entriesByDate.set(date.toDateString(), true);
-        });
+    const completedDayIndices = useMemo(
+        () => weekDays.filter((day) => completionKeys.has(getLocalDateKey(day.date))).map((day) => day.dayIndex),
+        [weekDays, completionKeys]
+    );
 
-        const checkDate = new Date(today);
-        while (entriesByDate.has(checkDate.toDateString())) {
-            streak++;
-            checkDate.setDate(checkDate.getDate() - 1);
-        }
+    const streakCount = useMemo(
+        () => calculateStreakStats(completionKeys).currentStreak,
+        [completionKeys]
+    );
 
-        return { streak, entries: totalEntries, words: totalWords };
-    }, [completed]);
+    const morningCompleted = useMemo(
+        () => checkIns.some((checkIn) => checkIn.type === 'morning'
+            && getLocalDateKey(new Date(checkIn.createdAt)) === dateKey),
+        [checkIns, dateKey]
+    );
 
-    // Time-based prompt selection using the centralized daily prompts
-    const dailyPrompt = useMemo(() => selectDailyPrompt(), []);
+    const eveningCompleted = useMemo(
+        () => checkIns.some((checkIn) => checkIn.type === 'evening'
+            && getLocalDateKey(new Date(checkIn.createdAt)) === dateKey),
+        [checkIns, dateKey]
+    );
 
-    // Handlers
-    const handleNewEntry = () => {
-        router.push('/chat');
-    };
+    const goalsForDate = useMemo(
+        () => goals.filter((goal) => goal.type === 'goal' && goal.dateKey === dateKey),
+        [goals, dateKey]
+    );
 
-    const handleCheckIn = () => {
-        // Navigate to chat with daily check-in mode and prompt period
-        router.push({
-            pathname: '/chat',
-            params: {
-                mode: 'dailyCheckIn',
-                promptPeriod: dailyPrompt.period,
-            },
-        });
-    };
+    const habits = useMemo(
+        () => goals.filter((goal) => goal.type === 'habit'),
+        [goals]
+    );
+
+    const completedGoals = goalsForDate.filter((goal) => goal.completed).length;
+    const completedHabits = habits.filter((habit) => (habit.habitCompletions ?? []).includes(dateKey)).length;
+    const totalGoals = goalsForDate.length + habits.length;
+    const completedCount = completedGoals + completedHabits;
 
     const handleTabPress = (tab: 'today' | 'explore' | 'entries' | 'settings' | 'insights') => {
         if (tab !== 'today') {
@@ -95,136 +103,177 @@ export default function TodayScreen() {
         }
     };
 
-    const handleStreakPress = () => {
-        setStreakModalVisible(true);
+    const handleMorningPress = () => {
+        router.push({ pathname: '/intentions/chat', params: { type: 'morning' } });
     };
 
-    const handleEntriesPress = () => {
-        setEntriesModalVisible(true);
+    const handleEveningPress = () => {
+        router.push({ pathname: '/intentions/chat', params: { type: 'evening' } });
     };
 
-    const handleWordsPress = () => {
-        setWordsModalVisible(true);
+    const handleAddIntention = () => {
+        router.push('/intentions/select');
     };
 
-    const handleCompletedPress = () => {
-        router.push('/happiness-recipe');
-    };
-
-    const handleAddIngredient = () => {
-        router.push('/happiness-recipe');
+    const handleSelectIntention = (id: string) => {
+        router.push({ pathname: '/intentions/detail', params: { id } });
     };
 
     const handleAddGoal = () => {
-        router.push('/happiness-recipe');
+        setShowAddGoal(true);
     };
 
-    const handleEditRecipe = () => {
-        router.push('/happiness-recipe');
+    const handleManageGoals = () => {
+        router.push('/goals');
     };
 
-    const handleTimeRangePress = () => {
-        // TODO: Open time range picker (Task 006)
-        // Cycle through for now
-        const ranges: TimeRange[] = ['all-time', 'this-year', 'this-month', 'this-week'];
-        const currentIndex = ranges.indexOf(timeRange);
-        setTimeRange(ranges[(currentIndex + 1) % ranges.length]);
+    const handleAddGoalSubmit = async (title: string, type: 'goal' | 'habit') => {
+        setShowAddGoal(false);
+        const { createGoal } = await import('@/services/goals/goalsStorage');
+        await createGoal({ title, type, dateKey: type === 'goal' ? dateKey : undefined });
     };
 
-    const handleAskRosebudPress = () => {
-        router.push('/ask-rosebud');
+    const handleBookmark = async () => {
+        await saveInsight({ question, sourceDate });
+    };
+
+    const handleShare = async () => {
+        await Share.share({ message: question });
+        setMoreVisible(false);
+    };
+
+    const handleCopy = async () => {
+        await Clipboard.setStringAsync(question);
+        setMoreVisible(false);
+    };
+
+    const handleHide = () => {
+        setInsightHidden(true);
+        setMoreVisible(false);
+    };
+
+    const handleShowSavedInsights = () => {
+        router.push('/saved-insights');
+        setMoreVisible(false);
     };
 
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
             <View className="flex-1 max-w-md mx-auto w-full">
                 <AppHeader
-                    title={formattedDate}
                     variant="today"
-                    onLeftPress={openRewards}
+                    title={monthLabel}
+                    streakCount={streakCount}
+                    onLeftPress={openStreakView}
                     onRightPress={openSettings}
                 />
 
                 <ScrollView
-                    className="flex-1 px-4"
+                    className="flex-1 px-5"
                     contentContainerStyle={{ paddingBottom: 140 }}
                     showsVerticalScrollIndicator={false}
                 >
-                    {/* Weekday selector */}
                     <WeekdaySelector
                         weekDays={weekDays}
                         selectedDayIndex={selectedDay.dayIndex}
                         onDaySelect={selectDay}
-                        onCalendarPress={() => goToTab('entries')}
+                        completedDayIndices={completedDayIndices}
                     />
 
-                    {/* Stats cards */}
-                    <View className="mt-4">
-                        <StatCardsGrid
-                            streak={stats.streak}
-                            entries={stats.entries}
-                            words={stats.words}
-                            onStreakPress={handleStreakPress}
-                            onEntriesPress={handleEntriesPress}
-                            onWordsPress={handleWordsPress}
+                    <View className="items-center justify-center mt-6">
+                        <Text className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide">
+                            Today {shortDateLabel}
+                        </Text>
+                    </View>
+
+                    <View className="mt-6 flex-row justify-between">
+                        <View className="w-[48%]">
+                            <IntentionActionCard
+                                title={'Morning\nIntention'}
+                                subtitle="Start your day"
+                                imageSource={morningImage}
+                                onPress={handleMorningPress}
+                                isCompleted={morningCompleted}
+                            />
+                        </View>
+                        <View className="w-[48%]">
+                            <IntentionActionCard
+                                title={'Evening\nReflection'}
+                                subtitle="Reflect & unwind"
+                                imageSource={eveningImage}
+                                onPress={handleEveningPress}
+                                isCompleted={eveningCompleted}
+                            />
+                        </View>
+                    </View>
+
+                    <View className="mt-8">
+                        <MyIntentionsSection
+                            intentions={activeIntentions}
+                            onAdd={handleAddIntention}
+                            onSelect={(intention) => handleSelectIntention(intention.id)}
                         />
                     </View>
 
-                    {/* Daily journaling card */}
-                    <View className="mt-6">
-                        <DailyJournalingCard
-                            promptTitle={dailyPrompt.title}
-                            promptDescription={dailyPrompt.promptText}
-                            onCheckIn={handleCheckIn}
-                        />
-                    </View>
-
-                    {/* Happiness recipe section */}
-                    <View className="mt-6">
-                        <HappinessRecipeSection
-                            completedCount={3}
-                            onCompletedPress={handleCompletedPress}
-                            onAddIngredient={handleAddIngredient}
+                    <View className="mt-8">
+                        <GoalsSection
+                            completedCount={completedCount}
+                            totalCount={totalGoals}
                             onAddGoal={handleAddGoal}
-                            onEditPress={handleEditRecipe}
+                            onManage={handleManageGoals}
                         />
                     </View>
 
-                    {/* Ask Rosebud section */}
-                    <View className="mt-6">
-                        <AskRosebudSection
-                            selectedTimeRange={timeRange}
-                            onTimeRangePress={handleTimeRangePress}
-                            onSectionPress={handleAskRosebudPress}
-                        />
-                    </View>
+                    {!isInsightHidden && (
+                        <View className="mt-8">
+                            <EntryInsightsCard
+                                question={question}
+                                onRefresh={refresh}
+                                onBookmark={handleBookmark}
+                                onMore={() => setMoreVisible(true)}
+                            />
+                        </View>
+                    )}
 
-                    {/* Bottom spacer */}
-                    <View className="h-6" />
+                    <PersonalizeButton onPress={openSettings} />
                 </ScrollView>
 
                 <BottomNav
                     activeTab="today"
                     onTabPress={handleTabPress}
-                    onFabPress={handleNewEntry}
+                    onFabPress={() => router.push('/chat')}
                 />
 
-                {/* Stats Modals */}
-                <StreakModal
-                    visible={streakModalVisible}
-                    onClose={() => setStreakModalVisible(false)}
-                    entries={completed}
+                <GoalQuickAddModal
+                    visible={showAddGoal}
+                    onClose={() => setShowAddGoal(false)}
+                    onSubmit={handleAddGoalSubmit}
                 />
-                <EntriesModal
-                    visible={entriesModalVisible}
-                    onClose={() => setEntriesModalVisible(false)}
-                    entries={completed}
-                />
-                <WordsModal
-                    visible={wordsModalVisible}
-                    onClose={() => setWordsModalVisible(false)}
-                    entries={completed}
-                />
+
+                {moreVisible && (
+                    <View className="absolute inset-0 bg-black/40 justify-end">
+                        <View className="bg-surface-light dark:bg-surface-dark rounded-t-3xl p-6">
+                            <Text className="text-sm font-semibold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide mb-4">
+                                More options
+                            </Text>
+                            <Pressable onPress={handleShare} className="py-3">
+                                <Text className="text-base text-text-light dark:text-white">Share</Text>
+                            </Pressable>
+                            <Pressable onPress={handleCopy} className="py-3">
+                                <Text className="text-base text-text-light dark:text-white">Copy</Text>
+                            </Pressable>
+                            <Pressable onPress={handleHide} className="py-3">
+                                <Text className="text-base text-text-light dark:text-white">Hide for today</Text>
+                            </Pressable>
+                            <Pressable onPress={handleShowSavedInsights} className="py-3">
+                                <Text className="text-base text-text-light dark:text-white">Saved insights</Text>
+                            </Pressable>
+                            <Pressable onPress={() => setMoreVisible(false)} className="py-3">
+                                <Text className="text-base text-text-secondary-light dark:text-text-secondary-dark">Cancel</Text>
+                            </Pressable>
+                        </View>
+                    </View>
+                )}
             </View>
         </SafeAreaView>
     );

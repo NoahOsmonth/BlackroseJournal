@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>AI Intention Setting Interface</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#E11D48", // Rose-600 for the logo brand
+                        "background-light": "#F3F4F6", // Light gray
+                        "background-dark": "#050505", // Almost pitch black
+                        "ai-text": "#38BDF8", // Sky-400 for the AI text
+                        "ui-gray": "#9CA3AF", // Gray-400
+                        "ui-dark-gray": "#27272a", // Zinc-800 for borders
+                    },
+                    fontFamily: {
+                        display: ["Inter", "sans-serif"],
+                        body: ["Inter", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "0.5rem",
+                        'xl': '0.75rem',
+                        '2xl': '1rem',
+                        '3xl': '1.5rem',
+                    },
+                },
+            },
+        };
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&amp;display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined|Material+Icons+Round"
+        rel="stylesheet" />
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        ::-webkit-scrollbar {
+            width: 0px;
+            background: transparent;
+        }
+    </style>
+    <style>
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+</head>
+
+<body
+    class="bg-background-light dark:bg-background-dark text-gray-900 dark:text-gray-100 min-h-screen flex items-center justify-center p-0 sm:p-4">
+    <div
+        class="w-full max-w-md bg-white dark:bg-background-dark h-[100dvh] sm:h-[850px] sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col relative border dark:border-zinc-800 border-gray-200">
+        <header class="flex items-center justify-between px-4 py-3 pt-6 z-10 shrink-0">
+            <button
+                class="flex items-center space-x-2 bg-transparent border border-gray-200 dark:border-zinc-700 rounded-full pl-1 pr-3 py-1 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors">
+                <div class="w-7 h-7 bg-primary rounded-full flex items-center justify-center">
+                    <span class="material-icons-round text-white text-sm transform rotate-45">spa</span>
+                </div>
+                <span class="font-medium text-sm text-gray-800 dark:text-gray-200">Rosebud</span>
+                <span class="material-icons-outlined text-gray-500 text-lg">expand_more</span>
+            </button>
+            <div class="flex items-center space-x-4">
+                <span class="text-sm font-medium text-gray-600 dark:text-gray-300">Drafts</span>
+                <button class="text-gray-800 dark:text-white hover:opacity-70">
+                    <span class="material-icons-outlined text-2xl">close</span>
+                </button>
+            </div>
+        </header>
+        <main class="flex-1 overflow-y-auto px-5 pt-4 pb-20 flex flex-col">
+            <div class="flex items-center space-x-2 mb-4">
+                <span class="text-[10px] font-bold tracking-wider text-gray-500 uppercase">Intention Setting · Fri, Jan
+                    23</span>
+                <span class="material-icons-outlined text-gray-500 text-xs cursor-pointer">settings</span>
+            </div>
+            <div class="mb-6">
+                <p class="text-[17px] leading-relaxed text-sky-600 dark:text-ai-text font-normal">
+                    Financial wellbeing shapes so many aspects of life. Looking at your financial landscape right now,
+                    what about this area feels particularly important to you at this moment?
+                </p>
+                <div class="flex items-center space-x-5 mt-3">
+                    <button class="text-sky-600 dark:text-ai-text hover:text-sky-700 dark:hover:text-sky-300">
+                        <span class="material-icons-outlined text-xl">play_arrow</span>
+                    </button>
+                    <button class="text-sky-600 dark:text-ai-text hover:text-sky-700 dark:hover:text-sky-300">
+                        <span class="material-icons-outlined text-lg">content_copy</span>
+                    </button>
+                    <button class="text-sky-600 dark:text-ai-text hover:text-sky-700 dark:hover:text-sky-300">
+                        <span class="material-icons-outlined text-lg">thumb_up</span>
+                    </button>
+                    <button class="text-sky-600 dark:text-ai-text hover:text-sky-700 dark:hover:text-sky-300">
+                        <span class="material-icons-outlined text-lg">thumb_down</span>
+                    </button>
+                    <button class="text-sky-600 dark:text-ai-text hover:text-sky-700 dark:hover:text-sky-300">
+                        <span class="material-icons-outlined text-lg">ios_share</span>
+                    </button>
+                </div>
+            </div>
+            <div class="flex-1 min-h-[150px]">
+                <textarea autofocus=""
+                    class="w-full h-full bg-transparent border-none p-0 text-lg text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-zinc-600 focus:ring-0 resize-none font-normal"
+                    placeholder="Write"></textarea>
+            </div>
+        </main>
+        <footer class="shrink-0 px-4 pb-6 bg-white dark:bg-background-dark z-20">
+            <div class="text-center mb-6">
+                <p class="text-xs text-gray-400 dark:text-zinc-500">Note: Rosebud can make mistakes</p>
+            </div>
+            <div class="flex items-center justify-between mb-4 px-1">
+                <div class="flex items-center space-x-6">
+                    <button
+                        class="text-gray-600 dark:text-gray-100 hover:text-gray-900 dark:hover:text-white transition-opacity">
+                        <span class="material-icons-outlined text-2xl">mic</span>
+                    </button>
+                    <button
+                        class="text-gray-600 dark:text-gray-100 hover:text-gray-900 dark:hover:text-white transition-opacity">
+                        <span class="material-icons-outlined text-2xl">image</span>
+                    </button>
+                </div>
+                <div>
+                    <button
+                        class="text-gray-600 dark:text-gray-100 hover:text-gray-900 dark:hover:text-white transition-opacity">
+                        <span class="material-icons-outlined text-2xl">volume_off</span>
+                    </button>
+                </div>
+            </div>
+            <div class="flex gap-3 h-14">
+                <button
+                    class="flex-1 rounded-2xl border border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-gray-200 font-medium text-[15px] hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors flex items-center justify-center">
+                    Finish entry
+                </button>
+                <button
+                    class="flex-1 rounded-2xl border border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-gray-200 font-medium text-[15px] hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors flex items-center justify-center space-x-2">
+                    <span class="material-icons-round text-lg">auto_awesome</span>
+                    <span>Suggest</span>
+                </button>
+            </div>
+            <div class="h-1 w-full flex justify-center mt-4 sm:hidden">
+                <div class="w-32 h-1 bg-gray-300 dark:bg-zinc-800 rounded-full"></div>
+            </div>
+        </footer>
+    </div>
+    <script>
+        // Simple script to set dark mode based on user preference or defaulting to dark to match screenshot
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        } else {
+            // Force dark mode for this demo as per screenshot requirement, remove this else block for auto
+            document.documentElement.classList.add('dark');
+        }
+    </script>
+
+</body>
+
+</html>

@@ -1,6 +1,7 @@
 import { WeeklyInsightsResult } from '@/services/ai/ai';
 import { getSupabaseUserId, ensureSupabaseSession } from '@/services/supabase/supabaseClient';
 import { enqueueSyncTask } from '@/services/supabase/syncQueue';
+import { logSupabaseError } from '@/services/supabase/supabaseErrors';
 
 const INSIGHTS_TABLE = 'weekly_insights';
 
@@ -42,7 +43,7 @@ export async function loadRemoteWeeklyInsights(weekKey: string): Promise<RemoteW
         .limit(1);
 
     if (error) {
-        console.warn('Failed to load remote weekly insights:', error.message);
+        logSupabaseError('Failed to load remote weekly insights', INSIGHTS_TABLE, error.message);
         return null;
     }
 

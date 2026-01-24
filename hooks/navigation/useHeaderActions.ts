@@ -8,11 +8,16 @@ export function useHeaderActions() {
         router.navigate('/(tabs)/settings');
     }, [router]);
 
+    const openStreakView = useCallback(() => {
+        router.push('/streak-view');
+    }, [router]);
+
     const openRewards = useCallback(() => {
         router.push('/rewards');
     }, [router]);
 
     return {
+        openStreakView,
         openSettings,
         openRewards,
     };

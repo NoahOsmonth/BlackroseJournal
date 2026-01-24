@@ -50,14 +50,36 @@ const WeeklyReportCard = ({ isLocked, entriesNeeded }: { isLocked: boolean; entr
   </View>
 );
 
-const WritingStatsCard = ({ words, entries, dailyWords }: { words: number; entries: number; dailyWords: number[] }) => {
+const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DAILY_WORDS_HEIGHT = 112;
+const DAILY_WORDS_CONTAINER_HEIGHT = DAILY_WORDS_HEIGHT + 16;
+const DAILY_WORDS_MIN_BAR = 6;
+
+const getDailyBarHeight = (count: number, maxWords: number) => {
+  const ratio = maxWords > 0 ? count / maxWords : 0;
+  const scaled = Math.round(ratio * DAILY_WORDS_HEIGHT);
+  return Math.max(scaled, DAILY_WORDS_MIN_BAR);
+};
+
+const WritingStatsCard = ({
+  words,
+  entries,
+  dailyWords,
+}: {
+  words: number;
+  entries: number;
+  dailyWords: number[];
+}) => {
   const maxWords = Math.max(...dailyWords, 1);
-  const days = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  const todayIndex = new Date().getDay();
 
   return (
     <View className="mb-6">
       <View className="items-center justify-center mb-3">
-        <Text className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide">Writing stats</Text>
+        <Text className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide">
+          Writing stats
+        </Text>
       </View>
       <View className="flex-row gap-4 mb-4">
         <View className="flex-1 bg-surface-light dark:bg-surface-dark rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-800">
@@ -71,21 +93,47 @@ const WritingStatsCard = ({ words, entries, dailyWords }: { words: number; entri
       </View>
       <View className="bg-surface-light dark:bg-surface-dark rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-800">
         <Text className="font-semibold mb-6 text-text-primary-light dark:text-text-primary-dark">Daily words</Text>
-        <View className="h-32 w-full flex-row items-end justify-between px-2 relative">
+        <View
+          className="w-full flex-row items-end justify-between px-2 relative"
+          style={{ height: DAILY_WORDS_CONTAINER_HEIGHT }}
+        >
           <View className="absolute right-0 top-0 h-full flex justify-between">
             <Text className="text-[10px] text-text-secondary-light dark:text-text-secondary-dark">{maxWords}</Text>
             <Text className="text-[10px] text-text-secondary-light dark:text-text-secondary-dark">0</Text>
           </View>
-          {dailyWords.map((count, i) => (
-            <View key={i} className="items-center gap-2 w-full flex-1">
-              <View 
-                className={`w-3 rounded-t-full ${count > 0 ? 'bg-gray-400 dark:bg-gray-300' : 'bg-gray-200 dark:bg-gray-800'}`}
-                style={{ height: `${(count / maxWords) * 100}%` }}
-              />
-              <Text className="text-xs text-text-secondary-light dark:text-text-secondary-dark">{days[i]}</Text>
-            </View>
-          ))}
-          <View className="absolute bottom-6 left-0 right-0 h-[1px] bg-gray-200 dark:bg-gray-800 -z-10" />
+          {dailyWords.map((count, i) => {
+            const barHeight = getDailyBarHeight(count, maxWords);
+            const isToday = i === todayIndex;
+            const hasWords = count > 0;
+            const barTone = hasWords ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-700';
+            const barShadow = isToday && hasWords ? 'shadow-soft' : '';
+            return (
+              <View key={i} className="items-center gap-2 flex-1">
+                <View
+                  className="w-3 rounded-full bg-divider-light dark:bg-divider-dark justify-end overflow-hidden"
+                  style={{ height: DAILY_WORDS_HEIGHT }}
+                >
+                  <View
+                    accessibilityLabel={`${DAY_NAMES[i]} ${count} words`}
+                    accessibilityRole="image"
+                    accessibilityValue={{ now: count, min: 0, max: maxWords }}
+                    testID={`daily-words-bar-${i}`}
+                    className={`w-3 rounded-full ${barTone} ${barShadow}`}
+                    style={{ height: barHeight }}
+                  />
+                </View>
+                <Text
+                  className={`text-xs ${isToday
+                    ? 'text-text-primary-light dark:text-text-primary-dark'
+                    : 'text-text-secondary-light dark:text-text-secondary-dark'
+                    }`}
+                >
+                  {DAY_LABELS[i]}
+                </Text>
+              </View>
+            );
+          })}
+          <View className="absolute bottom-6 left-0 right-0 h-[1px] bg-divider-light dark:bg-divider-dark -z-10" />
         </View>
       </View>
     </View>

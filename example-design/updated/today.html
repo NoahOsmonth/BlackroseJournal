@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Today Dashboard Home Screen</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ["Inter", "sans-serif"],
+                    },
+                    colors: {
+                        background: {
+                            DEFAULT: "#F2F2F7",
+                            dark: "#000000",
+                        },
+                        surface: {
+                            DEFAULT: "#FFFFFF",
+                            dark: "#1C1C1E",
+                        },
+                        primary: "#FF9F0A", // Orange for flame/accent
+                        accent: "#32D74B", // Green for checks
+                    },
+                    boxShadow: {
+                        'glow': '0 0 20px rgba(255, 69, 58, 0.4)',
+                        'glow-blue': '0 0 20px rgba(10, 132, 255, 0.3)',
+                        'glow-gold': '0 0 20px rgba(255, 214, 10, 0.3)',
+                    }
+                },
+            },
+        };
+    </script>
+    <style>
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        .glass-nav {
+            background: rgba(28, 28, 30, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+    </style>
+    <style>
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+</head>
+
+<body
+    class="bg-gray-50 dark:bg-background-dark text-slate-900 dark:text-white font-sans antialiased pb-32 transition-colors duration-200">
+    <header class="pt-2 px-4 sticky top-0 z-30 bg-gray-50/95 dark:bg-black/95 backdrop-blur-md">
+        <div class="flex items-center justify-between py-3">
+            <div class="flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-orange-500 fill-1"
+                    style="font-variation-settings: 'FILL' 1; font-size: 20px;">local_fire_department</span>
+                <span class="font-bold text-sm">1</span>
+            </div>
+            <h1 class="text-base font-semibold">January</h1>
+            <button
+                class="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+                <span class="material-symbols-outlined text-gray-500 dark:text-gray-400"
+                    style="font-size: 20px;">settings</span>
+            </button>
+        </div>
+        <div class="flex justify-between items-start py-2 border-b border-gray-200 dark:border-gray-800">
+            <div class="flex flex-col items-center gap-1 w-9 group cursor-pointer">
+                <span class="text-[10px] uppercase font-medium text-gray-400 dark:text-gray-500">Su</span>
+                <span class="text-sm font-medium text-gray-600 dark:text-gray-400">18</span>
+            </div>
+            <div class="flex flex-col items-center gap-1 w-9 group cursor-pointer">
+                <span class="text-[10px] uppercase font-medium text-gray-400 dark:text-gray-500">Mo</span>
+                <div class="w-6 h-6 rounded-full bg-green-500/10 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-green-500 text-sm font-bold">check</span>
+                </div>
+            </div>
+            <div class="flex flex-col items-center gap-1 w-9 group cursor-pointer">
+                <span class="text-[10px] uppercase font-medium text-gray-400 dark:text-gray-500">Tu</span>
+                <span class="text-sm font-medium text-gray-600 dark:text-gray-400">20</span>
+            </div>
+            <div class="flex flex-col items-center gap-1 w-9 group cursor-pointer">
+                <span class="text-[10px] uppercase font-medium text-gray-400 dark:text-gray-500">We</span>
+                <span class="text-sm font-medium text-gray-600 dark:text-gray-400">21</span>
+            </div>
+            <div class="flex flex-col items-center gap-1 w-9 group cursor-pointer">
+                <span class="text-[10px] uppercase font-medium text-gray-400 dark:text-gray-500">Th</span>
+                <div class="w-6 h-6 rounded-full bg-green-500/10 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-green-500 text-sm font-bold">check</span>
+                </div>
+            </div>
+            <div class="flex flex-col items-center gap-1 w-9 group cursor-pointer relative">
+                <span class="text-[10px] uppercase font-medium text-white font-bold">Fr</span>
+                <div class="flex flex-col items-center">
+                    <span class="text-base font-bold text-white mb-1">23</span>
+                    <div class="w-1 h-1 rounded-full bg-white"></div>
+                </div>
+                <div
+                    class="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-full h-[2px] bg-white rounded-t-full shadow-[0_0_8px_rgba(255,255,255,0.5)]">
+                </div>
+            </div>
+            <div class="flex flex-col items-center gap-1 w-9 group cursor-pointer">
+                <span class="text-[10px] uppercase font-medium text-gray-400 dark:text-gray-500">Sa</span>
+                <span class="text-sm font-medium text-gray-600 dark:text-gray-400">24</span>
+            </div>
+        </div>
+    </header>
+    <main class="px-5 pt-6 space-y-8">
+        <div class="flex flex-col items-center justify-center gap-1">
+            <h2 class="text-sm font-medium text-gray-500 uppercase tracking-wide">Today January 23</h2>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+            <div
+                class="bg-white dark:bg-surface-dark rounded-[20px] p-5 flex flex-col items-center text-center shadow-sm active:scale-95 transition-transform duration-200 cursor-pointer border border-gray-100 dark:border-white/5">
+                <div class="mb-4 relative">
+                    <svg class="drop-shadow-lg text-yellow-400 dark:text-yellow-300" fill="none" height="48"
+                        viewBox="0 0 48 48" width="48" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="24" cy="24" fill="currentColor" fill-opacity="0.2" r="10"></circle>
+                        <circle cx="24" cy="24" fill="currentColor" r="6"></circle>
+                        <path
+                            d="M24 6V10M24 38V42M42 24H38M10 24H6M36.7279 11.2721L33.8995 14.1005M14.1005 33.8995L11.2721 36.7279M36.7279 36.7279L33.8995 33.8995M14.1005 14.1005L11.2721 11.2721"
+                            stroke="currentColor" stroke-linecap="round" stroke-width="2.5"></path>
+                    </svg>
+                </div>
+                <h3 class="text-[15px] font-semibold mb-0.5 leading-tight text-gray-900 dark:text-white">
+                    Morning<br />Intention</h3>
+                <p class="text-[11px] text-gray-400 font-medium">Start your day</p>
+            </div>
+            <div
+                class="bg-white dark:bg-surface-dark rounded-[20px] p-5 flex flex-col items-center text-center shadow-sm active:scale-95 transition-transform duration-200 cursor-pointer border border-gray-100 dark:border-white/5">
+                <div class="mb-4 relative">
+                    <svg class="drop-shadow-md" fill="none" height="48" viewBox="0 0 48 48" width="48"
+                        xmlns="http://www.w3.org/2000/svg">
+                        <path
+                            d="M28 8C22.4772 8 18 12.4772 18 18C18 19.344 18.2644 20.626 18.7461 21.8016C16.8924 21.2869 14.9667 21 13 21C6.92487 21 2 25.9249 2 32C2 38.0751 6.92487 43 13 43H35C39.9706 43 44 38.9706 44 34C44 29.366 40.4897 25.5492 35.9922 25.0487C35.9974 24.8681 36 24.6853 36 24.5C36 15.3873 28.6127 8 19.5 8H28Z"
+                            fill="#5E5CE6" fill-opacity="0.2"></path>
+                        <path
+                            d="M33.4 17.5C31.5 13.5 27.5 11 23 11C24.5 13 25 15.5 24.8 18C27.5 18.5 29.5 20.5 30 23C33 22.5 35 20 35 17C35 16.5 33.4 17.5 33.4 17.5Z"
+                            fill="#BF5AF2" fill-opacity="0.8"></path>
+                        <path clip-rule="evenodd"
+                            d="M15 24C10.5817 24 7 27.5817 7 32C7 36.4183 10.5817 40 15 40H33C36.866 40 40 36.866 40 33C40 29.134 36.866 26 33 26C32.7483 26 32.5005 26.0125 32.2581 26.0369C31.4725 22.5937 28.4087 20 24.75 20C22.7533 20 20.9419 20.7816 19.5935 22.0494C18.2737 20.7628 16.4862 20 14.5 20C11.3603 20 8.68146 21.9961 7.60424 24.808C10.027 24.2757 12.548 24 15 24Z"
+                            fill="#64D2FF" fill-rule="evenodd"></path>
+                    </svg>
+                </div>
+                <h3 class="text-[15px] font-semibold mb-0.5 leading-tight text-gray-900 dark:text-white">
+                    Evening<br />Reflection</h3>
+                <p class="text-[11px] text-gray-400 font-medium">Reflect &amp; unwind</p>
+            </div>
+        </div>
+        <section class="space-y-3">
+            <h2 class="text-[13px] font-semibold text-gray-500 dark:text-gray-400 ml-1">My intentions</h2>
+            <button
+                class="w-full h-[72px] rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-700 flex items-center justify-center gap-2.5 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors group">
+                <div
+                    class="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-800 flex items-center justify-center group-hover:bg-gray-300 dark:group-hover:bg-gray-700 transition-colors">
+                    <span class="material-symbols-outlined text-gray-600 dark:text-gray-300 text-xl">add</span>
+                </div>
+                <span class="text-sm font-medium text-gray-600 dark:text-gray-300">Set an intention</span>
+            </button>
+        </section>
+        <section class="space-y-3">
+            <div class="flex items-center justify-between px-1">
+                <h2 class="text-[13px] font-semibold text-gray-500 dark:text-gray-400">Today's goals</h2>
+            </div>
+            <div
+                class="bg-white dark:bg-surface-dark rounded-[24px] p-8 flex flex-col items-center text-center shadow-sm border border-gray-100 dark:border-white/5 relative overflow-hidden">
+                <div class="relative z-10 flex flex-col items-center">
+                    <div class="mb-5 relative w-16 h-16 flex items-center justify-center">
+                        <div class="absolute inset-0 bg-pink-500/20 rounded-full blur-xl animate-pulse"></div>
+                        <svg class="text-pink-500 relative z-10 drop-shadow-[0_0_10px_rgba(236,72,153,0.5)]" fill="none"
+                            height="64" viewBox="0 0 64 64" width="64" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="32" cy="32" r="28" stroke="currentColor" stroke-opacity="0.3" stroke-width="4">
+                            </circle>
+                            <circle cx="32" cy="32" r="18" stroke="currentColor" stroke-opacity="0.6" stroke-width="4">
+                            </circle>
+                            <circle cx="32" cy="32" fill="currentColor" r="8"></circle>
+                        </svg>
+                        <span
+                            class="material-symbols-outlined absolute -top-1 -right-1 text-yellow-400 text-lg animate-bounce"
+                            style="font-variation-settings: 'FILL' 1;">spark</span>
+                    </div>
+                    <p class="text-[15px] font-medium text-gray-900 dark:text-white max-w-[200px] leading-relaxed">Nice
+                        work! All goals completed for today</p>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <button
+                    class="bg-white dark:bg-surface-dark h-12 rounded-xl text-sm font-medium text-gray-900 dark:text-white shadow-sm border border-gray-100 dark:border-white/5 active:scale-95 transition-all">
+                    Add goal
+                </button>
+                <button
+                    class="bg-white dark:bg-surface-dark h-12 rounded-xl text-sm font-medium text-gray-900 dark:text-white shadow-sm border border-gray-100 dark:border-white/5 active:scale-95 transition-all">
+                    Manage
+                </button>
+            </div>
+        </section>
+        <section class="space-y-3">
+            <h2 class="text-[13px] font-semibold text-gray-500 dark:text-gray-400 ml-1 text-center">Based on your
+                entries</h2>
+            <div
+                class="bg-white dark:bg-surface-dark rounded-[24px] p-6 shadow-sm border border-gray-100 dark:border-white/5">
+                <p class="text-[16px] leading-relaxed text-center font-medium mb-6 text-gray-900 dark:text-gray-200">
+                    What activities could help you recharge and regain energy?
+                </p>
+                <div class="flex items-center justify-center gap-10">
+                    <button class="p-2 text-gray-400 hover:text-white transition-colors">
+                        <span class="material-symbols-outlined text-2xl">sync</span>
+                    </button>
+                    <button class="p-2 text-gray-400 hover:text-white transition-colors">
+                        <span class="material-symbols-outlined text-2xl">bookmark</span>
+                    </button>
+                    <button class="p-2 text-gray-400 hover:text-white transition-colors">
+                        <span class="material-symbols-outlined text-2xl">more_horiz</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+        <div class="flex justify-center pt-2 pb-6">
+            <button
+                class="flex items-center gap-2 px-5 py-2.5 rounded-full hover:bg-white/5 transition-colors text-gray-500 dark:text-gray-400">
+                <span class="material-symbols-outlined text-[18px]">settings</span>
+                <span class="text-xs font-semibold tracking-wider uppercase">Personalize</span>
+            </button>
+        </div>
+    </main>
+    <nav
+        class="fixed bottom-0 left-0 right-0 glass-nav border-t border-gray-200 dark:border-white/10 px-6 pb-8 pt-3 z-50">
+        <div class="flex items-end justify-between relative">
+            <div class="flex flex-col items-center gap-1 w-12 cursor-pointer">
+                <span class="material-symbols-outlined text-white fill-1"
+                    style="font-variation-settings: 'FILL' 1; font-size: 26px;">today</span>
+                <span class="text-[10px] font-medium text-white">Today</span>
+            </div>
+            <div class="flex flex-col items-center gap-1 w-12 cursor-pointer group">
+                <span class="material-symbols-outlined text-gray-500 group-hover:text-white transition-colors"
+                    style="font-size: 26px;">explore</span>
+                <span
+                    class="text-[10px] font-medium text-gray-500 group-hover:text-white transition-colors">Explore</span>
+            </div>
+            <div class="relative w-16 flex justify-center">
+                <button
+                    class="absolute -top-12 w-[64px] h-[64px] bg-white rounded-full shadow-[0_4px_20px_rgba(0,0,0,0.4)] flex items-center justify-center active:scale-95 transition-transform z-50">
+                    <span class="material-symbols-outlined text-black text-[32px] font-bold">add</span>
+                </button>
+            </div>
+            <div class="flex flex-col items-center gap-1 w-12 cursor-pointer group">
+                <span class="material-symbols-outlined text-gray-500 group-hover:text-white transition-colors"
+                    style="font-size: 26px;">lightbulb</span>
+                <span
+                    class="text-[10px] font-medium text-gray-500 group-hover:text-white transition-colors">Insights</span>
+            </div>
+            <div class="flex flex-col items-center gap-1 w-12 cursor-pointer group">
+                <span class="material-symbols-outlined text-gray-500 group-hover:text-white transition-colors"
+                    style="font-size: 26px;">history_edu</span>
+                <span
+                    class="text-[10px] font-medium text-gray-500 group-hover:text-white transition-colors">History</span>
+            </div>
+        </div>
+    </nav>
+    <div class="fixed bottom-2 left-1/2 -translate-x-1/2 w-32 h-1 bg-white/20 rounded-full z-[60]"></div>
+
+</body>
+
+</html>

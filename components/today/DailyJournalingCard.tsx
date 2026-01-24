@@ -5,6 +5,7 @@
  */
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useThemeColor } from '@/hooks/use-theme-color';
 import { MaterialIcons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
@@ -22,6 +23,7 @@ export function DailyJournalingCard({
 }: DailyJournalingCardProps) {
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
+    const primaryColor = useThemeColor({}, 'primary');
 
     return (
         <View className="space-y-3">
@@ -92,7 +94,7 @@ export function DailyJournalingCard({
                     accessibilityRole="button"
                     className="w-full bg-primary py-3 px-4 rounded-xl flex-row items-center justify-center active:bg-primary-dark"
                     style={{
-                        shadowColor: '#E91E63',
+                        shadowColor: primaryColor,
                         shadowOffset: { width: 0, height: 4 },
                         shadowOpacity: 0.3,
                         shadowRadius: 8,

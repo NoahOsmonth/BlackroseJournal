@@ -5,21 +5,30 @@ import 'react-native-reanimated';
 import '../global.css';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useStagewiseToolbar } from '@/hooks/useStagewiseToolbar';
 import { useThemeSettings } from '@/hooks/useThemeSettings';
+import { AppErrorBoundary } from '@/components/system/AppErrorBoundary';
+import { SupabaseStatusBanner } from '@/components/system/SupabaseStatusBanner';
+import { installRawTextGuard } from '@/utils/dev/rawTextGuard';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { Lato_400Regular, Lato_700Bold } from '@expo-google-fonts/lato';
 import { PlayfairDisplay_400Regular, PlayfairDisplay_700Bold, useFonts } from '@expo-google-fonts/playfair-display';
-import * as SplashScreen from 'expo-splash-screen';
+import {
+  PlusJakartaSans_400Regular,
+  PlusJakartaSans_500Medium,
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
+} from '@expo-google-fonts/plus-jakarta-sans';
 import { useEffect } from 'react';
-
-SplashScreen.preventAutoHideAsync();
+installRawTextGuard();
 
 export default function RootLayout() {
-  const { isLoaded: isThemeLoaded } = useThemeSettings();
+  useThemeSettings();
   const colorScheme = useColorScheme();
-  useStagewiseToolbar();
-  const [fontsLoaded] = useFonts({
+  const [, fontsError] = useFonts({
+    PlusJakartaSansRegular: PlusJakartaSans_400Regular,
+    PlusJakartaSansMedium: PlusJakartaSans_500Medium,
+    PlusJakartaSansSemiBold: PlusJakartaSans_600SemiBold,
+    PlusJakartaSansBold: PlusJakartaSans_700Bold,
     PlayfairDisplayRegular: PlayfairDisplay_400Regular,
     PlayfairDisplayBold: PlayfairDisplay_700Bold,
     LatoRegular: Lato_400Regular,
@@ -30,33 +39,44 @@ export default function RootLayout() {
     InterBold: Inter_700Bold,
   });
 
-  const isReady = fontsLoaded && isThemeLoaded;
-
   useEffect(() => {
-    if (isReady) {
-      SplashScreen.hideAsync();
+    if (fontsError) {
+      console.warn('Font loading error:', fontsError);
     }
-  }, [isReady]);
-
-  if (!isReady) {
-    return null;
-  }
+  }, [fontsError]);
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="chat" options={{ headerShown: false }} />
-        <Stack.Screen name="entry-reflection" options={{ headerShown: false }} />
-        <Stack.Screen name="suggestions" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="streak-haiku"
-          options={{ headerShown: false, presentation: 'modal' }}
-        />
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-      </Stack>
-      <StatusBar style="auto" />
+      <AppErrorBoundary>
+        <SupabaseStatusBanner />
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+          <Stack.Screen name="chat" options={{ headerShown: false }} />
+          <Stack.Screen name="intentions/select" options={{ headerShown: false }} />
+          <Stack.Screen name="intentions/chat" options={{ headerShown: false }} />
+          <Stack.Screen name="intentions/detail" options={{ headerShown: false }} />
+          <Stack.Screen name="intentions/edit" options={{ headerShown: false }} />
+          <Stack.Screen name="persona/new" options={{ headerShown: false }} />
+          <Stack.Screen name="persona/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="persona/advanced" options={{ headerShown: false }} />
+          <Stack.Screen name="drafts" options={{ headerShown: false }} />
+          <Stack.Screen name="saved-insights" options={{ headerShown: false }} />
+          <Stack.Screen name="goals" options={{ headerShown: false }} />
+          <Stack.Screen name="entry-detail" options={{ headerShown: false }} />
+          <Stack.Screen name="checkin-detail" options={{ headerShown: false }} />
+          <Stack.Screen name="entry-reflection" options={{ headerShown: false }} />
+          <Stack.Screen name="suggestions" options={{ headerShown: false }} />
+          <Stack.Screen name="streak-view" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="streak-haiku"
+            options={{ headerShown: false, presentation: 'modal' }}
+          />
+          <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+        </Stack>
+        <StatusBar style="auto" />
+      </AppErrorBoundary>
     </ThemeProvider>
   );
 }

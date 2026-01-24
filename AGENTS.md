@@ -67,6 +67,8 @@ Maintain a unified look and feel across the app:
 - Prefer user-centric assertions (visible text, accessibility labels) over implementation details.
 - Keep snapshots small and intentional; avoid large snapshots.
 - For logic/services: test success + failure paths with mocks.
+- For backend/remote changes (Supabase/agent): add an **integration smoke test** under `__tests__/integration/` gated by `RUN_INTEGRATION_TESTS=1` to verify required tables/endpoints exist.
+- Add static safety tests when appropriate (e.g., disallow raw text nodes inside `View`/`Pressable` for web).
 - If a test isn’t feasible, document the reason in `PROGRESS.md` and create a follow-up task.
 ## Test Folder Organization (`__tests__/`)
 Keep the test folder structured to prevent clutter as tests grow:
@@ -87,6 +89,21 @@ Keep the test folder structured to prevent clutter as tests grow:
 4. Add/update tests for every change.
 5. Run relevant tests and fix failures.
 6. Update `PROGRESS.md` with outcomes and any follow-ups.
+7. If AI chat features are touched, ensure the backend agent is configured and running locally.
+
+## Backend Agent Setup (Local)
+- Create `backend/.env` with:
+  - `PORT=8787`
+  - `ALLOWED_ORIGINS=http://localhost:19006,http://localhost:8081`
+  - `NANO_GPT_API_KEY=...`
+  - `NANO_GPT_API_BASE_URL=https://nano-gpt.com/api/v1`
+  - `NANO_GPT_MODEL=zai-org/glm-4.7-flash-original`
+  - `NANO_GPT_FLASH_MODEL=zai-org/glm-4.7-flash-original`
+- Start the backend:
+  - `cd backend`
+  - `npm install`
+  - `npm run dev`
+- Ensure the app points to the backend (`EXPO_PUBLIC_AGENT_BASE_URL` or `AGENT_BASE_URL`), then restart Expo.
 
 ## Definition of Done
 - Design/UI files stay within the 200–500 line target (max 500).
@@ -115,6 +132,9 @@ npm test -- --testPathPattern="services"
 npm test -- --testPathPattern="components"
 npm test -- --testPathPattern="screens"
 npm test -- --testPathPattern="hooks"
+
+# Run integration smoke tests (Supabase + agent health)
+RUN_INTEGRATION_TESTS=1 npm test -- --testPathPattern="integration"
 ```
 
 ### Run Tests in Watch Mode

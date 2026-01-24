@@ -1,6 +1,7 @@
 import { Message } from '@/services/ai/ai';
 import { ensureSupabaseSession } from '@/services/supabase/supabaseClient';
 import { enqueueSyncTask } from '@/services/supabase/syncQueue';
+import { logSupabaseError } from '@/services/supabase/supabaseErrors';
 import { EntryStatus, JournalEntry } from './journalStorage.types';
 
 const JOURNAL_TABLE = 'journal_entries';
@@ -108,7 +109,7 @@ export async function fetchRemoteJournalEntries(): Promise<JournalEntry[] | null
 
     if (error || !data) {
         if (error) {
-            console.warn('Failed to load remote journal entries:', error.message);
+            logSupabaseError('Failed to load remote journal entries', JOURNAL_TABLE, error.message);
         }
         return null;
     }
@@ -150,7 +151,7 @@ export async function pushJournalEntries(entries: JournalEntry[]): Promise<boole
         .upsert(payload, { onConflict: 'id' });
 
     if (error) {
-        console.warn('Failed to push journal entries:', error.message);
+        logSupabaseError('Failed to push journal entries', JOURNAL_TABLE, error.message);
         return false;
     }
 

@@ -5,6 +5,7 @@
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useEntryReflection } from '@/hooks/useEntryReflection';
+import { useThemeColor } from '@/hooks/use-theme-color';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo } from 'react';
@@ -20,6 +21,7 @@ export default function EntryReflectionScreen() {
     const params = useLocalSearchParams<EntryReflectionParams>();
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
+    const primaryColor = useThemeColor({}, 'primary');
 
     const entryId = useMemo(() => {
         const raw = params.entryId;
@@ -79,7 +81,7 @@ export default function EntryReflectionScreen() {
                 <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
                     {isLoading && (
                         <View className="items-center py-10">
-                            <ActivityIndicator size="small" color="#E91E63" />
+                            <ActivityIndicator size="small" color={primaryColor} />
                             <Text className="mt-3 text-sm text-text-secondary-light dark:text-text-secondary-dark">
                                 Generating your reflection…
                             </Text>

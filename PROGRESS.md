@@ -73,3 +73,88 @@
     - `__tests__/services/memoryNamespace.test.ts`
   - Verified tests: `npm test -- --runInBand` and `cd backend && npm test`.
   - Lint + typecheck clean: fixed unused SafeAreaProvider import, updated hook deps, widened sync payload typing, ran `npm run lint` and `npx tsc --noEmit`.
+- **2026-01-23**: Email auth flows (login/signup/forgot) with persistent Supabase sessions:
+  - Added auth service + session hook, plus auth screens (`login`, `signup`, `forgot-password`).
+  - Wired Settings account section for sign-in/out and session status.
+  - Added tests: `__tests__/services/authService.test.ts`, `__tests__/hooks/useAuthSession.test.tsx`, updated `__tests__/screens/SettingsScreen.test.tsx`.
+  - Verified: `npm test -- --runInBand`, `cd backend && npm test`, `npm run lint`, `npx tsc --noEmit`.
+- **2026-01-23**: Password reset deep link + Supabase email templates:
+  - Added auth linking helper + update password screen and deep link handling.
+  - Added Supabase email templates in `supabase/email-templates/` and updated `notes/supabase-setup.md` with redirect URL guidance.
+  - Added auth screen + linking tests: `__tests__/screens/AuthScreens.test.tsx`, `__tests__/services/authLinking.test.ts`.
+- **2026-01-23**: Auth screen test stabilization:
+  - Normalized auth screens to UTF-8 and fixed password placeholders.
+  - Updated update-password link handling types and test mocks.
+  - Re-ran `npm test -- --runInBand`, `npm run lint`, `npx tsc --noEmit` (190 tests passing).
+- **2026-01-23**: Test log cleanup:
+  - Added console spies to silence expected AI insights, Supermemory, and weekly insights storage logs during tests.
+  - Wrapped Suggestions add flow in `waitFor` to eliminate act warnings.
+  - Re-ran `npm test -- --runInBand`, `npm run lint`, `npx tsc --noEmit` (190 tests passing, clean output).
+- **2026-01-23**: Theme/font/icon + assets system update:
+  - Added Plus Jakarta Sans font loading and Tailwind font families.
+  - Installed Phosphor icons (with react-native-svg) for the new icon system.
+  - Updated Tailwind tokens + theme constants/markdown styles to match updated design palette.
+  - Replaced legacy pink primary hardcodes with theme `primary` in key screens/components.
+  - Added assets folder README + placeholder subfolders and a Tailwind token test (`__tests__/utils/themeTokens.test.ts`).
+- **2026-01-23**: Today/Intentions/History update + new flows:
+  - Replaced Today + History UI to match updated designs, including My Intentions, goals, insights card, and new headers/bottom nav.
+  - Added intentions selection/chat/detail flows, drafts, saved insights, goals, entry detail, and persona create/edit/advanced screens.
+  - Added storage/services + hooks for intentions, check-ins, goals/habits, personas, saved insights, and history feed grouping.
+  - Synced new data types to Supabase schema and local-first queue; added local date key helper for day grouping.
+  - Polished design parity: full-width empty intention add, completion badges on intention cards, 2-letter weekdays, full month labels, and compass sparkles.
+  - Fixed initial prompt wiring in `useChatOrchestration` and removed duplicate font imports.
+  - Tests added/updated: `useEntryInsightQuestion.test.ts`, `historyUtils.test.ts`, `useSelectedDay.test.ts`, `TodayScreen.test.tsx`.
+  - Verified: `npm test -- --testPathPattern="useSelectedDay|useEntryInsightQuestion|historyUtils|TodayScreen|EntriesScreen|BottomNav"` and `npm test -- --runInBand` (191 tests).
+- **2026-01-23**: Persona + chat polish and read-only check-ins:
+  - Added persona avatar picker and avatar support across create/edit and persona cards.
+  - Implemented imagination slider and model display labels in advanced persona settings.
+  - Split intention chat into header/message/footer components, fixed metadata separator, and added basic mic/image placeholders + mute toggle.
+  - Added read-only check-in detail screen for history items without intentions; drafts sort toggle and title clamping.
+  - Added `CheckInDetail.test.tsx`.
+  - Added intention/remove support in hooks, plus check-in/intention detail hooks for service access.
+  - Added model picker modal and intention detail action sheet (archive/delete).
+  - Added `useIntentions.test.ts` and expanded history navigation coverage.
+  - Added intention edit flow (form + editor hook + screen) and tests.
+  - Tests re-run: `npm test -- --runInBand` (197 tests).
+- **2026-01-23**: Streak view + intention chat/voice picker updates:
+  - Added streak stats utilities + hook and a new `streak-view` screen with calendar + rewards entry point.
+  - Updated Today streak button to open streak view.
+  - Filtered intention detail to show latest completed check-in only and corrected date label.
+  - Restored draft persona/date in intention chat, made mute stop speech, and made close dismiss persona sheet when open.
+  - Added voice picker modal to persona form.
+  - Tests added: `streakStats`, `StreakView`, `useIntentionDetail`, `PersonaForm`, `IntentionChat`; ran `npm test -- --testPathPattern="StreakView|streakStats|useIntentionDetail|PersonaForm|IntentionChat|TodayScreen"`.
+- **2026-01-24**: Insights daily words chart polish:
+  - Ensured daily words bars render with a visible minimum height and clearer visual contrast.
+  - Added accessibility labels for daily word bars and a new screen test (`InsightsScreen.test.tsx`).
+- **2026-01-24**: Persona model defaults aligned to Nano GPT:
+  - Updated persona advanced model list to GLM 4.7 (thinking/flash) + agent default.
+  - Default new persona model set to `zai-org/glm-4.7-original:thinking`.
+  - Added `PersonaAdvanced.test.tsx` to verify the new options.
+- **2026-01-24**: Supabase schema + integration guardrails:
+  - Added `supabase/migrations/202601240001_init.sql` (copy of schema) and updated `notes/supabase-setup.md`.
+  - Added Supabase error de-dupe helper to reduce repeated missing-table warnings.
+  - Added integration smoke tests for Supabase tables and agent health (gated by `RUN_INTEGRATION_TESTS=1`).
+  - Added a static test to catch stray `.` text nodes in JSX trees.
+- **2026-01-24**: Dev diagnostics improvements:
+  - Added dev-only raw text guard to warn on string children in `View`/`Pressable`.
+  - Added Supabase status banner for missing config/tables (dev-only) + component test.
+- **2026-01-24**: Persona settings sheet + manage action:
+  - Grid icon now opens persona settings instead of create.
+  - Added settings panel with Edit, Advanced, and Delete actions.
+  - Wired persona settings from chat and added component tests.
+- **2026-01-24**: Removed Stagewise/21st-extension toolbar:
+  - Deleted toolbar hooks/services/tests and removed the dependency from `package.json`.
+- **2026-01-24**: Startup stability adjustments:
+  - Root layout now renders immediately while fonts load (no blocking splash logic).
+  - Added `RootLayout.test.tsx` to ensure render doesn’t crash while fonts load.
+- **2026-01-24**: Hermes dev client setup:
+  - Enabled Hermes in `app.json`.
+  - Added `expo-dev-client` dependency for React Native DevTools.
+- **2026-01-24**: Added app-level error boundary:
+  - Wrapped root layout in `AppErrorBoundary` with a visible fallback screen.
+  - Added `AppErrorBoundary.test.tsx` and silenced expected console errors.
+- **2026-01-24**: Dev startup stability:
+  - Re-enabled New Architecture to satisfy Reanimated builds; React Compiler remains disabled for now.
+- **2026-01-24**: Dev client config sync:
+  - Added `expo-dev-client` to `app.json` plugins.
+  - Added `__tests__/config/appConfig.test.ts` to verify plugin presence.

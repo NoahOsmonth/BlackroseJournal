@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Intention Detail View</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined|Material+Icons+Round"
+        rel="stylesheet" />
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#FF3B30", // Apple Red for accents
+                        "background-light": "#F2F2F7", // iOS Light Gray Background
+                        "background-dark": "#000000", // Pure Black
+                        "card-light": "#FFFFFF",
+                        "card-dark": "#1C1C1E", // iOS Dark Gray System Color
+                    },
+                    fontFamily: {
+                        display: ["Inter", "sans-serif"],
+                        sans: ["Inter", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "0.5rem",
+                        'xl': '1rem',
+                        '2xl': '1.25rem',
+                        '3xl': '1.5rem',
+                    },
+                },
+            },
+        };
+    </script>
+    <style>
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+    <style>
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+</head>
+
+<body
+    class="bg-background-light dark:bg-background-dark text-gray-900 dark:text-white font-sans antialiased min-h-screen pb-24 transition-colors duration-200">
+    <header
+        class="sticky top-0 z-10 bg-background-light/90 dark:bg-background-dark/90 backdrop-blur-md px-4 pt-12 pb-4 flex items-center justify-between">
+        <button class="p-2 -ml-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+            <span class="material-icons-outlined text-2xl text-gray-900 dark:text-white">arrow_back</span>
+        </button>
+        <h1 class="text-lg font-bold text-gray-900 dark:text-white">Intention</h1>
+        <button class="p-2 -mr-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+            <span class="material-icons-outlined text-2xl text-gray-900 dark:text-white">more_horiz</span>
+        </button>
+    </header>
+    <main class="px-4">
+        <article
+            class="bg-card-light dark:bg-card-dark rounded-3xl overflow-hidden shadow-sm border border-gray-100 dark:border-gray-800 mt-2">
+            <div class="h-56 bg-gray-200 dark:bg-[#2C2C2E] relative flex items-center justify-center">
+                <div class="relative w-24 h-24">
+                    <svg class="w-full h-full drop-shadow-lg" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" fill="#EF4444" r="45"></circle>
+                        <circle cx="50" cy="50" fill="white" r="35"></circle>
+                        <circle cx="50" cy="50" fill="#EF4444" r="25"></circle>
+                        <circle cx="50" cy="50" fill="white" r="15"></circle>
+                        <circle cx="50" cy="50" fill="#EF4444" r="8"></circle>
+                        <g transform="translate(50, 50) rotate(-45)">
+                            <rect fill="#3B82F6" height="40" rx="1" transform="translate(0, 0)" width="4" x="-2" y="-5">
+                            </rect>
+                            <path d="M-6 35 L0 45 L6 35 L0 30 Z" fill="#3B82F6"></path>
+                        </g>
+                        <path d="M56 44 L50 50 L44 56" fill="none" stroke="#3B82F6" stroke-linecap="round"
+                            stroke-width="4"></path>
+                    </svg>
+                </div>
+                <div
+                    class="absolute bottom-4 right-4 bg-black/70 backdrop-blur-md text-white px-4 py-1.5 rounded-full text-xs font-medium">
+                    Wellbeing
+                </div>
+            </div>
+            <div class="p-6">
+                <h2 class="text-xl font-bold mb-3 text-gray-900 dark:text-white">Aligned With My Goals</h2>
+                <p class="text-gray-600 dark:text-gray-300 leading-relaxed text-sm mb-4">
+                    I want to feel aligned and connected to my goals, recognizing that my wellbeing is foundational to
+                    achieving what matters to me.
+                </p>
+                <div class="flex justify-end">
+                    <span class="text-xs font-medium text-gray-400">128 / 280</span>
+                </div>
+            </div>
+        </article>
+        <div class="mt-8 mb-3 flex items-center justify-center">
+            <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400">Today <span class="font-normal">January
+                    23</span></h3>
+        </div>
+        <div class="bg-card-light dark:bg-card-dark rounded-3xl p-5 border border-gray-100 dark:border-gray-800">
+            <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-3">
+                <div class="flex items-center gap-2">
+                    <span class="material-icons-outlined text-base">edit</span>
+                    <span>Intention Setting</span>
+                </div>
+                <span>5:04 PM</span>
+            </div>
+            <div class="flex items-start gap-3 mb-2">
+                <div class="mt-0.5 shrink-0">
+                    <svg class="w-5 h-5" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" fill="#EF4444" r="10"></circle>
+                        <circle cx="12" cy="12" fill="white" r="7"></circle>
+                        <circle cx="12" cy="12" fill="#EF4444" r="4"></circle>
+                        <circle cx="12" cy="12" fill="white" r="2"></circle>
+                    </svg>
+                </div>
+                <h4 class="font-semibold text-gray-900 dark:text-white text-sm leading-tight">Wellbeing Important For My
+                    Goals</h4>
+            </div>
+            <p class="text-sm text-gray-600 dark:text-gray-300 leading-snug mb-4">
+                Reflected on the importance of wellbeing in relation to personal goals and how it impacts daily life.
+            </p>
+            <div class="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
+                <span class="material-icons-outlined text-sm">search</span>
+                <span>Reflective</span>
+            </div>
+        </div>
+    </main>
+    <div
+        class="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background-light via-background-light to-transparent dark:from-background-dark dark:via-background-dark dark:to-transparent pb-8 pt-12">
+        <button
+            class="w-full h-14 bg-gray-900 text-white dark:bg-gray-200 dark:text-gray-900 rounded-2xl flex items-center justify-center gap-2 font-bold shadow-lg hover:scale-[1.01] active:scale-[0.98] transition-transform">
+            <span class="material-icons-outlined">edit</span>
+            <span>Resume check-in</span>
+        </button>
+    </div>
+    <script>
+        // Simple dark mode toggle for testing purposes (optional, based on system preference usually)
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+            if (event.matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        });
+    </script>
+
+</body>
+
+</html>

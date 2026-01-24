@@ -13,6 +13,8 @@ export interface DayInfo {
     label: string;
     /** Full date object */
     date: Date;
+    /** Day of month (1-31) */
+    dayNumber: number;
     /** Whether this is today */
     isToday: boolean;
 }
@@ -26,11 +28,28 @@ export interface UseSelectedDayReturn {
     selectDay: (dayIndex: number) => void;
     /** Formatted date string (e.g., "Sunday, Jan 18th") */
     formattedDate: string;
+    /** Month label (e.g., "January") */
+    monthLabel: string;
+    /** Short date label (e.g., "January 18") */
+    shortDateLabel: string;
 }
 
-const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTH_NAMES_FULL = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+];
 
 function getOrdinalSuffix(day: number): string {
     if (day > 3 && day < 21) return 'th';
@@ -68,6 +87,7 @@ export function useSelectedDay(initialDate?: Date): UseSelectedDayReturn {
                 dayIndex: i,
                 label: DAY_LABELS[i],
                 date,
+                dayNumber: date.getDate(),
                 isToday: date.getTime() === today.getTime(),
             };
         });
@@ -79,8 +99,18 @@ export function useSelectedDay(initialDate?: Date): UseSelectedDayReturn {
         const day = selectedDay.date.getDate();
         const suffix = getOrdinalSuffix(day);
         const dayName = DAY_NAMES[selectedDay.dayIndex];
-        const monthName = MONTH_NAMES[selectedDay.date.getMonth()];
+        const monthName = MONTH_NAMES_FULL[selectedDay.date.getMonth()];
         return `${dayName}, ${monthName} ${day}${suffix}`;
+    }, [selectedDay]);
+
+    const monthLabel = useMemo(
+        () => MONTH_NAMES_FULL[selectedDay.date.getMonth()],
+        [selectedDay]
+    );
+
+    const shortDateLabel = useMemo(() => {
+        const monthName = MONTH_NAMES_FULL[selectedDay.date.getMonth()];
+        return `${monthName} ${selectedDay.date.getDate()}`;
     }, [selectedDay]);
 
     const selectDay = useCallback((dayIndex: number) => {
@@ -94,5 +124,7 @@ export function useSelectedDay(initialDate?: Date): UseSelectedDayReturn {
         weekDays,
         selectDay,
         formattedDate,
+        monthLabel,
+        shortDateLabel,
     };
 }

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Wellness Today Dashboard</title>
+    <link href="https://fonts.googleapis.com" rel="preconnect" />
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+        rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#FFFFFF", // Using white as the primary interactive/active color in this dark-heavy design context for simplicity, or lighter grey for light mode
+                        "primary-dark": "#1C1C1E", // Dark charcoal for cards
+                        "accent-orange": "#FF9500", // For the flame
+                        "background-light": "#F2F2F7", // iOS light gray background
+                        "background-dark": "#000000", // Pure black or very dark gray for background
+                        "card-light": "#FFFFFF",
+                        "card-dark": "#1C1C1E",
+                        "text-light": "#1C1C1E",
+                        "text-dark": "#FFFFFF",
+                        "subtext-light": "#8E8E93",
+                        "subtext-dark": "#8E8E93",
+                    },
+                    fontFamily: {
+                        display: ["Inter", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "1rem",
+                        'xl': '1.25rem',
+                        '2xl': '1.5rem',
+                    },
+                },
+            },
+        };
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings:
+                'FILL' 0,
+                'wght' 400,
+                'GRAD' 0,
+                'opsz' 24
+        }
+
+        .filled-icon {
+            font-variation-settings:
+                'FILL' 1,
+                'wght' 400,
+                'GRAD' 0,
+                'opsz' 24
+        }
+    </style>
+    <style>
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+</head>
+
+<body
+    class="bg-background-light dark:bg-background-dark text-text-light dark:text-text-dark min-h-screen flex justify-center selection:bg-gray-300 dark:selection:bg-gray-700">
+    <div class="w-full max-w-md bg-background-light dark:bg-background-dark min-h-screen relative flex flex-col pb-24">
+        <header class="pt-12 px-5 flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-accent-orange filled-icon">local_fire_department</span>
+                <span class="font-semibold text-lg">1</span>
+            </div>
+            <h1 class="text-xl font-semibold">January</h1>
+            <button class="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-800 transition">
+                <span class="material-symbols-outlined text-subtext-light dark:text-subtext-dark">settings</span>
+            </button>
+        </header>
+        <div class="mt-6 px-4">
+            <div class="flex justify-between text-center">
+                <div class="flex flex-col gap-3 items-center">
+                    <span class="text-xs text-subtext-light dark:text-subtext-dark font-medium">Su</span>
+                    <span class="text-sm text-subtext-light dark:text-subtext-dark">18</span>
+                </div>
+                <div class="flex flex-col gap-3 items-center">
+                    <span class="text-xs text-subtext-light dark:text-subtext-dark font-medium">Mo</span>
+                    <span class="text-sm text-subtext-light dark:text-subtext-dark">19</span>
+                </div>
+                <div class="flex flex-col gap-3 items-center">
+                    <span class="text-xs text-subtext-light dark:text-subtext-dark font-medium">Tu</span>
+                    <span class="text-sm text-subtext-light dark:text-subtext-dark">20</span>
+                </div>
+                <div class="flex flex-col gap-3 items-center">
+                    <span class="text-xs text-subtext-light dark:text-subtext-dark font-medium">We</span>
+                    <span class="text-sm text-subtext-light dark:text-subtext-dark">21</span>
+                </div>
+                <div class="flex flex-col gap-3 items-center">
+                    <span class="text-xs text-subtext-light dark:text-subtext-dark font-medium">Th</span>
+                    <span class="text-sm text-subtext-light dark:text-subtext-dark">22</span>
+                </div>
+                <div class="flex flex-col gap-3 items-center cursor-pointer">
+                    <span class="text-xs font-bold text-text-light dark:text-text-dark">Fr</span>
+                    <div class="w-6 h-6 flex items-center justify-center rounded-full bg-text-light dark:bg-text-dark">
+                        <span class="material-symbols-outlined text-background-light dark:text-background-dark"
+                            style="font-size: 16px;">check</span>
+                    </div>
+                </div>
+                <div class="flex flex-col gap-3 items-center">
+                    <span class="text-xs text-subtext-light dark:text-subtext-dark font-medium">Sa</span>
+                    <span class="text-sm text-subtext-light dark:text-subtext-dark">24</span>
+                </div>
+            </div>
+        </div>
+        <div class="mt-8 px-6 text-center">
+            <h2 class="text-md font-medium text-subtext-light dark:text-gray-400">Today <span
+                    class="text-text-light dark:text-text-dark font-semibold">January 23</span></h2>
+        </div>
+        <div class="mt-6 px-4 grid grid-cols-2 gap-4">
+            <div
+                class="bg-card-light dark:bg-card-dark rounded-2xl p-6 flex flex-col items-center justify-between text-center shadow-sm h-64 border border-gray-100 dark:border-gray-800">
+                <div class="flex-1 flex items-center justify-center">
+                    <div class="relative w-20 h-20">
+                        <img alt="Sunrise" height="64"
+                            src="https://lh3.googleusercontent.com/aida-public/AB6AXuDGs44ROP0gEJhpHYBmRDE6mrxYqkNQMWE8ulGunt_4wbohF5k8dJyHr91u00l_1xj818ZEWEoqxGBFU0D0zVMJxL007TNcu-4Bl5QNyQbd2P09eg31Atm3LZ_4PPoXL5Ja108pbCFdYRgoMp7bJ8aNpO8lc1dWLck-HLT5UOx-fFf3FYP6dx1bGiWu4DEReH2wAylF1Fz1BsQ985iPsCw1ywpk70hzRubrCKEShMC0pej5BtOj7QTrC2DMPxQlgLwbT-aMRHZhP4w"
+                            width="64" />
+                    </div>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-lg text-text-light dark:text-text-dark">Morning<br />Intention</h3>
+                    <p class="text-sm text-subtext-light dark:text-subtext-dark mt-1">Start your day</p>
+                </div>
+            </div>
+            <div
+                class="bg-card-light dark:bg-card-dark rounded-2xl p-6 flex flex-col items-center justify-between text-center shadow-sm h-64 border border-gray-100 dark:border-gray-800 relative overflow-hidden group">
+                <div
+                    class="absolute inset-0 bg-black/5 dark:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                </div>
+                <div class="flex-1 flex items-center justify-center mt-2">
+                    <div class="relative w-20 h-20">
+                        <img alt="Full Moon Face" height="64"
+                            src="https://lh3.googleusercontent.com/aida-public/AB6AXuAsHfy5iGoEqF3HkPWEhaoyge6Buy0msqYv6WmAM7i6O18oGsPyA69JaRA1usP2Jev3L2nGouJFJmy3nSJ5_X7xtlBDSNcfHdZDGSa5T0i3Oa7Ovtlf2WnSUxWPAT3z6KOSZ0yJ62EyjNbHA-F4bwCFYq35TPT40G4htgqDeVMLaCqmsB30lLhXGGCOD6c0-oD9ot5fKaL9GI4j-wdtgcNX7NyX5MbJIRpq8CZgi6biHx9AGkr1VI6tLZa_AlAxED6sC_mUWEJKkxs"
+                            width="64" />
+                    </div>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-lg text-text-light dark:text-text-dark">Evening<br />Reflection</h3>
+                    <div class="mt-3 flex justify-center">
+                        <div
+                            class="w-8 h-8 rounded-full bg-subtext-light/20 dark:bg-gray-700 flex items-center justify-center">
+                            <span class="material-symbols-outlined text-subtext-light dark:text-gray-400"
+                                style="font-size: 20px;">check</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="mt-8 px-4">
+            <h3 class="text-subtext-light dark:text-subtext-dark font-medium mb-4 text-center">My intentions</h3>
+            <div class="grid grid-cols-2 gap-4">
+                <div
+                    class="bg-card-light dark:bg-card-dark rounded-2xl p-5 flex flex-col justify-between h-32 border border-gray-100 dark:border-gray-800 shadow-sm relative">
+                    <div
+                        class="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mb-2">
+                        <span class="material-symbols-outlined text-red-500 dark:text-red-400 filled-icon"
+                            style="font-size: 20px;">track_changes</span>
+                    </div>
+                    <p class="font-medium text-sm leading-tight text-text-light dark:text-text-dark">Aligned With My
+                        Goals</p>
+                </div>
+                <div
+                    class="rounded-2xl p-5 flex items-center justify-center h-32 border-2 border-dashed border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900 transition cursor-pointer">
+                    <span class="material-symbols-outlined text-subtext-light dark:text-subtext-dark">add</span>
+                </div>
+            </div>
+        </div>
+        <div class="mt-8 flex justify-center mb-6">
+            <button
+                class="flex items-center gap-2 px-5 py-2.5 rounded-full bg-card-light dark:bg-card-dark text-text-light dark:text-text-dark font-medium text-sm shadow-sm border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800 transition">
+                <span class="material-symbols-outlined text-lg">settings</span>
+                Personalize
+            </button>
+        </div>
+        <nav
+            class="fixed bottom-0 w-full max-w-md bg-white/90 dark:bg-[#1C1C1E]/90 backdrop-blur-lg border-t border-gray-200 dark:border-gray-800 px-6 py-3 pb-8 flex justify-between items-end z-50">
+            <a class="flex flex-col items-center gap-1 group w-14" href="#">
+                <span
+                    class="material-symbols-outlined text-text-light dark:text-white filled-icon group-hover:scale-110 transition">wb_sunny</span>
+                <span class="text-[10px] font-medium text-text-light dark:text-white">Today</span>
+            </a>
+            <a class="flex flex-col items-center gap-1 group w-14" href="#">
+                <span
+                    class="material-symbols-outlined text-subtext-light dark:text-subtext-dark group-hover:text-text-light dark:group-hover:text-white transition">explore</span>
+                <span
+                    class="text-[10px] font-medium text-subtext-light dark:text-subtext-dark group-hover:text-text-light dark:group-hover:text-white transition">Explore</span>
+            </a>
+            <div class="relative -top-2">
+                <button
+                    class="w-14 h-14 bg-text-light dark:bg-white rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition-transform">
+                    <span class="material-symbols-outlined text-white dark:text-black text-3xl">add</span>
+                </button>
+            </div>
+            <a class="flex flex-col items-center gap-1 group w-14" href="#">
+                <span
+                    class="material-symbols-outlined text-subtext-light dark:text-subtext-dark group-hover:text-text-light dark:group-hover:text-white transition">lightbulb</span>
+                <span
+                    class="text-[10px] font-medium text-subtext-light dark:text-subtext-dark group-hover:text-text-light dark:group-hover:text-white transition">Insights</span>
+            </a>
+            <a class="flex flex-col items-center gap-1 group w-14" href="#">
+                <span
+                    class="material-symbols-outlined text-subtext-light dark:text-subtext-dark group-hover:text-text-light dark:group-hover:text-white transition">menu_book</span>
+                <span
+                    class="text-[10px] font-medium text-subtext-light dark:text-subtext-dark group-hover:text-text-light dark:group-hover:text-white transition">History</span>
+            </a>
+        </nav>
+    </div>
+    <div class="fixed top-0 left-0 w-full h-full -z-10 bg-gray-100 dark:bg-black hidden lg:block"></div>
+    <script>
+        // Simple script to toggle dark mode for demonstration
+        // In a real app, this would detect system preference or user setting
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        } else {
+            // Defaulting to dark mode as per primary screenshot request, but checking support
+            document.documentElement.classList.add('dark');
+        }
+    </script>
+
+</body>
+
+</html>

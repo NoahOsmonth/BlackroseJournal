@@ -36,7 +36,7 @@ const getFriendlyErrorMessage = (error: Error): string => {
     return 'Something went wrong while contacting the AI. Please try again.';
 };
 
-export type ChatMode = 'freeform' | 'dailyCheckIn' | 'continue';
+export type ChatMode = 'freeform' | 'dailyCheckIn' | 'continue' | 'intention';
 
 export interface UseChatOrchestrationOptions {
     scrollViewRef: React.RefObject<ScrollView | null>;
@@ -47,6 +47,8 @@ export interface UseChatOrchestrationOptions {
     promptPeriod?: PromptPeriod;
     /** Stable conversation identifier for Supermemory ingestion */
     conversationId?: string;
+    /** Optional custom initial prompt for non-daily check-ins */
+    initialPrompt?: { systemPrompt: string; triggerText: string };
 }
 
 export interface UseChatOrchestrationReturn {
@@ -71,6 +73,7 @@ export function useChatOrchestration({
     mode = 'freeform',
     promptPeriod,
     conversationId,
+    initialPrompt,
 }: UseChatOrchestrationOptions): UseChatOrchestrationReturn {
     const [messages, setMessages] = useState<Message[]>([]);
     const [streamingMessage, setStreamingMessage] = useState<StreamingMessage | null>(null);
@@ -81,6 +84,7 @@ export function useChatOrchestration({
         sendMessage,
         clearMessages,
         sendInitialPrompt,
+        sendInitialMessage,
         setMessages: setChatMessages,
         setConversationId,
     } = useChat();
@@ -133,6 +137,60 @@ export function useChatOrchestration({
         setIsLoading(false);
         focusInput();
     }, [focusInput]);
+
+    // Trigger initial AI message for custom prompts
+    useEffect(() => {
+        if (!initialPrompt || hasInitialized.current) {
+            return;
+        }
+
+        hasInitialized.current = true;
+        clearError();
+        const tempStreamingId = beginStreaming();
+
+        sendInitialMessage(
+            initialPrompt.systemPrompt,
+            initialPrompt.triggerText,
+            (chunk, reasoning) => {
+                setStreamingMessage(prev => prev ? {
+                    ...prev,
+                    content: prev.content + chunk,
+                    reasoning: prev.reasoning + (reasoning || ''),
+                } : null);
+                scrollToBottom();
+            },
+            (fullContent, fullReasoning) => {
+                setMessages([{
+                    id: tempStreamingId,
+                    role: 'assistant',
+                    content: fullContent,
+                    reasoning: fullReasoning,
+                    timestamp: Date.now(),
+                }]);
+                setStreamingMessage(null);
+                setIsLoading(false);
+                scrollToBottom();
+                focusInput();
+            },
+            (error) => {
+                setMessages([{
+                    id: tempStreamingId,
+                    role: 'assistant',
+                    content: initialPrompt.triggerText,
+                    timestamp: Date.now(),
+                }]);
+                handleAiError(error);
+            }
+        );
+    }, [
+        initialPrompt,
+        beginStreaming,
+        clearError,
+        focusInput,
+        handleAiError,
+        scrollToBottom,
+        sendInitialMessage,
+    ]);
 
     // Trigger initial AI message for daily check-in mode
     useEffect(() => {

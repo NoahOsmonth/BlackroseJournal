@@ -7,6 +7,7 @@ import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAskRosebud } from '@/hooks/useAskRosebud';
 import { useJournalEntries } from '@/hooks/useJournalEntries';
+import { useThemeColor } from '@/hooks/use-theme-color';
 import { TimeRange } from '@/services/ask-rosebud/askRosebud';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -38,6 +39,8 @@ export default function AskRosebudScreen() {
     const router = useRouter();
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
+    const primaryColor = useThemeColor({}, 'primary');
+    const mutedColor = useThemeColor({}, 'icon');
     const { completed } = useJournalEntries();
     const { messages, isLoading, errorMessage, sendQuestion } = useAskRosebud();
 
@@ -201,7 +204,7 @@ export default function AskRosebudScreen() {
                             <MaterialIcons
                                 name="send"
                                 size={24}
-                                color={inputText.trim() && !isLoading ? '#E91E63' : isDark ? '#666' : '#999'}
+                                color={inputText.trim() && !isLoading ? primaryColor : mutedColor}
                             />
                         </Pressable>
                     </View>

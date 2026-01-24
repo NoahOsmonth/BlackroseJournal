@@ -20,13 +20,19 @@ jest.mock('expo-constants', () => ({
 
 describe('supermemory service', () => {
     const originalApiKey = process.env.SUPERMEMORY_API_KEY;
+    let consoleLogSpy: jest.SpyInstance;
+    let consoleErrorSpy: jest.SpyInstance;
 
     beforeEach(() => {
         process.env.SUPERMEMORY_API_KEY = 'test-supermemory-key';
         global.fetch = jest.fn();
+        consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+        consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     });
 
     afterEach(() => {
+        consoleLogSpy.mockRestore();
+        consoleErrorSpy.mockRestore();
         resetSupermemoryStorageAdapter();
         jest.clearAllMocks();
         if (originalApiKey === undefined) {
