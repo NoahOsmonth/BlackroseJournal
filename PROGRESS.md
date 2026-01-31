@@ -187,3 +187,7 @@
   - Deleted `app.json`, `app.config.ts`, `GEMINI.md`, `tsconfig.json`, `backend/tsconfig.json`.
   - Removed test suites and configs: `__tests__/`, `tests/`, `backend/tests/`, `jest.config.js`, `jest.setup.js`, `playwright.config.ts`, `__mocks__/`.
   - Tests not run (test framework removed by request).
+- **2026-01-31**: Removed build configs and adb tooling per request:
+  - Deleted `babel.config.js`, `package.json`, `backend/package.json`, `REVIEW.md`.
+  - Removed NativeWind/Tailwind configs: `nativewind-env.d.ts`, `tailwind.config.js`.
+  - Deleted `adb/` directory.
