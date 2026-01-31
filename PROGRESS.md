@@ -158,3 +158,32 @@
 - **2026-01-24**: Dev client config sync:
   - Added `expo-dev-client` to `app.json` plugins.
   - Added `__tests__/config/appConfig.test.ts` to verify plugin presence.
+- **2026-01-27**: Web dev startup fixes and test cleanup:
+  - Skipped raw text guard installation in non-DOM (SSR) contexts to avoid createElement stack overflow.
+  - Added `app/(auth)/_layout.tsx` to resolve route group warnings and hide auth headers.
+  - Added tests: `__tests__/utils/rawTextGuard.test.ts`, `__tests__/screens/AuthLayout.test.tsx`.
+  - Updated `jest.config.js` to exclude Playwright specs in `tests/` from Jest runs.
+  - Verified with `npm test -- --runInBand`.
+- **2026-01-27**: CSP and environment setup updates:
+  - Added `Content-Security-Policy` header via `expo-router` plugin to allow `unsafe-eval` for web dev.
+  - Added CSP coverage in `__tests__/config/appConfig.test.ts`.
+  - Added root `.env` with placeholder values (copied from `.env.example`).
+  - Verified with `npm test -- --runInBand`.
+- **2026-01-27**: CSP dev unblock and config cleanup:
+  - Removed hardcoded CSP headers from `app.json` to avoid dev-time eval blocking.
+  - Added production-only CSP injection via `app.config.ts` for `expo-router` headers.
+  - Updated `__tests__/config/appConfig.test.ts` to reflect dynamic CSP handling.
+  - Verified with `npm test -- --runInBand`.
+- **2026-01-27**: Web dev blank screen mitigation:
+  - Set `web.output` to `single` in development via `app.config.ts` (keeps `server` for production).
+  - Verified with `npm test -- --runInBand`.
+- **2026-01-27**: Web redirect hardening:
+  - Replaced `Redirect` in `app/index.tsx` with `router.replace('/entries')` and a visible loading fallback.
+  - Added `__tests__/screens/IndexScreen.test.tsx` to validate the redirect behavior.
+- **2026-01-27**: Safe area provider stabilization:
+  - Wrapped root layout with `SafeAreaProvider` to ensure `useSafeAreaInsets` hooks render reliably on web.
+  - Updated `__tests__/screens/RootLayout.test.tsx` to mock the provider.
+- **2026-01-31**: Removed React Native setup configs and tests per request:
+  - Deleted `app.json`, `app.config.ts`, `GEMINI.md`, `tsconfig.json`, `backend/tsconfig.json`.
+  - Removed test suites and configs: `__tests__/`, `tests/`, `backend/tests/`, `jest.config.js`, `jest.setup.js`, `playwright.config.ts`, `__mocks__/`.
+  - Tests not run (test framework removed by request).
