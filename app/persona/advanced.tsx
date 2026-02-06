@@ -14,12 +14,12 @@ import { ImaginationSlider } from '@/components/personas/ImaginationSlider';
 import { ModelPickerModal } from '@/components/personas/ModelPickerModal';
 
 const MODELS = [
-    'zai-org/glm-4.7-original:thinking',
+    'moonshotai/kimi-k2.5:thinking',
     'zai-org/glm-4.7-flash-original',
     'agent-default',
 ] as const;
 const MODEL_LABELS: Record<(typeof MODELS)[number], string> = {
-    'zai-org/glm-4.7-original:thinking': 'GLM 4.7 Thinking',
+    'moonshotai/kimi-k2.5:thinking': 'Kimi K2.5 Thinking',
     'zai-org/glm-4.7-flash-original': 'GLM 4.7 Flash',
     'agent-default': 'Agent Default',
 };

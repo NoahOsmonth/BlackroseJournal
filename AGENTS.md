@@ -113,7 +113,7 @@ Keep the test folder structured to prevent clutter as tests grow:
   - `ALLOWED_ORIGINS=http://localhost:19006,http://localhost:8081`
   - `NANO_GPT_API_KEY=...`
   - `NANO_GPT_API_BASE_URL=https://nano-gpt.com/api/v1`
-  - `NANO_GPT_MODEL=zai-org/glm-4.7-original:thinking`
+  - `NANO_GPT_MODEL=moonshotai/kimi-k2.5:thinking`
   - `NANO_GPT_FLASH_MODEL=zai-org/glm-4.7-flash-original`
   - `MCP_SUPERMEMORY_API_KEY=...`
 - Start the backend:
@@ -137,7 +137,7 @@ The backend is **deployed and live** on Railway.
 | `ALLOWED_ORIGINS` | `*` |
 | `NANO_GPT_API_KEY` | *(set)* |
 | `NANO_GPT_API_BASE_URL` | `https://nano-gpt.com/api/v1` |
-| `NANO_GPT_MODEL` | `zai-org/glm-4.7-original:thinking` |
+| `NANO_GPT_MODEL` | `moonshotai/kimi-k2.5:thinking` |
 | `NANO_GPT_FLASH_MODEL` | `zai-org/glm-4.7-flash-original` |
 | `MCP_SUPERMEMORY_API_KEY` | *(set)* |
 

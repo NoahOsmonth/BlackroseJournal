@@ -1,5 +1,4 @@
 import { Application, Request, Response } from 'express';
-import { McpRegistry } from '../mcp/registry';
 import { handleAskRosebud } from '../agent/askRosebudService';
 import { AskRosebudRequest } from '../agent/types';
 
@@ -12,11 +11,10 @@ function parseAskRosebud(body: unknown): AskRosebudRequest | null {
   return {
     question: payload.question,
     timeRange: payload.timeRange as AskRosebudRequest['timeRange'],
-    memoryNamespace: payload.memoryNamespace,
   };
 }
 
-export function registerAskRosebudRoutes(app: Application, registry: McpRegistry): void {
+export function registerAskRosebudRoutes(app: Application): void {
   app.post('/v1/ask-rosebud', async (req: Request, res: Response) => {
     const request = parseAskRosebud(req.body);
     if (!request) {
@@ -30,7 +28,7 @@ export function registerAskRosebudRoutes(app: Application, registry: McpRegistry
     }
 
     try {
-      const answer = await handleAskRosebud(request, registry);
+      const answer = await handleAskRosebud(request);
       res.json({
         data: {
           answer,

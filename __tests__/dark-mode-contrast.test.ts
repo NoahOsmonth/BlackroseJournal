@@ -57,4 +57,18 @@ describe("dark mode contrast safety", () => {
         expect(colors).toHaveProperty("subtext-dark");
         expect(colors).toHaveProperty("card-dark");
     });
+
+    it("history mood label defines explicit dark-mode text color", () => {
+        const file = path.join(
+            process.cwd(),
+            "components",
+            "history",
+            "HistoryEntryCard.tsx"
+        );
+        const content = fs.readFileSync(file, "utf-8");
+        expect(content).toContain("{mood.label}");
+        expect(content).toContain(
+            '<Text className="text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark">{mood.label}</Text>'
+        );
+    });
 });

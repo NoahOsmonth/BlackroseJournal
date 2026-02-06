@@ -1,7 +1,4 @@
-import { McpRegistry } from '../mcp/registry';
-import { buildRecallArgs, buildSaveMemoryArgs, formatRecallContext, resolveMemoryTools } from './memoryTools';
-import { planMemoryUsage } from './memoryPlanner';
-import { createChatCompletion } from './modelClient';
+import { ChatCompletionOptions, createChatCompletion, createChatCompletionStream } from './modelClient';
 import { buildSystemPrompt } from './systemPrompt';
 import { ChatCompletionRequest, ChatCompletionResult, ChatMessage } from './types';
 
@@ -18,78 +15,37 @@ function extractSystemPrompt(messages: ChatMessage[]): { basePrompt: string; con
   return { basePrompt, conversation };
 }
 
-function hasUserMessage(messages: ChatMessage[]): boolean {
-  return messages.some((message) => message.role === 'user');
-}
-
-export async function handleChatCompletion(
-  request: ChatCompletionRequest,
-  registry: McpRegistry
-): Promise<ChatCompletionResult> {
+function buildChatPayload(request: ChatCompletionRequest): { messages: ChatMessage[]; options: ChatCompletionOptions } {
   const { basePrompt, conversation } = extractSystemPrompt(request.messages);
-  const memoryServerId = registry.getDefaultMemoryServerId();
-  let memoryContext = '';
-  let responseHint = '';
-
-  if (registry.listServers().length > 0 && registry.isAllowed(memoryServerId) && hasUserMessage(conversation)) {
-    try {
-      const plan = await planMemoryUsage(conversation);
-      responseHint = plan.responseHint || '';
-      const tools = await resolveMemoryTools(registry, memoryServerId);
-
-      if (plan.action === 'recall' || plan.action === 'save_and_recall') {
-        if (tools.recallTool && plan.recall?.query) {
-          const args = buildRecallArgs({
-            tool: tools.recallTool,
-            query: plan.recall.query,
-            limit: plan.recall.limit,
-            containerTag: request.memoryNamespace,
-            includeProfile: true,
-          });
-          const recallResult = await registry.callTool(memoryServerId, tools.recallTool.name, args);
-          memoryContext = formatRecallContext(recallResult);
-        }
-      }
-
-      if (plan.action === 'save' || plan.action === 'save_and_recall') {
-        if (tools.saveTool && plan.save?.text) {
-          const metadata = {
-            source: 'chat',
-            conversationId: request.conversationId,
-            timestamp: Date.now(),
-            ...plan.save.metadata,
-          };
-          const args = buildSaveMemoryArgs({
-            tool: tools.saveTool,
-            content: plan.save.text,
-            containerTag: request.memoryNamespace,
-            metadata,
-          });
-          await registry.callTool(memoryServerId, tools.saveTool.name, args);
-        }
-      }
-    } catch (error) {
-      console.warn('Memory planning failed:', error);
-    }
-  }
-
-  const systemPrompt = buildSystemPrompt(basePrompt, memoryContext);
-  const finalPrompt = responseHint
-    ? `${systemPrompt}\n\n## Response focus\n${responseHint}`
-    : systemPrompt;
-
+  const systemPrompt = buildSystemPrompt(basePrompt);
   const modelOverride = request.model && request.model !== 'agent-default'
     ? request.model
     : undefined;
 
-  const completion = await createChatCompletion([
-    { role: 'system', content: finalPrompt },
-    ...conversation,
-  ], {
-    temperature: request.temperature,
-    maxTokens: request.max_tokens,
-    model: modelOverride,
-  });
-
-  return completion;
+  return {
+    messages: [
+      { role: 'system', content: systemPrompt },
+      ...conversation,
+    ],
+    options: {
+      temperature: request.temperature,
+      maxTokens: request.max_tokens,
+      model: modelOverride,
+    },
+  };
 }
+
+export async function handleChatCompletion(
+  request: ChatCompletionRequest
+): Promise<ChatCompletionResult> {
+  const payload = buildChatPayload(request);
+  return createChatCompletion(payload.messages, payload.options);
+}
+
+export async function handleChatCompletionStream(
+  request: ChatCompletionRequest
+): Promise<Response> {
+  const payload = buildChatPayload(request);
+  return createChatCompletionStream(payload.messages, payload.options);
+}
+

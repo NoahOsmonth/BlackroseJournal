@@ -1,5 +1,4 @@
 import { postAgent } from '@/services/agent/agentClient';
-import { getOrCreateMemoryNamespace } from '@/services/memory/memoryNamespace';
 
 export type TimeRange = 'all-time' | 'this-year' | 'this-month' | 'this-week';
 
@@ -13,11 +12,9 @@ interface AskRosebudResponse {
 }
 
 export async function askRosebud(question: string, timeRange: TimeRange): Promise<string> {
-    const memoryNamespace = await getOrCreateMemoryNamespace();
     const response = await postAgent('/v1/ask-rosebud', {
         question,
         timeRange,
-        memoryNamespace,
     });
 
     if (!response.ok) {

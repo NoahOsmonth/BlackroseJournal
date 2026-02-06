@@ -21,7 +21,7 @@ Create `.env` in `backend/` (Railway vars map 1:1):
 ### Model (LLM)
 - `NANO_GPT_API_KEY=`
 - `NANO_GPT_API_BASE_URL=https://nano-gpt.com/api/v1`
-- `NANO_GPT_MODEL=zai-org/glm-4.7-original:thinking`
+- `NANO_GPT_MODEL=moonshotai/kimi-k2.5:thinking`
 - `NANO_GPT_FLASH_MODEL=zai-org/glm-4.7-flash-original`
 
 ### MCP (Supermemory)

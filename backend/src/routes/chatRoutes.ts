@@ -1,6 +1,5 @@
 import { Application, Request, Response } from 'express';
-import { McpRegistry } from '../mcp/registry';
-import { handleChatCompletion } from '../agent/agentService';
+import { handleChatCompletion, handleChatCompletionStream } from '../agent/agentService';
 import { ChatCompletionRequest, ChatMessage } from '../agent/types';
 
 function isValidMessage(message: ChatMessage): boolean {
@@ -23,25 +22,34 @@ function parseChatRequest(body: unknown): ChatCompletionRequest | null {
     stream: Boolean(payload.stream),
     temperature: payload.temperature,
     max_tokens: payload.max_tokens,
-    memoryNamespace: payload.memoryNamespace,
     conversationId: payload.conversationId,
     metadata: payload.metadata,
   };
-}
-
-function chunkText(content: string, chunkSize = 30): string[] {
-  const chunks: string[] = [];
-  for (let i = 0; i < content.length; i += chunkSize) {
-    chunks.push(content.slice(i, i + chunkSize));
-  }
-  return chunks.length ? chunks : [''];
 }
 
 function writeSse(res: Response, data: string): void {
   res.write(`data: ${data}\n\n`);
 }
 
-export function registerChatRoutes(app: Application, registry: McpRegistry): void {
+async function pipeReadableStreamToResponse(
+  body: ReadableStream<Uint8Array>,
+  res: Response
+): Promise<void> {
+  const reader = body.getReader();
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    if (value) {
+      res.write(Buffer.from(value));
+    }
+  }
+}
+
+export function registerChatRoutes(app: Application): void {
   app.post('/v1/chat/completions', async (req: Request, res: Response) => {
     const request = parseChatRequest(req.body);
     if (!request) {
@@ -55,31 +63,37 @@ export function registerChatRoutes(app: Application, registry: McpRegistry): voi
     }
 
     try {
-      const completion = await handleChatCompletion(request, registry);
-
       if (request.stream) {
+        const upstream = await handleChatCompletionStream(request);
+
         res.setHeader('Content-Type', 'text/event-stream');
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
         res.flushHeaders?.();
 
-        const chunks = chunkText(completion.content);
-        chunks.forEach((chunk, index) => {
-          const reasoning = index === 0 ? completion.reasoning || '' : '';
-          writeSse(res, JSON.stringify({
-            choices: [{
-              delta: {
-                content: chunk,
-                reasoning,
-              },
-            }],
-          }));
-        });
+        if (upstream.body) {
+          await pipeReadableStreamToResponse(upstream.body, res);
+          res.end();
+          return;
+        }
+
+        const fallback = await upstream.text();
+        if (fallback.trim()) {
+          const lines = fallback.split('\n');
+          lines.forEach((line) => {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('data:')) {
+              res.write(`${trimmed}\n\n`);
+            }
+          });
+        }
 
         writeSse(res, '[DONE]');
         res.end();
         return;
       }
+
+      const completion = await handleChatCompletion(request);
 
       res.json({
         id: `chatcmpl_${Date.now()}`,

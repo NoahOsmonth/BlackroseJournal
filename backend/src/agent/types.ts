@@ -11,7 +11,6 @@ export interface ChatCompletionRequest {
   stream?: boolean;
   temperature?: number;
   max_tokens?: number;
-  memoryNamespace?: string;
   conversationId?: string;
   metadata?: Record<string, unknown>;
 }
@@ -24,5 +23,4 @@ export interface ChatCompletionResult {
 export interface AskRosebudRequest {
   question: string;
   timeRange: 'all-time' | 'this-year' | 'this-month' | 'this-week';
-  memoryNamespace?: string;
 }

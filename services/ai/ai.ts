@@ -1,7 +1,7 @@
 import { THERAPIST_SYSTEM_PROMPT } from '@/constants/aiPrompts';
 import { DailyPrompt } from '@/constants/dailyPrompts';
+import { getAgentConfig } from '@/services/agent/agentConfig';
 import { postAgent } from '@/services/agent/agentClient';
-import { getOrCreateMemoryNamespace } from '@/services/memory/memoryNamespace';
 import { useCallback, useRef } from 'react';
 import { getAiConfig } from './aiConfig';
 
@@ -22,7 +22,6 @@ interface ChatRequestPayload {
     stream: boolean;
     temperature: number;
     max_tokens: number;
-    memoryNamespace?: string;
     conversationId?: string;
 }
 
@@ -52,7 +51,6 @@ export interface ErrorCallback {
 
 interface StreamChatOptions {
     systemPrompt?: string;
-    memoryNamespace?: string;
     conversationId?: string;
 }
 
@@ -65,6 +63,11 @@ interface ParsedChunk {
 interface Accumulator {
     content: string;
     reasoning: string;
+}
+
+interface SimulatedStreamingOptions {
+    chunkSize?: number;
+    chunkDelayMs?: number;
 }
 
 interface EntryReflectionSuggestion {
@@ -372,7 +375,6 @@ function buildChatPayload(
     messages: Message[],
     systemPrompt: string,
     stream: boolean,
-    memoryNamespace?: string,
     conversationId?: string
 ): ChatRequestPayload {
     return {
@@ -387,7 +389,6 @@ function buildChatPayload(
         stream,
         temperature: DEFAULT_TEMPERATURE,
         max_tokens: DEFAULT_MAX_TOKENS,
-        memoryNamespace,
         conversationId,
     };
 }
@@ -537,16 +538,85 @@ function extractMessageContent(data: unknown): Accumulator {
     };
 }
 
+function parseSseTranscript(rawText: string): Accumulator | null {
+    const lines = rawText.split('\n');
+    const accumulator: Accumulator = { content: '', reasoning: '' };
+    let parsedChunks = 0;
+
+    for (const line of lines) {
+        const parsed = parseSseLine(line);
+        if (!parsed || parsed.done) {
+            continue;
+        }
+
+        if (parsed.content) {
+            accumulator.content += parsed.content;
+        }
+
+        if (parsed.reasoning) {
+            accumulator.reasoning += parsed.reasoning;
+        }
+
+        if (parsed.content || parsed.reasoning) {
+            parsedChunks += 1;
+        }
+    }
+
+    return parsedChunks > 0 ? accumulator : null;
+}
+
 async function readNonStreamingResponse(response: Response): Promise<Accumulator> {
     const rawText = await response.text();
     const parsed = parseJsonSafely(rawText);
 
-    if (!parsed) {
-        const preview = rawText.slice(0, 200);
-        throw new Error(`AI response was not valid JSON. Preview: ${preview}`);
+    if (parsed) {
+        return extractMessageContent(parsed);
     }
 
-    return extractMessageContent(parsed);
+    const sseContent = parseSseTranscript(rawText);
+    if (sseContent) {
+        return sseContent;
+    }
+
+    const preview = rawText.slice(0, 200);
+    throw new Error(`AI response was not valid JSON. Preview: ${preview}`);
+}
+
+function wait(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function emitSimulatedStreaming(
+    result: Accumulator,
+    onChunk: StreamingCallback,
+    options?: SimulatedStreamingOptions
+): Promise<void> {
+    const content = result.content || '';
+    const reasoning = result.reasoning || '';
+    if (!content && !reasoning) {
+        return;
+    }
+
+    const chunkSize = options?.chunkSize ?? 18;
+    const chunkDelayMs = options?.chunkDelayMs ?? 16;
+    const contentChunks: string[] = [];
+
+    for (let i = 0; i < content.length; i += chunkSize) {
+        contentChunks.push(content.slice(i, i + chunkSize));
+    }
+
+    if (contentChunks.length === 0) {
+        onChunk('', reasoning);
+        return;
+    }
+
+    for (let i = 0; i < contentChunks.length; i++) {
+        const chunk = contentChunks[i];
+        onChunk(chunk, i === 0 ? reasoning : undefined);
+        if (i < contentChunks.length - 1) {
+            await wait(chunkDelayMs);
+        }
+    }
 }
 
 async function buildResponseError(
@@ -578,6 +648,120 @@ function resolveStreamOptions(options?: string | StreamChatOptions): StreamChatO
     return options;
 }
 
+function hasXmlHttpRequest(): boolean {
+    return typeof globalThis !== 'undefined'
+        && typeof globalThis.XMLHttpRequest === 'function';
+}
+
+function buildAgentUrl(path: string): string {
+    const { apiBaseUrl } = getAgentConfig();
+    const baseUrl = apiBaseUrl.endsWith('/') ? apiBaseUrl.slice(0, -1) : apiBaseUrl;
+    return `${baseUrl}${path}`;
+}
+
+function isOkStatus(status: number): boolean {
+    return status >= 200 && status < 300;
+}
+
+async function streamChatWithXhr(
+    payload: ChatRequestPayload,
+    onChunk: StreamingCallback,
+    onComplete: CompleteCallback
+): Promise<boolean> {
+    if (!hasXmlHttpRequest()) {
+        return false;
+    }
+
+    const { apiKey } = getAgentConfig();
+    const url = buildAgentUrl('/v1/chat/completions');
+
+    return new Promise((resolve, reject) => {
+        const xhr = new globalThis.XMLHttpRequest();
+        const accumulator: Accumulator = { content: '', reasoning: '' };
+        let buffer = '';
+        let consumedLength = 0;
+        let settled = false;
+
+        const settle = (callback: () => void) => {
+            if (settled) {
+                return;
+            }
+
+            settled = true;
+            callback();
+        };
+
+        const processIncoming = () => {
+            const incoming = xhr.responseText.slice(consumedLength);
+            consumedLength = xhr.responseText.length;
+
+            if (!incoming) {
+                return;
+            }
+
+            buffer += incoming.replace(/\r\n/g, '\n');
+            const { lines, remainder } = splitStreamBuffer(buffer);
+            buffer = remainder;
+
+            for (const line of lines) {
+                const parsed = parseSseLine(line);
+                if (!parsed) {
+                    continue;
+                }
+
+                if (parsed.done) {
+                    settle(() => {
+                        onComplete(accumulator.content, accumulator.reasoning);
+                        resolve(true);
+                    });
+                    return;
+                }
+
+                appendChunk(accumulator, parsed, onChunk);
+            }
+        };
+
+        xhr.open('POST', url, true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        if (apiKey) {
+            xhr.setRequestHeader('Authorization', `Bearer ${apiKey}`);
+        }
+
+        xhr.onprogress = () => {
+            processIncoming();
+        };
+
+        xhr.onload = () => {
+            processIncoming();
+
+            if (settled) {
+                return;
+            }
+
+            if (isOkStatus(xhr.status)) {
+                settle(() => {
+                    onComplete(accumulator.content, accumulator.reasoning);
+                    resolve(true);
+                });
+                return;
+            }
+
+            const preview = xhr.responseText.slice(0, 200);
+            settle(() => reject(
+                new Error(`AI request failed (status ${xhr.status}). Preview: ${preview}`)
+            ));
+        };
+
+        xhr.onerror = () => {
+            settle(() => reject(
+                new Error('AI request failed using XMLHttpRequest streaming fallback.')
+            ));
+        };
+
+        xhr.send(JSON.stringify(payload));
+    });
+}
+
 /**
  * Build a system prompt that includes the daily check-in context
  */
@@ -607,9 +791,22 @@ export async function streamChat(
             messages,
             systemPrompt,
             true,
-            resolved.memoryNamespace,
             resolved.conversationId
         );
+
+        const usedXhrStreaming = await streamChatWithXhr(
+            streamPayload,
+            onChunk,
+            onComplete
+        ).catch((error) => {
+            console.warn('XMLHttpRequest streaming fallback failed:', error);
+            return false;
+        });
+
+        if (usedXhrStreaming) {
+            return;
+        }
+
         const response = await fetchChatCompletion(streamPayload);
         const streamingAvailable = hasReadableStream(response.body)
             && (response.headers.get('content-type') || '').includes('text/event-stream');
@@ -625,9 +822,7 @@ export async function streamChat(
 
         const fallbackResult = await readNonStreamingResponse(response);
 
-        if (fallbackResult.content || fallbackResult.reasoning) {
-            onChunk(fallbackResult.content, fallbackResult.reasoning);
-        }
+        await emitSimulatedStreaming(fallbackResult, onChunk);
 
         onComplete(fallbackResult.content, fallbackResult.reasoning);
     } catch (error) {
@@ -642,14 +837,13 @@ export async function streamChat(
 export async function completeChat(
     messages: Message[],
     systemPrompt: string,
-    options?: { memoryNamespace?: string; conversationId?: string }
+    options?: { conversationId?: string }
 ): Promise<Accumulator> {
     const payload = buildChatPayload(
         DEFAULT_AGENT_MODEL,
         messages,
         systemPrompt,
         false,
-        options?.memoryNamespace,
         options?.conversationId
     );
     const response = await fetchChatCompletion(payload);
@@ -665,7 +859,6 @@ export function useChat() {
     const messagesRef = useRef<Message[]>([]);
     const systemPromptRef = useRef<string | undefined>(undefined);
     const conversationIdRef = useRef<string>(generateConversationId());
-    const memoryNamespaceRef = useRef<string | null>(null);
 
     const setMessages = useCallback((messages: Message[], systemPrompt?: string) => {
         messagesRef.current = messages;
@@ -674,21 +867,6 @@ export function useChat() {
 
     const setConversationId = useCallback((conversationId?: string) => {
         conversationIdRef.current = conversationId || generateConversationId();
-    }, []);
-
-    const getMemoryNamespace = useCallback(async (): Promise<string | undefined> => {
-        if (memoryNamespaceRef.current) {
-            return memoryNamespaceRef.current;
-        }
-
-        try {
-            const namespace = await getOrCreateMemoryNamespace();
-            memoryNamespaceRef.current = namespace;
-            return namespace;
-        } catch (error) {
-            console.warn('Failed to read memory namespace:', error);
-            return undefined;
-        }
     }, []);
 
     const sendMessage = useCallback(
@@ -708,7 +886,6 @@ export function useChat() {
             messagesRef.current = [...messagesRef.current, userMessage];
 
             const basePrompt = systemPromptRef.current || THERAPIST_SYSTEM_PROMPT;
-            const memoryNamespace = await getMemoryNamespace();
 
             await streamChat(
                 messagesRef.current,
@@ -727,12 +904,11 @@ export function useChat() {
                 onError,
                 {
                     systemPrompt: basePrompt,
-                    memoryNamespace,
                     conversationId: conversationIdRef.current,
                 }
             );
         },
-        [getMemoryNamespace]
+        []
     );
 
     /**
@@ -748,7 +924,6 @@ export function useChat() {
         ) => {
             const basePrompt = buildDailyCheckInSystemPrompt(prompt);
             systemPromptRef.current = basePrompt;
-            const memoryNamespace = await getMemoryNamespace();
 
             // Send an empty trigger to get the AI to respond with its greeting
             // We use a minimal user message that the AI will interpret as a conversation starter
@@ -779,12 +954,11 @@ export function useChat() {
                 onError,
                 {
                     systemPrompt: basePrompt,
-                    memoryNamespace,
                     conversationId: conversationIdRef.current,
                 }
             );
         },
-        [getMemoryNamespace]
+        []
     );
 
     const sendInitialMessage = useCallback(
@@ -796,7 +970,6 @@ export function useChat() {
             onError: ErrorCallback
         ) => {
             systemPromptRef.current = systemPrompt;
-            const memoryNamespace = await getMemoryNamespace();
 
             const triggerMessage: Message = {
                 id: 'trigger-' + Date.now(),
@@ -824,12 +997,11 @@ export function useChat() {
                 onError,
                 {
                     systemPrompt,
-                    memoryNamespace,
                     conversationId: conversationIdRef.current,
                 }
             );
         },
-        [getMemoryNamespace]
+        []
     );
 
     const clearMessages = useCallback(() => {

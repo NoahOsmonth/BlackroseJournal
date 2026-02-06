@@ -255,3 +255,55 @@
   - **Visual verification**: Tested all screens (Today, Settings, Insights, History, Chat) in both
     light and dark modes using Playwright. All text visible, buttons readable, input text clear.
   - Verified: `npm test` — 9 suites, 20 tests, all pass.
+- **2026-02-06**: History dark text + mobile live-streaming fallback:
+  - Fixed unreadable mood/tag text in `components/history/HistoryEntryCard.tsx` by adding explicit
+    `text-text-secondary-light dark:text-text-secondary-dark` classes to the mood label.
+  - Added true mobile progressive streaming fallback in `services/ai/ai.ts`:
+    when `fetch` readable streams are unavailable, chat now uses `XMLHttpRequest` `onprogress`
+    to parse SSE chunks in real time and update UI incrementally.
+  - Retained existing non-stream fallback path (`readNonStreamingResponse` + simulated chunking)
+    when XHR streaming is unavailable or fails.
+  - Tests updated:
+    - `__tests__/dark-mode-contrast.test.ts` now guards the History mood label dark-mode class.
+    - `__tests__/ai-service.test.ts` now verifies progressive chunk delivery via XHR fallback.
+  - Verified: `npx jest --runInBand __tests__/ai-service.test.ts __tests__/dark-mode-contrast.test.ts`.
+- **2026-02-06**: True backend token streaming (root-cause fix):
+  - **Root cause identified**: backend route used `handleChatCompletion` with upstream `stream: false`, then fake-chunked the final text. This prevented true real-time token flow from model to mobile.
+  - Added upstream streaming call in `backend/src/agent/modelClient.ts`:
+    - `createChatCompletionStream(...)` now sends `stream: true` with `Accept: text/event-stream`.
+  - Refactored `backend/src/agent/agentService.ts`:
+    - shared prompt/memory preparation now powers both non-stream and stream handlers.
+    - added `handleChatCompletionStream(...)` returning upstream `Response`.
+  - Updated `backend/src/routes/chatRoutes.ts`:
+    - stream requests now pipe upstream SSE bytes directly to client instead of synthetic chunking.
+    - retains safe fallback for non-streaming upstream bodies.
+  - Added regression test:
+    - `__tests__/backend-modelClient-stream.test.ts` ensures backend sends `stream: true` + `Accept: text/event-stream` upstream.
+  - Verified:
+    - `npx jest --runInBand __tests__/backend-modelClient-stream.test.ts __tests__/ai-service.test.ts`
+    - `cd backend; npx tsc --noEmit`
+- **2026-02-06**: Client streaming order fix for React Native:
+  - **Root cause identified**: `streamChat` awaited `fetch` first, then attempted XHR fallback.
+    On React Native this delayed `onChunk` until response completion, so users saw non-live output.
+  - **Fix**: in `services/ai/ai.ts`, XHR streaming now runs first; fetch-based path runs only if XHR is unavailable/fails.
+  - Added regression in `__tests__/ai-service.test.ts`:
+    - `starts xhr streaming without waiting for fetch response to finish`
+  - Verified:
+    - `npx jest --runInBand __tests__/ai-service.test.ts __tests__/backend-modelClient-stream.test.ts`
+- **2026-02-06**: Supermemory disabled end-to-end (temporary):
+  - Removed runtime Supermemory dependencies from chat + Ask Rosebud request flows on the app:
+    - `services/ai/ai.ts` no longer resolves/sends `memoryNamespace`.
+    - `services/ask-rosebud/askRosebud.ts` no longer reads or sends `memoryNamespace`.
+  - Removed backend memory orchestration from user-facing routes:
+    - `backend/src/agent/agentService.ts` no longer runs memory planning/recall/save logic.
+    - `backend/src/agent/askRosebudService.ts` no longer recalls Supermemory context.
+    - `backend/src/routes/chatRoutes.ts` and `backend/src/routes/askRosebudRoutes.ts` no longer parse/forward `memoryNamespace`.
+    - `backend/src/index.ts` no longer wires `McpRegistry` into chat/ask routes.
+    - `backend/src/agent/systemPrompt.ts` no longer injects memory-policy text.
+    - `backend/src/agent/types.ts` removed `memoryNamespace` from request types.
+  - Tests added/updated:
+    - `__tests__/askRosebud-service.test.ts` (new): verifies Ask Rosebud payload excludes `memoryNamespace`.
+    - `__tests__/ai-service.test.ts`: verifies chat payload excludes `memoryNamespace`.
+  - Verified:
+    - `npx jest --runInBand __tests__/ai-service.test.ts __tests__/askRosebud-service.test.ts __tests__/backend-modelClient-stream.test.ts`
+    - `cd backend; npx tsc --noEmit`

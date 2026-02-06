@@ -30,23 +30,7 @@ export async function createChatCompletion(
   options: ChatCompletionOptions = {}
 ): Promise<{ content: string; reasoning: string }>
 {
-  const { apiBaseUrl, apiKey, model: defaultModel } = getAiConfig();
-  const payload: ChatCompletionPayload = {
-    model: options.model ?? defaultModel,
-    messages,
-    stream: false,
-    temperature: options.temperature ?? 0.7,
-    max_tokens: options.maxTokens ?? 2048,
-  };
-
-  const response = await fetch(`${apiBaseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(payload),
-  });
+  const response = await requestChatCompletion(messages, options, false);
 
   if (!response.ok) {
     const text = await response.text().catch(() => '');
@@ -60,6 +44,50 @@ export async function createChatCompletion(
     content: message?.content ?? '',
     reasoning: message?.reasoning ?? message?.reasoning_content ?? '',
   };
+}
+
+export async function createChatCompletionStream(
+  messages: ChatMessage[],
+  options: ChatCompletionOptions = {}
+): Promise<Response> {
+  const response = await requestChatCompletion(messages, options, true);
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`AI error ${response.status}: ${text}`);
+  }
+
+  return response;
+}
+
+async function requestChatCompletion(
+  messages: ChatMessage[],
+  options: ChatCompletionOptions,
+  stream: boolean
+): Promise<Response> {
+  const { apiBaseUrl, apiKey, model: defaultModel } = getAiConfig();
+  const payload: ChatCompletionPayload = {
+    model: options.model ?? defaultModel,
+    messages,
+    stream,
+    temperature: options.temperature ?? 0.7,
+    max_tokens: options.maxTokens ?? 2048,
+  };
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${apiKey}`,
+  };
+
+  if (stream) {
+    headers.Accept = 'text/event-stream';
+  }
+
+  return fetch(`${apiBaseUrl}/chat/completions`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  });
 }
 
 export function extractFirstJsonObject(text: string): string | null {

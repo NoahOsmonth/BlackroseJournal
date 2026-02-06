@@ -15,7 +15,7 @@ const defaultValues: PersonaFormValues = {
     tagline: '',
     voice: 'Onyx',
     prompt: '',
-    model: 'zai-org/glm-4.7-original:thinking',
+    model: 'moonshotai/kimi-k2.5:thinking',
     imagination: 25,
     avatarKey: 'persona-default',
 };

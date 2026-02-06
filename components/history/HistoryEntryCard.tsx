@@ -85,7 +85,7 @@ export function HistoryEntryCard({ item, onPress }: HistoryEntryCardProps) {
                     size={16}
                     color={mood.color ?? '#9CA3AF'}
                 />
-                <Text className="text-xs font-medium">{mood.label}</Text>
+                <Text className="text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark">{mood.label}</Text>
             </View>
         </Pressable>
     );
