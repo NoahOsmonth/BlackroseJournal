@@ -62,6 +62,22 @@ Maintain a unified look and feel across the app:
 - **Animation style:** keep motion subtle and consistent (use Reanimated patterns already in the codebase).
 - **Accessibility:** include accessibility labels/roles; maintain sufficient color contrast.
 - **Review before adding:** if a new pattern or color is needed, discuss or document the rationale to avoid one-offs.
+
+### Dark Mode / Light Mode Rules (CRITICAL)
+These rules exist because invisible text and buttons have been a recurring problem. **Follow strictly.**
+
+1. **All colors must come from `tailwind.config.js` tokens.** NativeWind silently drops undefined tokens—no error, just invisible UI. If you need a new color, add it to `tailwind.config.js` first.
+2. **Never hardcode icon colors.** Use `useColorScheme()` and pick light/dark values dynamically:
+   ```tsx
+   const { colorScheme } = useColorScheme();
+   const iconColor = colorScheme === 'dark' ? '#F9FAFB' : '#111827';
+   ```
+3. **Every `<Text>` must have a `dark:` color variant.** React Native text does NOT inherit color from parent Views. Bare `<Text className="text-gray-900">` is invisible in dark mode—always add `dark:text-gray-100` or similar.
+4. **Test both modes visually** after any color/style change. Use Playwright or toggle in Settings.
+5. **`tailwind.config.js` must have `darkMode: 'class'`** — this is required for NativeWind web dark mode toggling via `setColorScheme()`.
+6. **Guard tests exist:** `__tests__/tailwind-config.test.ts` validates all 23 required color tokens. `__tests__/dark-mode-contrast.test.ts` catches hardcoded icon colors. **Do not skip these tests.**
+7. **Two color systems coexist:** `constants/theme.ts` (JS runtime) and `tailwind.config.js` (Tailwind/NativeWind). Components use both. When adding colors, check which system the component uses and add to the correct one (or both).
+8. **Web dark mode hook:** `hooks/theme/use-color-scheme.web.ts` must use NativeWind's `useColorScheme`, not React Native's. RN's hook only reads media queries; NativeWind's responds to `setColorScheme()`.
 ## Testing Rules (Required)
 - Every change must include **new or updated tests**.
 - Prefer user-centric assertions (visible text, accessibility labels) over implementation details.
@@ -97,13 +113,46 @@ Keep the test folder structured to prevent clutter as tests grow:
   - `ALLOWED_ORIGINS=http://localhost:19006,http://localhost:8081`
   - `NANO_GPT_API_KEY=...`
   - `NANO_GPT_API_BASE_URL=https://nano-gpt.com/api/v1`
-  - `NANO_GPT_MODEL=zai-org/glm-4.7-flash-original`
+  - `NANO_GPT_MODEL=zai-org/glm-4.7-original:thinking`
   - `NANO_GPT_FLASH_MODEL=zai-org/glm-4.7-flash-original`
+  - `MCP_SUPERMEMORY_API_KEY=...`
 - Start the backend:
   - `cd backend`
   - `npm install`
   - `npm run dev`
 - Ensure the app points to the backend (`EXPO_PUBLIC_AGENT_BASE_URL` or `AGENT_BASE_URL`), then restart Expo.
+
+## Backend Deployment (Railway)
+The backend is **deployed and live** on Railway.
+
+- **URL:** `https://backend-production-30af.up.railway.app`
+- **Health check:** `GET /health` → `{"status":"ok"}`
+- **Project:** blackrose (Railway)
+- **Service:** backend
+
+### Railway Environment Variables
+| Variable | Value |
+|----------|-------|
+| `PORT` | `8787` |
+| `ALLOWED_ORIGINS` | `*` |
+| `NANO_GPT_API_KEY` | *(set)* |
+| `NANO_GPT_API_BASE_URL` | `https://nano-gpt.com/api/v1` |
+| `NANO_GPT_MODEL` | `zai-org/glm-4.7-original:thinking` |
+| `NANO_GPT_FLASH_MODEL` | `zai-org/glm-4.7-flash-original` |
+| `MCP_SUPERMEMORY_API_KEY` | *(set)* |
+
+### Deploying Updates
+```bash
+cd backend
+npx tsc              # verify build passes locally first
+railway up            # deploy to Railway
+```
+Railway auto-redeploys when environment variables are changed via `railway variables set`.
+
+### Key Notes
+- The root `.env` has `EXPO_PUBLIC_AGENT_BASE_URL` pointing to the Railway URL.
+- CORS is configured to allow all origins (`ALLOWED_ORIGINS=*`). For production, restrict to specific domains.
+- The `railway.toml` in `backend/` configures: Nixpacks builder, `npm run build` → `npm start`, healthcheck on `/health`.
 
 ## Definition of Done
 - Design/UI files stay within the 200–500 line target (max 500).

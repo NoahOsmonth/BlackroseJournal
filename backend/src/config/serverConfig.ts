@@ -13,9 +13,11 @@ function readEnv(key: string): string | undefined {
 export function getServerConfig(): ServerConfig {
   const port = Number(readEnv('PORT') || DEFAULT_PORT);
   const originsRaw = readEnv('ALLOWED_ORIGINS');
-  const allowedOrigins = originsRaw
-    ? originsRaw.split(',').map((value) => value.trim()).filter(Boolean)
-    : null;
+  const allowedOrigins = originsRaw === '*'
+    ? null
+    : originsRaw
+      ? originsRaw.split(',').map((value) => value.trim()).filter(Boolean)
+      : null;
 
   return {
     port: Number.isNaN(port) ? DEFAULT_PORT : port,
