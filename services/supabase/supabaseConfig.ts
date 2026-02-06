@@ -61,5 +61,16 @@ export function getSupabaseConfig(): SupabaseConfig | null {
         return null;
     }
 
+    // Validate URL is actually a valid HTTP(S) URL, not a placeholder
+    try {
+        const parsed = new URL(url);
+        if (!parsed.protocol.startsWith('http')) {
+            return null;
+        }
+    } catch {
+        // URL is invalid (e.g., "YOUR_SUPABASE_URL" placeholder)
+        return null;
+    }
+
     return { url, anonKey };
 }

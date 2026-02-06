@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getIntentionAreaConfig } from '@/constants/intentions';
 import { getLocalDateKey } from '@/utils/date';
 import { useIntentionDetail } from '@/hooks/intentions/useIntentionDetail';
@@ -18,6 +19,8 @@ export default function IntentionDetailScreen() {
 
     const { intention, latestCheckIn, isLoading } = useIntentionDetail(intentionId);
     const { archive, remove } = useIntentions();
+    const colorScheme = useColorScheme();
+    const iconColor = colorScheme === 'dark' ? '#F9FAFB' : '#111827';
     const [moreVisible, setMoreVisible] = useState(false);
 
     const areaConfig = useMemo(
@@ -86,7 +89,7 @@ export default function IntentionDetailScreen() {
             <View className="flex-1 max-w-md mx-auto w-full">
                 <View className="flex-row items-center justify-between px-4 pt-6 pb-4">
                     <Pressable onPress={handleBack} className="p-2" accessibilityLabel="Back">
-                        <MaterialIcons name="arrow-back" size={24} color="#111827" />
+                        <MaterialIcons name="arrow-back" size={24} color={iconColor} />
                     </Pressable>
                     <Text className="text-lg font-bold text-text-light dark:text-white">Intention</Text>
                     <Pressable
@@ -94,7 +97,7 @@ export default function IntentionDetailScreen() {
                         accessibilityLabel="More options"
                         onPress={() => setMoreVisible(true)}
                     >
-                        <MaterialIcons name="more-horiz" size={24} color="#111827" />
+                        <MaterialIcons name="more-horiz" size={24} color={iconColor} />
                     </Pressable>
                 </View>
 
@@ -134,9 +137,9 @@ export default function IntentionDetailScreen() {
                                 <View className="flex-row items-center justify-between text-xs text-text-secondary-light dark:text-text-secondary-dark mb-3">
                                     <View className="flex-row items-center gap-2">
                                         <MaterialIcons name="edit" size={16} color="#9CA3AF" />
-                                        <Text>Intention Setting</Text>
+                                        <Text className="text-text-secondary-light dark:text-text-secondary-dark">Intention Setting</Text>
                                     </View>
-                                    <Text>
+                                    <Text className="text-text-secondary-light dark:text-text-secondary-dark">
                                         {new Date(latestCheckIn.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                                     </Text>
                                 </View>
@@ -151,7 +154,7 @@ export default function IntentionDetailScreen() {
                                 </Text>
                                 <View className="flex-row items-center gap-1.5 text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark">
                                     <MaterialIcons name="search" size={16} color="#9CA3AF" />
-                                    <Text>{latestCheckIn.mood ?? 'Reflective'}</Text>
+                                    <Text className="text-text-secondary-light dark:text-text-secondary-dark">{latestCheckIn.mood ?? 'Reflective'}</Text>
                                 </View>
                             </View>
                         </View>

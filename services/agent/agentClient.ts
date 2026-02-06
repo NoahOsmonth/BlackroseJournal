@@ -12,9 +12,16 @@ export async function postAgent(path: string, body: unknown): Promise<Response> 
         headers.Authorization = `Bearer ${apiKey}`;
     }
 
-    return fetch(`${baseUrl}${path}`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-    });
+    try {
+        return await fetch(`${baseUrl}${path}`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body),
+        });
+    } catch (error) {
+        const url = `${baseUrl}${path}`;
+        throw new Error(
+            `Failed to fetch: Could not connect to AI backend at ${url}. Is the server running?`
+        );
+    }
 }

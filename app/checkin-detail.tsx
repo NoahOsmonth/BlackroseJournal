@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { IntentionCheckIn } from '@/services/intentions/intentionsStorage.types';
 import { ChatMessage } from '@/components/ChatMessage';
 import { useCheckInDetail } from '@/hooks/intentions/useCheckInDetail';
@@ -20,6 +21,8 @@ export default function CheckInDetailScreen() {
     const checkInId = Array.isArray(params.id) ? params.id[0] : params.id;
 
     const { checkIn, isLoading } = useCheckInDetail(checkInId);
+    const colorScheme = useColorScheme();
+    const iconColor = colorScheme === 'dark' ? '#F9FAFB' : '#111827';
 
     const transcript = useMemo(() => {
         if (!checkIn?.messages?.length) return [];
@@ -33,7 +36,7 @@ export default function CheckInDetailScreen() {
             <View className="flex-1 max-w-md mx-auto w-full">
                 <View className="flex-row items-center justify-between px-4 py-4">
                     <Pressable onPress={() => router.back()} className="p-2 -ml-2">
-                        <MaterialIcons name="arrow-back" size={24} color="#111827" />
+                        <MaterialIcons name="arrow-back" size={24} color={iconColor} />
                     </Pressable>
                     <Text className="text-lg font-semibold text-text-light dark:text-white">
                         Check-in
@@ -64,9 +67,9 @@ export default function CheckInDetailScreen() {
                             <View className="flex-row items-center justify-between text-xs text-text-secondary-light dark:text-text-secondary-dark mb-3">
                                 <View className="flex-row items-center gap-2">
                                     <MaterialIcons name="edit" size={16} color="#9CA3AF" />
-                                    <Text>{resolveLabel(checkIn)}</Text>
+                                    <Text className="text-text-secondary-light dark:text-text-secondary-dark">{resolveLabel(checkIn)}</Text>
                                 </View>
-                                <Text>
+                                <Text className="text-text-secondary-light dark:text-text-secondary-dark">
                                     {new Date(checkIn.createdAt).toLocaleTimeString('en-US', {
                                         hour: 'numeric',
                                         minute: '2-digit',
@@ -84,7 +87,7 @@ export default function CheckInDetailScreen() {
                             </Text>
                             <View className="flex-row items-center gap-1.5 text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark">
                                 <MaterialIcons name="search" size={16} color="#9CA3AF" />
-                                <Text>{checkIn.mood ?? 'Reflective'}</Text>
+                                <Text className="text-text-secondary-light dark:text-text-secondary-dark">{checkIn.mood ?? 'Reflective'}</Text>
                             </View>
                         </View>
 

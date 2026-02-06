@@ -26,7 +26,6 @@ export function useThemeSettings() {
     const applyTheme = useCallback(
         (nextTheme: ThemePreference): boolean => {
             try {
-                // NativeWind may throw on web if Tailwind isn't configured with darkMode: 'class'.
                 setColorScheme(nextTheme);
                 return true;
             } catch (error) {

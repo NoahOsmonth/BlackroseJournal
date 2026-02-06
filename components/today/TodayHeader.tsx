@@ -1,25 +1,7 @@
 /**
- * TodayHeader Component (deprecated)
- * Wrapper around AppHeader for backwards compatibility
+ * Legacy file intentionally left empty.
+ * Use AppHeader from components/navigation instead.
  */
 
-import { AppHeader } from '@/components/navigation';
-import React from 'react';
+export { };
 
-interface TodayHeaderProps {
-    /** Formatted date string, e.g., "Sunday, Jan 18th" */
-    dateTitle: string;
-    onLeftPress?: () => void;
-    onRightPress?: () => void;
-}
-
-export function TodayHeader({ dateTitle, onLeftPress, onRightPress }: TodayHeaderProps) {
-    return (
-        <AppHeader
-            title={dateTitle}
-            variant="today"
-            onLeftPress={onLeftPress}
-            onRightPress={onRightPress}
-        />
-    );
-}

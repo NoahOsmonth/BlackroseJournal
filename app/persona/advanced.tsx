@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getPersona, updatePersona } from '@/services/personas/personasStorage';
 import {
     loadPersonaDraftSettings,
@@ -39,6 +40,8 @@ function resolveModel(value?: string): (typeof MODELS)[number] {
 
 export default function PersonaAdvancedScreen() {
     const router = useRouter();
+    const colorScheme = useColorScheme();
+    const iconColor = colorScheme === 'dark' ? '#F9FAFB' : '#111827';
     const params = useLocalSearchParams<{ personaId?: string }>();
     const personaId = Array.isArray(params.personaId) ? params.personaId[0] : params.personaId;
 
@@ -91,9 +94,9 @@ export default function PersonaAdvancedScreen() {
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
             <View className="flex-row items-center px-4 py-3 border-b border-divider-light dark:border-divider-dark">
                 <Pressable onPress={handleBack} className="p-2 -ml-2">
-                    <MaterialIcons name="arrow-back" size={24} color="#111827" />
+                    <MaterialIcons name="arrow-back" size={24} color={iconColor} />
                 </Pressable>
-                <Text className="ml-2 text-[20px] font-semibold">Advanced</Text>
+                <Text className="ml-2 text-[20px] font-semibold text-text-light dark:text-white">Advanced</Text>
             </View>
 
             <View className="flex-1 max-w-md mx-auto px-4 py-6">
@@ -109,7 +112,7 @@ export default function PersonaAdvancedScreen() {
                     >
                         <View className="flex-row items-center gap-3">
                             <MaterialIcons name="auto-awesome" size={26} color="#60A5FA" />
-                            <Text className="text-[17px] font-medium">AI Model</Text>
+                            <Text className="text-[17px] font-medium text-text-light dark:text-white">AI Model</Text>
                         </View>
                         <View className="flex-row items-center gap-1">
                             <Text className="text-[17px] text-text-secondary-light dark:text-text-secondary-dark">
@@ -125,7 +128,7 @@ export default function PersonaAdvancedScreen() {
                         <View className="flex-row items-center justify-between mb-4">
                             <View className="flex-row items-center gap-3">
                                 <MaterialIcons name="psychology" size={26} color="#34D399" />
-                                <Text className="text-[17px] font-medium">Imagination</Text>
+                                <Text className="text-[17px] font-medium text-text-light dark:text-white">Imagination</Text>
                             </View>
                             <Text className="text-[17px] text-text-secondary-light dark:text-text-secondary-dark">
                                 {getImaginationLabel(imagination)}

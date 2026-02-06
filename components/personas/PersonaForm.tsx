@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Image, Pressable, Text, TextInput, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 import { getPersonaAvatarSource, PersonaAvatarKey } from '@/constants/personas';
 import { AvatarPickerModal } from './AvatarPickerModal';
@@ -40,6 +41,8 @@ export function PersonaForm({
     const [values, setValues] = useState<PersonaFormValues>(initialValues);
     const [showAvatarPicker, setShowAvatarPicker] = useState(false);
     const [showVoicePicker, setShowVoicePicker] = useState(false);
+    const colorScheme = useColorScheme();
+    const iconColor = colorScheme === 'dark' ? '#F9FAFB' : '#111827';
 
     useEffect(() => {
         setValues(initialValues);
@@ -66,9 +69,9 @@ export function PersonaForm({
                     className="p-2 -ml-2"
                     accessibilityLabel="Back"
                 >
-                    <MaterialIcons name="arrow-back" size={24} color="#111827" />
+                    <MaterialIcons name="arrow-back" size={24} color={iconColor} />
                 </Pressable>
-                <Text className="text-[17px] font-semibold">{title}</Text>
+                <Text className="text-[17px] font-semibold text-text-light dark:text-white">{title}</Text>
                 <Pressable
                     onPress={() => canSubmit && onSubmit(values)}
                     disabled={!canSubmit}

@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
 import { useIntentionCheckIns } from '@/hooks/intentions/useIntentionCheckIns';
 
@@ -24,6 +25,8 @@ function formatDraftTime(timestamp: number): string {
 
 export default function DraftsScreen() {
     const router = useRouter();
+    const colorScheme = useColorScheme();
+    const iconColor = colorScheme === 'dark' ? '#F9FAFB' : '#111827';
     const { drafts, remove } = useJournalEntries();
     const { drafts: checkInDrafts, remove: removeCheckIn } = useIntentionCheckIns();
     const [sortMode, setSortMode] = useState<'recent' | 'title'>('recent');
@@ -74,9 +77,9 @@ export default function DraftsScreen() {
                 <View className="flex-row items-center justify-between px-4 py-3">
                     <View className="flex-row items-center">
                         <Pressable onPress={() => router.back()} className="p-2 -ml-2">
-                            <MaterialIcons name="arrow-back" size={28} color="#111827" />
+                            <MaterialIcons name="arrow-back" size={28} color={iconColor} />
                         </Pressable>
-                        <Text className="text-2xl font-bold ml-2">Drafts</Text>
+                        <Text className="text-2xl font-bold ml-2 text-text-light dark:text-white">Drafts</Text>
                     </View>
                     <Pressable
                         className="p-2 -mr-2"

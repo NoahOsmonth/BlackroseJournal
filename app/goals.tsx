@@ -4,12 +4,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useGoals } from '@/hooks/goals/useGoals';
 import { GoalQuickAddModal } from '@/components/goals/GoalQuickAddModal';
 import { getLocalDateKey } from '@/utils/date';
 
 export default function GoalsScreen() {
     const router = useRouter();
+    const colorScheme = useColorScheme();
+    const iconColor = colorScheme === 'dark' ? '#F9FAFB' : '#111827';
     const { goals, toggle, create } = useGoals();
     const [showAdd, setShowAdd] = useState(false);
 
@@ -28,11 +31,11 @@ export default function GoalsScreen() {
             <View className="flex-1 max-w-md mx-auto w-full">
                 <View className="flex-row items-center justify-between px-4 py-4">
                     <Pressable onPress={() => router.back()} className="p-2 -ml-2">
-                        <MaterialIcons name="arrow-back" size={24} color="#111827" />
+                        <MaterialIcons name="arrow-back" size={24} color={iconColor} />
                     </Pressable>
                     <Text className="text-lg font-semibold text-text-light dark:text-white">Goals & Habits</Text>
                     <Pressable onPress={() => setShowAdd(true)}>
-                        <MaterialIcons name="add" size={24} color="#111827" />
+                        <MaterialIcons name="add" size={24} color={iconColor} />
                     </Pressable>
                 </View>
 

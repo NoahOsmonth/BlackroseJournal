@@ -4,14 +4,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 
-import { ChatMessage } from '@/components/ChatMessage';
-import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { ChatMessage } from '@/components/ChatMessage';import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
 
 export default function EntryDetailScreen() {
     const router = useRouter();
     const params = useLocalSearchParams<{ id?: string }>();
     const entryId = Array.isArray(params.id) ? params.id[0] : params.id;
     const { getById } = useJournalEntries();
+    const colorScheme = useColorScheme();
+    const iconColor = colorScheme === 'dark' ? '#F9FAFB' : '#111827';
 
     const [isLoading, setIsLoading] = useState(true);
     const [entry, setEntry] = useState<any>(null);
@@ -38,7 +40,7 @@ export default function EntryDetailScreen() {
             <View className="flex-1 max-w-md mx-auto w-full">
                 <View className="flex-row items-center justify-between px-4 py-4">
                     <Pressable onPress={() => router.back()} className="p-2 -ml-2">
-                        <MaterialIcons name="arrow-back" size={24} color="#111827" />
+                        <MaterialIcons name="arrow-back" size={24} color={iconColor} />
                     </Pressable>
                     <Text className="text-lg font-semibold text-text-light dark:text-white" numberOfLines={1}>
                         {title}

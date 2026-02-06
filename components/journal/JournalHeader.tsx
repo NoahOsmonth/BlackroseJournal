@@ -1,23 +1,7 @@
 /**
- * JournalHeader Component (deprecated)
- * Wrapper around AppHeader for backwards compatibility
+ * Legacy file intentionally left empty.
+ * Use AppHeader from components/navigation instead.
  */
 
-import { AppHeader } from '@/components/navigation';
-import React from 'react';
+export { };
 
-interface JournalHeaderProps {
-    onMenuPress?: () => void;
-    onGiftPress?: () => void;
-}
-
-export function JournalHeader({ onMenuPress, onGiftPress }: JournalHeaderProps) {
-    return (
-        <AppHeader
-            title="Journal"
-            variant="journal"
-            onLeftPress={onGiftPress}
-            onRightPress={onMenuPress}
-        />
-    );
-}

@@ -4,18 +4,21 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useSavedInsights } from '@/hooks/saved-insights/useSavedInsights';
 
 export default function SavedInsightsScreen() {
     const router = useRouter();
     const { insights, remove } = useSavedInsights();
+    const colorScheme = useColorScheme();
+    const iconColor = colorScheme === 'dark' ? '#F9FAFB' : '#111827';
 
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
             <View className="flex-1 max-w-md mx-auto w-full">
                 <View className="flex-row items-center justify-between px-4 py-4">
                     <Pressable onPress={() => router.back()} className="p-2 -ml-2">
-                        <MaterialIcons name="arrow-back" size={24} color="#111827" />
+                        <MaterialIcons name="arrow-back" size={24} color={iconColor} />
                     </Pressable>
                     <Text className="text-lg font-semibold text-text-light dark:text-white">Saved insights</Text>
                     <View className="w-10" />

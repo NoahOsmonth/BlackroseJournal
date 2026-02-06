@@ -1,21 +1,9 @@
-import { useEffect, useState } from 'react';
-import { useColorScheme as useRNColorScheme } from 'react-native';
+import { useColorScheme as useNativeWindColorScheme } from 'nativewind';
 
 /**
- * To support static rendering, this value needs to be re-calculated on the client side for web
+ * On web, use NativeWind's hook so setColorScheme('dark') is respected.
  */
 export function useColorScheme() {
-    const [hasHydrated, setHasHydrated] = useState(false);
-
-    useEffect(() => {
-        setHasHydrated(true);
-    }, []);
-
-    const colorScheme = useRNColorScheme();
-
-    if (hasHydrated) {
-        return colorScheme;
-    }
-
-    return 'light';
+    const { colorScheme } = useNativeWindColorScheme();
+    return colorScheme;
 }

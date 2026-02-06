@@ -191,3 +191,67 @@
   - Deleted `babel.config.js`, `package.json`, `backend/package.json`, `REVIEW.md`.
   - Removed NativeWind/Tailwind configs: `nativewind-env.d.ts`, `tailwind.config.js`.
   - Deleted `adb/` directory.
+- **2026-02-01**: Legacy dependency alignment:
+  - Removed `expo-dev-client` and `react-native-worklets` from dependencies.
+  - Pinned `react-native-reanimated` to `~3.17.1` for legacy compatibility.
+  - Updated Babel config for NativeWind runtime and Reanimated ordering.
+  - Added tests: `__tests__/deps-compat.test.ts`, `__tests__/babel-config.test.ts`.
+  - Tests reported: `npm run test:run -- --testPathPattern="babel-config"`,
+    `npm run test:run -- --testPathPattern="deps-compat"`, `npm run test:run`.
+- **2026-02-01**: Warning cleanup:
+  - Removed legacy Today/Journal header wrappers (stubbed files to prevent reuse).
+  - Added `__tests__/warning-cleanup.test.ts` to guard against deprecated wrappers.
+  - Tests not run in this session.
+- **2026-02-01**: Expo config + dependency alignment:
+  - Set `userInterfaceStyle` to `automatic` in `app.json`.
+  - Updated Expo SDK package versions (`expo`, `expo-router`, `jest-expo`, `react-native-reanimated`).
+  - Adjusted dependency compatibility test to assert Reanimated 4.x.
+  - Ran `npm test -- --testPathPattern="app-config|deps-compat|config-baseline"`.
+- **2026-02-01**: Worklets mismatch remediation:
+  - Installed Expo SDK 54-compatible `react-native-reanimated` + `react-native-worklets` via `npx expo install`.
+  - Pinned `react-native-worklets@0.5.1` alongside `react-native-reanimated@~4.1.1`.
+  - Updated dependency compatibility test to validate Worklets pinning.
+  - Ran `npm test -- --testPathPattern="deps-compat|app-config|config-baseline"`.
+- **2026-02-06**: Critical fix – Tailwind color tokens missing from `tailwind.config.js`:
+  - **Root cause**: `tailwind.config.js` had an empty `theme.extend` — zero custom colors defined.
+    Every custom color class (`bg-background-light`, `bg-surface-dark`, `text-text-secondary-light`, etc.)
+    silently resolved to nothing, making backgrounds invisible, text unreadable, and buttons hidden.
+  - **Fix**: Added all 15 required color tokens to `tailwind.config.js` matching `constants/theme.ts`
+    and the example-design HTML references (`#F2F2F7`, `#000000`, `#FFFFFF`, `#1C1C1E`, `#FF9F0A`, etc.).
+  - Also added `boxShadow` tokens (`soft`, `nav`) used across card/navigation components.
+  - **Test added**: `__tests__/tailwind-config.test.ts` — 4 tests ensuring all tokens exist, values are valid hex,
+    and background/surface colors match `theme.ts`.
+  - Verified: `npm test` — all tests pass (pre-existing `app-config` failure is unrelated).
+- **2026-02-06**: Fixed three pre-existing issues:
+  - **`app-config.test.ts` platform assertion**: Test expected `["ios", "android"]` but `app.json` includes `"web"`.
+    Updated test to expect `["ios", "android", "web"]`.
+  - **`setColorScheme` crash on web**: NativeWind's `setColorScheme()` throws on React Native Web
+    ("Cannot manually set color scheme"), flooding the console with errors. Added a `Platform.OS === 'web'`
+    guard in `useThemeSettings.ts` that skips the call and logs a single warning instead.
+  - **Backend connection refused**: `postAgent()` in `agentClient.ts` had no error handling for network failures.
+    Added try/catch around `fetch` with a descriptive error message including the URL. The existing
+    `getFriendlyErrorMessage()` in `useChatOrchestration.ts` already maps "failed to fetch" to a user-friendly
+    message.
+  - **Tests added**: `__tests__/useThemeSettings.test.ts` (2 tests), `__tests__/agentClient.test.ts` (4 tests).
+  - Verified: `npm test` — 8 suites, 18 tests, all pass.
+- **2026-02-06**: Comprehensive dark mode contrast fix (second wave):
+  - **7 missing color tokens**: Added `text-main-light`, `text-main-dark`, `user-text`, `accent-blue`,
+    `ai-text`, `subtext-light`, `subtext-dark`, and `card-dark` to `tailwind.config.js`. These were used
+    across 50+ files but silently resolved to nothing.
+  - **12 hardcoded icon colors**: Replaced `color="#111827"` on MaterialIcons in `streak-view.tsx`,
+    `saved-insights.tsx`, `goals.tsx`, `drafts.tsx`, `entry-detail.tsx`, `checkin-detail.tsx`,
+    `persona/advanced.tsx`, `intentions/detail.tsx`, `PersonaForm.tsx`, `IntentionForm.tsx` with
+    `useColorScheme()`-driven dynamic color (`isDark ? '#F9FAFB' : '#111827'`).
+  - **Bare Text elements**: Added `text-text-light dark:text-white` or `text-text-secondary-light dark:text-text-secondary-dark`
+    to bare `<Text>` elements in `drafts.tsx`, `persona/advanced.tsx`, `PersonaForm.tsx`, `checkin-detail.tsx`,
+    `intentions/detail.tsx` that had no text color and would default to black (invisible in dark mode).
+  - **Web dark mode toggle**: Fixed dark mode not applying on web by:
+    1. Adding `darkMode: 'class'` to `tailwind.config.js`
+    2. Updated `use-color-scheme.web.ts` to use NativeWind's `useColorScheme` hook (was using RN's media-query-only hook)
+    3. Removed the web platform guard in `useThemeSettings.ts` — `setColorScheme` now works on all platforms
+  - **Tests**: Updated `tailwind-config.test.ts` to include all 23 tokens. Added `dark-mode-contrast.test.ts`
+    (static analysis for hardcoded icon colors + token existence). Updated `useThemeSettings.test.ts` to
+    verify `setColorScheme` is called on all platforms.
+  - **Visual verification**: Tested all screens (Today, Settings, Insights, History, Chat) in both
+    light and dark modes using Playwright. All text visible, buttons readable, input text clear.
+  - Verified: `npm test` — 9 suites, 20 tests, all pass.

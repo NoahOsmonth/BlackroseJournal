@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export interface IntentionFormValues {
     title: string;
@@ -29,6 +30,8 @@ export function IntentionForm({
     isSaving = false,
 }: IntentionFormProps) {
     const [values, setValues] = useState<IntentionFormValues>(initialValues);
+    const colorScheme = useColorScheme();
+    const iconColor = colorScheme === 'dark' ? '#F9FAFB' : '#111827';
 
     useEffect(() => {
         setValues(initialValues);
@@ -49,7 +52,7 @@ export function IntentionForm({
                     className="p-2 -ml-2"
                     accessibilityLabel="Back"
                 >
-                    <MaterialIcons name="arrow-back" size={24} color="#111827" />
+                    <MaterialIcons name="arrow-back" size={24} color={iconColor} />
                 </Pressable>
                 <Text className="text-[17px] font-semibold text-text-light dark:text-white">
                     {title}

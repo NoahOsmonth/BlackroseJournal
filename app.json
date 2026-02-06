@@ -1,0 +1,40 @@
+{
+    "expo": {
+        "name": "blackrosejournal",
+        "slug": "blackrosejournal",
+        "scheme": "blackrosejournal",
+        "version": "0.0.1",
+        "userInterfaceStyle": "automatic",
+        "jsEngine": "hermes",
+        "newArchEnabled": true,
+        "platforms": [
+            "ios",
+            "android",
+            "web"
+        ],
+        "icon": "assets/images/icon.png",
+        "splash": {
+            "image": "assets/images/splash-icon.png",
+            "backgroundColor": "#000000"
+        },
+        "ios": {
+            "bundleIdentifier": "com.blackrosejournal"
+        },
+        "android": {
+            "package": "com.blackrosejournal",
+            "adaptiveIcon": {
+                "foregroundImage": "assets/images/android-icon-foreground.png",
+                "backgroundImage": "assets/images/android-icon-background.png",
+                "monochromeImage": "assets/images/android-icon-monochrome.png"
+            }
+        },
+        "plugins": [
+            "expo-router"
+        ],
+        "extra": {
+            "eas": {
+                "projectId": "your-project-id"
+            }
+        }
+    }
+}
