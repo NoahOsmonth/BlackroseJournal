@@ -1,6 +1,6 @@
 import { McpServerConfig } from '../mcp/types';
 
-interface McpConfig {
+export interface McpConfig {
   servers: McpServerConfig[];
   allowlist: string[];
   defaultMemoryServerId: string;

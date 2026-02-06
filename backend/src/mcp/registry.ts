@@ -1,4 +1,4 @@
-import { getMcpConfig } from '../config/mcpConfig';
+import { getMcpConfig, McpConfig } from '../config/mcpConfig';
 import { McpClient } from './client';
 import { HttpTransport } from './transport/httpTransport';
 import { StdioTransport } from './transport/stdioTransport';
@@ -28,7 +28,7 @@ function createTransport(server: McpServerConfig) {
 export class McpRegistry {
   private state: RegistryState;
 
-  constructor(config = getMcpConfig()) {
+  constructor(config: McpConfig = getMcpConfig()) {
     this.state = {
       config,
       clients: new Map(),
