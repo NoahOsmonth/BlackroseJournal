@@ -1,4 +1,5 @@
 import { ChatCompletionOptions, createChatCompletion, createChatCompletionStream } from './modelClient';
+import { retrieveLongTermMemoryContext, storeMessageInLongTermMemory } from './simpleMemService';
 import { buildSystemPrompt } from './systemPrompt';
 import { ChatCompletionRequest, ChatCompletionResult, ChatMessage } from './types';
 
@@ -15,12 +16,29 @@ function extractSystemPrompt(messages: ChatMessage[]): { basePrompt: string; con
   return { basePrompt, conversation };
 }
 
-function buildChatPayload(request: ChatCompletionRequest): { messages: ChatMessage[]; options: ChatCompletionOptions } {
+function getLatestUserMessage(messages: ChatMessage[]): ChatMessage | undefined {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    if (messages[i].role === 'user') {
+      return messages[i];
+    }
+  }
+  return undefined;
+}
+
+async function buildChatPayload(request: ChatCompletionRequest): Promise<{ messages: ChatMessage[]; options: ChatCompletionOptions }> {
   const { basePrompt, conversation } = extractSystemPrompt(request.messages);
-  const systemPrompt = buildSystemPrompt(basePrompt);
+  const latestUserMessage = getLatestUserMessage(conversation);
+  const memoryContext = latestUserMessage
+    ? await retrieveLongTermMemoryContext(latestUserMessage.content)
+    : '';
+  const systemPrompt = buildSystemPrompt(basePrompt, memoryContext);
   const modelOverride = request.model && request.model !== 'agent-default'
     ? request.model
     : undefined;
+
+  if (latestUserMessage?.content) {
+    void storeMessageInLongTermMemory('user', latestUserMessage.content).catch(() => undefined);
+  }
 
   return {
     messages: [
@@ -38,14 +56,19 @@ function buildChatPayload(request: ChatCompletionRequest): { messages: ChatMessa
 export async function handleChatCompletion(
   request: ChatCompletionRequest
 ): Promise<ChatCompletionResult> {
-  const payload = buildChatPayload(request);
-  return createChatCompletion(payload.messages, payload.options);
+  const payload = await buildChatPayload(request);
+  const completion = await createChatCompletion(payload.messages, payload.options);
+
+  if (completion.content.trim()) {
+    void storeMessageInLongTermMemory('assistant', completion.content).catch(() => undefined);
+  }
+
+  return completion;
 }
 
 export async function handleChatCompletionStream(
   request: ChatCompletionRequest
 ): Promise<Response> {
-  const payload = buildChatPayload(request);
+  const payload = await buildChatPayload(request);
   return createChatCompletionStream(payload.messages, payload.options);
 }
-

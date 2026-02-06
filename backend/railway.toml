@@ -1,6 +1,6 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "npm run build"
+buildCommand = "python -m pip install -r requirements-simplemem.txt && npm run build"
 
 [deploy]
 startCommand = "npm start"
