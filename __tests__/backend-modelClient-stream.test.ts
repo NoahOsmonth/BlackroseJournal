@@ -33,9 +33,16 @@ describe('backend modelClient streaming', () => {
         expect(response.ok).toBe(true);
         expect(fetchMock).toHaveBeenCalledTimes(1);
         const [, request] = fetchMock.mock.calls[0] as [string, RequestInit];
-        const body = JSON.parse(String(request.body)) as { stream: boolean };
+        const body = JSON.parse(String(request.body)) as {
+            stream: boolean;
+            temperature: number;
+            max_context?: number;
+            max_tokens: number;
+        };
         expect(body.stream).toBe(true);
+        expect(body.temperature).toBe(0.7);
+        expect(body.max_context).toBe(100000);
+        expect(body.max_tokens).toBe(32768);
         expect((request.headers as Record<string, string>).Accept).toBe('text/event-stream');
     });
 });
-

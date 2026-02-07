@@ -41,6 +41,20 @@ describe("dark mode contrast safety", () => {
         expect(violations).toEqual([]);
     });
 
+    it("does not pass className to MaterialIcons (use color prop + useColorScheme)", () => {
+        const violations: string[] = [];
+        for (const file of getUIFiles()) {
+            const content = fs.readFileSync(file, "utf-8");
+            const lines = content.split("\n");
+            lines.forEach((line, i) => {
+                if (line.includes("<MaterialIcons") && line.includes("className=")) {
+                    violations.push(`${path.relative(process.cwd(), file)}:${i + 1}`);
+                }
+            });
+        }
+        expect(violations).toEqual([]);
+    });
+
     it("text-main-light/dark tokens exist for 30+ file usage", () => {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
         const config = require(path.join(

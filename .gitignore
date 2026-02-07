@@ -36,6 +36,10 @@ yarn-error.*
 !.env.example
 .env*.local
 
+# SimpleMem (local sqlite/vector store)
+backend/data/
+data/
+
 # typescript
 *.tsbuildinfo
 

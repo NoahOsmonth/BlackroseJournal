@@ -32,13 +32,8 @@ export function ChatMessage({
   const colorScheme = useColorScheme();
 
   useEffect(() => {
-    if (isStreaming) {
-      setDisplayedText('');
-      return;
-    }
-
     setDisplayedText(text);
-  }, [text, isStreaming]);
+  }, [text]);
 
   const toggleReasoning = () => {
     if (reasoning && isAi) {
@@ -46,7 +41,10 @@ export function ChatMessage({
     }
   };
 
-  const hasReasoning = isAi && reasoning && reasoning.trim().length > 0;
+  const inlineStreamingReasoning = Boolean(
+    isAi && isStreaming && displayedText.length === 0 && reasoning && reasoning.trim().length > 0
+  );
+  const hasReasoning = isAi && reasoning && reasoning.trim().length > 0 && !inlineStreamingReasoning;
   const canToggleReasoning = hasReasoning;
   const markdownStyles = getMarkdownStyles(colorScheme === 'dark', { fontWeight: '600' });
   const reasoningMarkdownStyles = getMarkdownStyles(colorScheme === 'dark', {
@@ -78,7 +76,20 @@ export function ChatMessage({
         {/* AI messages use markdown rendering when not streaming */}
         {isAi && isStreaming && displayedText.length === 0 ? (
           <View className="py-1">
-            <TypingIndicator colorClassName="text-text-secondary-light dark:text-text-secondary-dark" />
+            {inlineStreamingReasoning ? (
+              <View>
+                <Text className="text-[11px] font-semibold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide mb-1">
+                  AI reasoning (live)
+                </Text>
+                <Markdown
+                  value={reasoning || ''}
+                  styles={reasoningMarkdownStyles}
+                  flatListProps={markdownListProps}
+                />
+              </View>
+            ) : (
+              <TypingIndicator colorClassName="text-text-secondary-light dark:text-text-secondary-dark" />
+            )}
           </View>
         ) : isAi ? (
           <Markdown

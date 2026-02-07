@@ -29,7 +29,7 @@ Keep the repo clean, modular, and easy to maintain while protecting long-term UX
 ### Folder Organization (Required)
 - **Feature folders for hooks/services:**
 	- `hooks/<feature>/...` (e.g., `hooks/journal`, `hooks/insights`, `hooks/theme`)
-	- `services/<feature>/...` (e.g., `services/ai`, `services/journal`, `services/supermemory`)
+	- `services/<feature>/...` (e.g., `services/ai`, `services/journal`, `services/memory`)
 - Legacy root-level files may exist **only as re-exports**. New code should import from the feature folder paths.
 
 ### Navigation Rules
@@ -114,8 +114,9 @@ Keep the test folder structured to prevent clutter as tests grow:
   - `NANO_GPT_API_KEY=...`
   - `NANO_GPT_API_BASE_URL=https://nano-gpt.com/api/v1`
   - `NANO_GPT_MODEL=moonshotai/kimi-k2.5:thinking`
-  - `NANO_GPT_FLASH_MODEL=zai-org/glm-4.7-flash-original`
-  - `MCP_SUPERMEMORY_API_KEY=...`
+  - `NANO_GPT_FLASH_MODEL=moonshotai/kimi-k2.5`
+  - `OPENROUTER_EMBEDDING_API_KEY=...` (for SimpleMem embeddings)
+  - `SIMPLEMEM_ENABLED=true`
 - Start the backend:
   - `cd backend`
   - `npm install`
@@ -138,8 +139,9 @@ The backend is **deployed and live** on Railway.
 | `NANO_GPT_API_KEY` | *(set)* |
 | `NANO_GPT_API_BASE_URL` | `https://nano-gpt.com/api/v1` |
 | `NANO_GPT_MODEL` | `moonshotai/kimi-k2.5:thinking` |
-| `NANO_GPT_FLASH_MODEL` | `zai-org/glm-4.7-flash-original` |
-| `MCP_SUPERMEMORY_API_KEY` | *(set)* |
+| `NANO_GPT_FLASH_MODEL` | `moonshotai/kimi-k2.5` |
+| `OPENROUTER_EMBEDDING_API_KEY` | *(set)* |
+| `SIMPLEMEM_ENABLED` | `true` |
 
 ### Deploying Updates
 ```bash

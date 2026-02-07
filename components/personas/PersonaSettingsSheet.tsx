@@ -3,6 +3,7 @@ import { Modal, Pressable, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 
 import { Persona } from '@/services/personas/personasStorage.types';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 interface PersonaSettingsSheetProps {
     visible: boolean;
@@ -21,6 +22,11 @@ export function PersonaSettingsSheet({
     onAdvanced,
     onDelete,
 }: PersonaSettingsSheetProps) {
+    const colorScheme = useColorScheme();
+    const isDark = colorScheme === 'dark';
+    const iconSecondaryColor = isDark ? '#9CA3AF' : '#6B7280';
+    const iconDangerColor = isDark ? '#F87171' : '#EF4444';
+
     if (!persona) {
         return null;
     }
@@ -50,7 +56,7 @@ export function PersonaSettingsSheet({
                             <MaterialIcons
                                 name="edit"
                                 size={20}
-                                className="text-text-secondary-light dark:text-text-secondary-dark"
+                                color={iconSecondaryColor}
                             />
                             <Text className="text-base text-text-light dark:text-white">Edit persona</Text>
                         </Pressable>
@@ -62,7 +68,7 @@ export function PersonaSettingsSheet({
                             <MaterialIcons
                                 name="auto-awesome"
                                 size={20}
-                                className="text-text-secondary-light dark:text-text-secondary-dark"
+                                color={iconSecondaryColor}
                             />
                             <Text className="text-base text-text-light dark:text-white">Advanced settings</Text>
                         </Pressable>
@@ -71,7 +77,7 @@ export function PersonaSettingsSheet({
                             className="flex-row items-center gap-3 px-4 py-3 rounded-xl border border-divider-light dark:border-divider-dark"
                             accessibilityLabel="Delete persona"
                         >
-                            <MaterialIcons name="delete-outline" size={20} className="text-red-500 dark:text-red-400" />
+                            <MaterialIcons name="delete-outline" size={20} color={iconDangerColor} />
                             <Text className="text-base text-red-500 dark:text-red-400">Delete persona</Text>
                         </Pressable>
                     </View>

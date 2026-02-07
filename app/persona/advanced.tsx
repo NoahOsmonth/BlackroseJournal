@@ -15,13 +15,11 @@ import { ModelPickerModal } from '@/components/personas/ModelPickerModal';
 
 const MODELS = [
     'moonshotai/kimi-k2.5:thinking',
-    'zai-org/glm-4.7-flash-original',
-    'agent-default',
+    'moonshotai/kimi-k2.5',
 ] as const;
 const MODEL_LABELS: Record<(typeof MODELS)[number], string> = {
     'moonshotai/kimi-k2.5:thinking': 'Kimi K2.5 Thinking',
-    'zai-org/glm-4.7-flash-original': 'GLM 4.7 Flash',
-    'agent-default': 'Agent Default',
+    'moonshotai/kimi-k2.5': 'Kimi K2.5',
 };
 const MODEL_OPTIONS = MODELS.map((id) => ({ id, label: MODEL_LABELS[id] }));
 

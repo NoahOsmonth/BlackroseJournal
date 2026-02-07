@@ -5,24 +5,24 @@ SimpleMem bridge for backend integration.
 This script adapts SimpleMem-style memory extraction/retrieval for the Node backend:
 - LLM operations (memory extraction/planning): Nano GPT (OpenAI-compatible endpoint)
 - Embeddings: OpenRouter endpoint with openai/text-embedding-3-small (or override)
-- Storage: LanceDB
+- Storage: SQLite (pure Python, no native extension runtime deps)
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
+import sqlite3
 import sys
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
-import lancedb
-import pyarrow as pa
 
 
 DEFAULT_NANO_BASE_URL = "https://nano-gpt.com/api/v1"
@@ -32,7 +32,6 @@ DEFAULT_EMBEDDING_MODEL = "openai/text-embedding-3-small"
 DEFAULT_DB_PATH = "./data/simplemem"
 DEFAULT_TABLE_NAME = "journal_global_memory"
 DEFAULT_TOP_K = 12
-DEFAULT_EMBEDDING_DIMENSION = 1536
 HTTP_TIMEOUT_SECONDS = 120.0
 
 
@@ -58,7 +57,13 @@ class DualProviderClient:
     def __init__(self) -> None:
         self.nano_api_key = os.getenv("NANO_GPT_API_KEY")
         self.nano_base_url = (os.getenv("NANO_GPT_API_BASE_URL") or DEFAULT_NANO_BASE_URL).rstrip("/")
-        self.nano_model = os.getenv("NANO_GPT_MODEL") or DEFAULT_NANO_MODEL
+        # Prefer a fast/non-thinking model for memory extraction/planning to avoid burning tokens on reasoning.
+        self.nano_model = (
+            os.getenv("SIMPLEMEM_NANO_MODEL")
+            or os.getenv("NANO_GPT_FLASH_MODEL")
+            or os.getenv("NANO_GPT_MODEL")
+            or DEFAULT_NANO_MODEL
+        )
 
         self.embedding_api_key = os.getenv("OPENROUTER_EMBEDDING_API_KEY")
         self.embedding_base_url = (
@@ -192,121 +197,205 @@ class DualProviderClient:
         return None
 
 
+def _safe_json_loads(raw: Optional[str]) -> List[str]:
+    if not raw:
+        return []
+    try:
+        value = json.loads(raw)
+        if isinstance(value, list):
+            return [str(item) for item in value]
+        return []
+    except Exception:
+        return []
+
+
+def _resolve_sqlite_path(path_value: str) -> str:
+    resolved = os.path.abspath(path_value)
+    if resolved.lower().endswith(".db"):
+        directory = os.path.dirname(resolved)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+        return resolved
+
+    os.makedirs(resolved, exist_ok=True)
+    return os.path.join(resolved, "simplemem.sqlite3")
+
+
+def _sanitize_table_name(name: str) -> str:
+    if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name):
+        raise ValueError(f"Invalid table name: {name}")
+    return name
+
+
+def _cosine_similarity(left: List[float], right: List[float]) -> float:
+    if not left or not right:
+        return 0.0
+    length = min(len(left), len(right))
+    if length == 0:
+        return 0.0
+
+    left_slice = left[:length]
+    right_slice = right[:length]
+    dot = 0.0
+    left_norm_sq = 0.0
+    right_norm_sq = 0.0
+    for index in range(length):
+        a = float(left_slice[index])
+        b = float(right_slice[index])
+        dot += a * b
+        left_norm_sq += a * a
+        right_norm_sq += b * b
+
+    if left_norm_sq <= 0.0 or right_norm_sq <= 0.0:
+        return 0.0
+
+    return dot / (math.sqrt(left_norm_sq) * math.sqrt(right_norm_sq))
+
+
 class SimpleMemVectorStore:
     def __init__(self, db_path: str) -> None:
-        self.db_path = db_path
-        os.makedirs(db_path, exist_ok=True)
-        self.db = lancedb.connect(db_path)
-        self._tables: Dict[str, Any] = {}
+        self.db_file = _resolve_sqlite_path(db_path)
+        self.connection = sqlite3.connect(self.db_file)
+        self.connection.row_factory = sqlite3.Row
 
-    def _schema(self, embedding_dim: int) -> pa.Schema:
-        return pa.schema([
-            pa.field("entry_id", pa.string()),
-            pa.field("lossless_restatement", pa.string()),
-            pa.field("keywords", pa.list_(pa.string())),
-            pa.field("timestamp", pa.string()),
-            pa.field("location", pa.string()),
-            pa.field("persons", pa.list_(pa.string())),
-            pa.field("entities", pa.list_(pa.string())),
-            pa.field("topic", pa.string()),
-            pa.field("vector", pa.list_(pa.float32(), embedding_dim)),
-            pa.field("created_at", pa.string()),
-        ])
+    def close(self) -> None:
+        self.connection.close()
 
-    def get_table(self, table_name: str, embedding_dim: int) -> Any:
-        if table_name in self._tables:
-            return self._tables[table_name]
-
-        if table_name in self.db.table_names():
-            table = self.db.open_table(table_name)
-        else:
-            table = self.db.create_table(table_name, schema=self._schema(embedding_dim))
-        self._tables[table_name] = table
-        return table
+    def _ensure_table(self, table_name: str) -> str:
+        safe_table = _sanitize_table_name(table_name)
+        self.connection.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {safe_table} (
+                entry_id TEXT PRIMARY KEY,
+                lossless_restatement TEXT NOT NULL,
+                keywords_json TEXT NOT NULL,
+                timestamp TEXT,
+                location TEXT,
+                persons_json TEXT NOT NULL,
+                entities_json TEXT NOT NULL,
+                topic TEXT,
+                embedding_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        self.connection.commit()
+        return safe_table
 
     def add_entries(
         self,
         table_name: str,
         entries: List[MemoryEntry],
         vectors: List[List[float]],
-        embedding_dim: int,
     ) -> int:
         if not entries:
             return 0
 
-        table = self.get_table(table_name, embedding_dim)
+        safe_table = self._ensure_table(table_name)
         now = datetime.utcnow().isoformat()
-        records = []
+        rows = []
         for entry, vector in zip(entries, vectors):
-            records.append({
-                "entry_id": entry.entry_id,
-                "lossless_restatement": entry.lossless_restatement,
-                "keywords": entry.keywords,
-                "timestamp": entry.timestamp or "",
-                "location": entry.location or "",
-                "persons": entry.persons,
-                "entities": entry.entities,
-                "topic": entry.topic or "",
-                "vector": vector,
-                "created_at": now,
-            })
-        table.add(records)
-        return len(records)
+            rows.append(
+                (
+                    entry.entry_id,
+                    entry.lossless_restatement,
+                    json.dumps(entry.keywords, ensure_ascii=True),
+                    entry.timestamp or "",
+                    entry.location or "",
+                    json.dumps(entry.persons, ensure_ascii=True),
+                    json.dumps(entry.entities, ensure_ascii=True),
+                    entry.topic or "",
+                    json.dumps(vector, ensure_ascii=True),
+                    now,
+                )
+            )
+
+        self.connection.executemany(
+            f"""
+            INSERT OR REPLACE INTO {safe_table}
+            (
+                entry_id, lossless_restatement, keywords_json, timestamp, location,
+                persons_json, entities_json, topic, embedding_json, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            rows,
+        )
+        self.connection.commit()
+        return len(rows)
+
+    def _all_rows(self, table_name: str) -> List[sqlite3.Row]:
+        safe_table = self._ensure_table(table_name)
+        cursor = self.connection.execute(
+            f"""
+            SELECT
+                entry_id, lossless_restatement, keywords_json, timestamp, location,
+                persons_json, entities_json, topic, embedding_json
+            FROM {safe_table}
+            """
+        )
+        return cursor.fetchall()
 
     def semantic_search(
         self,
         table_name: str,
         query_vector: List[float],
         top_k: int,
-        embedding_dim: int,
     ) -> List[MemoryEntry]:
-        table = self.get_table(table_name, embedding_dim)
-        if table.count_rows() == 0:
+        if not query_vector:
             return []
 
-        rows = table.search(query_vector).limit(top_k).to_list()
-        return [self._row_to_entry(row) for row in rows]
+        scored: List[Tuple[float, MemoryEntry]] = []
+        for row in self._all_rows(table_name):
+            embedding = _safe_json_loads(row["embedding_json"])
+            vector = [float(value) for value in embedding]
+            score = _cosine_similarity(query_vector, vector)
+            if score <= 0.0:
+                continue
+            scored.append((score, self._row_to_entry(row)))
+
+        scored.sort(key=lambda pair: pair[0], reverse=True)
+        return [entry for _, entry in scored[:top_k]]
 
     def keyword_search(
         self,
         table_name: str,
         keywords: List[str],
         top_k: int,
-        embedding_dim: int,
     ) -> List[MemoryEntry]:
-        table = self.get_table(table_name, embedding_dim)
-        if table.count_rows() == 0 or not keywords:
+        if not keywords:
             return []
 
-        rows = table.to_arrow().to_pylist()
-        scored: List[tuple[int, Dict[str, Any]]] = []
-        normalized = [k.lower() for k in keywords]
+        normalized = [keyword.lower() for keyword in keywords if keyword]
+        if not normalized:
+            return []
 
-        for row in rows:
-            text = str(row.get("lossless_restatement", "")).lower()
-            row_keywords = [str(k).lower() for k in row.get("keywords", [])]
+        scored: List[Tuple[int, MemoryEntry]] = []
+        for row in self._all_rows(table_name):
+            restatement = str(row["lossless_restatement"] or "").lower()
+            row_keywords = [item.lower() for item in _safe_json_loads(row["keywords_json"])]
             score = 0
             for keyword in normalized:
-                if keyword in text:
+                if keyword in restatement:
                     score += 1
                 if keyword in row_keywords:
                     score += 2
             if score > 0:
-                scored.append((score, row))
+                scored.append((score, self._row_to_entry(row)))
 
         scored.sort(key=lambda pair: pair[0], reverse=True)
-        return [self._row_to_entry(row) for _, row in scored[:top_k]]
+        return [entry for _, entry in scored[:top_k]]
 
-    def _row_to_entry(self, row: Dict[str, Any]) -> MemoryEntry:
+    def _row_to_entry(self, row: sqlite3.Row) -> MemoryEntry:
         return MemoryEntry(
-            entry_id=row.get("entry_id", ""),
-            lossless_restatement=row.get("lossless_restatement", ""),
-            keywords=list(row.get("keywords", []) or []),
-            timestamp=row.get("timestamp") or None,
-            location=row.get("location") or None,
-            persons=list(row.get("persons", []) or []),
-            entities=list(row.get("entities", []) or []),
-            topic=row.get("topic") or None,
+            entry_id=str(row["entry_id"] or ""),
+            lossless_restatement=str(row["lossless_restatement"] or ""),
+            keywords=_safe_json_loads(row["keywords_json"]),
+            timestamp=str(row["timestamp"]) if row["timestamp"] else None,
+            location=str(row["location"]) if row["location"] else None,
+            persons=_safe_json_loads(row["persons_json"]),
+            entities=_safe_json_loads(row["entities_json"]),
+            topic=str(row["topic"]) if row["topic"] else None,
         )
 
 
@@ -440,7 +529,6 @@ def handle_store(payload: Dict[str, Any]) -> Dict[str, Any]:
     table_name = str(payload.get("table_name") or os.getenv("SIMPLEMEM_TABLE_NAME") or DEFAULT_TABLE_NAME)
     timestamp = payload.get("timestamp") or datetime.utcnow().isoformat()
     db_path = os.getenv("SIMPLEMEM_DB_PATH") or DEFAULT_DB_PATH
-    embedding_dim = int(os.getenv("SIMPLEMEM_EMBEDDING_DIMENSION") or DEFAULT_EMBEDDING_DIMENSION)
 
     if not content:
         return {"stored_entries": 0}
@@ -449,21 +537,40 @@ def handle_store(payload: Dict[str, Any]) -> Dict[str, Any]:
     store = SimpleMemVectorStore(db_path=db_path)
 
     try:
-        entries = _extract_memory_entries(client, speaker=speaker, content=content, timestamp=timestamp)
-        if not entries:
-            return {"stored_entries": 0}
+        raw_entry = MemoryEntry(
+            entry_id=str(uuid.uuid4()),
+            lossless_restatement=f"{speaker} message: {content}",
+            keywords=_safe_keywords(content),
+            timestamp=timestamp,
+            topic=f"{speaker} message",
+        )
 
-        vectors = client.create_embedding([entry.lossless_restatement for entry in entries])
-        if vectors and len(vectors[0]) > 0:
-            embedding_dim = len(vectors[0])
+        extracted = _extract_memory_entries(client, speaker=speaker, content=content, timestamp=timestamp)
+        entries: List[MemoryEntry] = [raw_entry] + extracted
+
+        # Keep raw entry searchable by keywords even if embeddings fail.
+        vectors: List[List[float]] = [[]]
+
+        if extracted:
+            try:
+                embedding_inputs = [entry.lossless_restatement[:1200] for entry in extracted]
+                vectors.extend(client.create_embedding(embedding_inputs))
+            except Exception:
+                vectors.extend([[] for _ in extracted])
+
+        if len(vectors) < len(entries):
+            vectors.extend([[] for _ in range(len(entries) - len(vectors))])
+        elif len(vectors) > len(entries):
+            vectors = vectors[: len(entries)]
+
         stored = store.add_entries(
             table_name=table_name,
             entries=entries,
             vectors=vectors,
-            embedding_dim=embedding_dim,
         )
         return {"stored_entries": stored}
     finally:
+        store.close()
         client.close()
 
 
@@ -472,7 +579,6 @@ def handle_retrieve(payload: Dict[str, Any]) -> Dict[str, Any]:
     table_name = str(payload.get("table_name") or os.getenv("SIMPLEMEM_TABLE_NAME") or DEFAULT_TABLE_NAME)
     top_k = int(payload.get("top_k") or os.getenv("SIMPLEMEM_TOP_K") or DEFAULT_TOP_K)
     db_path = os.getenv("SIMPLEMEM_DB_PATH") or DEFAULT_DB_PATH
-    embedding_dim = int(os.getenv("SIMPLEMEM_EMBEDDING_DIMENSION") or DEFAULT_EMBEDDING_DIMENSION)
 
     if not query:
         return {"entries": []}
@@ -486,22 +592,18 @@ def handle_retrieve(payload: Dict[str, Any]) -> Dict[str, Any]:
 
         for planned_query in planned_queries:
             vector = client.create_single_embedding(planned_query)
-            if vector:
-                embedding_dim = len(vector)
-                for entry in store.semantic_search(
-                    table_name=table_name,
-                    query_vector=vector,
-                    top_k=top_k,
-                    embedding_dim=embedding_dim,
-                ):
-                    dedup[entry.entry_id] = entry
+            for entry in store.semantic_search(
+                table_name=table_name,
+                query_vector=vector,
+                top_k=top_k,
+            ):
+                dedup[entry.entry_id] = entry
 
             keywords = _safe_keywords(planned_query)
             for entry in store.keyword_search(
                 table_name=table_name,
                 keywords=keywords,
                 top_k=max(3, top_k // 2),
-                embedding_dim=embedding_dim,
             ):
                 dedup[entry.entry_id] = entry
 
@@ -510,6 +612,7 @@ def handle_retrieve(payload: Dict[str, Any]) -> Dict[str, Any]:
             "entries": [asdict(entry) for entry in entries],
         }
     finally:
+        store.close()
         client.close()
 
 
@@ -544,4 +647,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

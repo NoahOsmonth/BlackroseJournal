@@ -10,6 +10,7 @@ export interface ChatCompletionRequest {
   messages: ChatMessage[];
   stream?: boolean;
   temperature?: number;
+  max_context?: number;
   max_tokens?: number;
   conversationId?: string;
   metadata?: Record<string, unknown>;

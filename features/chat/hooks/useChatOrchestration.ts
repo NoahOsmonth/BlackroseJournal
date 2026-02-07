@@ -45,7 +45,7 @@ export interface UseChatOrchestrationOptions {
     mode?: ChatMode;
     /** Prompt period when in dailyCheckIn mode */
     promptPeriod?: PromptPeriod;
-    /** Stable conversation identifier for Supermemory ingestion */
+    /** Stable conversation identifier for backend long-term memory */
     conversationId?: string;
     /** Optional custom initial prompt for non-daily check-ins */
     initialPrompt?: { systemPrompt: string; triggerText: string };

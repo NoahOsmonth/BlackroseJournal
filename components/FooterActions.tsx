@@ -34,7 +34,7 @@ export function FooterActions({
           accessibilityLabel="Go deeper"
         >
           <View className="flex-row items-center justify-center gap-2">
-            <MaterialIcons name="south" size={18} className="text-surface-light" />
+            <MaterialIcons name="south" size={18} color="#FFFFFF" />
             <Text className="font-bold text-[15px] text-surface-light">Go deeper</Text>
           </View>
         </Pressable>

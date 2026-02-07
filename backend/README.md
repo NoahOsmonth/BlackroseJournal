@@ -1,6 +1,7 @@
 # JournalApp Backend Agent
 
-This backend hosts the MCP-aware chat agent (Node/Express). Railway should deploy **only** this folder.
+This backend hosts the chat agent (Node/Express) with SimpleMem-based long-term memory.
+Railway should deploy **only** this folder.
 
 ## Setup
 
@@ -22,34 +23,20 @@ Create `.env` in `backend/` (Railway vars map 1:1):
 - `NANO_GPT_API_KEY=`
 - `NANO_GPT_API_BASE_URL=https://nano-gpt.com/api/v1`
 - `NANO_GPT_MODEL=moonshotai/kimi-k2.5:thinking`
-- `NANO_GPT_FLASH_MODEL=zai-org/glm-4.7-flash-original`
+- `NANO_GPT_FLASH_MODEL=moonshotai/kimi-k2.5`
 
-### MCP (Supermemory)
-- `MCP_SUPERMEMORY_URL=https://mcp.supermemory.ai/mcp`
-- `MCP_SUPERMEMORY_API_KEY=`
-- `MCP_SUPERMEMORY_PROJECT=` (optional, sent as `x-sm-project`)
-- `MCP_DEFAULT_MEMORY_SERVER_ID=supermemory`
-- `MCP_ALLOWLIST=supermemory`
-> Supermemory MCP is enabled when `MCP_SUPERMEMORY_API_KEY` (or an explicit `MCP_SUPERMEMORY_URL`) is set.
+### SimpleMem Long-Term Memory
+- `SIMPLEMEM_ENABLED=true`
+- `SIMPLEMEM_TABLE_NAME=journal_global_memory`
+- `SIMPLEMEM_DB_PATH=./data/simplemem`
+- `SIMPLEMEM_TOP_K=12`
+- `SIMPLEMEM_EMBEDDING_MODEL=openai/text-embedding-3-small`
+- `OPENROUTER_EMBEDDING_API_KEY=`
+- `OPENROUTER_EMBEDDING_BASE_URL=https://openrouter.ai/api/v1`
 
-### MCP (Advanced)
-Provide additional servers as JSON:
-
-```json
-[
-  {
-    "id": "local-files",
-    "name": "Local Files",
-    "transport": "stdio",
-    "command": "npx",
-    "args": ["-y", "@modelcontextprotocol/server-filesystem"],
-    "env": { "FILESYSTEM_ROOT": "/data" }
-  }
-]
-```
-
-Set:
-- `MCP_SERVERS_JSON=[...]`
+The memory bridge uses:
+- NanoGPT (`NANO_GPT_*`) for memory extraction/planning calls.
+- OpenRouter embeddings for vector indexing/retrieval.
 
 ## Scripts
 

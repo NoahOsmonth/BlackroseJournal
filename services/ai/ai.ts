@@ -6,7 +6,8 @@ import { useCallback, useRef } from 'react';
 import { getAiConfig } from './aiConfig';
 
 const DEFAULT_TEMPERATURE = 1.0;
-const DEFAULT_MAX_TOKENS = 8192;
+const DEFAULT_MAX_CONTEXT = 100000;
+const DEFAULT_MAX_TOKENS = 32768;
 const DEFAULT_AGENT_MODEL = 'agent-default';
 
 type ChatRole = 'system' | 'user' | 'assistant';
@@ -21,6 +22,7 @@ interface ChatRequestPayload {
     messages: ChatRequestMessage[];
     stream: boolean;
     temperature: number;
+    max_context: number;
     max_tokens: number;
     conversationId?: string;
 }
@@ -207,7 +209,7 @@ Rules:
                     { role: 'system', content: system },
                     { role: 'user', content: `Entries:\n${combinedText}` },
                 ],
-                { temperature: 0.5, maxTokens: 1000, model: flashModel }
+                { temperature: 0.7, maxTokens: 1000, model: flashModel }
             );
 
             const jsonText = extractFirstJsonObject(raw) ?? raw;
@@ -264,7 +266,7 @@ Rules:
             { role: 'system', content: system },
             { role: 'user', content: `Entry:\n${input.entryText}` },
         ],
-        { temperature: 0.8, maxTokens: 900, model: flashModel }
+        { temperature: 0.7, maxTokens: 900, model: flashModel }
     );
 
     const jsonText = extractFirstJsonObject(raw) ?? raw;
@@ -338,7 +340,7 @@ Rules:
                 content: `Streak: ${input.streakCount} day(s)\nEntry:\n${input.entryText}`,
             },
         ],
-        { temperature: 0.9, maxTokens: 200, model: flashModel }
+        { temperature: 0.7, maxTokens: 200, model: flashModel }
     );
 
     const jsonText = extractFirstJsonObject(raw) ?? raw;
@@ -388,6 +390,7 @@ function buildChatPayload(
         ],
         stream,
         temperature: DEFAULT_TEMPERATURE,
+        max_context: DEFAULT_MAX_CONTEXT,
         max_tokens: DEFAULT_MAX_TOKENS,
         conversationId,
     };
@@ -653,14 +656,168 @@ function hasXmlHttpRequest(): boolean {
         && typeof globalThis.XMLHttpRequest === 'function';
 }
 
+function hasWebSocket(): boolean {
+    return typeof globalThis !== 'undefined'
+        && typeof globalThis.WebSocket === 'function';
+}
+
+function shouldPreferWebSocketStreaming(): boolean {
+    const envPreference = typeof process !== 'undefined'
+        ? (process.env.EXPO_PUBLIC_AGENT_STREAMING_TRANSPORT || process.env.AGENT_STREAMING_TRANSPORT)
+        : undefined;
+
+    return envPreference === 'ws';
+}
+
 function buildAgentUrl(path: string): string {
     const { apiBaseUrl } = getAgentConfig();
     const baseUrl = apiBaseUrl.endsWith('/') ? apiBaseUrl.slice(0, -1) : apiBaseUrl;
     return `${baseUrl}${path}`;
 }
 
+function buildAgentWsUrl(path: string, token?: string): string {
+    const { apiBaseUrl } = getAgentConfig();
+    const baseUrl = apiBaseUrl.endsWith('/') ? apiBaseUrl.slice(0, -1) : apiBaseUrl;
+
+    const wsBaseUrl = baseUrl.startsWith('wss://') || baseUrl.startsWith('ws://')
+        ? baseUrl
+        : (baseUrl.startsWith('https://')
+            ? `wss://${baseUrl.slice('https://'.length)}`
+            : (baseUrl.startsWith('http://')
+                ? `ws://${baseUrl.slice('http://'.length)}`
+                : baseUrl));
+
+    const url = new URL(`${wsBaseUrl}${path}`);
+    if (token) {
+        url.searchParams.set('token', token);
+    }
+    return url.toString();
+}
+
 function isOkStatus(status: number): boolean {
     return status >= 200 && status < 300;
+}
+
+async function streamChatWithWebSocket(
+    payload: ChatRequestPayload,
+    onChunk: StreamingCallback,
+    onComplete: CompleteCallback
+): Promise<boolean> {
+    if (!shouldPreferWebSocketStreaming() || !hasWebSocket()) {
+        return false;
+    }
+
+    const { apiKey } = getAgentConfig();
+    const url = buildAgentWsUrl('/v1/chat/ws', apiKey);
+
+    return new Promise((resolve, reject) => {
+        const ws = new globalThis.WebSocket(url);
+        const accumulator: Accumulator = { content: '', reasoning: '' };
+        let settled = false;
+
+        const settle = (callback: () => void) => {
+            if (settled) {
+                return;
+            }
+
+            settled = true;
+            callback();
+        };
+
+        const timeoutId = setTimeout(() => {
+            settle(() => {
+                try {
+                    ws.close();
+                } catch {
+                    // ignore
+                }
+                reject(new Error('AI request timed out while establishing WebSocket streaming.'));
+            });
+        }, 10_000);
+
+        const clearTimer = () => clearTimeout(timeoutId);
+
+        ws.onopen = () => {
+            try {
+                ws.send(JSON.stringify(payload));
+            } catch (error) {
+                clearTimer();
+                settle(() => reject(error instanceof Error ? error : new Error('Failed to send WebSocket payload.')));
+            }
+        };
+
+        ws.onmessage = (event) => {
+            const raw = typeof event.data === 'string' ? event.data : String(event.data ?? '');
+            if (!raw) {
+                return;
+            }
+
+            let parsed: unknown;
+            try {
+                parsed = JSON.parse(raw);
+            } catch {
+                return;
+            }
+
+            const message = parsed as { type?: string; content?: unknown; reasoning?: unknown; message?: unknown };
+
+            if (message.type === 'delta') {
+                clearTimer();
+                appendChunk(
+                    accumulator,
+                    {
+                        content: typeof message.content === 'string' ? message.content : undefined,
+                        reasoning: typeof message.reasoning === 'string' ? message.reasoning : undefined,
+                    },
+                    onChunk
+                );
+                return;
+            }
+
+            if (message.type === 'done') {
+                clearTimer();
+                settle(() => {
+                    onComplete(accumulator.content, accumulator.reasoning);
+                    resolve(true);
+                });
+                try {
+                    ws.close();
+                } catch {
+                    // ignore
+                }
+                return;
+            }
+
+            if (message.type === 'error') {
+                clearTimer();
+                settle(() => reject(new Error(
+                    typeof message.message === 'string' ? message.message : 'WebSocket streaming error.'
+                )));
+                try {
+                    ws.close();
+                } catch {
+                    // ignore
+                }
+            }
+        };
+
+        ws.onerror = () => {
+            clearTimer();
+            settle(() => reject(new Error('AI request failed using WebSocket streaming fallback.')));
+        };
+
+        ws.onclose = () => {
+            clearTimer();
+            if (settled) {
+                return;
+            }
+
+            settle(() => {
+                onComplete(accumulator.content, accumulator.reasoning);
+                resolve(true);
+            });
+        };
+    });
 }
 
 async function streamChatWithXhr(
@@ -726,6 +883,14 @@ async function streamChatWithXhr(
         if (apiKey) {
             xhr.setRequestHeader('Authorization', `Bearer ${apiKey}`);
         }
+
+        // Some React Native environments don't reliably fire `onprogress` for streaming responses,
+        // but do advance readyState (3 = LOADING) while data arrives. Listen to both.
+        xhr.onreadystatechange = () => {
+            if (xhr.readyState === 3 || xhr.readyState === 4) {
+                processIncoming();
+            }
+        };
 
         xhr.onprogress = () => {
             processIncoming();
@@ -793,6 +958,19 @@ export async function streamChat(
             true,
             resolved.conversationId
         );
+
+        const usedWebSocketStreaming = await streamChatWithWebSocket(
+            streamPayload,
+            onChunk,
+            onComplete
+        ).catch((error) => {
+            console.warn('WebSocket streaming fallback failed:', error);
+            return false;
+        });
+
+        if (usedWebSocketStreaming) {
+            return;
+        }
 
         const usedXhrStreaming = await streamChatWithXhr(
             streamPayload,

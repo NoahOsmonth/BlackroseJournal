@@ -7,6 +7,7 @@ import { CastOfCharacters } from '@/components/insights/CastOfCharacters';
 import { EmotionalLandscapeChart } from '@/components/insights/EmotionalLandscapeChart';
 import { KeyThemes } from '@/components/insights/KeyThemes';
 import { BottomNav } from '@/components/journal';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useThemeSettings } from '@/hooks/useThemeSettings';
 import { useWeeklyInsights } from '@/hooks/useWeeklyInsights';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -15,11 +16,11 @@ import React from 'react';
 import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const Header = ({ dateRange }: { dateRange: string }) => (
+const Header = ({ dateRange, iconColor }: { dateRange: string; iconColor: string }) => (
   <View className="mb-6">
     <View className="bg-surface-light dark:bg-surface-dark rounded-xl p-3 flex-row items-center justify-between shadow-sm border border-gray-100 dark:border-gray-800">
       <TouchableOpacity className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
-        <MaterialIcons name="chevron-left" size={24} className="text-text-secondary-light dark:text-text-secondary-dark" />
+        <MaterialIcons name="chevron-left" size={24} color={iconColor} />
       </TouchableOpacity>
       <View className="items-center">
         <Text className="text-base font-semibold text-text-primary-light dark:text-text-primary-dark">This week</Text>
@@ -30,14 +31,22 @@ const Header = ({ dateRange }: { dateRange: string }) => (
   </View>
 );
 
-const WeeklyReportCard = ({ isLocked, entriesNeeded }: { isLocked: boolean; entriesNeeded: number }) => (
+const WeeklyReportCard = ({
+  isLocked,
+  entriesNeeded,
+  iconColor,
+}: {
+  isLocked: boolean;
+  entriesNeeded: number;
+  iconColor: string;
+}) => (
   <View className="mb-6">
     <View className="items-center justify-center mb-3">
       <Text className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide">Weekly Report</Text>
     </View>
     <View className="bg-surface-light dark:bg-surface-dark rounded-2xl p-8 items-center justify-center shadow-sm border border-gray-100 dark:border-gray-800 min-h-[180px]">
       <View className="flex-row items-center gap-2 mb-3">
-        <MaterialIcons name="lock" size={20} className="text-text-primary-light dark:text-text-primary-dark" />
+        <MaterialIcons name="lock" size={20} color={iconColor} />
         <Text className="text-text-primary-light dark:text-text-primary-dark font-semibold">Unlocks Saturday</Text>
       </View>
       <Text className="text-sm text-text-secondary-light dark:text-text-secondary-dark mb-4 text-center max-w-[250px]">
@@ -142,6 +151,10 @@ const WritingStatsCard = ({
 
 export default function InsightsScreen() {
   const router = useRouter();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const iconSecondary = isDark ? '#9CA3AF' : '#6B7280';
+  const iconPrimary = isDark ? '#F9FAFB' : '#111827';
   const { insights, weeklyStats, weekDateRange, isLoading } = useWeeklyInsights();
   const { emojiStyle } = useThemeSettings();
 
@@ -159,14 +172,18 @@ export default function InsightsScreen() {
     <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
       <View className="flex-1 max-w-md mx-auto w-full">
         <View className="px-4 pt-6 flex-1">
-          <Header dateRange={weekDateRange} />
+          <Header dateRange={weekDateRange} iconColor={iconSecondary} />
           
           <ScrollView 
             className="flex-1"
             contentContainerStyle={{ paddingBottom: 100 }}
             showsVerticalScrollIndicator={false}
           >
-            <WeeklyReportCard isLocked={false} entriesNeeded={Math.max(0, 5 - weeklyStats.entriesCount)} />
+            <WeeklyReportCard
+              isLocked={false}
+              entriesNeeded={Math.max(0, 5 - weeklyStats.entriesCount)}
+              iconColor={iconPrimary}
+            />
             
             <WritingStatsCard 
               words={weeklyStats.totalWords} 
@@ -181,7 +198,9 @@ export default function InsightsScreen() {
                 {isLoading ? (
                     <View className="bg-surface-light dark:bg-surface-dark rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-800 mb-4 h-40 items-center justify-center">
                         <ActivityIndicator size="small" />
-                        <Text className="text-xs text-text-secondary-light mt-2">Analyzing journal...</Text>
+                        <Text className="text-xs text-text-secondary-light dark:text-text-secondary-dark mt-2">
+                          Analyzing journal...
+                        </Text>
                     </View>
                 ) : (
                     <>

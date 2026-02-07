@@ -1,7 +1,7 @@
 [build]
 builder = "NIXPACKS"
 rootDirectory = "backend"
-buildCommand = "npm ci && npm run build"
+buildCommand = "pip3 install --break-system-packages -r requirements-simplemem.txt && npm run build"
 
 [deploy]
 startCommand = "npm start"

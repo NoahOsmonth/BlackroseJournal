@@ -307,3 +307,116 @@
   - Verified:
     - `npx jest --runInBand __tests__/ai-service.test.ts __tests__/askRosebud-service.test.ts __tests__/backend-modelClient-stream.test.ts`
     - `cd backend; npx tsc --noEmit`
+- **2026-02-06**: Added SimpleMem-style long-term memory bridge (NanoGPT + OpenRouter embeddings):
+  - Added Python bridge script `backend/scripts/simplemem_bridge.py` for memory extraction, storage, and retrieval.
+  - Memory extraction/planning uses NanoGPT (`NANO_GPT_*` env), embeddings use OpenRouter (`OPENROUTER_EMBEDDING_API_KEY`) with `openai/text-embedding-3-small` by default.
+  - Added backend config/service wiring:
+    - `backend/src/config/simpleMemConfig.ts`
+    - `backend/src/agent/simpleMemService.ts`
+  - Chat and Ask Rosebud now retrieve long-term memory context and store fresh messages:
+    - `backend/src/agent/agentService.ts`
+    - `backend/src/agent/askRosebudService.ts`
+    - `backend/src/agent/systemPrompt.ts`
+  - Deployment/build updates:
+    - Added Python deps file: `backend/requirements-simplemem.txt`
+    - Updated Railway build command in `backend/railway.toml` to install Python deps before TypeScript build.
+    - Updated `backend/.env.example` and `backend/README.md` to document new SimpleMem variables.
+  - Tests added/updated:
+    - `__tests__/simpleMem-config.test.ts`
+    - `__tests__/backend-systemPrompt.test.ts`
+    - Existing streaming/ask-rosebud tests remain passing.
+  - Verified:
+    - `npx jest --runInBand __tests__/ai-service.test.ts __tests__/askRosebud-service.test.ts __tests__/backend-modelClient-stream.test.ts __tests__/backend-systemPrompt.test.ts __tests__/simpleMem-config.test.ts`
+    - `cd backend; npx tsc --noEmit`
+- **2026-02-06**: Railway deploy fix for SimpleMem dependencies + live SSE verification:
+  - **Root cause**: Nixpacks Python environment is PEP-668 externally managed; direct `pip` install without override failed during build.
+  - Updated deploy build commands to use:
+    - `pip3 install --break-system-packages -r requirements-simplemem.txt && npm run build`
+  - Files updated:
+    - `backend/railway.toml`
+    - `railway.toml`
+  - Railway environment cleanup:
+    - Removed legacy `MCP_SUPERMEMORY_API_KEY` from backend service variables.
+  - Deployment:
+    - `railway up` succeeded for deployment `4e5abd1d-3868-4a8d-b7cb-ce2f37eb4c3f`.
+  - Live checks:
+    - `GET /health` returned `{"status":"ok"}`.
+    - `POST /v1/chat/completions` with `stream: true` returned tokenized SSE chunks and `[DONE]`.
+  - Verified locally:
+    - `npm test -- --runInBand __tests__/ai-service.test.ts __tests__/askRosebud-service.test.ts __tests__/backend-modelClient-stream.test.ts __tests__/backend-systemPrompt.test.ts __tests__/simpleMem-config.test.ts`
+    - `cd backend; npx tsc --noEmit`
+- **2026-02-06**: Mobile live-stream rendering fix in chat UI:
+  - **Root cause**: `components/ChatMessage.tsx` reset displayed text to `''` whenever `isStreaming=true`, so users only saw typing dots until completion.
+  - **Fix**: keep `displayedText` synchronized with incoming `text` during streaming, allowing chunk-by-chunk rendering.
+  - **Improvement**: show inline streamed `reasoning` when the model sends only thinking tokens before final content (prevents “no streaming” UX for thinking models).
+  - Added regression test:
+    - `__tests__/ChatMessage.test.tsx` verifies typing indicator before first chunk and visible text once streamed chunks arrive.
+  - Verified:
+    - `npm test -- --runInBand __tests__/ChatMessage.test.tsx __tests__/ai-service.test.ts __tests__/backend-modelClient-stream.test.ts`
+  - Note:
+    - `npm run typecheck` currently reports pre-existing unrelated TS errors in
+      `app/intentions/chat.tsx`, `app/persona/[id].tsx`, `components/parallax-scroll-view.tsx`,
+      and `utils/dev/rawTextGuard.ts`.
+- **2026-02-06**: Kimi-only model configuration (removed GLM):
+  - Updated AI defaults to Kimi variants only:
+    - Chat/default model: `moonshotai/kimi-k2.5:thinking`
+    - Secondary/flash model: `moonshotai/kimi-k2.5`
+  - Updated files:
+    - `services/ai/aiConfig.ts`
+    - `backend/src/config/aiConfig.ts`
+    - `app/persona/advanced.tsx` (removed GLM + Agent Default options from picker)
+    - `.env`, `.env.example`, `backend/.env`, `backend/.env.example`, `backend/README.md`
+  - Added test:
+    - `__tests__/model-config.test.ts` validates app/backend defaults and Kimi-only persona model list.
+  - Verified:
+    - `npm test -- --runInBand __tests__/model-config.test.ts __tests__/ai-service.test.ts __tests__/backend-modelClient-stream.test.ts`
+    - `cd backend; npx tsc --noEmit`
+  - Railway:
+    - Updated production vars `NANO_GPT_MODEL` and `NANO_GPT_FLASH_MODEL`.
+    - Deployment `afc3ba05-c3e0-4fd1-a9ab-cf97edf8cdcc` reached `SUCCESS`.
+    - `GET /health` returned `{"status":"ok"}`.
+
+- **2026-02-06**: Streaming memory persistence + mobile streaming hardening + Supermemory removal:
+  - Persist assistant responses for **streaming** chat by cloning the upstream SSE response and storing the final assistant content into SimpleMem:
+    - `backend/src/agent/agentService.ts`
+    - Added regression: `__tests__/backend-stream-memory.test.ts`
+  - Reduced SSE buffering risk on streaming route:
+    - Added `X-Accel-Buffering: no`, per-chunk flush, and initial SSE comment `:\n\n` in `backend/src/routes/chatRoutes.ts`
+  - Mobile progressive streaming reliability:
+    - Added `XMLHttpRequest.onreadystatechange` parsing (in addition to `onprogress`) in `services/ai/ai.ts`
+    - Updated tests: `__tests__/ai-service.test.ts`
+  - Secret-safety for long-term memory:
+    - Redact common secret-key patterns before storing messages in SimpleMem (`backend/src/agent/redactSecrets.ts`)
+    - Added test: `__tests__/backend-redactSecrets.test.ts`
+  - Fully removed legacy Supermemory/MCP codepaths (SimpleMem-only memory now):
+    - Deleted app Supermemory proxy/service files and backend MCP registry/config modules
+    - Updated `.env.example` to remove Supermemory variables
+  - UI contrast cleanup:
+    - Fixed Insights icons to use `color` props (MaterialIcons do not support `className`) and added missing dark text color for loading label:
+      - `app/(tabs)/insights.tsx`
+    - Fixed remaining MaterialIcons `className` usage:
+      - `components/FooterActions.tsx`
+      - `components/personas/PersonaSettingsSheet.tsx`
+      - `components/Header.tsx`
+    - Added static guard: `__tests__/dark-mode-contrast.test.ts` now fails if `MaterialIcons` are given `className`
+  - Verified:
+    - `npm test`
+    - `cd backend; npx tsc --noEmit`
+    - `railway up` (backend)
+- **2026-02-07**: AI token + temperature defaults update:
+  - Chat requests now default to `temperature=1`, `max_context=100000`, `max_tokens=32768` (app -> backend -> upstream).
+  - Non-chat AI helpers standardized to `temperature=0.7`.
+  - Files updated:
+    - `services/ai/ai.ts`
+    - `backend/src/agent/types.ts`
+    - `backend/src/routes/chatRoutes.ts`
+    - `backend/src/ws/chatWebSocket.ts`
+    - `backend/src/agent/agentService.ts`
+    - `backend/src/agent/modelClient.ts`
+  - Tests:
+    - Added: `__tests__/ai-defaults.test.ts`
+    - Updated: `__tests__/backend-modelClient-stream.test.ts`
+  - Verified:
+    - `npm test`
+  - Note:
+    - `npm run typecheck` still reports the pre-existing TS errors listed in the 2026-02-06 update.

@@ -17,13 +17,16 @@ A React Native/Expo chat journal application with AI integration.
    - `NANO_GPT_API_KEY` (required)
    - `NANO_GPT_API_BASE_URL` (optional)
    - `NANO_GPT_MODEL` (optional)
-   - `SUPERMEMORY_API_KEY` (required for memory features)
-   - `SUPERMEMORY_BASE_URL` (optional)
+   - `EXPO_PUBLIC_AGENT_BASE_URL` (required for chat, points to the backend agent)
+
+   For long-term memory (SimpleMem), configure the backend via `backend/.env` (see `backend/.env.example`):
+   - `OPENROUTER_EMBEDDING_API_KEY` (required for embeddings)
+   - `SIMPLEMEM_ENABLED=true`
 
 3. Start the app
 
    ```bash
-   npx expo start
+   npm run start
    ```
 
 In the output, you'll find options to open the app in a:

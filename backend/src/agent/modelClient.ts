@@ -3,6 +3,7 @@ import { ChatMessage } from './types';
 
 export interface ChatCompletionOptions {
   temperature?: number;
+  maxContext?: number;
   maxTokens?: number;
   model?: string;
 }
@@ -12,6 +13,7 @@ interface ChatCompletionPayload {
   messages: ChatMessage[];
   stream: boolean;
   temperature: number;
+  max_context: number;
   max_tokens: number;
 }
 
@@ -71,7 +73,8 @@ async function requestChatCompletion(
     messages,
     stream,
     temperature: options.temperature ?? 0.7,
-    max_tokens: options.maxTokens ?? 2048,
+    max_context: options.maxContext ?? 100000,
+    max_tokens: options.maxTokens ?? 32768,
   };
 
   const headers: Record<string, string> = {

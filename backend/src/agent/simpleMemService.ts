@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import { getSimpleMemConfig } from '../config/simpleMemConfig';
+import { redactSecrets } from './redactSecrets';
 
 interface BridgeMemoryEntry {
   lossless_restatement: string;
@@ -119,14 +120,30 @@ function formatMemoryContext(entries: BridgeMemoryEntry[]): string {
   return `## Long-Term Memory Context\n${lines.join('\n')}`;
 }
 
+function buildRetrieveQuery(query: string): string {
+  const trimmed = query.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  // First message of a new chat is often short ("hi") or a trigger token ("[Start ...]").
+  // Seed retrieval with a stable "user profile" query so we still pull long-term context.
+  if (trimmed.length < 12 || trimmed.startsWith('[Start')) {
+    return `User profile, identity, goals, preferences.\n\nCurrent message: ${trimmed}`;
+  }
+
+  return trimmed;
+}
+
 export async function retrieveLongTermMemoryContext(query: string): Promise<string> {
-  if (!ensureSimpleMemEnabled() || !query.trim()) {
+  const retrieveQuery = buildRetrieveQuery(query);
+  if (!ensureSimpleMemEnabled() || !retrieveQuery) {
     return '';
   }
 
   const config = getSimpleMemConfig();
   const payload: RetrievePayload = {
-    query: query.trim(),
+    query: retrieveQuery,
     top_k: config.topK,
     table_name: config.tableName,
   };
@@ -151,7 +168,7 @@ export async function storeMessageInLongTermMemory(
     return;
   }
 
-  const trimmed = content.trim();
+  const trimmed = redactSecrets(content).trim();
   if (!trimmed) {
     return;
   }
@@ -170,4 +187,3 @@ export async function storeMessageInLongTermMemory(
     console.warn('SimpleMem store failed:', error);
   }
 }
-

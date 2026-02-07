@@ -21,6 +21,7 @@ function parseChatRequest(body: unknown): ChatCompletionRequest | null {
     model: payload.model,
     stream: Boolean(payload.stream),
     temperature: payload.temperature,
+    max_context: payload.max_context,
     max_tokens: payload.max_tokens,
     conversationId: payload.conversationId,
     metadata: payload.metadata,
@@ -29,6 +30,12 @@ function parseChatRequest(body: unknown): ChatCompletionRequest | null {
 
 function writeSse(res: Response, data: string): void {
   res.write(`data: ${data}\n\n`);
+}
+
+function flushResponse(res: Response): void {
+  // Some reverse proxies (and some Express stacks with compression) buffer small chunks.
+  // `res.flush()` exists when compression middleware is enabled; optional chain keeps this safe.
+  (res as unknown as { flush?: () => void }).flush?.();
 }
 
 async function pipeReadableStreamToResponse(
@@ -45,6 +52,7 @@ async function pipeReadableStreamToResponse(
 
     if (value) {
       res.write(Buffer.from(value));
+      flushResponse(res);
     }
   }
 }
@@ -69,7 +77,13 @@ export function registerChatRoutes(app: Application): void {
         res.setHeader('Content-Type', 'text/event-stream');
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
+        // Hint to common proxies not to buffer SSE.
+        res.setHeader('X-Accel-Buffering', 'no');
         res.flushHeaders?.();
+
+        // Send an initial SSE comment to encourage early flush on some stacks.
+        res.write(':\n\n');
+        flushResponse(res);
 
         if (upstream.body) {
           await pipeReadableStreamToResponse(upstream.body, res);

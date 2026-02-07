@@ -7,7 +7,7 @@ export interface AiConfig {
 
 const DEFAULT_API_BASE_URL = 'https://nano-gpt.com/api/v1';
 const DEFAULT_MODEL = 'moonshotai/kimi-k2.5:thinking';
-const DEFAULT_FLASH_MODEL = 'zai-org/glm-4.7-flash-original';
+const DEFAULT_FLASH_MODEL = 'moonshotai/kimi-k2.5';
 
 function readEnv(key: string): string | undefined {
   return process.env[key];
