@@ -7,6 +7,7 @@ import { createAuthMiddleware } from './routes/auth';
 import { registerChatRoutes } from './routes/chatRoutes';
 import { registerAskRosebudRoutes } from './routes/askRosebudRoutes';
 import { registerHealthRoutes } from './routes/healthRoutes';
+import { registerInsightsRoutes } from './routes/insightsRoutes';
 import { registerChatWebSocket } from './ws/chatWebSocket';
 
 const config = getServerConfig();
@@ -26,6 +27,7 @@ app.use('/v1', auth);
 
 registerChatRoutes(app);
 registerAskRosebudRoutes(app);
+registerInsightsRoutes(app);
 
 const server = http.createServer(app);
 registerChatWebSocket(server, { expectedApiKey: config.agentApiKey });

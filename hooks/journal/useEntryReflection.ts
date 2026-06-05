@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { generateEntryReflection, type EntryReflectionResult } from '@/services/ai/ai';
+import { generateEntryReflection } from '@/services/ai/insights';
+import type { EntryReflectionResult } from '@/services/ai/insightsTypes';
 import { getEntry } from '@/services/journal/journalStorage';
 import type { JournalEntry } from '@/services/journal/journalStorage.types';
 

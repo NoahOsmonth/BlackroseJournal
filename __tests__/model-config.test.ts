@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
 import { getAiConfig as getBackendAiConfig } from '../backend/src/config/aiConfig';
-import { getAiConfig as getAppAiConfig } from '../services/ai/aiConfig';
 
 jest.mock('expo-constants', () => ({
     manifest: { extra: {} },
@@ -25,12 +24,8 @@ describe('Kimi-only model configuration', () => {
         process.env = originalEnv;
     });
 
-    it('uses Kimi defaults for app and backend AI configs', () => {
-        const appConfig = getAppAiConfig();
+    it('uses Kimi defaults for the backend AI config (frontend has no LLM config post-PR6)', () => {
         const backendConfig = getBackendAiConfig();
-
-        expect(appConfig.model).toBe('moonshotai/kimi-k2.5:thinking');
-        expect(appConfig.flashModel).toBe('moonshotai/kimi-k2.5');
         expect(backendConfig.model).toBe('moonshotai/kimi-k2.5:thinking');
         expect(backendConfig.flashModel).toBe('moonshotai/kimi-k2.5');
     });
@@ -45,3 +40,4 @@ describe('Kimi-only model configuration', () => {
         expect(advancedContent).not.toContain("'agent-default'");
     });
 });
+

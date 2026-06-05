@@ -1,5 +1,6 @@
 import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
-import { generateWeeklyInsights, WeeklyInsightsResult } from '@/services/ai/ai';
+import { generateWeeklyInsights } from '@/services/ai/insights';
+import type { WeeklyInsightsResult } from '@/services/ai/insightsTypes';
 import {
     getCurrentWeekKey,
     loadCachedInsights,

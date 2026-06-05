@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { generateStreakHaiku } from '@/services/ai/ai';
+import { generateStreakHaiku } from '@/services/ai/insights';
 import type { JournalEntry } from '@/services/journal/journalStorage.types';
 import { calculateCurrentStreak } from '@/utils/streak';
 

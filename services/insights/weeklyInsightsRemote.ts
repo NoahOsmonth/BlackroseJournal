@@ -1,4 +1,4 @@
-import { WeeklyInsightsResult } from '@/services/ai/ai';
+import type { WeeklyInsightsResult } from '@/services/ai/insightsTypes';
 import { getSupabaseUserId, ensureSupabaseSession } from '@/services/supabase/supabaseClient';
 import { enqueueSyncTask } from '@/services/supabase/syncQueue';
 import { logSupabaseError } from '@/services/supabase/supabaseErrors';

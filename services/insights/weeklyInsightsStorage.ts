@@ -3,7 +3,7 @@
  * Handles persistence of AI-generated weekly insights with week-based caching
  */
 
-import { WeeklyInsightsResult } from '@/services/ai/ai';
+import type { WeeklyInsightsResult } from '@/services/ai/insightsTypes';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
     deleteRemoteWeeklyInsights,
