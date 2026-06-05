@@ -3,6 +3,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { isRemoteDataSyncEnabled } from '@/services/data/dataProvider';
 import { Persona, PersonaCreateInput, PersonaUpdateInput } from './personasStorage.types';
 import {
     fetchRemotePersonas,
@@ -13,9 +14,24 @@ import {
 } from './personasRemote';
 
 const PERSONAS_KEY = '@personas';
+export const DEFAULT_PERSONA_ID = 'persona_default_rosebud';
 let hasPulledRemote = false;
 let hasPushedLocal = false;
 let syncPromise: Promise<void> | null = null;
+
+const DEFAULT_PERSONA = {
+    id: DEFAULT_PERSONA_ID,
+    name: 'Rosebud',
+    tagline: 'Balanced and thoughtful',
+    voice: 'Onyx',
+    prompt: 'Respond as Rosebud, a balanced and thoughtful journaling companion.',
+    model: 'moonshotai/kimi-k2.5:thinking',
+    imagination: 25,
+    avatarKey: 'persona-default',
+    isActive: true,
+    createdAt: 0,
+    updatedAt: 0,
+} satisfies Persona;
 
 function generateId(): string {
     return `persona_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -30,7 +46,28 @@ async function savePersonasMap(map: Record<string, Persona>): Promise<void> {
     await AsyncStorage.setItem(PERSONAS_KEY, JSON.stringify(map));
 }
 
+function buildDefaultPersonasMap(): Record<string, Persona> {
+    return {
+        [DEFAULT_PERSONA_ID]: { ...DEFAULT_PERSONA },
+    };
+}
+
+async function loadOrSeedPersonasMap(): Promise<Record<string, Persona>> {
+    const map = await loadPersonasMap();
+    if (Object.keys(map).length > 0) {
+        return map;
+    }
+
+    const seeded = buildDefaultPersonasMap();
+    await savePersonasMap(seeded);
+    return seeded;
+}
+
 async function syncFromRemoteIfNeeded(): Promise<void> {
+    if (!isRemoteDataSyncEnabled()) {
+        return;
+    }
+
     if (syncPromise) {
         return syncPromise;
     }
@@ -69,19 +106,19 @@ async function syncFromRemoteIfNeeded(): Promise<void> {
 
 export async function listPersonas(): Promise<Persona[]> {
     await syncFromRemoteIfNeeded();
-    const map = await loadPersonasMap();
+    const map = await loadOrSeedPersonasMap();
     return Object.values(map).sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 export async function getPersona(id: string): Promise<Persona | null> {
     await syncFromRemoteIfNeeded();
-    const map = await loadPersonasMap();
+    const map = await loadOrSeedPersonasMap();
     return map[id] ?? null;
 }
 
 export async function createPersona(input: PersonaCreateInput): Promise<Persona> {
     const now = Date.now();
-    const personas = await loadPersonasMap();
+    const personas = await loadOrSeedPersonasMap();
     const hasActive = Object.values(personas).some((p) => p.isActive);
 
     const persona: Persona = {
@@ -147,7 +184,7 @@ export async function updatePersona(
 }
 
 async function setActivePersona(id: string, map?: Record<string, Persona>): Promise<void> {
-    const personas = map ?? (await loadPersonasMap());
+    const personas = map ?? (await loadOrSeedPersonasMap());
 
     Object.values(personas).forEach((persona) => {
         persona.isActive = persona.id === id;

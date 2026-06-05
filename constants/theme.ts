@@ -25,6 +25,20 @@ export const TintColors = {
   dark: '#FFB340',
 } as const;
 
+export const PersonaColors = {
+  rose: '#E91E63',
+  tealBase: '#2DD4BF',
+  tealDark: '#14B8A6',
+  tealLight: '#5EEAD4',
+  tealShadow: '#0F766E',
+} as const;
+
+export const ChatColors = {
+  accentLight: '#3B82F6',
+  accentDark: '#38BDF8',
+  activeDark: '#60A5FA',
+} as const;
+
 export const Colors = {
   light: {
     text: '#111827',

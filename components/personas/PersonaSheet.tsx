@@ -1,9 +1,11 @@
 import React from 'react';
-import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Persona } from '@/services/personas/personasStorage.types';
 import { PersonaCard } from './PersonaCard';
 import { NewPersonaCard } from './NewPersonaCard';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Colors } from '@/constants/theme';
 
 interface PersonaSheetProps {
     visible: boolean;
@@ -26,6 +28,11 @@ export function PersonaSheet({
     onCreatePersona,
     onOpenSettings,
 }: PersonaSheetProps) {
+    const colorScheme = useColorScheme();
+    const isDark = colorScheme === 'dark';
+    const gridIconColor = isDark ? Colors.dark.tabIconDefault : Colors.light.icon;
+    const overlayPositionClass = Platform.OS === 'web' ? 'fixed' : 'absolute';
+    const modalAnimationType = Platform.OS === 'web' ? 'none' : 'slide';
     const settingsTarget = activePersona ?? personas[0];
     const canOpenSettings = Boolean(settingsTarget);
 
@@ -36,29 +43,47 @@ export function PersonaSheet({
     };
 
     return (
-        <Modal visible={visible} animationType="slide" transparent>
-            <View className="flex-1 bg-black/60 justify-end">
+        <Modal visible={visible} animationType={modalAnimationType} transparent>
+            <View
+                testID="persona-sheet-overlay"
+                className={`${overlayPositionClass} inset-0 flex-1 bg-black/60 dark:bg-black/80 justify-end`}
+            >
                 <Pressable className="flex-1" onPress={onClose} />
-                <View className="bg-black rounded-t-[40px] border-t border-white/5 pb-10">
-                    <View className="items-center pt-3">
-                        <View className="w-8 h-1 bg-gray-600 rounded-full" />
+                <View
+                    testID="persona-sheet-panel"
+                    className="bg-surface-light dark:bg-surface-dark rounded-t-3xl border-t border-gray-200 dark:border-gray-800 pb-5"
+                >
+                    <View className="items-center pt-3 pb-1">
+                        <View
+                            testID="persona-sheet-handle"
+                            className="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full"
+                        />
                     </View>
-                    <View className="flex-row items-center justify-between px-6 py-4">
+                    <View className="flex-row items-center justify-between px-6 py-3">
                         <View className="w-6" />
-                        <Text className="text-[17px] font-semibold text-white">Choose persona</Text>
+                        <Text className="text-lg font-semibold text-text-light dark:text-white">
+                            Choose persona
+                        </Text>
                         <Pressable
                             onPress={handleOpenSettings}
                             disabled={!canOpenSettings}
                             accessibilityLabel="Manage personas"
                             className={canOpenSettings ? '' : 'opacity-40'}
                         >
-                            <MaterialIcons name="grid-view" size={20} color="#9CA3AF" />
+                            <MaterialIcons name="grid-view" size={20} color={gridIconColor} />
                         </Pressable>
                     </View>
                     <ScrollView
+                        testID="persona-sheet-cards"
                         horizontal
                         showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 20, gap: 16 }}
+                        contentContainerStyle={{
+                            paddingLeft: 24,
+                            paddingRight: 16,
+                            paddingTop: 16,
+                            paddingBottom: 40,
+                            gap: 16,
+                        }}
                         snapToAlignment="center"
                         decelerationRate="fast"
                     >

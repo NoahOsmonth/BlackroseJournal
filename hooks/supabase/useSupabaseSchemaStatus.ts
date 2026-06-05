@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { isRemoteDataSyncEnabled } from '@/services/data/dataProvider';
 import { ensureSupabaseSession } from '@/services/supabase/supabaseClient';
 import { getSupabaseConfig } from '@/services/supabase/supabaseConfig';
 import { isMissingTableMessage } from '@/services/supabase/supabaseErrors';
@@ -20,7 +21,9 @@ export function useSupabaseSchemaStatus() {
     const [warning, setWarning] = useState<string | null>(null);
 
     useEffect(() => {
-        if (shouldSkipCheck()) {
+        if (shouldSkipCheck() || !isRemoteDataSyncEnabled()) {
+            setStatus('ok');
+            setWarning(null);
             return;
         }
 

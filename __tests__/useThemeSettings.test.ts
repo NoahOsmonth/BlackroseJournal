@@ -26,11 +26,11 @@ describe('useThemeSettings', () => {
         mockSetColorScheme.mockClear();
     });
 
-    it('calls setColorScheme with system on initial load', async () => {
+    it('defaults to dark mode when no theme preference has been saved', async () => {
         renderHook(() => useThemeSettings());
         await act(async () => {});
 
-        expect(mockSetColorScheme).toHaveBeenCalledWith('system');
+        expect(mockSetColorScheme).toHaveBeenCalledWith('dark');
     });
 
     it('calls setColorScheme when setTheme is invoked', async () => {

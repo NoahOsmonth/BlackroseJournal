@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { SupabaseClient, createClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
+import { isRemoteDataSyncEnabled } from '@/services/data/dataProvider';
 import { getSupabaseConfig } from './supabaseConfig';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 const MISSING_CONFIG_MESSAGE =
     'Supabase config missing. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY.';
@@ -66,6 +68,10 @@ async function ensureAnonymousSession(client: SupabaseClient): Promise<boolean> 
 }
 
 export async function ensureSupabaseSession(): Promise<SupabaseClient | null> {
+    if (!isRemoteDataSyncEnabled()) {
+        return null;
+    }
+
     if (sessionPromise) {
         return sessionPromise;
     }

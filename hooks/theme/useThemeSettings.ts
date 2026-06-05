@@ -19,7 +19,7 @@ function isEmojiPreference(value: string | null): value is EmojiStylePreference 
 
 export function useThemeSettings() {
     const { setColorScheme } = useColorScheme();
-    const [theme, setThemeState] = useState<ThemePreference>('system');
+    const [theme, setThemeState] = useState<ThemePreference>('dark');
     const [emojiStyle, setEmojiStyleState] = useState<EmojiStylePreference>('native');
     const [isLoaded, setIsLoaded] = useState(false);
 
@@ -44,7 +44,7 @@ export function useThemeSettings() {
                 // Load Theme
                 const savedTheme = await AsyncStorage.getItem(THEME_PREFERENCE_STORAGE_KEY);
                 const hasLocalTheme = isThemePreference(savedTheme);
-                const nextTheme: ThemePreference = hasLocalTheme ? savedTheme : 'system';
+                const nextTheme: ThemePreference = hasLocalTheme ? savedTheme : 'dark';
 
                 const didApply = applyTheme(nextTheme);
                 if (didApply && isMounted) {

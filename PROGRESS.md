@@ -6,6 +6,7 @@
 - [x] **FEAT-INSIGHTS-003**: Emoji Settings
 - [x] **FIX-INSIGHTS-004**: Dark/Light Mode Color Consistency
 - [x] **FIX-INSIGHTS-005**: Weekly Insights AI Processing (Caching & Retry)
+- [x] **TOOL-CODEX-001**: Codex CLI with OMO Light Edition
 
 ## Updates
 - **2026-01-22**: Initialized plan for Insights page.
@@ -420,3 +421,127 @@
     - `npm test`
   - Note:
     - `npm run typecheck` still reports the pre-existing TS errors listed in the 2026-02-06 update.
+
+- **2026-06-05**: Installed and configured **Codex CLI** with OMO Light Edition:
+  - **Prereq install** (none of `bun`/`opencode`/`node` were on `PATH`):
+    - Installed **Bun 1.3.14** via the official `curl -fsSL https://bun.sh/install | bash` script.
+      - Note: in modern Bun, `bunx` is invoked as `bun x <package>` (no separate `bunx` binary).
+    - Installed **OpenCode 1.16.0** via the official `curl -fsSL https://opencode.ai/install | bash` script.
+    - Persisted both into `~/.bashrc`:
+      - `export BUN_INSTALL="$HOME/.bun"`
+      - `export PATH="$HOME/.local/bin:$HOME/.hermes/node/bin:$HOME/.bun/bin:$HOME/.opencode/bin:$PATH"`
+  - **Installer run** (non-interactive, Light Edition / Codex CLI platform):
+    - `npx lazycodex-ai install --no-tui --codex-autonomous`
+    - Detected Codex CLI, registered plugin in `~/.codex/config.toml`, and wrote
+      `omo.json` (agent + category model map) at
+      `/home/sarino/.var/app/com.visualstudio.code/config/codex/` (Flatpak VS Code scope).
+  - **Post-install fixes**:
+    - Refreshed Codex model cache: `codex models --refresh` — available models
+      `codex/gpt-5`, `codex/gpt-4o`, `codex/o3-mini`, `codex/o4-mini`.
+    - The installer's default model was configured for autonomous full-permissions mode.
+    - Created `~/.var/app/com.visualstudio.code/config/codex/tui.json` with
+      `{"plugin": ["omo/tui"]}` so the TUI Roles · Models sidebar renders.
+  - **Verification**:
+    - `npx lazycodex-ai doctor` — only 1 remaining issue:
+      `gh CLI` missing (optional, only affects GitHub automation features).
+    - `npx lazycodex-ai get-local-version` — installed **latest**.
+  - **Files written**:
+    - `~/.var/app/com.visualstudio.code/config/codex/config.toml` (plugin registration)
+    - `~/.var/app/com.visualstudio.code/config/codex/tui.json` (TUI plugin registration)
+    - `~/.var/app/com.visualstudio.code/config/codex/omo.json` (agent + category model map)
+    - `~/.bashrc` (PATH additions for `bun` and `codex`)
+  - **Usage**: run `codex` in any project, include `ultrawork` (or `ulw`) in a prompt to unlock
+    parallel agents / background tasks / deep exploration.
+
+
+- **2026-06-05 (follow-up)**: Installed **globally** (not only VS Code Flatpak scope):
+  - The first install wrote configs to the **Flatpak VS Code scope** (`/home/sarino/.var/app/com.visualstudio.code/config/codex/`) because `XDG_CONFIG_HOME` in the VS Code integrated terminal points there. Running `codex` from a *normal* terminal would not see those configs.
+  - Re-ran the installer with `XDG_CONFIG_HOME=$HOME/.config npx lazycodex-ai install --no-tui --codex-autonomous` so the plugin lands in the **global** scope (`~/.config/codex/`). The installer merged the plugin entry into the existing `config.toml` (preserving `mcp.playwright`).
+  - Synced all three plugin files to the global scope:
+    - `~/.config/codex/config.toml` — now has `plugin = ["omo@sisyphuslabs"]` + MCP
+    - `~/.config/codex/omo.json` — all agents/categories → `codex/gpt-5`
+    - `~/.config/codex/tui.json` — `{"plugin": ["omo/tui"]}`
+  - Refreshed model cache globally: `codex models --refresh` shows `codex/gpt-5`, `codex/gpt-4o`, `codex/o3-mini`, `codex/o4-mini`.
+  - Verified from a clean terminal (`XDG_CONFIG_HOME` unset, just `PATH` from `~/.bashrc`):
+    - `npx lazycodex-ai doctor` → only 1 issue (optional `gh` CLI).
+    - `npx lazycodex-ai get-local-version` → latest.
+  - Result: `codex` now works **both** from a regular terminal (reads global `~/.config/codex/`) **and** from VS Code's integrated terminal (reads the Flatpak scope — original install is still there).
+
+- **2026-06-05**: Local-only data default + on-device backup/restore:
+  - Added a data-provider switch in `services/data/dataProvider.ts`.
+    - Default provider is `local`.
+    - Remote Supabase data sync is only enabled with `EXPO_PUBLIC_DATA_PROVIDER=remote` or
+      `EXPO_PUBLIC_ENABLE_REMOTE_DATA_SYNC=true`.
+  - Gated active Supabase data sync:
+    - `services/supabase/supabaseClient.ts` now returns `null` from `ensureSupabaseSession()` while
+      local-only data mode is active.
+    - `services/supabase/syncQueue.ts` no-ops enqueue/flush calls while local-only data mode is active.
+    - `hooks/supabase/useSupabaseSchemaStatus.ts` skips the dev Supabase setup banner in local-only mode.
+  - Added on-device local backup service:
+    - `services/backup/localBackup.ts` snapshots journal, intentions, check-ins, goals, happiness recipe,
+      personas, saved insights, weekly insights, and theme/emoji settings into `@blackrose_local_backups`.
+    - Restore replaces all tracked local keys and removes keys absent from the snapshot to avoid stale data.
+  - Exposed backup/restore in Settings:
+    - Split `app/(tabs)/settings.tsx` into focused components under `components/settings/`.
+    - Added `hooks/backup/useLocalBackups.ts` for backup state and actions.
+    - Settings now has `Create Local Backup` and `Restore Latest Backup`; the older journal-only JSON share
+      remains as `Export Journal JSON`.
+  - Documentation:
+    - Added `notes/local-only-storage.md` with provider flags, local storage keys, and backup/restore behavior.
+  - Tests added:
+    - `__tests__/dataProvider.test.ts`
+    - `__tests__/syncQueue-local-only.test.ts`
+    - `__tests__/supabaseClient-local-only.test.ts`
+    - `__tests__/localBackup.test.ts`
+    - `__tests__/useLocalBackups.test.ts`
+    - `__tests__/DataManagementSection.test.tsx`
+    - `__tests__/useSupabaseSchemaStatus.test.ts`
+  - Verified:
+    - `npm test` — 27 suites, 59 tests passing.
+    - `npm run check:design` — passed with the pre-existing `app/intentions/chat.tsx` size warning.
+    - Playwright web QA at `http://localhost:19006/settings` — Settings rendered, Supabase setup banner absent,
+      local backup controls visible, and `Create Local Backup` updated the latest-backup state.
+  - Known pre-existing blockers:
+    - `npm run typecheck` still fails in `app/intentions/chat.tsx`, `app/persona/[id].tsx`,
+      `components/parallax-scroll-view.tsx`, and `utils/dev/rawTextGuard.ts`.
+    - `npm run lint` still fails on pre-existing lint errors in `__tests__/ChatMessage.test.tsx`,
+      `app/goals.tsx`, `app/intentions/select.tsx`, `components/today/GoalsSection.tsx`, and
+      `scripts/check-design-limits.js`.
+
+- **2026-06-05**: Persona drawer + intentions chat reference parity pass:
+  - Persona drawer:
+    - Seeded a local default active `Rosebud` persona so a fresh local-only device opens the drawer on the
+      reference Rosebud card instead of an empty New Persona card.
+    - Gated persona remote sync behind the active data provider, matching the local-only default.
+    - Fixed the persona modal on web: it now uses fixed viewport positioning and disables React Native Web's
+      slide transform so the bottom sheet anchors on-screen.
+    - Restyled the sheet/card/new-persona states to match the dark reference surfaces, handle, card sizing,
+      rose avatar, active button, and New Persona teal geometric avatar.
+  - Intentions chat:
+    - Default theme now starts in dark mode when no saved theme exists, while saved Light/System choices still work.
+    - Updated the Rosebud selector badge to the reference rose treatment.
+    - Replaced the visible `[Start intention check-in]` AI fallback with the reference opening prompt.
+    - Extracted `components/intentions/IntentionChatBody.tsx` from `app/intentions/chat.tsx`, removing the web
+      TextInput border and bringing the route below the design warning threshold.
+    - Updated `ai-text` to the reference cyan (`#38BDF8`) and constrained message width for matching mobile wraps.
+  - Tests added/updated:
+    - `__tests__/PersonaSheet.test.tsx`
+    - `__tests__/personasStorage.test.ts`
+    - `__tests__/IntentionChatHeader.test.tsx`
+    - `__tests__/IntentionChatMessage.test.tsx`
+    - `__tests__/IntentionChatBody.test.tsx`
+    - `__tests__/useThemeSettings.test.ts`
+    - `__tests__/tailwind-config.test.ts`
+  - Verified:
+    - `npm test` — 32 suites, 66 tests passing.
+    - `npm run check:design` — passed with no warnings; `app/intentions/chat.tsx` is now under the warning threshold.
+    - Playwright web QA at `http://localhost:19006/intentions/chat?area=finances&type=intention`:
+      dark mode applied, the internal trigger is absent, the reference opening prompt is visible, and the input
+      computed border is `0px`.
+    - Playwright web QA for the Rosebud persona drawer and New Persona swiped state: bottom sheet anchors to the
+      viewport, active Rosebud card renders, and the teal New Persona avatar renders.
+  - Remaining known blockers:
+    - `npx tsc --noEmit` still fails in pre-existing files: `app/persona/[id].tsx`,
+      `components/parallax-scroll-view.tsx`, and `utils/dev/rawTextGuard.ts`.
+    - `npm run lint` still fails on pre-existing lint errors in `__tests__/ChatMessage.test.tsx`, `app/goals.tsx`,
+      `app/intentions/select.tsx`, `components/today/GoalsSection.tsx`, and `scripts/check-design-limits.js`.

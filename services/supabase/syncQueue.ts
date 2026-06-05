@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { isRemoteDataSyncEnabled } from '@/services/data/dataProvider';
 import { ensureSupabaseSession } from './supabaseClient';
 import { logSupabaseError } from './supabaseErrors';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -89,19 +90,22 @@ function pruneQueue(queue: SyncTask[]): SyncTask[] {
 export async function enqueueSyncTask(
     task: Omit<SyncTask, 'id' | 'createdAt'>
 ): Promise<SyncTask> {
-    const queue = await loadQueue();
     const dedupeKey = resolveDedupeKey(task);
-
-    const filtered = dedupeKey
-        ? queue.filter(existing => existing.dedupeKey !== dedupeKey)
-        : queue;
-
     const nextTask: SyncTask = {
         ...task,
         id: generateTaskId(),
         dedupeKey: dedupeKey ?? task.dedupeKey,
         createdAt: Date.now(),
     };
+
+    if (!isRemoteDataSyncEnabled()) {
+        return nextTask;
+    }
+
+    const queue = await loadQueue();
+    const filtered = dedupeKey
+        ? queue.filter(existing => existing.dedupeKey !== dedupeKey)
+        : queue;
 
     const nextQueue = pruneQueue([...filtered, nextTask]);
     await saveQueue(nextQueue);
@@ -144,6 +148,10 @@ async function applyTask(client: SupabaseClient, task: SyncTask): Promise<boolea
 }
 
 export async function flushSyncQueue(): Promise<void> {
+    if (!isRemoteDataSyncEnabled()) {
+        return;
+    }
+
     if (flushPromise) {
         return flushPromise;
     }

@@ -52,4 +52,8 @@ describe("tailwind.config.js", () => {
         expect(colors["surface-light"]).toBe("#FFFFFF");
         expect(colors["surface-dark"]).toBe("#1C1C1E");
     });
+
+    it("ai text matches the intention chat reference cyan", () => {
+        expect(colors["ai-text"]).toBe("#38BDF8");
+    });
 });

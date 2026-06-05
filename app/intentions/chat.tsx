@@ -1,16 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Alert,
-    Pressable,
     ScrollView,
-    Text,
-    TextInput,
     View,
     Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { MaterialIcons } from '@expo/vector-icons';
 import * as Speech from 'expo-speech';
 import * as Clipboard from 'expo-clipboard';
 
@@ -34,16 +30,9 @@ import { PersonaSheet } from '@/components/personas/PersonaSheet';
 import { PersonaSettingsSheet } from '@/components/personas/PersonaSettingsSheet';
 import { getLocalDateKey } from '@/utils/date';
 import { IntentionChatHeader } from '@/components/intentions/IntentionChatHeader';
-import { IntentionChatMessage } from '@/components/intentions/IntentionChatMessage';
 import { IntentionChatFooter } from '@/components/intentions/IntentionChatFooter';
+import { IntentionChatBody } from '@/components/intentions/IntentionChatBody';
 import { Persona } from '@/services/personas/personasStorage.types';
-
-interface ChatParams {
-    area?: string;
-    intentionId?: string;
-    type?: string;
-    draftId?: string;
-}
 
 function buildSummary(messages: { role: string; content: string }[]): string {
     const first = messages.find((m) => m.role === 'user');
@@ -54,7 +43,7 @@ function buildSummary(messages: { role: string; content: string }[]): string {
 
 export default function IntentionChatScreen() {
     const router = useRouter();
-    const params = useLocalSearchParams<ChatParams>();
+    const params = useLocalSearchParams();
     const scrollViewRef = useRef<ScrollView>(null);
     const inputRef = useRef<InlineTypingInputRef>(null);
 
@@ -386,53 +375,20 @@ export default function IntentionChatScreen() {
                     onClose={personaSheetOpen ? () => setPersonaSheetOpen(false) : handleClose}
                 />
 
-                <ScrollView
-                    ref={scrollViewRef}
-                    className="flex-1 px-5 pt-4 pb-20"
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
-                >
-                    <View className="flex-row items-center space-x-2 mb-4">
-                        <Text className="text-[10px] font-bold tracking-wider text-text-secondary-light dark:text-text-secondary-dark uppercase">
-                            Intention Setting - {headerDate}
-                        </Text>
-                        <Pressable onPress={handleSettingsPress} accessibilityLabel="Open persona settings">
-                            <MaterialIcons name="settings" size={12} color="#9CA3AF" />
-                        </Pressable>
-                    </View>
-
-                    <View className="space-y-4">
-                        {messages.map((message) => (
-                            <IntentionChatMessage
-                                key={message.id}
-                                message={message}
-                                feedback={feedback[message.id]}
-                                onPlay={handlePlay}
-                                onCopy={handleCopy}
-                                onShare={handleShare}
-                                onThumb={handleThumb}
-                            />
-                        ))}
-
-                        {streamingMessage && (
-                            <Text className="text-[17px] leading-relaxed text-accent-blue dark:text-ai-text">
-                                {streamingMessage.content}
-                            </Text>
-                        )}
-                    </View>
-
-                    <View className="mt-8">
-                        <TextInput
-                            value={inputValue}
-                            onChangeText={setInputValue}
-                            placeholder="Write"
-                            placeholderTextColor="#6B7280"
-                            className="text-[17px] text-text-light dark:text-white"
-                            multiline
-                            autoFocus
-                        />
-                    </View>
-                </ScrollView>
+                <IntentionChatBody
+                    scrollViewRef={scrollViewRef}
+                    headerDate={headerDate}
+                    messages={messages}
+                    streamingMessage={streamingMessage}
+                    feedback={feedback}
+                    inputValue={inputValue}
+                    onInputChange={setInputValue}
+                    onSettingsPress={handleSettingsPress}
+                    onPlay={handlePlay}
+                    onCopy={handleCopy}
+                    onShare={handleShare}
+                    onThumb={handleThumb}
+                />
 
                 <IntentionChatFooter
                     isMuted={isMuted}

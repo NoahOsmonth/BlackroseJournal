@@ -21,6 +21,8 @@ module.exports = {
                 // Primary accent
                 'primary': '#FF9F0A',
                 'primary-dark': '#FF8C00',
+                'persona-rose': '#E91E63',
+                'persona-teal': '#2DD4BF',
                 // Main text
                 'text-light': '#111827',
                 'text-dark': '#F9FAFB',
@@ -30,7 +32,7 @@ module.exports = {
                 'user-text': '#111827',
                 // AI / accent text
                 'accent-blue': '#3B82F6',
-                'ai-text': '#93C5FD',
+                'ai-text': '#38BDF8',
                 // Semantic text variants
                 'text-primary-light': '#111827',
                 'text-primary-dark': '#F9FAFB',
