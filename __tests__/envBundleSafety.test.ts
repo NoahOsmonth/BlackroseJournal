@@ -99,6 +99,7 @@ describe('envBundleSafety — no EXPO_PUBLIC_* secrets in committed env files', 
         // canonical regression example, fail loudly. This guarantees that
         // the static test and the ESLint rule (which share the pattern)
         // can never silently stop working.
+        /* eslint-disable no-restricted-syntax */
         const samples = [
             'EXPO_PUBLIC_FOO_KEY=abc',
             'EXPO_PUBLIC_FOO_SECRET=abc',
@@ -106,6 +107,7 @@ describe('envBundleSafety — no EXPO_PUBLIC_* secrets in committed env files', 
             'expo_public_foo_key=abc', // case-insensitive
             'EXPO_PUBLIC_OPENAI_API_KEY=sk-123',
         ];
+        /* eslint-enable no-restricted-syntax */
         for (const sample of samples) {
             expect(FORBIDDEN_ENV_PATTERN.test(sample)).toBe(true);
         }
@@ -134,5 +136,20 @@ describe('envBundleSafety — no EXPO_PUBLIC_* secrets in committed env files', 
             expect(varName.startsWith('EXPO_PUBLIC_')).toBe(true);
             expect(FORBIDDEN_ENV_PATTERN.test(`${varName}=value`)).toBe(true);
         }
+    });
+
+    it('eslint.config.js enforces the same regex as the static test (no drift)', () => {
+        // The ESLint rule and this test must always match the same
+        // strings; otherwise a regression could pass one guard and fail
+        // the other. We read the rule out of eslint.config.js and assert
+        // it covers the canonical regression example.
+        const eslintConfigPath = path.join(process.cwd(), 'eslint.config.js');
+        const eslintConfigSource = fs.readFileSync(eslintConfigPath, 'utf-8');
+
+        expect(eslintConfigSource).toContain('no-restricted-syntax');
+        expect(eslintConfigSource).toContain('EXPO_PUBLIC_');
+        expect(eslintConfigSource).toContain('KEY');
+        expect(eslintConfigSource).toContain('SECRET');
+        expect(eslintConfigSource).toContain('TOKEN');
     });
 });
