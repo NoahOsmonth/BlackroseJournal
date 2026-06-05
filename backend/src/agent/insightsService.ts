@@ -66,7 +66,7 @@ function parseJsonShape<T>(raw: string): T | null {
 }
 
 export interface WeeklyInsightsEntry {
-    messages: Array<{ content: string }>;
+    messages: { content: string }[];
 }
 
 export interface EntryReflectionRequest {
@@ -85,7 +85,7 @@ export interface EntryReflectionResponse {
 }
 
 export interface WeeklyInsightsResponse {
-    emotionalLandscape: Array<{ emotion: string; score: number; emoji: string }>;
+    emotionalLandscape: { emotion: string; score: number; emoji: string }[];
     keyThemes: string[];
     castOfCharacters: string[];
     weeklySummary: string;

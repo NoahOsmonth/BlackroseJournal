@@ -97,7 +97,7 @@ function parseJsonSafely(rawText: string): unknown {
 }
 
 function extractMessageContent(data: unknown): ChatAccumulator {
-    const message = (data as { choices?: Array<{ message?: { content?: string; reasoning?: string; reasoning_content?: string } }> })
+    const message = (data as { choices?: { message?: { content?: string; reasoning?: string; reasoning_content?: string } }[] })
         ?.choices?.[0]?.message;
     return {
         content: message?.content || '',

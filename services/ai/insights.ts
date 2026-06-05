@@ -20,19 +20,6 @@ const FALLBACK_HAIKU: StreakHaiku = [
     'You are learning yourself',
 ];
 
-function extractFirstJsonObject(text: string): string | null {
-    const start = text.indexOf('{');
-    if (start === -1) return null;
-    let depth = 0;
-    for (let i = start; i < text.length; i += 1) {
-        const ch = text[i];
-        if (ch === '{') depth += 1;
-        if (ch === '}') depth -= 1;
-        if (depth === 0) return text.slice(start, i + 1);
-    }
-    return null;
-}
-
 async function postInsights<TReq, TRes>(path: string, payload: TReq): Promise<TRes> {
     const response = await postAgent(path, payload);
     if (!response.ok) {

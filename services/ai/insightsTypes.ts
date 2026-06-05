@@ -10,7 +10,7 @@ export interface EntryReflectionResult {
 }
 
 export interface WeeklyInsightsEntry {
-    messages: Array<{ content: string }>;
+    messages: { content: string }[];
 }
 
 export interface WeeklyInsightsEmotion {

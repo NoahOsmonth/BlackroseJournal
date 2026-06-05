@@ -25,7 +25,7 @@ export interface StreamChatOptions {
 
 export interface ChatRequestPayload {
     model: string;
-    messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
+    messages: { role: 'system' | 'user' | 'assistant'; content: string }[];
     stream: boolean;
     temperature: number;
     max_tokens: number;

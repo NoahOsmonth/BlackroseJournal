@@ -32,7 +32,7 @@ function parseWeeklyInsightsBody(body: unknown): { entries: WeeklyInsightsEntry[
         if (!raw || typeof raw !== 'object') return null;
         const messages = (raw as { messages?: unknown }).messages;
         if (!Array.isArray(messages)) return null;
-        const cleanMessages: Array<{ content: string }> = [];
+        const cleanMessages: { content: string }[] = [];
         for (const m of messages) {
             if (!m || typeof m !== 'object') return null;
             const content = (m as { content?: unknown }).content;
