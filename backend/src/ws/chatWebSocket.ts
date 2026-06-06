@@ -2,6 +2,7 @@ import type { IncomingMessage, Server as HttpServer } from 'http';
 import { WebSocketServer } from 'ws';
 import { handleChatCompletion, handleChatCompletionStream } from '../agent/agentService';
 import { ChatCompletionRequest, ChatMessage } from '../agent/types';
+import { parseSseLine, splitStreamBuffer } from '../services/ai/streaming';
 
 type WsEventData = string | ArrayBuffer | Buffer | Uint8Array;
 
@@ -42,7 +43,6 @@ function parseChatRequest(body: unknown): ChatCompletionRequest | null {
     model: payload.model,
     stream: Boolean(payload.stream),
     temperature: payload.temperature,
-    max_context: payload.max_context,
     max_tokens: payload.max_tokens,
     conversationId: payload.conversationId,
     metadata: payload.metadata,
@@ -75,52 +75,6 @@ function extractTokenFromRequest(req: IncomingMessage): string {
   } catch {
     return '';
   }
-}
-
-interface ParsedSseChunk {
-  done?: boolean;
-  content?: string;
-  reasoning?: string;
-}
-
-function parseSseLine(line: string): ParsedSseChunk | null {
-  const trimmed = line.trim();
-  if (!trimmed || !trimmed.startsWith('data:')) {
-    return null;
-  }
-
-  const payload = trimmed.replace(/^data:\s?/, '');
-  if (!payload) {
-    return null;
-  }
-
-  if (payload === '[DONE]') {
-    return { done: true };
-  }
-
-  try {
-    const parsed = JSON.parse(payload);
-    const delta = parsed.choices?.[0]?.delta;
-    if (!delta || typeof delta !== 'object') {
-      return null;
-    }
-
-    return {
-      content: typeof delta.content === 'string' ? delta.content : undefined,
-      reasoning: typeof delta.reasoning === 'string'
-        ? delta.reasoning
-        : (typeof delta.reasoning_content === 'string' ? delta.reasoning_content : undefined),
-    };
-  } catch {
-    return null;
-  }
-}
-
-function splitStreamBuffer(buffer: string): { lines: string[]; remainder: string } {
-  const normalized = buffer.replace(/\r\n/g, '\n');
-  const lines = normalized.split('\n');
-  const remainder = lines.pop() || '';
-  return { lines, remainder };
 }
 
 function decodeWsData(data: WsEventData): string {

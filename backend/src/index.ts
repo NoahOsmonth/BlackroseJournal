@@ -3,12 +3,16 @@ import express from 'express';
 import cors from 'cors';
 import http from 'http';
 import { getServerConfig } from './config/serverConfig';
+import { loadConfig } from './config/ai';
 import { createAuthMiddleware } from './routes/auth';
 import { registerChatRoutes } from './routes/chatRoutes';
 import { registerAskRosebudRoutes } from './routes/askRosebudRoutes';
 import { registerHealthRoutes } from './routes/healthRoutes';
 import { registerInsightsRoutes } from './routes/insightsRoutes';
 import { registerChatWebSocket } from './ws/chatWebSocket';
+
+// Boot-time AI config validation. Throws a clear error if env vars are missing.
+loadConfig();
 
 const config = getServerConfig();
 

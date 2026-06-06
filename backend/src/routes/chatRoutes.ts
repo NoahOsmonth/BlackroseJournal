@@ -21,7 +21,6 @@ function parseChatRequest(body: unknown): ChatCompletionRequest | null {
     model: payload.model,
     stream: Boolean(payload.stream),
     temperature: payload.temperature,
-    max_context: payload.max_context,
     max_tokens: payload.max_tokens,
     conversationId: payload.conversationId,
     metadata: payload.metadata,

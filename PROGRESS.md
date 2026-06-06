@@ -545,3 +545,42 @@
       `components/parallax-scroll-view.tsx`, and `utils/dev/rawTextGuard.ts`.
     - `npm run lint` still fails on pre-existing lint errors in `__tests__/ChatMessage.test.tsx`, `app/goals.tsx`,
       `app/intentions/select.tsx`, `components/today/GoalsSection.tsx`, and `scripts/check-design-limits.js`.
+- **2026-06-06**: PR4 — backend agent/modelClient + agentService SSE refactor + health route expansion:
+  - **modelClient.ts rewritten** as a thin wrapper around `getProviderForProfile('default').chat` / `.stream`. No
+    `fetch`, no env reads, no `max_context` upstream. Server-side profile resolution; client-supplied `model` is
+    ignored in v1 (with a one-time warn if non-`'default'`).
+  - **agentService.ts** now uses `readAssistantContentFromSseStream` from `services/ai/streaming` instead of the
+    old inline SSE parser. The `clone()`-tee background-persistence pattern for `simpleMemService` is preserved.
+  - **New SSE module** `backend/src/services/ai/streaming.ts` (121 lines). PR2 was supposed to ship this; the file
+    was missing at PR4 time, so it was relocated (not invented) from `agentService.ts:33-60` and `chatWebSocket.ts`.
+    Re-exported from `services/ai/index.ts`.
+  - **Health routes** expanded: `GET /health` returns `{ status, config: { valid, profiles, defaultProfile } }`;
+    `GET /ready` returns 200 if at least one profile is valid, 503 otherwise. Both import `getAiConfig` from the new
+    `config/ai` (NOT from the legacy `aiConfig.ts`).
+  - **Boot wiring**: `backend/src/index.ts` calls `loadConfig()` after `dotenv/config` and before `getServerConfig`.
+    On validation failure it throws; on success a single `console.log` is emitted (no API key in any log).
+  - **`max_context` fully removed** from `backend/src/agent/types.ts`, `backend/src/routes/chatRoutes.ts`, and
+    `backend/src/ws/chatWebSocket.ts`. Only mention left in the repo is a JSDoc note in `openaiCompat.ts` documenting
+    the absence. Verified via `grep -rn "max_context" backend/src/`.
+  - **Tests**:
+    - `__tests__/agent/modelClient.test.ts` (208 lines, 8 tests) — new, covers `{ content, reasoning }` shape,
+      `max_context` absence, server-side profile resolution (client `model: 'hack-attempt'` ignored), stream
+      body untouched, temperature/maxTokens passthrough, error propagation, boot-time config.
+    - `__tests__/integration/aiHealth.test.ts` (147 lines, 3 tests) — new, gated by `RUN_INTEGRATION_TESTS=1`,
+      boots express + `registerHealthRoutes`, hits `/health` (200 with config shape), `/ready` (200), and
+      `/health` with `AI_DEFAULT_API_KEY` missing (503).
+    - `__tests__/backend-modelClient-stream.test.ts` updated for the new wrapper signature.
+    - `__tests__/backend-stream-memory.test.ts` updated to mock the provider layer.
+    - `__tests__/askRosebud-service.test.ts` (frontend) updated where it directly referenced backend modelClient.
+  - **Verification gates (PR4)**:
+    - `npx tsc --noEmit` (root) — clean for PR4 files; 4 pre-existing errors remain (same set as before PR4).
+    - `npx tsc --noEmit` (backend) — clean.
+    - `npm run lint` — 7 pre-existing errors unchanged; PR4 files clean.
+    - `npx jest --runInBand` — 148 passed, 5 skipped (integration without env), 0 failed.
+    - `RUN_INTEGRATION_TESTS=1 npx jest --testPathPattern='aiHealth'` — 3/3 passed.
+  - **Deviation from PR4 plan**: the plan said "PR2 has shipped `parseSseStream`" — it had not. Rather than block
+    the PR, the missing module was relocated (not invented) from the two inline copies of the parser. Behavior is
+    byte-identical to the originals; the module is re-exported from `services/ai/index.ts`.
+  - **Out-of-scope edits**: `backend/src/ws/chatWebSocket.ts` had `max_context` removed (1-line field drop) as a
+    natural extension of the `max_context` cleanup. README, `package.json`, and `backend/README.md` modifications
+    are PRE-EXISTING (from prior uncommitted session work, not from this PR).
