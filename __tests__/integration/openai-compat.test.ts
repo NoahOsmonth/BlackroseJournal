@@ -60,35 +60,36 @@ function startFakeUpstream(): Promise<{ url: string; captured: CapturedRequest[]
 }
 
 describeMaybe('integration: openai-compat adapter request/response contract', () => {
-    const originalKey = process.env.NANO_GPT_API_KEY;
-    const originalBase = process.env.NANO_GPT_API_BASE_URL;
-    const originalModel = process.env.NANO_GPT_MODEL;
-    const originalFlash = process.env.NANO_GPT_FLASH_MODEL;
+    const originalKey = process.env.AI_DEFAULT_API_KEY;
+    const originalBase = process.env.AI_DEFAULT_API_BASE_URL;
+    const originalModel = process.env.AI_DEFAULT_MODEL;
+    const originalFlash = process.env.AI_DEFAULT_FLASH_MODEL;
 
-    beforeAll(() => {
+    beforeEach(() => {
         jest.resetModules();
     });
 
     afterAll(() => {
-        if (originalKey === undefined) delete process.env.NANO_GPT_API_KEY;
-        else process.env.NANO_GPT_API_KEY = originalKey;
-        if (originalBase === undefined) delete process.env.NANO_GPT_API_BASE_URL;
-        else process.env.NANO_GPT_API_BASE_URL = originalBase;
-        if (originalModel === undefined) delete process.env.NANO_GPT_MODEL;
-        else process.env.NANO_GPT_MODEL = originalModel;
-        if (originalFlash === undefined) delete process.env.NANO_GPT_FLASH_MODEL;
-        else process.env.NANO_GPT_FLASH_MODEL = originalFlash;
+        if (originalKey === undefined) delete process.env.AI_DEFAULT_API_KEY;
+        else process.env.AI_DEFAULT_API_KEY = originalKey;
+        if (originalBase === undefined) delete process.env.AI_DEFAULT_API_BASE_URL;
+        else process.env.AI_DEFAULT_API_BASE_URL = originalBase;
+        if (originalModel === undefined) delete process.env.AI_DEFAULT_MODEL;
+        else process.env.AI_DEFAULT_MODEL = originalModel;
+        if (originalFlash === undefined) delete process.env.AI_DEFAULT_FLASH_MODEL;
+        else process.env.AI_DEFAULT_FLASH_MODEL = originalFlash;
     });
 
     it('sends a parseable body and parses the OpenAI-shape response', async () => {
         const server = await startFakeUpstream();
         try {
-            process.env.NANO_GPT_API_KEY = 'sk-test-key';
-            process.env.NANO_GPT_API_BASE_URL = server.url;
-            process.env.NANO_GPT_MODEL = 'integration-test-model';
-            process.env.NANO_GPT_FLASH_MODEL = 'integration-test-flash';
+            process.env.AI_DEFAULT_API_KEY = 'sk-test-key';
+            process.env.AI_DEFAULT_API_BASE_URL = server.url;
+            process.env.AI_DEFAULT_MODEL = 'integration-test-model';
+            process.env.AI_DEFAULT_FLASH_MODEL = 'integration-test-flash';
 
-            const { createChatCompletion } = await import('../../backend/src/agent/modelClient');
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            const { createChatCompletion } = require('../../backend/src/agent/modelClient');
 
             const result = await createChatCompletion(
                 [
@@ -112,7 +113,6 @@ describeMaybe('integration: openai-compat adapter request/response contract', ()
             expect(body).toEqual(
                 expect.objectContaining({
                     model: 'integration-test-model',
-                    stream: false,
                     temperature: 0.5,
                     messages: expect.arrayContaining([
                         expect.objectContaining({ role: 'system', content: 'You are concise.' }),
@@ -120,21 +120,23 @@ describeMaybe('integration: openai-compat adapter request/response contract', ()
                     ]),
                 })
             );
+            expect(body.stream).toBeUndefined();
             expect(typeof body.max_tokens).toBe('number');
         } finally {
             await server.close();
         }
     });
 
-    it('uses the explicit model override when provided in the options', async () => {
+    it('uses the server-side profile model, ignoring client-supplied model', async () => {
         const server = await startFakeUpstream();
         try {
-            process.env.NANO_GPT_API_KEY = 'sk-test-key';
-            process.env.NANO_GPT_API_BASE_URL = server.url;
-            process.env.NANO_GPT_MODEL = 'default-model';
-            process.env.NANO_GPT_FLASH_MODEL = 'default-flash';
+            process.env.AI_DEFAULT_API_KEY = 'sk-test-key';
+            process.env.AI_DEFAULT_API_BASE_URL = server.url;
+            process.env.AI_DEFAULT_MODEL = 'default-model';
+            process.env.AI_DEFAULT_FLASH_MODEL = 'default-flash';
 
-            const { createChatCompletion } = await import('../../backend/src/agent/modelClient');
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            const { createChatCompletion } = require('../../backend/src/agent/modelClient');
 
             await createChatCompletion(
                 [{ role: 'user', content: 'hi' }],
@@ -143,7 +145,7 @@ describeMaybe('integration: openai-compat adapter request/response contract', ()
 
             const sent = server.captured[0];
             const body = JSON.parse(sent.body) as { model: string };
-            expect(body.model).toBe('override-model');
+            expect(body.model).toBe('default-model');
         } finally {
             await server.close();
         }
