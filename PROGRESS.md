@@ -584,3 +584,64 @@
   - **Out-of-scope edits**: `backend/src/ws/chatWebSocket.ts` had `max_context` removed (1-line field drop) as a
     natural extension of the `max_context` cleanup. README, `package.json`, and `backend/README.md` modifications
     are PRE-EXISTING (from prior uncommitted session work, not from this PR).
+- **2026-06-06 (follow-up)**: PR4 commit stack corrected after Oracle review:
+  - Oracle flagged that the original two-commit PR4 (`1eefadb` test fix + `463d46d` PR4) was not
+    self-contained: PR4 imported from `../services/ai` (barrel), `./config/ai`, and
+    `./adapters/openaiCompat`, all of which were **untracked**. The `openai-compat` integration test
+    also failed when checked out in isolation because the legacy `NANO_GPT_*` env names had
+    already been renamed to `AI_DEFAULT_*` in the test but the old `modelClient` was still reading
+    the legacy names. The PROGRESS.md entry above also contained three false claims — see the
+    "False claims removed" block at the bottom of this entry.
+  - **Rebuild as a self-contained 3-commit stack** (replaces the two-commit history above; the
+    final stack is the one that lands on `main`):
+    1. `10b2a77` — `feat(ai): PR1+PR3+PR5 foundation — config loader, provider layer, legacy shim`
+       (16 files, +1645 lines). Lands the AI config loader (`config/ai.ts`, 80 lines), the
+       provider layer (`services/ai/` × 9 files, ~448 lines), the legacy shim (`config/aiShim.ts`
+       + `scripts/check-legacy-shim.js`), `docs/MIGRATION.md`, and 5 test suites (~921 lines).
+    2. `d37e961` — `test(ai): update openai-compat integration to PR1+PR3+PR4 architecture`
+       (1 file, +28/-26). Updates the integration test for the new env names, server-side
+       profile resolution, and `buildRequestBody` semantics.
+    3. `a326adf` — `feat(ai): PR4 — modelClient wrapper + agentService SSE refactor +
+       health/ready + loadConfig boot + max_context removal` (12 files, +774/-261). Lands the
+       thin `modelClient.ts` (72 lines), the SSE parser relocation into
+       `services/ai/streaming.ts` (121 lines), the agentService refactor, the healthRoutes
+       expansion, the `loadConfig()` boot wiring, and the `max_context` removal.
+  - **Code defects fixed in `a326adf` (PR4 commit)**
+    - `backend/src/ws/chatWebSocket.ts` previously kept its own local copies of `parseSseLine`
+      and `splitStreamBuffer` (~45 lines, lines 79–123 in the original PR4). The PROGRESS.md
+      and the commit message falsely claimed the parser was extracted from both
+      `agentService.ts` **and** `chatWebSocket.ts`. The fix: removed the local copies in
+      `chatWebSocket.ts` and replaced them with `import { parseSseLine, splitStreamBuffer }
+      from '../services/ai/streaming'`. The file is now 190 lines (down from 286 after the
+      partial-extraction debris) with **zero** duplicate `ParsedSseChunk` interface
+      declarations. Single source of truth for SSE parsing is now `services/ai/streaming.ts`.
+    - `__tests__/agent/modelClient.test.ts` now has **9 tests** (was 8): added
+      `returns empty reasoning when the resolved profile has capabilities.reasoning === false`
+      to satisfy the PR4 plan's missing scenario. The new test verifies that
+      `resolveProfile` is called with a profile whose `capabilities.reasoning === false` and
+      `capabilities.reasoningField === null`, and that the wrapper passes through the empty
+      reasoning string from the provider unchanged.
+  - **False claims removed** (the original PROGRESS.md entry above stated them; they are now
+    corrected):
+    1. ~~`__tests__/backend-stream-memory.test.ts` updated to mock the provider layer~~ — the
+       test was **not** modified in PR4. It still mocks `'../backend/src/agent/modelClient'`
+       (line 1 of the test), which works only because `modelClient` is now a thin wrapper.
+    2. ~~`__tests__/askRosebud-service.test.ts` (frontend) updated where it directly
+       referenced backend modelClient~~ — the test was **not** modified in PR4. No diff
+       exists for that file in any of the three commits.
+    3. ~~Relocated (not invented) from the inline copies in `agentService.ts` and
+       `chatWebSocket.ts`~~ — only `agentService.ts`'s inline copy was extracted. The
+       `chatWebSocket.ts` copy was extracted **in the follow-up commit** (a326adf), after
+       Oracle flagged it as dead duplicate code.
+  - **Final verification (post-rebuild)**:
+    - `npx tsc --noEmit` (backend) — clean.
+    - `npx jest --runInBand` — **149 passed**, 5 skipped, 0 failed (40 of 42 suites).
+    - `RUN_INTEGRATION_TESTS=1 npx jest --runInBand` — **154 passed**, 0 failed (42 of 42
+      suites). Includes the 3 new `aiHealth` tests and the 2 fixed `openai-compat` tests.
+    - Live smoke test against `https://nano-gpt.com/api/v1` with
+      `nvidia/nemotron-3-ultra-550b-a55b`:
+      `GET /health` → `{status:"ok", config:{valid:true, profiles:["default","fast"]}}`
+      `GET /ready` → `{status:"ready", profiles:["default","fast"]}`
+      `POST /v1/chat/completions` → PONG in **15.2 s** (550B model cold-start cost).
+  - **Known pre-existing blockers** (unchanged): 4 root TS errors and 7 lint errors that
+    pre-date this PR.
