@@ -3,11 +3,15 @@
  *
  * Reads the `AI_DEFAULT_*` env vars exactly once, validates the result with a
  * hand-rolled validator (no Zod, no extra deps), and hands out a frozen
- * singleton via {@link getAiConfig}. The legacy `NANO_GPT_*` names are NOT
- * read here yet — that mapping lands in PR5 via `aiShim.ts`.
+ * singleton via {@link getAiConfig}. The legacy `NANO_GPT_*` names are mapped
+ * to the new names via {@link applyLegacyShim} (PR5) before the read, so
+ * deployments that haven't migrated their `.env` yet still boot. New names
+ * always win when both are set.
  *
  * This file is the ONLY place in the backend that reads AI env vars.
  */
+import { applyLegacyShim } from './aiShim';
+
 export interface AiConfigInput {
   apiBaseUrl: string;
   apiKey: string;
@@ -35,10 +39,6 @@ const FIELDS: readonly (readonly [keyof AiConfigInput, string])[] = [
 
 let cached: AiConfig | null = null;
 
-function readEnv(key: string): string | undefined {
-  return process.env[key];
-}
-
 function isEmpty(value: string | undefined): boolean {
   return value === undefined || value === null || value === '';
 }
@@ -56,17 +56,19 @@ export function validateConfig(input: AiConfigInput): void {
   }
 }
 
-/** Read env, validate, freeze, cache, return. Idempotent. */
+/** Read env (with shim), validate, freeze, cache, return. Idempotent. */
 export function loadConfig(): AiConfig {
   if (cached !== null) {
     return cached;
   }
 
+  const shimmed = applyLegacyShim(process.env);
+
   const input: AiConfigInput = {
-    apiBaseUrl: readEnv(ENV_API_BASE_URL) || DEFAULT_API_BASE_URL,
-    apiKey: readEnv(ENV_API_KEY) || '',
-    model: readEnv(ENV_MODEL) || DEFAULT_MODEL,
-    flashModel: readEnv(ENV_FLASH_MODEL) || DEFAULT_FLASH_MODEL,
+    apiBaseUrl: shimmed.AI_DEFAULT_API_BASE_URL || DEFAULT_API_BASE_URL,
+    apiKey: shimmed.AI_DEFAULT_API_KEY || '',
+    model: shimmed.AI_DEFAULT_MODEL || DEFAULT_MODEL,
+    flashModel: shimmed.AI_DEFAULT_FLASH_MODEL || DEFAULT_FLASH_MODEL,
   };
 
   validateConfig(input);

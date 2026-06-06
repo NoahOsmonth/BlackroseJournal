@@ -21,6 +21,10 @@ describe('backend/src/config/ai — config loader foundation (PR1)', () => {
         delete process.env.AI_DEFAULT_API_BASE_URL;
         delete process.env.AI_DEFAULT_MODEL;
         delete process.env.AI_DEFAULT_FLASH_MODEL;
+        delete process.env.NANO_GPT_API_KEY;
+        delete process.env.NANO_GPT_API_BASE_URL;
+        delete process.env.NANO_GPT_MODEL;
+        delete process.env.NANO_GPT_FLASH_MODEL;
     });
 
     afterEach(() => {
@@ -162,5 +166,33 @@ describe('backend/src/config/ai — config loader foundation (PR1)', () => {
         const cfg = getAiConfig();
         expect(cfg.apiKey).toBe('sk-test');
         expect(Object.isFrozen(cfg)).toBe(true);
+    });
+
+    it('loadConfig() maps legacy NANO_GPT_* env vars via the shim when AI_DEFAULT_* is unset', () => {
+        process.env.NANO_GPT_API_KEY = 'sk-legacy';
+        process.env.NANO_GPT_API_BASE_URL = 'https://legacy.example/v1';
+        process.env.NANO_GPT_MODEL = 'legacy/main';
+        process.env.NANO_GPT_FLASH_MODEL = 'legacy/flash';
+
+        const { loadConfig } = freshConfigModule();
+        const cfg = loadConfig();
+
+        expect(cfg.apiKey).toBe('sk-legacy');
+        expect(cfg.apiBaseUrl).toBe('https://legacy.example/v1');
+        expect(cfg.model).toBe('legacy/main');
+        expect(cfg.flashModel).toBe('legacy/flash');
+    });
+
+    it('loadConfig() lets new AI_DEFAULT_* names win over legacy NANO_GPT_* when both are set', () => {
+        process.env.NANO_GPT_API_KEY = 'sk-legacy';
+        process.env.AI_DEFAULT_API_KEY = 'sk-new';
+        process.env.AI_DEFAULT_MODEL = 'new/main';
+        process.env.NANO_GPT_MODEL = 'legacy/main';
+
+        const { loadConfig } = freshConfigModule();
+        const cfg = loadConfig();
+
+        expect(cfg.apiKey).toBe('sk-new');
+        expect(cfg.model).toBe('new/main');
     });
 });

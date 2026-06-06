@@ -14,9 +14,9 @@ A React Native/Expo chat journal application with AI integration.
 
    Copy `.env.example` to `.env` and set your API key:
 
-   - `NANO_GPT_API_KEY` (required)
-   - `NANO_GPT_API_BASE_URL` (optional)
-   - `NANO_GPT_MODEL` (optional)
+   - `NANO_GPT_API_KEY` (required; see [docs/MIGRATION.md](./docs/MIGRATION.md), the name moves to `AI_DEFAULT_API_KEY` on 2026-09-01)
+   - `NANO_GPT_API_BASE_URL` (optional; renames to `AI_DEFAULT_API_BASE_URL`)
+   - `NANO_GPT_MODEL` (optional; renames to `AI_DEFAULT_MODEL`)
    - `EXPO_PUBLIC_AGENT_BASE_URL` (required for chat, points to the backend agent)
 
    For long-term memory (SimpleMem), configure the backend via `backend/.env` (see `backend/.env.example`):

@@ -558,7 +558,7 @@
     `GET /ready` returns 200 if at least one profile is valid, 503 otherwise. Both import `getAiConfig` from the new
     `config/ai` (NOT from the legacy `aiConfig.ts`).
   - **Boot wiring**: `backend/src/index.ts` calls `loadConfig()` after `dotenv/config` and before `getServerConfig`.
-    On validation failure it throws; on success a single `console.log` is emitted (no API key in any log).
+    On validation failure it throws; on success the server starts. No API key is ever written to logs.
   - **`max_context` fully removed** from `backend/src/agent/types.ts`, `backend/src/routes/chatRoutes.ts`, and
     `backend/src/ws/chatWebSocket.ts`. Only mention left in the repo is a JSDoc note in `openaiCompat.ts` documenting
     the absence. Verified via `grep -rn "max_context" backend/src/`.
@@ -576,14 +576,14 @@
     - `npx tsc --noEmit` (root) — clean for PR4 files; 4 pre-existing errors remain (same set as before PR4).
     - `npx tsc --noEmit` (backend) — clean.
     - `npm run lint` — 7 pre-existing errors unchanged; PR4 files clean.
-    - `npx jest --runInBand` — 148 passed, 5 skipped (integration without env), 0 failed.
+    - `npx jest --runInBand` — 149 passed, 5 skipped (integration without env), 0 failed.
     - `RUN_INTEGRATION_TESTS=1 npx jest --testPathPattern='aiHealth'` — 3/3 passed.
   - **Deviation from PR4 plan**: the plan said "PR2 has shipped `parseSseStream`" — it had not. Rather than block
-    the PR, the missing module was relocated (not invented) from the two inline copies of the parser. Behavior is
-    byte-identical to the originals; the module is re-exported from `services/ai/index.ts`.
+    the PR, the missing module was relocated (not invented) from the inline copy in `agentService.ts`. Behavior is
+    byte-identical to the original; the module is re-exported from `services/ai/index.ts`. The duplicate parser
+    in `chatWebSocket.ts` was extracted in a follow-up commit (see 2026-06-06 entry below).
   - **Out-of-scope edits**: `backend/src/ws/chatWebSocket.ts` had `max_context` removed (1-line field drop) as a
-    natural extension of the `max_context` cleanup. README, `package.json`, and `backend/README.md` modifications
-    are PRE-EXISTING (from prior uncommitted session work, not from this PR).
+    natural extension of the `max_context` cleanup.
 - **2026-06-06 (follow-up)**: PR4 commit stack corrected after Oracle review:
   - Oracle flagged that the original two-commit PR4 (`1eefadb` test fix + `463d46d` PR4) was not
     self-contained: PR4 imported from `../services/ai` (barrel), `./config/ai`, and
