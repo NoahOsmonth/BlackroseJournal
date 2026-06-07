@@ -100,6 +100,7 @@ export async function createEntry(input: JournalEntryCreateInput): Promise<Journ
         emoji: input.emoji || '📝',
         messages: input.messages,
         status: input.status,
+        analysis: input.analysis,
         createdAt: now,
         updatedAt: now,
     };

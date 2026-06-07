@@ -8,5 +8,5 @@ export { GoalsSection } from './GoalsSection';
 export { IntentionActionCard } from './IntentionActionCard';
 export { MyIntentionsSection } from './MyIntentionsSection';
 export { PersonalizeButton } from './PersonalizeButton';
+export { EveningReflectionIcon, MorningIntentionIcon } from './TodayActionIcon';
 export { WeekdaySelector } from './WeekdaySelector';
-

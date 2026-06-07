@@ -1,5 +1,13 @@
 import React from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import {
+    NativeScrollEvent,
+    NativeSyntheticEvent,
+    Pressable,
+    ScrollView,
+    Text,
+    TextInput,
+    View,
+} from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 
 import { Colors } from '@/constants/theme';
@@ -21,6 +29,8 @@ interface IntentionChatBodyProps {
     readonly onCopy: (text: string) => void;
     readonly onShare: (text: string) => void;
     readonly onThumb: (id: string, value: 'up' | 'down') => void;
+    readonly onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+    readonly onContentSizeChange?: () => void;
 }
 
 export function IntentionChatBody({
@@ -36,6 +46,8 @@ export function IntentionChatBody({
     onCopy,
     onShare,
     onThumb,
+    onScroll,
+    onContentSizeChange,
 }: IntentionChatBodyProps) {
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
@@ -48,6 +60,9 @@ export function IntentionChatBody({
             className="flex-1 px-5 pt-4 pb-20"
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            onScroll={onScroll}
+            scrollEventThrottle={80}
+            onContentSizeChange={onContentSizeChange}
         >
             <View className="flex-row items-center space-x-2 mb-4">
                 <Text className="text-[10px] font-bold tracking-wider text-text-secondary-light dark:text-text-secondary-dark uppercase">

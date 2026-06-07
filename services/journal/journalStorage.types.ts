@@ -7,12 +7,21 @@ import { Message } from '../ai/ai';
 
 export type EntryStatus = 'draft' | 'completed';
 
+export interface JournalEntryAnalysis {
+    insight: string;
+    quote: string;
+    mood: string;
+    topics: string[];
+    generatedAt: number;
+}
+
 export interface JournalEntry {
     id: string;
     title: string;
     emoji: string;
     messages: Message[];
     status: EntryStatus;
+    analysis?: JournalEntryAnalysis;
     createdAt: number;
     updatedAt: number;
 }
@@ -22,6 +31,7 @@ export interface JournalEntryCreateInput {
     emoji?: string;
     messages: Message[];
     status: EntryStatus;
+    analysis?: JournalEntryAnalysis;
 }
 
 export interface JournalEntryUpdateInput {
@@ -29,6 +39,7 @@ export interface JournalEntryUpdateInput {
     emoji?: string;
     messages?: Message[];
     status?: EntryStatus;
+    analysis?: JournalEntryAnalysis;
 }
 
 export interface StorageAdapter {

@@ -12,7 +12,12 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Keyboard, ScrollView } from 'react-native';
+import {
+    Keyboard,
+    NativeScrollEvent,
+    NativeSyntheticEvent,
+    ScrollView,
+} from 'react-native';
 import { InlineTypingInputRef } from '../../../components/InlineTypingInput';
 import { DAILY_PROMPTS, DailyPrompt, PromptPeriod } from '../../../constants/dailyPrompts';
 import { DirectConfigError } from '../../../services/ai/directConfig';
@@ -60,6 +65,8 @@ export interface UseChatOrchestrationOptions {
     conversationId?: string;
     /** Optional custom initial prompt for non-daily check-ins */
     initialPrompt?: { systemPrompt: string; triggerText: string };
+    /** Optional system prompt override for regular sends without starting a chat. */
+    systemPrompt?: string;
 }
 
 export interface UseChatOrchestrationReturn {
@@ -73,9 +80,21 @@ export interface UseChatOrchestrationReturn {
     clearError: () => void;
     handleNewChat: () => void;
     initializeMessages: (initialMessages: Message[]) => void;
-    scrollToBottom: () => void;
+    scrollToBottom: (options?: ScrollToBottomOptions) => void;
+    handleScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
     /** The prompt being used for daily check-in, if applicable */
     currentPrompt: DailyPrompt | null;
+}
+
+interface ScrollToBottomOptions {
+    force?: boolean;
+    animated?: boolean;
+}
+
+function isNearBottom(event: NativeScrollEvent): boolean {
+    const { contentOffset, contentSize, layoutMeasurement } = event;
+    const distance = contentSize.height - (contentOffset.y + layoutMeasurement.height);
+    return distance < 96;
 }
 
 export function useChatOrchestration({
@@ -85,12 +104,14 @@ export function useChatOrchestration({
     promptPeriod,
     conversationId,
     initialPrompt,
+    systemPrompt,
 }: UseChatOrchestrationOptions): UseChatOrchestrationReturn {
     const [messages, setMessages] = useState<Message[]>([]);
     const [streamingMessage, setStreamingMessage] = useState<StreamingMessage | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [lastUserMessage, setLastUserMessage] = useState<Message | null>(null);
+    const shouldAutoScrollRef = useRef(true);
     const {
         sendMessage,
         clearMessages,
@@ -98,6 +119,7 @@ export function useChatOrchestration({
         sendInitialMessage,
         setMessages: setChatMessages,
         setConversationId,
+        setSystemPrompt,
     } = useChat();
     const hasInitialized = useRef(false);
 
@@ -112,9 +134,29 @@ export function useChatOrchestration({
         }
     }, [conversationId, setConversationId]);
 
-    const scrollToBottom = useCallback(() => {
+    useEffect(() => {
+        if (initialPrompt?.systemPrompt) {
+            setSystemPrompt(initialPrompt.systemPrompt);
+        }
+    }, [initialPrompt?.systemPrompt, setSystemPrompt]);
+
+    useEffect(() => {
+        if (systemPrompt) {
+            setSystemPrompt(systemPrompt);
+        }
+    }, [setSystemPrompt, systemPrompt]);
+
+    const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+        shouldAutoScrollRef.current = isNearBottom(event.nativeEvent);
+    }, []);
+
+    const scrollToBottom = useCallback((options: ScrollToBottomOptions = {}) => {
+        if (!options.force && !shouldAutoScrollRef.current) {
+            return;
+        }
+
         setTimeout(() => {
-            scrollViewRef.current?.scrollToEnd({ animated: true });
+            scrollViewRef.current?.scrollToEnd({ animated: options.animated ?? true });
         }, 100);
     }, [scrollViewRef]);
 
@@ -158,6 +200,7 @@ export function useChatOrchestration({
         hasInitialized.current = true;
         clearError();
         const tempStreamingId = beginStreaming();
+        scrollToBottom({ force: true });
 
         sendInitialMessage(
             initialPrompt.systemPrompt,
@@ -211,6 +254,7 @@ export function useChatOrchestration({
             // Start loading and trigger AI follow-up
             clearError();
             const tempStreamingId = beginStreaming();
+            scrollToBottom({ force: true });
 
             sendInitialPrompt(
                 currentPrompt,
@@ -262,7 +306,7 @@ export function useChatOrchestration({
         clearError();
         setMessages(prev => [...prev, userMessage]);
         setLastUserMessage(userMessage);
-        scrollToBottom();
+        scrollToBottom({ force: true });
 
         const tempStreamingId = beginStreaming();
 
@@ -307,7 +351,7 @@ export function useChatOrchestration({
 
         clearError();
         const tempStreamingId = beginStreaming();
-        scrollToBottom();
+        scrollToBottom({ force: true });
         setChatMessages(messages.filter(message => message.id !== lastUserMessage.id));
 
         try {
@@ -383,6 +427,7 @@ export function useChatOrchestration({
         handleNewChat,
         initializeMessages,
         scrollToBottom,
+        handleScroll,
         currentPrompt,
     };
 }

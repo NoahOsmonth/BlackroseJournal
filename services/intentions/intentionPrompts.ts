@@ -7,6 +7,7 @@ interface IntentionPromptOptions {
     intentionTitle?: string;
     personaPrompt?: string;
     memorySummary?: string;
+    feedbackGuidance?: string;
 }
 
 export function buildIntentionSystemPrompt({
@@ -15,6 +16,7 @@ export function buildIntentionSystemPrompt({
     intentionTitle,
     personaPrompt,
     memorySummary,
+    feedbackGuidance,
 }: IntentionPromptOptions): string {
     const contextLabel =
         type === 'morning'
@@ -39,5 +41,7 @@ export function buildIntentionSystemPrompt({
         ? `\n## Persona Guidance\n${personaPrompt}\n`
         : '';
 
-    return `${THERAPIST_SYSTEM_PROMPT}\n\n${contextBlock}${personaBlock}`.trim();
+    const feedbackBlock = feedbackGuidance ? `\n${feedbackGuidance}\n` : '';
+
+    return `${THERAPIST_SYSTEM_PROMPT}\n\n${contextBlock}${personaBlock}${feedbackBlock}`.trim();
 }

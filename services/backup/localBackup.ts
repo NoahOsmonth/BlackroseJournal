@@ -10,6 +10,7 @@ export const LOCAL_BACKUP_DATA_KEYS = [
     '@happiness_recipe_items',
     '@personas',
     '@persona_draft_settings',
+    '@ai_response_feedback',
     '@saved_insights',
     '@weekly_insights_cache',
     'user-theme-preference',

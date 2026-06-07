@@ -1,6 +1,7 @@
 import { getDirectConfig } from '@/services/ai/directConfig';
 import { fetchDirectChatCompletion } from '@/services/ai/directTransport';
 import {
+    EntryAnalysisResult,
     EntryReflectionResult,
     StreakHaiku,
     WeeklyInsightsEntry,
@@ -14,6 +15,13 @@ const FALLBACK_SUGGESTIONS: EntryReflectionResult['suggestions'] = [
     { type: 'HABIT', text: 'Write one sentence of gratitude' },
     { type: 'HABIT', text: 'Do 3 slow breaths before bed' },
 ];
+
+const FALLBACK_ANALYSIS: EntryAnalysisResult = {
+    insight: 'You are noticing what matters and giving it language.',
+    quote: 'Small honest moments can become a map.',
+    mood: 'Reflective',
+    topics: ['Self-awareness'],
+};
 
 const FALLBACK_HAIKU: StreakHaiku = [
     'Still here today',
@@ -33,6 +41,21 @@ Rules:
 - Keep reflection warm and concise (2-5 sentences).
 - Key insight should be 1 sentence.
 - Provide 3-6 HABIT suggestions that are specific, small, and actionable.`;
+
+const ENTRY_ANALYSIS_SYSTEM_PROMPT = `You are a concise journal analyst.
+Return ONLY valid JSON with the exact shape:
+{
+  "insight": string,
+  "quote": string,
+  "mood": string,
+  "topics": string[]
+}
+
+Rules:
+- insight: 1 grounded sentence about the entry's meaning.
+- quote: 1 short original line inspired by the entry, no quotation marks.
+- mood: 1-3 words.
+- topics: 2-5 short topic labels.`;
 
 const WEEKLY_SYSTEM_PROMPT = `You are a psychological analyst for a journal.
 Analyze the user's weekly entries and return valid JSON with this EXACT structure:
@@ -95,6 +118,15 @@ function parseJsonShape<T>(raw: string): T | null {
     }
 }
 
+function normalizeTopics(value: unknown): string[] {
+    return Array.isArray(value)
+        ? value.filter((item): item is string => typeof item === 'string')
+            .map((item) => item.trim())
+            .filter(Boolean)
+            .slice(0, 5)
+        : [];
+}
+
 async function postInsights<TRes>(payload: InsightsChatPayload): Promise<TRes> {
     const { flashModel } = getDirectConfig();
     const response = await fetchDirectChatCompletion({
@@ -142,6 +174,31 @@ export async function generateEntryReflection(input: { entryText: string }): Pro
             keyInsight: FALLBACK_KEY_INSIGHT,
             suggestions: FALLBACK_SUGGESTIONS,
         };
+    }
+}
+
+export async function generateEntryAnalysis(input: { entryText: string }): Promise<EntryAnalysisResult> {
+    try {
+        const data = await postInsights<EntryAnalysisResult>({
+            messages: [
+                { role: 'system', content: ENTRY_ANALYSIS_SYSTEM_PROMPT },
+                { role: 'user', content: `Entry:\n${input.entryText}` },
+            ],
+            temperature: 0.7,
+            response_format: { type: 'json_object' },
+        });
+        const topics = normalizeTopics(data.topics);
+        const insight = typeof data.insight === 'string' ? data.insight.trim() : '';
+        const quote = typeof data.quote === 'string' ? data.quote.trim() : '';
+        const mood = typeof data.mood === 'string' ? data.mood.trim() : '';
+        return {
+            insight: insight || FALLBACK_ANALYSIS.insight,
+            quote: quote || FALLBACK_ANALYSIS.quote,
+            mood: mood || FALLBACK_ANALYSIS.mood,
+            topics: topics.length > 0 ? topics : FALLBACK_ANALYSIS.topics,
+        };
+    } catch {
+        return FALLBACK_ANALYSIS;
     }
 }
 

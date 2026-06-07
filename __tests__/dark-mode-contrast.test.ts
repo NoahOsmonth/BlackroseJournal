@@ -65,6 +65,7 @@ describe("dark mode contrast safety", () => {
         expect(colors).toHaveProperty("text-main-light");
         expect(colors).toHaveProperty("text-main-dark");
         expect(colors).toHaveProperty("user-text");
+        expect(colors).toHaveProperty("user-text-dark");
         expect(colors).toHaveProperty("accent-blue");
         expect(colors).toHaveProperty("ai-text");
         expect(colors).toHaveProperty("subtext-light");

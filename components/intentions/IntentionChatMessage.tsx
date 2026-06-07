@@ -37,7 +37,7 @@ export function IntentionChatMessage({
                 testID="intention-chat-message-text"
                 className={`max-w-[320px] text-[17px] leading-relaxed ${isAssistant
                     ? 'text-accent-blue dark:text-ai-text'
-                    : 'text-text-secondary-light dark:text-text-secondary-dark'
+                    : 'text-user-text dark:text-user-text-dark'
                     }`}
             >
                 {displayContent}

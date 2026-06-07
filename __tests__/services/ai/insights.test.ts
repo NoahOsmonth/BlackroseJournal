@@ -1,4 +1,5 @@
 import {
+    generateEntryAnalysis,
     generateEntryReflection,
     generateEntryTitle,
     generateStreakHaiku,
@@ -73,6 +74,40 @@ describe('insights — direct local NanoGPT', () => {
         expect(result.keyInsight).toBeTruthy();
         expect(result.suggestions.length).toBeGreaterThan(0);
         expect(result.suggestions.every((s) => s.type === 'HABIT')).toBe(true);
+    });
+
+    it('generateEntryAnalysis posts entry text and normalizes history analysis', async () => {
+        mockFetchDirect.mockResolvedValue(
+            mockResponse(200, {
+                insight: 'You are asking for steadier routines.',
+                quote: 'A quiet plan can hold the day.',
+                mood: 'Grounded',
+                topics: ['Routines', 'Energy', 'Planning'],
+            })
+        );
+
+        const result = await generateEntryAnalysis({ entryText: 'I need a calmer morning.' });
+
+        const [payload] = mockFetchDirect.mock.calls[0];
+        expect(payload.messages[0]?.content).toContain('"insight"');
+        expect(payload.messages[1]?.content).toContain('I need a calmer morning.');
+        expect(result).toEqual({
+            insight: 'You are asking for steadier routines.',
+            quote: 'A quiet plan can hold the day.',
+            mood: 'Grounded',
+            topics: ['Routines', 'Energy', 'Planning'],
+        });
+    });
+
+    it('generateEntryAnalysis returns fallback when NanoGPT fails', async () => {
+        mockFetchDirect.mockRejectedValue(new Error('Network unreachable'));
+
+        const result = await generateEntryAnalysis({ entryText: 'Anything' });
+
+        expect(result.insight).toBeTruthy();
+        expect(result.quote).toBeTruthy();
+        expect(result.mood).toBeTruthy();
+        expect(result.topics.length).toBeGreaterThan(0);
     });
 
     it('generateWeeklyInsights posts combined entries and parses analysis', async () => {

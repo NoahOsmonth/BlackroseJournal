@@ -10,6 +10,8 @@
  */
 
 import { PromptPeriod } from '@/constants/dailyPrompts';
+import { THERAPIST_SYSTEM_PROMPT } from '@/constants/aiPrompts';
+import { useAiFeedback } from '@/hooks/feedback/useAiFeedback';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
@@ -22,8 +24,11 @@ import { TypingIndicator } from '../components/ui/TypingIndicator';
 import { ChatMode, useChatOrchestration } from '../features/chat';
 import { generateTitle, hasContent, inferMoodEmoji } from '../hooks/useEntryUtils';
 import { useJournalEntries } from '../hooks/useJournalEntries';
-import { generateEntryTitle } from '../services/ai';
-import { JournalEntry } from '../services/journalStorage.types';
+import { generateEntryAnalysis, generateEntryTitle } from '../services/ai';
+import type {
+    JournalEntry,
+    JournalEntryAnalysis,
+} from '../services/journal/journalStorage.types';
 
 type ChatParams = {
     mode?: string;
@@ -56,6 +61,16 @@ export default function ChatScreen() {
         () => entryId ?? `chat_${Date.now()}`,
         [entryId]
     );
+    const { guidance: feedbackGuidance } = useAiFeedback({
+        scope: 'journal',
+        conversationId,
+    });
+    const systemPrompt = useMemo(
+        () => feedbackGuidance
+            ? `${THERAPIST_SYSTEM_PROMPT}\n\n${feedbackGuidance}`
+            : THERAPIST_SYSTEM_PROMPT,
+        [feedbackGuidance]
+    );
 
     const {
         messages,
@@ -69,12 +84,14 @@ export default function ChatScreen() {
         handleNewChat,
         initializeMessages,
         scrollToBottom,
+        handleScroll,
     } = useChatOrchestration({
         scrollViewRef,
         inputRef,
         mode: resolvedMode,
         promptPeriod: promptPeriod as PromptPeriod,
         conversationId,
+        systemPrompt,
     });
 
     useEffect(() => {
@@ -150,12 +167,12 @@ export default function ChatScreen() {
 
         setIsSaving(true);
         try {
+            const entryText = messages
+                .filter(m => m.role === 'user')
+                .map(m => m.content)
+                .join('\n\n');
             let title = generateTitle(messages); // Fallback
             try {
-                const entryText = messages
-                    .filter(m => m.role === 'user')
-                    .map(m => m.content)
-                    .join('\n\n');
                 if (entryText.trim()) {
                     title = await generateEntryTitle({ entryText });
                 }
@@ -164,6 +181,15 @@ export default function ChatScreen() {
             }
 
             const emoji = inferMoodEmoji(messages);
+            let analysis: JournalEntryAnalysis | undefined;
+            try {
+                if (entryText.trim()) {
+                    const generated = await generateEntryAnalysis({ entryText });
+                    analysis = { ...generated, generatedAt: Date.now() };
+                }
+            } catch (err) {
+                console.warn('AI entry analysis failed, saving entry without analysis', err);
+            }
 
             let savedEntryId = entryId;
 
@@ -173,6 +199,7 @@ export default function ChatScreen() {
                     emoji,
                     messages,
                     status: 'completed',
+                    analysis,
                 });
             } else {
                 const created = await create({
@@ -180,6 +207,7 @@ export default function ChatScreen() {
                     emoji,
                     messages,
                     status: 'completed',
+                    analysis,
                 });
                 savedEntryId = created.id;
             }
@@ -220,7 +248,9 @@ export default function ChatScreen() {
                     className="flex-1 px-6 py-4 space-y-6"
                     contentContainerStyle={{ paddingBottom: 20 }}
                     showsVerticalScrollIndicator={false}
-                    onContentSizeChange={scrollToBottom}
+                    onScroll={handleScroll}
+                    scrollEventThrottle={80}
+                    onContentSizeChange={() => scrollToBottom()}
                     keyboardShouldPersistTaps="handled"
                 >
                     <View className="gap-y-4">

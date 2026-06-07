@@ -681,3 +681,43 @@
     - `npm run lint` still fails on known pre-existing lint errors:
       `__tests__/ChatMessage.test.tsx`, `app/goals.tsx`, `app/intentions/select.tsx`,
       `components/today/GoalsSection.tsx`, `scripts/check-design-limits.js`, `scripts/check-legacy-shim.js`.
+
+- **2026-06-07**: Streaming UX, feedback memory, history analysis, and Today SVG icons:
+  - Chat streaming scroll now respects manual user scrollback:
+    - `useChatOrchestration` tracks whether the user is near the bottom and only auto-follows streamed chunks while pinned.
+    - Main journal chat and intention chat attach `onScroll`/`onContentSizeChange`; sending a new message still forces the latest response into view.
+  - User-authored chat text now uses a warm darker tone (`user-text` / `user-text-dark`) distinct from AI response text.
+  - Feedback now opens a comment popup and persists local feedback memory:
+    - Added `services/feedback/feedbackStorage.ts` and `hooks/feedback/useAiFeedback.ts`.
+    - Intention chat feedback saves like/dislike comments and injects them into future intention prompts as response-style guidance.
+    - Entry Reflection feedback now saves comments to journal feedback memory, and journal chat reads that guidance for future tone/style.
+    - Added feedback memory to local backup/restore keys.
+  - Completed journal entries now save generated history analysis alongside chat history:
+    - Added `generateEntryAnalysis` for `insight`, `quote`, `mood`, and `topics`.
+    - `app/chat.tsx` generates analysis when finishing an entry.
+    - `app/entry-detail.tsx` renders the analysis panel and backfills older completed entries once.
+  - Replaced Today morning/evening bitmap card art with generated `react-native-svg` icons:
+    - `MorningIntentionIcon`
+    - `EveningReflectionIcon`
+  - File-size/design guard:
+    - Extracted persona settings actions to keep `app/intentions/chat.tsx` below the 450-line warning threshold.
+    - `npm run check:design` passed with 0 warnings.
+  - Tests added/updated:
+    - `__tests__/hooks/useChatOrchestration.test.tsx`
+    - `__tests__/services/feedbackStorage.test.ts`
+    - `__tests__/services/intentionPrompts.test.ts`
+    - `__tests__/components/FeedbackCommentModal.test.tsx`
+    - `__tests__/components/EntryAnalysisPanel.test.tsx`
+    - `__tests__/components/TodayActionIcon.test.tsx`
+    - `__tests__/screens/EntryReflection.test.tsx`
+    - `__tests__/services/journalStorage.test.ts`
+    - Updated chat, intention message, Tailwind, dark-mode, AI defaults/insights, local backup, and intention body tests.
+  - Verified:
+    - `npm run test:run -- --testPathPattern="ChatMessage|IntentionChatMessage|EntryReflection|tailwind-config|dark-mode-contrast|feedbackStorage|intentionPrompts|FeedbackCommentModal|EntryAnalysisPanel|TodayActionIcon|useChatOrchestration|insights|ai-defaults|journalStorage|localBackup|IntentionChatBody" --forceExit` — 43 tests passing.
+    - `npm run check:design` — passed.
+    - `npx eslint` on all new/edited files owned by this change — passed.
+  - Existing unrelated gates still failing:
+    - `npm run typecheck` fails in `app/persona/[id].tsx`, `components/parallax-scroll-view.tsx`, and `utils/dev/rawTextGuard.ts`.
+    - `npm run lint` fails on pre-existing errors in `__tests__/ChatMessage.test.tsx`, `app/goals.tsx`,
+      `app/intentions/select.tsx`, `components/today/GoalsSection.tsx`, `scripts/check-design-limits.js`,
+      and `scripts/check-legacy-shim.js`.

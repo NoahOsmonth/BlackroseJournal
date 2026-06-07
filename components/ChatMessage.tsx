@@ -59,7 +59,7 @@ export function ChatMessage({
 
   const messageTextClassName = isAi
     ? 'text-[15px] leading-[22px] font-semibold text-text-light dark:text-text-dark'
-    : 'text-[15px] leading-[22px] font-bold text-user-text dark:text-text-main-dark';
+    : 'text-[15px] leading-[22px] font-bold text-user-text dark:text-user-text-dark';
 
   return (
     <Animated.View

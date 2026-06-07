@@ -18,6 +18,7 @@ describe("tailwind.config.js", () => {
         "text-main-light",
         "text-main-dark",
         "user-text",
+        "user-text-dark",
         "accent-blue",
         "ai-text",
         "text-primary-light",
@@ -55,5 +56,11 @@ describe("tailwind.config.js", () => {
 
     it("ai text matches the intention chat reference cyan", () => {
         expect(colors["ai-text"]).toBe("#38BDF8");
+    });
+
+    it("user text uses a warm darker tone distinct from AI text", () => {
+        expect(colors["user-text"]).toBe("#7C2D12");
+        expect(colors["user-text-dark"]).toBe("#FDBA74");
+        expect(colors["user-text"]).not.toBe(colors["ai-text"]);
     });
 });

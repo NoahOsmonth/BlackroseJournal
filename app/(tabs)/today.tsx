@@ -19,6 +19,10 @@ import {
     MyIntentionsSection,
     PersonalizeButton,
 } from '@/components/today';
+import {
+    EveningReflectionIcon,
+    MorningIntentionIcon,
+} from '@/components/today/TodayActionIcon';
 import { useGoals } from '@/hooks/goals/useGoals';
 import { useIntentions } from '@/hooks/intentions/useIntentions';
 import { useIntentionCheckIns } from '@/hooks/intentions/useIntentionCheckIns';
@@ -31,9 +35,6 @@ import { useSavedInsights } from '@/hooks/saved-insights/useSavedInsights';
 import { WeekdaySelector } from '@/components/today/WeekdaySelector';
 import { getLocalDateKey } from '@/utils/date';
 import { calculateStreakStats } from '@/utils/streakStats';
-
-const morningImage = require('@/assets/today/morning-intention.png');
-const eveningImage = require('@/assets/today/evening-reflection.png');
 
 export default function TodayScreen() {
     const router = useRouter();
@@ -191,7 +192,7 @@ export default function TodayScreen() {
                             <IntentionActionCard
                                 title={'Morning\nIntention'}
                                 subtitle="Start your day"
-                                imageSource={morningImage}
+                                icon={<MorningIntentionIcon />}
                                 onPress={handleMorningPress}
                                 isCompleted={morningCompleted}
                             />
@@ -200,7 +201,7 @@ export default function TodayScreen() {
                             <IntentionActionCard
                                 title={'Evening\nReflection'}
                                 subtitle="Reflect & unwind"
-                                imageSource={eveningImage}
+                                icon={<EveningReflectionIcon />}
                                 onPress={handleEveningPress}
                                 isCompleted={eveningCompleted}
                             />

@@ -37,6 +37,22 @@ export const ChatColors = {
   accentLight: '#3B82F6',
   accentDark: '#38BDF8',
   activeDark: '#60A5FA',
+  userTextLight: '#7C2D12',
+  userTextDark: '#FDBA74',
+} as const;
+
+export const TodayIconColors = {
+  morningSkyLight: '#E0F2FE',
+  morningHillLight: '#BBF7D0',
+  morningSmileLight: '#7C2D12',
+  eveningSkyLight: '#EEF2FF',
+  eveningMoonLight: '#F59E0B',
+  eveningMoonDark: '#FDE68A',
+  eveningWaterLight: '#99F6E4',
+  eveningWaterLineLight: '#0F766E',
+  eveningStarLight: '#818CF8',
+  eveningWaterLineDark: '#5EEAD4',
+  morningHillDark: '#14532D',
 } as const;
 
 export const Colors = {

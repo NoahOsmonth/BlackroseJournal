@@ -9,6 +9,13 @@ export interface EntryReflectionResult {
     suggestions: EntryReflectionSuggestion[];
 }
 
+export interface EntryAnalysisResult {
+    insight: string;
+    quote: string;
+    mood: string;
+    topics: string[];
+}
+
 export interface WeeklyInsightsEntry {
     messages: { content: string }[];
 }

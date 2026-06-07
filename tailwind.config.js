@@ -29,7 +29,8 @@ module.exports = {
                 'text-main-light': '#111827',
                 'text-main-dark': '#F9FAFB',
                 // User input text
-                'user-text': '#111827',
+                'user-text': '#7C2D12',
+                'user-text-dark': '#FDBA74',
                 // AI / accent text
                 'accent-blue': '#3B82F6',
                 'ai-text': '#38BDF8',

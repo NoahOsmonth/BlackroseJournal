@@ -1,11 +1,11 @@
 import React from 'react';
-import { Image, ImageSourcePropType, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 
 interface IntentionActionCardProps {
     title: string;
     subtitle: string;
-    imageSource: ImageSourcePropType;
+    icon: React.ReactNode;
     onPress?: () => void;
     isCompleted?: boolean;
 }
@@ -13,7 +13,7 @@ interface IntentionActionCardProps {
 export function IntentionActionCard({
     title,
     subtitle,
-    imageSource,
+    icon,
     onPress,
     isCompleted = false,
 }: IntentionActionCardProps) {
@@ -26,7 +26,7 @@ export function IntentionActionCard({
             accessibilityLabel={accessibility}
         >
             <View className="mb-4">
-                <Image source={imageSource} style={{ width: 48, height: 48 }} />
+                {icon}
             </View>
             <Text className="text-[15px] font-semibold mb-0.5 leading-tight text-text-light dark:text-white">
                 {title}

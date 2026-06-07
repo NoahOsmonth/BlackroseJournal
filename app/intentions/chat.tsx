@@ -28,11 +28,15 @@ import { hasContent } from '@/hooks/journal/useEntryUtils';
 import { markIntentionGoalComplete } from '@/services/goals/goalsStorage';
 import { PersonaSheet } from '@/components/personas/PersonaSheet';
 import { PersonaSettingsSheet } from '@/components/personas/PersonaSettingsSheet';
+import { FeedbackCommentModal } from '@/components/intentions/FeedbackCommentModal';
 import { getLocalDateKey } from '@/utils/date';
 import { IntentionChatHeader } from '@/components/intentions/IntentionChatHeader';
 import { IntentionChatFooter } from '@/components/intentions/IntentionChatFooter';
 import { IntentionChatBody } from '@/components/intentions/IntentionChatBody';
-import { Persona } from '@/services/personas/personasStorage.types';
+import { useAiFeedback } from '@/hooks/feedback/useAiFeedback';
+import { useIntentionFeedbackModal } from '@/hooks/feedback/useIntentionFeedbackModal';
+import type { AiFeedbackValue } from '@/services/feedback/feedbackStorage';
+import { usePersonaSettingsActions } from '@/hooks/personas/usePersonaSettingsActions';
 
 function buildSummary(messages: { role: string; content: string }[]): string {
     const first = messages.find((m) => m.role === 'user');
@@ -47,7 +51,13 @@ export default function IntentionChatScreen() {
     const scrollViewRef = useRef<ScrollView>(null);
     const inputRef = useRef<InlineTypingInputRef>(null);
 
-    const { personas, activePersona, setActive, remove } = usePersonas();
+    const {
+        personas,
+        activePersona,
+        setActive,
+        remove,
+        isLoading: isPersonasLoading,
+    } = usePersonas();
     const { completed: checkIns } = useIntentionCheckIns();
     const { create: createIntention } = useIntentions();
 
@@ -56,9 +66,6 @@ export default function IntentionChatScreen() {
     const [draftCheckInId, setDraftCheckInId] = useState<string | null>(null);
     const [draftUpdatedAt, setDraftUpdatedAt] = useState<number | null>(null);
     const [personaSheetOpen, setPersonaSheetOpen] = useState(false);
-    const [settingsPersona, setSettingsPersona] = useState<Persona | null>(null);
-    const [settingsOpen, setSettingsOpen] = useState(false);
-    const [feedback, setFeedback] = useState<Record<string, 'up' | 'down'>>({});
     const [isMuted, setIsMuted] = useState(false);
 
     const areaParam = Array.isArray(params.area) ? params.area[0] : params.area;
@@ -89,6 +96,27 @@ export default function IntentionChatScreen() {
         return latest?.summary;
     }, [checkIns, intentionId]);
 
+    const conversationId = useMemo(() => {
+        if (draftCheckInId) return draftCheckInId;
+        if (intentionId) return `intention_${intentionId}_${Date.now()}`;
+        return `intention_${Date.now()}`;
+    }, [draftCheckInId, intentionId]);
+
+    const {
+        feedbackByMessageId,
+        guidance: feedbackGuidance,
+        isLoading: isFeedbackLoading,
+        save: saveFeedback,
+    } = useAiFeedback({
+        scope: 'intention',
+        personaId: activePersona?.id,
+        conversationId,
+    });
+
+    const feedback = useMemo<Record<string, AiFeedbackValue>>(() => Object.fromEntries(
+        Object.entries(feedbackByMessageId).map(([id, record]) => [id, record.value])
+    ) as Record<string, AiFeedbackValue>, [feedbackByMessageId]);
+
     const systemPrompt = useMemo(
         () => buildIntentionSystemPrompt({
             type: checkInType,
@@ -96,23 +124,27 @@ export default function IntentionChatScreen() {
             intentionTitle: intention?.title,
             personaPrompt: activePersona?.prompt,
             memorySummary,
+            feedbackGuidance,
         }),
-        [checkInType, areaConfig?.label, intention?.title, activePersona?.prompt, memorySummary]
+        [
+            activePersona?.prompt,
+            areaConfig?.label,
+            checkInType,
+            feedbackGuidance,
+            intention?.title,
+            memorySummary,
+        ]
     );
 
     const initialPrompt = useMemo(() => {
-        if (draftIdParam || draftCheckInId) return undefined;
+        if (draftIdParam || draftCheckInId || isFeedbackLoading || isPersonasLoading) {
+            return undefined;
+        }
         return {
             systemPrompt,
             triggerText: '[Start intention check-in]',
         };
-    }, [draftCheckInId, draftIdParam, systemPrompt]);
-
-    const conversationId = useMemo(() => {
-        if (draftCheckInId) return draftCheckInId;
-        if (intentionId) return `intention_${intentionId}_${Date.now()}`;
-        return `intention_${Date.now()}`;
-    }, [draftCheckInId, intentionId]);
+    }, [draftCheckInId, draftIdParam, isFeedbackLoading, isPersonasLoading, systemPrompt]);
 
     const {
         messages,
@@ -123,12 +155,27 @@ export default function IntentionChatScreen() {
         handleNewChat,
         initializeMessages,
         scrollToBottom,
+        handleScroll,
     } = useChatOrchestration({
         scrollViewRef,
         inputRef,
         mode: 'intention',
         conversationId,
         initialPrompt,
+    });
+
+    const { handleThumb, feedbackModalProps } = useIntentionFeedbackModal({
+        conversationId,
+        feedbackByMessageId,
+        messages,
+        saveFeedback,
+        personaId: activePersona?.id,
+    });
+
+    const personaSettings = usePersonaSettingsActions({
+        activePersona,
+        closePersonaSheet: () => setPersonaSheetOpen(false),
+        remove,
     });
 
     useEffect(() => {
@@ -303,10 +350,6 @@ export default function IntentionChatScreen() {
         await Share.share({ message: text });
     };
 
-    const handleThumb = (id: string, value: 'up' | 'down') => {
-        setFeedback((prev) => ({ ...prev, [id]: value }));
-    };
-
     const headerDate = useMemo(() => {
         const baseDate = draftUpdatedAt ? new Date(draftUpdatedAt) : new Date();
         return baseDate.toLocaleDateString('en-US', {
@@ -324,45 +367,6 @@ export default function IntentionChatScreen() {
             }
             return next;
         });
-    };
-
-    const handleSettingsPress = () => {
-        if (activePersona) {
-            setPersonaSheetOpen(false);
-            setSettingsPersona(activePersona);
-            setSettingsOpen(true);
-        } else {
-            router.push('/persona/new');
-        }
-    };
-
-    const handleOpenPersonaSettings = (persona: Persona) => {
-        setPersonaSheetOpen(false);
-        setSettingsPersona(persona);
-        setSettingsOpen(true);
-    };
-
-    const handleClosePersonaSettings = () => {
-        setSettingsOpen(false);
-        setSettingsPersona(null);
-    };
-
-    const handleDeletePersona = (persona: Persona) => {
-        Alert.alert(
-            'Delete persona?',
-            `This removes ${persona.name} from your device.`,
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: async () => {
-                        await remove(persona.id);
-                        handleClosePersonaSettings();
-                    },
-                },
-            ]
-        );
     };
 
     return (
@@ -383,11 +387,13 @@ export default function IntentionChatScreen() {
                     feedback={feedback}
                     inputValue={inputValue}
                     onInputChange={setInputValue}
-                    onSettingsPress={handleSettingsPress}
+                    onSettingsPress={personaSettings.openActiveSettings}
                     onPlay={handlePlay}
                     onCopy={handleCopy}
                     onShare={handleShare}
                     onThumb={handleThumb}
+                    onScroll={handleScroll}
+                    onContentSizeChange={() => scrollToBottom()}
                 />
 
                 <IntentionChatFooter
@@ -413,27 +419,18 @@ export default function IntentionChatScreen() {
                         setPersonaSheetOpen(false);
                         router.push('/persona/new');
                     }}
-                    onOpenSettings={handleOpenPersonaSettings}
+                    onOpenSettings={personaSettings.openSettings}
                 />
                 <PersonaSettingsSheet
-                    visible={settingsOpen}
-                    persona={settingsPersona}
-                    onClose={handleClosePersonaSettings}
-                    onEdit={(persona) => {
-                        handleClosePersonaSettings();
-                        router.push({
-                            pathname: '/persona/[id]',
-                            params: { id: persona.id },
-                        });
-                    }}
-                    onAdvanced={(persona) => {
-                        handleClosePersonaSettings();
-                        router.push({
-                            pathname: '/persona/advanced',
-                            params: { personaId: persona.id },
-                        });
-                    }}
-                    onDelete={handleDeletePersona}
+                    visible={personaSettings.settingsOpen}
+                    persona={personaSettings.settingsPersona}
+                    onClose={personaSettings.closeSettings}
+                    onEdit={personaSettings.editPersona}
+                    onAdvanced={personaSettings.openAdvanced}
+                    onDelete={personaSettings.deletePersona}
+                />
+                <FeedbackCommentModal
+                    {...feedbackModalProps}
                 />
             </View>
         </SafeAreaView>

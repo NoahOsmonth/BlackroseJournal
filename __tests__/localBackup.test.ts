@@ -37,12 +37,13 @@ describe('localBackup', () => {
     it('creates an on-device backup from existing local data', async () => {
         mockStore.set('@journal_entries', '{"entry-1":{"title":"Morning"}}');
         mockStore.set('@goals', '{"goal-1":{"title":"Walk"}}');
+        mockStore.set('@ai_response_feedback', '{"feedback-1":{"value":"up"}}');
 
         const backup = await createLocalBackup('Friday backup');
         const backups = await listLocalBackups();
 
         expect(backup.name).toBe('Friday backup');
-        expect(backup.itemCount).toBe(2);
+        expect(backup.itemCount).toBe(3);
         expect(backups).toEqual([backup]);
     });
 

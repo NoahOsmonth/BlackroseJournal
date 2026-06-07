@@ -26,6 +26,14 @@ jest.mock('@expo/vector-icons', () => ({
 }));
 
 describe('ChatMessage streaming visibility', () => {
+    it('renders user messages with warm user text colors', () => {
+        const { getByText } = render(<ChatMessage text="mine" />);
+
+        expect(getByText('mine').props.className).toContain(
+            'text-user-text dark:text-user-text-dark'
+        );
+    });
+
     it('shows typing indicator before streamed chunks arrive', () => {
         const { getByTestId } = render(
             <ChatMessage isAi text="" isStreaming={true} />

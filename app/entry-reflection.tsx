@@ -4,11 +4,14 @@
  */
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { FeedbackCommentModal } from '@/components/intentions/FeedbackCommentModal';
 import { useEntryReflection } from '@/hooks/useEntryReflection';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { saveAiFeedback } from '@/services/feedback/feedbackStorage';
+import type { AiFeedbackValue } from '@/services/feedback/feedbackStorage';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -22,6 +25,12 @@ export default function EntryReflectionScreen() {
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
     const primaryColor = useThemeColor({}, 'primary');
+    const inactiveFeedbackColor = isDark ? '#A1A1AA' : '#71717A';
+    const [feedbackValue, setFeedbackValue] = useState<AiFeedbackValue | null>(null);
+    const [pendingFeedback, setPendingFeedback] = useState<{
+        value: AiFeedbackValue;
+        comment: string;
+    } | null>(null);
 
     const entryId = useMemo(() => {
         const raw = params.entryId;
@@ -40,6 +49,20 @@ export default function EntryReflectionScreen() {
 
     const handleContinue = () => {
         router.push({ pathname: '/streak-haiku', params: { entryId } });
+    };
+
+    const handleSaveFeedback = async () => {
+        if (!pendingFeedback || !data) return;
+        await saveAiFeedback({
+            scope: 'journal',
+            messageId: `entry-reflection-${entryId ?? 'current'}`,
+            conversationId: entryId,
+            value: pendingFeedback.value,
+            comment: pendingFeedback.comment,
+            messageContent: data.reflection,
+        });
+        setFeedbackValue(pendingFeedback.value);
+        setPendingFeedback(null);
     };
 
     return (
@@ -114,25 +137,35 @@ export default function EntryReflectionScreen() {
                                     </Text>
                                     <View className="flex-row items-center">
                                         <Pressable
-                                            onPress={() => { }}
+                                            onPress={() => setPendingFeedback({
+                                                value: 'up',
+                                                comment: '',
+                                            })}
                                             className="p-2"
                                             accessibilityLabel="Thumbs up"
                                         >
                                             <MaterialIcons
                                                 name="thumb-up-off-alt"
                                                 size={20}
-                                                color={isDark ? '#A1A1AA' : '#71717A'}
+                                                color={feedbackValue === 'up'
+                                                    ? primaryColor
+                                                    : inactiveFeedbackColor}
                                             />
                                         </Pressable>
                                         <Pressable
-                                            onPress={() => { }}
+                                            onPress={() => setPendingFeedback({
+                                                value: 'down',
+                                                comment: '',
+                                            })}
                                             className="p-2"
                                             accessibilityLabel="Thumbs down"
                                         >
                                             <MaterialIcons
                                                 name="thumb-down-off-alt"
                                                 size={20}
-                                                color={isDark ? '#A1A1AA' : '#71717A'}
+                                                color={feedbackValue === 'down'
+                                                    ? primaryColor
+                                                    : inactiveFeedbackColor}
                                             />
                                         </Pressable>
                                     </View>
@@ -199,6 +232,16 @@ export default function EntryReflectionScreen() {
                         </Text>
                     </Pressable>
                 </View>
+                <FeedbackCommentModal
+                    visible={pendingFeedback !== null}
+                    value={pendingFeedback?.value ?? 'up'}
+                    comment={pendingFeedback?.comment ?? ''}
+                    onCommentChange={(comment) => setPendingFeedback((current) => (
+                        current ? { ...current, comment } : current
+                    ))}
+                    onClose={() => setPendingFeedback(null)}
+                    onSubmit={handleSaveFeedback}
+                />
             </View>
         </SafeAreaView>
     );

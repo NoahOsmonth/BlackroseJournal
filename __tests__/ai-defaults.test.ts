@@ -1,5 +1,6 @@
 import { completeChat, Message } from '../services/ai';
 import {
+    generateEntryAnalysis,
     generateEntryReflection,
     generateEntryTitle,
     generateStreakHaiku,
@@ -70,6 +71,12 @@ describe('AI defaults — direct local NanoGPT', () => {
                 suggestions: [],
             })))
             .mockResolvedValueOnce(mockChatResponse(JSON.stringify({ title: 't' })))
+            .mockResolvedValueOnce(mockChatResponse(JSON.stringify({
+                insight: 'i',
+                quote: 'q',
+                mood: 'm',
+                topics: ['t'],
+            })))
             .mockResolvedValueOnce(mockChatResponse(JSON.stringify({ lines: ['a', 'b', 'c'] })))
             .mockResolvedValueOnce(mockChatResponse(JSON.stringify({
                 emotionalLandscape: [],
@@ -80,10 +87,11 @@ describe('AI defaults — direct local NanoGPT', () => {
 
         await generateEntryReflection({ entryText: 'x' });
         await generateEntryTitle({ entryText: 'x' });
+        await generateEntryAnalysis({ entryText: 'x' });
         await generateStreakHaiku({ entryText: 'x', streakCount: 1 });
         await generateWeeklyInsights([{ messages: [{ content: 'x' }] }]);
 
-        expect(fetchMock).toHaveBeenCalledTimes(4);
+        expect(fetchMock).toHaveBeenCalledTimes(5);
         for (const call of fetchMock.mock.calls) {
             const [, init] = call as [string, RequestInit];
             const body = JSON.parse(String(init.body)) as Record<string, unknown>;
@@ -93,4 +101,3 @@ describe('AI defaults — direct local NanoGPT', () => {
         }
     });
 });
-

@@ -41,4 +41,27 @@ describe('IntentionChatMessage', () => {
             'max-w-[320px]'
         );
     });
+
+    it('renders user intention messages with warm user text colors', () => {
+        const message: Message = {
+            id: 'message-2',
+            role: 'user',
+            content: 'I want a calmer morning.',
+            timestamp: 0,
+        };
+
+        const { getByTestId } = render(
+            <IntentionChatMessage
+                message={message}
+                onPlay={jest.fn()}
+                onCopy={jest.fn()}
+                onShare={jest.fn()}
+                onThumb={jest.fn()}
+            />
+        );
+
+        expect(getByTestId('intention-chat-message-text').props.className).toContain(
+            'text-user-text dark:text-user-text-dark'
+        );
+    });
 });

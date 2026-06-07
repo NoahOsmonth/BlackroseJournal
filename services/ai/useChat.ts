@@ -51,6 +51,10 @@ export function useChat() {
         conversationIdRef.current = conversationId || generateConversationId();
     }, []);
 
+    const setSystemPrompt = useCallback((systemPrompt?: string) => {
+        systemPromptRef.current = systemPrompt;
+    }, []);
+
     const sendMessage = useCallback(
         async (
             content: string,
@@ -162,6 +166,7 @@ export function useChat() {
         sendInitialMessage,
         setMessages,
         setConversationId,
+        setSystemPrompt,
         clearMessages,
     };
 }
