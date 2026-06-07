@@ -1,11 +1,14 @@
 import { completeChat, Message, streamChat } from '../services/ai';
-import { postAgent } from '../services/agent/agentClient';
 
-jest.mock('../services/agent/agentClient', () => ({
-    postAgent: jest.fn(),
+// Mock the direct config so URL + Authorization + model are deterministic.
+jest.mock('../services/ai/directConfig', () => ({
+    getDirectConfig: () => ({
+        apiKey: 'sk-direct-test-key',
+        apiBaseUrl: 'https://nano-gpt.com/api/v1',
+        model: 'moonshotai/kimi-k2.5:thinking',
+        flashModel: 'moonshotai/kimi-k2.5',
+    }),
 }));
-
-const mockPostAgent = postAgent as jest.MockedFunction<typeof postAgent>;
 
 describe('ai service fallback parsing', () => {
     const messages: Message[] = [
@@ -17,7 +20,16 @@ describe('ai service fallback parsing', () => {
         },
     ];
 
+    const originalFetch = global.fetch;
+    let fetchMock: jest.Mock;
+
+    beforeEach(() => {
+        fetchMock = jest.fn();
+        global.fetch = fetchMock as unknown as typeof fetch;
+    });
+
     afterEach(() => {
+        global.fetch = originalFetch;
         jest.clearAllMocks();
         jest.useRealTimers();
     });
@@ -30,7 +42,7 @@ describe('ai service fallback parsing', () => {
             '',
         ].join('\n');
 
-        mockPostAgent.mockResolvedValue(
+        fetchMock.mockResolvedValue(
             new Response(ssePayload, {
                 status: 200,
                 headers: { 'Content-Type': 'text/plain' },
@@ -54,7 +66,7 @@ describe('ai service fallback parsing', () => {
             '',
         ].join('\n');
 
-        mockPostAgent.mockResolvedValue(
+        fetchMock.mockResolvedValue(
             new Response(ssePayload, {
                 status: 200,
                 headers: { 'Content-Type': 'application/json' },
@@ -108,7 +120,7 @@ describe('ai service fallback parsing', () => {
         const originalXhr = global.XMLHttpRequest;
         (global as unknown as { XMLHttpRequest: typeof MockXmlHttpRequest }).XMLHttpRequest = MockXmlHttpRequest;
 
-        mockPostAgent.mockResolvedValue(
+        fetchMock.mockResolvedValue(
             new Response('{}', {
                 status: 200,
                 headers: { 'Content-Type': 'application/json' },
@@ -126,66 +138,6 @@ describe('ai service fallback parsing', () => {
             expect(onComplete).toHaveBeenCalledWith('Hello there', 'step 1');
         } finally {
             (global as unknown as { XMLHttpRequest: typeof originalXhr }).XMLHttpRequest = originalXhr;
-        }
-    });
-
-    it('streams progressively with WebSocket when enabled', async () => {
-        const originalTransport = process.env.AGENT_STREAMING_TRANSPORT;
-        process.env.AGENT_STREAMING_TRANSPORT = 'ws';
-
-        class MockWebSocket {
-            static instances: MockWebSocket[] = [];
-            onopen: (() => void) | null = null;
-            onmessage: ((event: { data: string }) => void) | null = null;
-            onerror: (() => void) | null = null;
-            onclose: (() => void) | null = null;
-
-            constructor() {
-                MockWebSocket.instances.push(this);
-                setTimeout(() => this.onopen?.(), 0);
-            }
-
-            send(): void {
-                this.onmessage?.({
-                    data: JSON.stringify({ type: 'delta', content: 'Hello ', reasoning: 'step 1' }),
-                });
-                this.onmessage?.({
-                    data: JSON.stringify({ type: 'delta', content: 'world' }),
-                });
-                this.onmessage?.({
-                    data: JSON.stringify({ type: 'done' }),
-                });
-            }
-
-            close(): void {
-                this.onclose?.();
-            }
-        }
-
-        const originalWebSocket = global.WebSocket;
-        (global as unknown as { WebSocket: typeof MockWebSocket }).WebSocket = MockWebSocket;
-
-        mockPostAgent.mockResolvedValue(
-            new Response('{}', {
-                status: 200,
-                headers: { 'Content-Type': 'application/json' },
-            })
-        );
-
-        const onChunk = jest.fn();
-        const onComplete = jest.fn();
-        const onError = jest.fn();
-
-        try {
-            await streamChat(messages, onChunk, onComplete, onError);
-
-            expect(onError).not.toHaveBeenCalled();
-            expect(mockPostAgent).not.toHaveBeenCalled();
-            expect(onChunk).toHaveBeenCalled();
-            expect(onComplete).toHaveBeenCalledWith('Hello world', 'step 1');
-        } finally {
-            (global as unknown as { WebSocket: typeof originalWebSocket }).WebSocket = originalWebSocket;
-            process.env.AGENT_STREAMING_TRANSPORT = originalTransport;
         }
     });
 
@@ -220,7 +172,7 @@ describe('ai service fallback parsing', () => {
 
         const originalXhr = global.XMLHttpRequest;
         (global as unknown as { XMLHttpRequest: typeof MockXmlHttpRequest }).XMLHttpRequest = MockXmlHttpRequest;
-        mockPostAgent.mockImplementation(() => new Promise<Response>(() => {
+        fetchMock.mockImplementation(() => new Promise<Response>(() => {
             // intentionally unresolved: proves we must not wait for fetch first
         }));
 
@@ -280,7 +232,7 @@ describe('ai service fallback parsing', () => {
         const originalXhr = global.XMLHttpRequest;
         (global as unknown as { XMLHttpRequest: typeof MockXmlHttpRequest }).XMLHttpRequest = MockXmlHttpRequest;
 
-        mockPostAgent.mockResolvedValue(
+        fetchMock.mockResolvedValue(
             new Response('{}', {
                 status: 200,
                 headers: { 'Content-Type': 'application/json' },
@@ -310,7 +262,7 @@ describe('ai service fallback parsing', () => {
     });
 
     it('does not send memoryNamespace in chat payloads', async () => {
-        mockPostAgent.mockResolvedValue(
+        fetchMock.mockResolvedValue(
             new Response('data: [DONE]\n\n', {
                 status: 200,
                 headers: { 'Content-Type': 'text/event-stream' },
@@ -324,7 +276,59 @@ describe('ai service fallback parsing', () => {
         await streamChat(messages, onChunk, onComplete, onError);
 
         expect(onError).not.toHaveBeenCalled();
-        const [, payload] = mockPostAgent.mock.calls[0] as [string, Record<string, unknown>];
-        expect(payload).not.toHaveProperty('memoryNamespace');
+        const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+        const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+        expect(body).not.toHaveProperty('memoryNamespace');
+    });
+
+    it('hits the NanoGPT chat-completions URL with Authorization and Kimi thinking model', async () => {
+        fetchMock.mockResolvedValue(
+            new Response(JSON.stringify({
+                choices: [{ message: { content: 'ok', reasoning: '' } }],
+            }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' },
+            })
+        );
+
+        await completeChat(messages, 'system prompt');
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+        expect(url).toBe('https://nano-gpt.com/api/v1/chat/completions');
+        const headers = init.headers as Record<string, string>;
+        expect(headers.Authorization).toBe('Bearer sk-direct-test-key');
+        const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+        expect(body.model).toBe('moonshotai/kimi-k2.5:thinking');
+    });
+
+    it('surfaces a friendly error when NanoGPT returns 401', async () => {
+        fetchMock.mockResolvedValue(
+            new Response('{"error":{"message":"invalid api key"}}', {
+                status: 401,
+                headers: { 'Content-Type': 'application/json' },
+            })
+        );
+
+        const onError = jest.fn();
+        await streamChat(messages, jest.fn(), jest.fn(), onError);
+
+        expect(onError).toHaveBeenCalledTimes(1);
+        const err = onError.mock.calls[0][0] as Error;
+        expect(err).toBeInstanceOf(Error);
+        expect(err.message).toMatch(/401/);
+    });
+
+    it('surfaces a friendly error when NanoGPT returns 429', async () => {
+        fetchMock.mockResolvedValue(
+            new Response('{"error":{"message":"rate limited"}}', {
+                status: 429,
+                headers: { 'Content-Type': 'application/json' },
+            })
+        );
+
+        await expect(completeChat(messages, 'system prompt'))
+            .rejects
+            .toThrow(/429/);
     });
 });

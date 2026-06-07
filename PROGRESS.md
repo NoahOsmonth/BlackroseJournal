@@ -645,3 +645,39 @@
       `POST /v1/chat/completions` → PONG in **15.2 s** (550B model cold-start cost).
   - **Known pre-existing blockers** (unchanged): 4 root TS errors and 7 lint errors that
     pre-date this PR.
+
+- **2026-06-06**: Local-only NanoGPT phone setup; SimpleMem/Railway removal:
+  - App AI runtime is now direct-to-NanoGPT from the phone:
+    - `services/ai/streamingTransports.ts` uses direct NanoGPT fetch/XHR transport.
+    - Removed app-side `services/agent/*` backend client.
+    - Direct transport strips backend-only fields such as `conversationId` before sending requests.
+    - Chat, insights, entry titles/haiku, and Ask Rosebud use the local Kimi NanoGPT env values.
+  - Added on-device background worker plumbing:
+    - `services/workers/localAiWorker.ts` validates local NanoGPT config and writes a last-run marker
+      without storing the API key.
+    - `app/_layout.tsx` registers workers on startup.
+    - `app.json` includes `expo-task-manager`, iOS background fetch mode, and the permitted worker identifier.
+  - Removed active SimpleMem and Railway artifacts:
+    - Deleted SimpleMem backend service/config, Python bridge, Python requirements, and related tests.
+    - Deleted root/backend Railway config files.
+    - Backend chat/Ask Rosebud no longer retrieve/store long-term memory.
+  - Ask Rosebud now sends compact local completed-entry context for the selected time range instead of relying
+    on SimpleMem.
+  - Environment/docs:
+    - Root `.env` and `.env.example` now use `EXPO_PUBLIC_NANO_GPT_*` for local phone builds.
+    - `backend/.env` and `backend/.env.example` no longer contain SimpleMem/OpenRouter variables.
+    - README/backend README now document no Railway/SimpleMem/backend-agent requirement for app chat.
+  - Tests added/updated:
+    - `__tests__/backend-local-only.test.ts`
+    - `__tests__/services/workers/taskRegistry.test.ts`
+    - `__tests__/services/workers/localAiWorker.test.ts`
+    - Updated AI, direct transport, insights, Ask Rosebud, app config, env safety, and backend prompt tests.
+  - Verification:
+    - `npm test` — 42 suites passed, 2 skipped; 163 tests passed, 5 skipped.
+    - `npm run check:design` — passed, 0 warnings.
+    - `cd backend && npx tsc --noEmit` — passed.
+    - `npm run typecheck` still fails only in known pre-existing files:
+      `app/persona/[id].tsx`, `components/parallax-scroll-view.tsx`, `utils/dev/rawTextGuard.ts`.
+    - `npm run lint` still fails on known pre-existing lint errors:
+      `__tests__/ChatMessage.test.tsx`, `app/goals.tsx`, `app/intentions/select.tsx`,
+      `components/today/GoalsSection.tsx`, `scripts/check-design-limits.js`, `scripts/check-legacy-shim.js`.

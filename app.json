@@ -18,7 +18,16 @@
             "backgroundColor": "#000000"
         },
         "ios": {
-            "bundleIdentifier": "com.blackrosejournal"
+            "bundleIdentifier": "com.blackrosejournal",
+            "infoPlist": {
+                "UIBackgroundModes": [
+                    "fetch",
+                    "processing"
+                ],
+                "BGTaskSchedulerPermittedIdentifiers": [
+                    "blackrosejournal.local-ai-maintenance"
+                ]
+            }
         },
         "android": {
             "package": "com.blackrosejournal",
@@ -29,7 +38,8 @@
             }
         },
         "plugins": [
-            "expo-router"
+            "expo-router",
+            "expo-task-manager"
         ],
         "extra": {
             "eas": {

@@ -1,4 +1,8 @@
-import { askRosebud, TimeRange } from '@/services/ask-rosebud/askRosebud';
+import {
+    askRosebud,
+    AskRosebudEntryContext,
+    TimeRange,
+} from '@/services/ask-rosebud/askRosebud';
 import { useCallback, useState } from 'react';
 
 export interface AskRosebudMessage {
@@ -11,7 +15,11 @@ interface UseAskRosebudResult {
     messages: AskRosebudMessage[];
     isLoading: boolean;
     errorMessage: string | null;
-    sendQuestion: (question: string, timeRange: TimeRange) => Promise<void>;
+    sendQuestion: (
+        question: string,
+        timeRange: TimeRange,
+        entries?: AskRosebudEntryContext[]
+    ) => Promise<void>;
     clearMessages: () => void;
 }
 
@@ -28,7 +36,11 @@ export function useAskRosebud(): UseAskRosebudResult {
     const [isLoading, setIsLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-    const sendQuestion = useCallback(async (question: string, timeRange: TimeRange) => {
+    const sendQuestion = useCallback(async (
+        question: string,
+        timeRange: TimeRange,
+        entries: AskRosebudEntryContext[] = []
+    ) => {
         const trimmed = question.trim();
         if (!trimmed || isLoading) {
             return;
@@ -39,7 +51,7 @@ export function useAskRosebud(): UseAskRosebudResult {
         setMessages(prev => [...prev, buildMessage('user', trimmed)]);
 
         try {
-            const response = await askRosebud(trimmed, timeRange);
+            const response = await askRosebud(trimmed, timeRange, entries);
             setMessages(prev => [...prev, buildMessage('assistant', response)]);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';

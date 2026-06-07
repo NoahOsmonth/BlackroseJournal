@@ -1,4 +1,5 @@
-import { postAgent } from '@/services/agent/agentClient';
+import { getDirectConfig } from '@/services/ai/directConfig';
+import { fetchDirectChatCompletion } from '@/services/ai/directTransport';
 import {
     EntryReflectionResult,
     StreakHaiku,
@@ -20,23 +21,111 @@ const FALLBACK_HAIKU: StreakHaiku = [
     'You are learning yourself',
 ];
 
-async function postInsights<TReq, TRes>(path: string, payload: TReq): Promise<TRes> {
-    const response = await postAgent(path, payload);
+const REFLECTION_SYSTEM_PROMPT = `You are a journaling reflection assistant.
+Return ONLY valid JSON with the exact shape:
+{
+  "reflection": string,
+  "keyInsight": string,
+  "suggestions": [{"type":"HABIT","text":string}]
+}
+
+Rules:
+- Keep reflection warm and concise (2-5 sentences).
+- Key insight should be 1 sentence.
+- Provide 3-6 HABIT suggestions that are specific, small, and actionable.`;
+
+const WEEKLY_SYSTEM_PROMPT = `You are a psychological analyst for a journal.
+Analyze the user's weekly entries and return valid JSON with this EXACT structure:
+{
+  "emotionalLandscape": [{"emotion": "string", "score": number(1-10), "emoji": "string"}],
+  "keyThemes": ["string"],
+  "castOfCharacters": ["string"],
+  "weeklySummary": "string"
+}
+Rules:
+- emotionalLandscape: Top 4-6 emotions. Score is intensity (1-10). Emoji should match the emotion.
+- keyThemes: Top 3 recurring topics (e.g., "Career", "Health").
+- castOfCharacters: List of people mentioned (names or roles).
+- weeklySummary: A concise 2-sentence summary of the week's vibe.`;
+
+const TITLE_SYSTEM_PROMPT = `You are a title generator.
+Return ONLY valid JSON with the exact shape: {"title": string}
+Rules:
+- Max 6 words
+- Capture the essence/mood
+- Simple and poetic`;
+
+const HAIKU_SYSTEM_PROMPT = `You write uplifting, grounded haiku.
+Return ONLY valid JSON with the exact shape: {"lines":[string,string,string]}
+Rules:
+- 3 lines only
+- Each line <= 40 characters
+- Refer subtly to journaling and streak count
+- Tone: warm, celebratory, not cheesy`;
+
+interface InsightsChatPayload {
+    messages: { role: 'system' | 'user' | 'assistant'; content: string }[];
+    temperature: number;
+    response_format: { type: 'json_object' };
+}
+
+interface OpenAIChatResponse {
+    choices?: { message?: { content?: string } }[];
+}
+
+function extractFirstJsonObject(text: string): string | null {
+    const start = text.indexOf('{');
+    if (start === -1) return null;
+    let depth = 0;
+    for (let i = start; i < text.length; i += 1) {
+        const ch = text[i];
+        if (ch === '{') depth += 1;
+        if (ch === '}') depth -= 1;
+        if (depth === 0) return text.slice(start, i + 1);
+    }
+    return null;
+}
+
+function parseJsonShape<T>(raw: string): T | null {
+    const jsonText = extractFirstJsonObject(raw) ?? raw;
+    try {
+        return JSON.parse(jsonText) as T;
+    } catch {
+        return null;
+    }
+}
+
+async function postInsights<TRes>(payload: InsightsChatPayload): Promise<TRes> {
+    const { flashModel } = getDirectConfig();
+    const response = await fetchDirectChatCompletion({
+        model: flashModel,
+        messages: payload.messages,
+        temperature: payload.temperature,
+        response_format: payload.response_format,
+    });
     if (!response.ok) {
         const preview = await response.text().catch(() => '');
         throw new Error(`Insights request failed (status ${response.status}). ${preview.slice(0, 200)}`);
     }
-    const json = (await response.json()) as { data?: TRes } & TRes;
-    const data = (json && typeof json === 'object' && 'data' in json ? json.data : json) as TRes;
-    return data;
+    const json = (await response.json()) as OpenAIChatResponse;
+    const content = json.choices?.[0]?.message?.content ?? '';
+    const parsed = parseJsonShape<TRes>(content);
+    if (parsed === null) {
+        throw new Error('Insights response was not valid JSON.');
+    }
+    return parsed;
 }
 
 export async function generateEntryReflection(input: { entryText: string }): Promise<EntryReflectionResult> {
     try {
-        const data = await postInsights<{ entryText: string }, EntryReflectionResult>(
-            '/v1/insights/reflect',
-            { entryText: input.entryText }
-        );
+        const data = await postInsights<EntryReflectionResult>({
+            messages: [
+                { role: 'system', content: REFLECTION_SYSTEM_PROMPT },
+                { role: 'user', content: `Entry:\n${input.entryText}` },
+            ],
+            temperature: 0.7,
+            response_format: { type: 'json_object' },
+        });
         const suggestions = Array.isArray(data.suggestions)
             ? data.suggestions
                 .filter((s) => s && s.type === 'HABIT' && typeof s.text === 'string')
@@ -69,10 +158,14 @@ export async function generateWeeklyInsights(entries: WeeklyInsightsEntry[]): Pr
         };
     }
     try {
-        const data = await postInsights<{ entries: WeeklyInsightsEntry[] }, WeeklyInsightsResult>(
-            '/v1/insights/weekly',
-            { entries }
-        );
+        const data = await postInsights<WeeklyInsightsResult>({
+            messages: [
+                { role: 'system', content: WEEKLY_SYSTEM_PROMPT },
+                { role: 'user', content: `Entries:\n${combinedText}` },
+            ],
+            temperature: 0.7,
+            response_format: { type: 'json_object' },
+        });
         return {
             emotionalLandscape: Array.isArray(data.emotionalLandscape) ? data.emotionalLandscape : [],
             keyThemes: Array.isArray(data.keyThemes) ? data.keyThemes : [],
@@ -94,10 +187,14 @@ export async function generateWeeklyInsights(entries: WeeklyInsightsEntry[]): Pr
 
 export async function generateEntryTitle(input: { entryText: string }): Promise<string> {
     try {
-        const data = await postInsights<{ entryText: string }, { title: string }>(
-            '/v1/insights/title',
-            { entryText: input.entryText }
-        );
+        const data = await postInsights<{ title: string }>({
+            messages: [
+                { role: 'system', content: TITLE_SYSTEM_PROMPT },
+                { role: 'user', content: `Entry:\n${input.entryText}` },
+            ],
+            temperature: 0.7,
+            response_format: { type: 'json_object' },
+        });
         const cleaned = typeof data.title === 'string' ? data.title.trim().replace(/^["']|["']$/g, '') : '';
         return cleaned || 'Untitled Entry';
     } catch {
@@ -107,10 +204,17 @@ export async function generateEntryTitle(input: { entryText: string }): Promise<
 
 export async function generateStreakHaiku(input: { entryText: string; streakCount: number }): Promise<StreakHaiku> {
     try {
-        const data = await postInsights<{ entryText: string; streakCount: number }, { lines: StreakHaiku }>(
-            '/v1/insights/haiku',
-            input
-        );
+        const data = await postInsights<{ lines: StreakHaiku }>({
+            messages: [
+                { role: 'system', content: HAIKU_SYSTEM_PROMPT },
+                {
+                    role: 'user',
+                    content: `Streak: ${input.streakCount} day(s)\nEntry:\n${input.entryText}`,
+                },
+            ],
+            temperature: 0.7,
+            response_format: { type: 'json_object' },
+        });
         const lines = Array.isArray(data.lines) ? data.lines : [];
         const clean = lines
             .filter((l): l is string => typeof l === 'string')

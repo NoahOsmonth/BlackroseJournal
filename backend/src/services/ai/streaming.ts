@@ -6,7 +6,7 @@
  * new implementation. Behavior is byte-identical to the originals).
  *
  * Used by:
- *  - `agent/agentService.ts` (background `clone()`-tee to SimpleMem)
+ *  - `agent/agentService.ts` (stream passthrough)
  *  - `ws/chatWebSocket.ts` (forward upstream SSE deltas to clients)
  */
 export interface ParsedSseChunk {

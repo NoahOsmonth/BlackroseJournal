@@ -36,7 +36,7 @@ yarn-error.*
 !.env.example
 .env*.local
 
-# SimpleMem (local sqlite/vector store)
+# local databases and generated data
 backend/data/
 data/
 

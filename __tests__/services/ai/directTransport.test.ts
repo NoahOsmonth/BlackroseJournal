@@ -3,10 +3,12 @@
  *
  * Mocks `services/ai/directConfig` (the only direct dependency) so we
  * can pin the URL + key, then mocks the global `fetch` to verify the
- * wire shape (URL, headers, body, error path). Mirrors the conventions
- * in `__tests__/agentClient.test.ts`.
+ * wire shape (URL, headers, body, error path).
  */
-import { fetchDirectChatCompletion } from '../../../services/ai/directTransport';
+import {
+    fetchDirectChatCompletion,
+    prepareDirectChatRequest,
+} from '../../../services/ai/directTransport';
 
 jest.mock('../../../services/ai/directConfig', () => ({
     getDirectConfig: () => ({
@@ -81,5 +83,24 @@ describe('directTransport — fetchDirectChatCompletion', () => {
         expect(headers['Content-Type']).toBe('application/json');
         expect(typeof init.body).toBe('string');
         expect(JSON.parse(String(init.body))).toEqual(BASE_PAYLOAD);
+    });
+
+    it('5. maps agent-default to the configured direct model', () => {
+        const request = prepareDirectChatRequest({
+            ...BASE_PAYLOAD,
+            model: 'agent-default',
+        });
+
+        expect(request.body.model).toBe('moonshotai/kimi-k2.5:thinking');
+    });
+
+    it('6. strips backend-only fields from the outbound body', () => {
+        const request = prepareDirectChatRequest({
+            ...BASE_PAYLOAD,
+            conversationId: 'local-chat',
+        } as typeof BASE_PAYLOAD & { conversationId: string });
+
+        expect(request.body).not.toHaveProperty('conversationId');
+        expect(request.body).not.toHaveProperty('max_context');
     });
 });

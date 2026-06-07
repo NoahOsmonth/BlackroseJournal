@@ -15,6 +15,7 @@ import { AppErrorBoundary } from '@/components/system/AppErrorBoundary';
 import { SupabaseStatusBanner } from '@/components/system/SupabaseStatusBanner';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useThemeSettings } from '@/hooks/useThemeSettings';
+import { registerAllWorkers } from '@/services/workers';
 
 // Font imports
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
@@ -55,7 +56,7 @@ export default function RootLayout() {
         const markReady = async () => {
             try {
                 await SplashScreen.hideAsync();
-            } catch (e) {
+            } catch {
                 // Ignore errors
             }
             setAppReady(true);
@@ -64,6 +65,8 @@ export default function RootLayout() {
         if (fontsLoaded || fontsError) {
             markReady();
         }
+
+        registerAllWorkers().catch((err) => console.warn('[workers] Registration failed:', err));
 
         // Fallback timeout to prevent infinite loading
         const timeout = setTimeout(markReady, 3000);

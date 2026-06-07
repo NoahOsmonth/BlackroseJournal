@@ -1,6 +1,6 @@
 /**
  * useChatOrchestration hook
- * 
+ *
  * Orchestrates chat state, streaming lifecycle, and side effects.
  * This hook handles:
  * - Message state management (user + assistant messages)
@@ -15,18 +15,29 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Keyboard, ScrollView } from 'react-native';
 import { InlineTypingInputRef } from '../../../components/InlineTypingInput';
 import { DAILY_PROMPTS, DailyPrompt, PromptPeriod } from '../../../constants/dailyPrompts';
+import { DirectConfigError } from '../../../services/ai/directConfig';
 import { Message, useChat } from '../../../services/ai';
 import { StreamingMessage } from '../types';
 
 const getFriendlyErrorMessage = (error: Error): string => {
-    const message = error.message.toLowerCase();
-
-    if (message.includes('agent_api_key') || message.includes('authorization') || message.includes('unauthorized')) {
-        return 'Missing or invalid agent API key. Check AGENT_API_KEY on the backend and EXPO_PUBLIC_AGENT_API_KEY on the app.';
+    if (error instanceof DirectConfigError) {
+        if (error.message.includes('EXPO_PUBLIC_NANO_GPT_API_KEY')) {
+            return 'Missing or invalid NanoGPT API key. Set EXPO_PUBLIC_NANO_GPT_API_KEY and restart the app.';
+        }
+        if (error.message.includes('EXPO_PUBLIC_NANO_GPT_API_BASE_URL')) {
+            return 'Missing NanoGPT base URL. Set EXPO_PUBLIC_NANO_GPT_API_BASE_URL and restart the app.';
+        }
+        return error.message;
     }
 
-    if (message.includes('agent_base_url')) {
-        return 'Missing agent backend URL. Set EXPO_PUBLIC_AGENT_BASE_URL and restart the app.';
+    const message = error.message.toLowerCase();
+
+    if (message.includes('expo_public_nano_gpt_api_key') || message.includes('authorization') || message.includes('unauthorized')) {
+        return 'Missing or invalid NanoGPT API key. Set EXPO_PUBLIC_NANO_GPT_API_KEY and restart the app.';
+    }
+
+    if (message.includes('expo_public_nano_gpt_api_base_url')) {
+        return 'Missing NanoGPT base URL. Set EXPO_PUBLIC_NANO_GPT_API_BASE_URL and restart the app.';
     }
 
     if (message.includes('failed to fetch') || message.includes('network')) {

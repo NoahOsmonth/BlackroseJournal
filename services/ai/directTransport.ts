@@ -1,13 +1,9 @@
 /**
  * Direct-to-NanoGPT transport.
  *
- * Mirrors the shape of `services/agent/agentClient.ts` (POST + JSON body,
- * bearer auth, friendly network-error message) but targets NanoGPT's
- * OpenAI-compatible `/chat/completions` endpoint directly from the phone.
- *
- * This file stages the new code path; commit 3 will flip consumers
- * (streamingTransports, insights, askRosebud) over to it. Until then,
- * the agent layer remains the active path.
+ * Targets NanoGPT's OpenAI-compatible `/chat/completions` endpoint
+ * directly from the phone. The request body is intentionally filtered to
+ * OpenAI-standard fields before it leaves the device.
  */
 
 import { getDirectConfig } from './directConfig';
@@ -18,6 +14,7 @@ export interface DirectChatRequest {
     stream?: boolean;
     temperature?: number;
     max_tokens?: number;
+    response_format?: { type: 'json_object' };
 }
 
 export interface DirectChatOptions {
@@ -29,39 +26,60 @@ export interface DirectChatOptions {
     signal?: AbortSignal;
 }
 
+interface PreparedDirectChatRequest {
+    url: string;
+    headers: Record<string, string>;
+    body: DirectChatRequest;
+}
+
 function buildUrl(apiBaseUrl: string): string {
     const base = apiBaseUrl.endsWith('/') ? apiBaseUrl.slice(0, -1) : apiBaseUrl;
     return `${base}/chat/completions`;
+}
+
+function resolveModel(payloadModel: string | undefined, defaultModel: string): string {
+    if (!payloadModel || payloadModel === 'agent-default') return defaultModel;
+    return payloadModel;
+}
+
+export function prepareDirectChatRequest(
+    payload: DirectChatRequest,
+    options: DirectChatOptions = {}
+): PreparedDirectChatRequest {
+    const { apiBaseUrl, apiKey, model } = getDirectConfig();
+    const url = buildUrl(apiBaseUrl);
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+        ...(options.headers ?? {}),
+    };
+    const body: DirectChatRequest = {
+        model: options.model ?? resolveModel(payload.model, model),
+        messages: payload.messages,
+        stream: payload.stream,
+        temperature: payload.temperature,
+        max_tokens: payload.max_tokens,
+        response_format: payload.response_format,
+    };
+
+    return { url, headers, body };
 }
 
 export async function fetchDirectChatCompletion(
     payload: DirectChatRequest,
     options: DirectChatOptions = {}
 ): Promise<Response> {
-    const { apiBaseUrl, apiKey, model } = getDirectConfig();
-    const url = buildUrl(apiBaseUrl);
-
-    const body: DirectChatRequest = {
-        ...payload,
-        model: options.model ?? payload.model ?? model,
-    };
-
-    const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-        ...(options.headers ?? {}),
-    };
-
+    const request = prepareDirectChatRequest(payload, options);
     try {
-        return await fetch(url, {
+        return await fetch(request.url, {
             method: 'POST',
-            headers,
-            body: JSON.stringify(body),
+            headers: request.headers,
+            body: JSON.stringify(request.body),
             ...(options.signal ? { signal: options.signal } : {}),
         });
     } catch {
         throw new Error(
-            `Failed to fetch: Could not connect to NanoGPT at ${url}. ` +
+            `Failed to fetch: Could not connect to NanoGPT at ${request.url}. ` +
             'Check your network and EXPO_PUBLIC_NANO_GPT_API_BASE_URL.'
         );
     }

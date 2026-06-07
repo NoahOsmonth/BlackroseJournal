@@ -3,12 +3,10 @@
  *
  * Reads the EXPO_PUBLIC_NANO_GPT_* env vars that the phone-side app needs
  * to talk to NanoGPT's OpenAI-compatible API without going through the
- * local Express backend. This file stages the new code path; commit 3
- * will flip consumers (streamingTransports, insights, askRosebud) over
- * to it. Until then, the agent layer remains the active path.
+ * local Express backend.
  *
  * Env vars (all read at call time, not at module load):
- *   EXPO_PUBLIC_NANO_GPT_API_KEY       (required; throws if missing/placeholder)
+ *   EXPO_PUBLIC_NANO_GPT_API_KEY       (required; stored locally for device builds)
  *   EXPO_PUBLIC_NANO_GPT_API_BASE_URL  (optional; defaults to https://nano-gpt.com/api/v1)
  *   EXPO_PUBLIC_NANO_GPT_MODEL         (optional; defaults to moonshotai/kimi-k2.5:thinking)
  *   EXPO_PUBLIC_NANO_GPT_FLASH_MODEL   (optional; defaults to moonshotai/kimi-k2.5)

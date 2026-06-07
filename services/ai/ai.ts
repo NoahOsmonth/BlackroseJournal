@@ -18,7 +18,6 @@ import {
 import {
     fetchChatCompletion,
     hasReadableStream,
-    streamChatWithWebSocket,
     streamChatWithXhr,
 } from './streamingTransports';
 
@@ -32,7 +31,7 @@ export {
 export type { ChatAccumulator } from './chatTypes';
 export { useChat } from './useChat';
 
-const DEFAULT_AGENT_MODEL = 'agent-default';
+const DEFAULT_DIRECT_MODEL = 'agent-default';
 
 export async function streamChat(
     messages: Message[],
@@ -45,16 +44,8 @@ export async function streamChat(
         const resolved = resolveStreamOptions(options);
         const systemPrompt = resolved.systemPrompt || THERAPIST_SYSTEM_PROMPT;
         const streamPayload = buildChatPayload(
-            DEFAULT_AGENT_MODEL, messages, systemPrompt, true, resolved.conversationId
+            DEFAULT_DIRECT_MODEL, messages, systemPrompt, true, resolved.conversationId
         );
-
-        const usedWebSocketStreaming = await streamChatWithWebSocket(
-            streamPayload, onChunk, onComplete
-        ).catch((error) => {
-            console.warn('WebSocket streaming fallback failed:', error);
-            return false;
-        });
-        if (usedWebSocketStreaming) return;
 
         const usedXhrStreaming = await streamChatWithXhr(
             streamPayload, onChunk, onComplete
@@ -89,7 +80,7 @@ export async function completeChat(
     options?: { conversationId?: string }
 ): Promise<ChatAccumulator> {
     const payload = buildChatPayload(
-        DEFAULT_AGENT_MODEL, messages, systemPrompt, false, options?.conversationId
+        DEFAULT_DIRECT_MODEL, messages, systemPrompt, false, options?.conversationId
     );
     const response = await fetchChatCompletion(payload);
     if (!response.ok) {

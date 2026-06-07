@@ -10,18 +10,18 @@ A React Native/Expo chat journal application with AI integration.
    npm install
    ```
 
-2. Configure AI environment variables
+2. Configure local AI environment variables
 
    Copy `.env.example` to `.env` and set your API key:
 
-   - `NANO_GPT_API_KEY` (required; see [docs/MIGRATION.md](./docs/MIGRATION.md), the name moves to `AI_DEFAULT_API_KEY` on 2026-09-01)
-   - `NANO_GPT_API_BASE_URL` (optional; renames to `AI_DEFAULT_API_BASE_URL`)
-   - `NANO_GPT_MODEL` (optional; renames to `AI_DEFAULT_MODEL`)
-   - `EXPO_PUBLIC_AGENT_BASE_URL` (required for chat, points to the backend agent)
+   - `EXPO_PUBLIC_NANO_GPT_API_KEY` (required for direct on-phone NanoGPT calls)
+   - `EXPO_PUBLIC_NANO_GPT_API_BASE_URL` (defaults to `https://nano-gpt.com/api/v1`)
+   - `EXPO_PUBLIC_NANO_GPT_MODEL` (defaults to `moonshotai/kimi-k2.5:thinking`)
+   - `EXPO_PUBLIC_NANO_GPT_FLASH_MODEL` (defaults to `moonshotai/kimi-k2.5`)
 
-   For long-term memory (SimpleMem), configure the backend via `backend/.env` (see `backend/.env.example`):
-   - `OPENROUTER_EMBEDDING_API_KEY` (required for embeddings)
-   - `SIMPLEMEM_ENABLED=true`
+   The app no longer requires Railway, SimpleMem, or a backend agent for chat.
+   The key is bundled into local device builds, so keep `.env` uncommitted and
+   use this setup only for the local phone build you control.
 
 3. Start the app
 

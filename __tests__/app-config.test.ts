@@ -23,6 +23,10 @@ describe("app.json config", () => {
                 plugins?: string[];
                 ios?: {
                     bundleIdentifier?: string;
+                    infoPlist?: {
+                        UIBackgroundModes?: string[];
+                        BGTaskSchedulerPermittedIdentifiers?: string[];
+                    };
                 };
                 android?: {
                     package?: string;
@@ -39,7 +43,11 @@ describe("app.json config", () => {
         expect(expo.userInterfaceStyle).toBe("automatic");
         expect(platforms).toEqual(["ios", "android", "web"]);
         expect(plugins).toContain("expo-router");
+        expect(plugins).toContain("expo-task-manager");
         expect(expo.ios?.bundleIdentifier).toBe("com.blackrosejournal");
+        expect(expo.ios?.infoPlist?.UIBackgroundModes).toContain("fetch");
+        expect(expo.ios?.infoPlist?.BGTaskSchedulerPermittedIdentifiers)
+            .toContain("blackrosejournal.local-ai-maintenance");
         expect(expo.android?.package).toBe("com.blackrosejournal");
     });
 });

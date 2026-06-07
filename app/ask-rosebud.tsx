@@ -75,8 +75,8 @@ export default function AskRosebudScreen() {
         if (!question.trim() || isLoading) return;
 
         setInputText('');
-        await sendQuestion(question, timeRange);
-    }, [isLoading, sendQuestion, timeRange]);
+        await sendQuestion(question, timeRange, filteredEntries);
+    }, [filteredEntries, isLoading, sendQuestion, timeRange]);
 
     const cycleTimeRange = () => {
         const ranges: TimeRange[] = ['all-time', 'this-year', 'this-month', 'this-week'];
