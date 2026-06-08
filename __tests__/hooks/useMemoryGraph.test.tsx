@@ -49,8 +49,11 @@ describe('useMemoryGraph', () => {
                 }),
             ],
             isLoading: false,
+            generatedNote: 'Remember for Rosebud chats: career recovery matters.',
             refresh: jest.fn(),
             addNote: jest.fn(),
+            addGeneratedNote: jest.fn(),
+            refreshGeneratedNote: jest.fn(),
             clearAll: jest.fn(),
         });
         mockSynthesizeMemoryInsight.mockResolvedValue('A concise connection.');

@@ -1,4 +1,3 @@
-import { getDirectConfig } from '@/services/ai/directConfig';
 import { fetchDirectChatCompletion } from '@/services/ai/directTransport';
 
 export type TimeRange = 'all-time' | 'this-year' | 'this-month' | 'this-week';
@@ -9,7 +8,12 @@ export interface AskRosebudEntryContext {
     messages: { role?: string; content: string }[];
 }
 
-const ASK_ROSEBUD_SYSTEM_PROMPT = `You are "Rosebud", a journaling assistant. Answer the user's question about their past journal entries concisely and warmly, using only the local journal context provided. If the question cannot be answered from the given context, say so honestly.`;
+const ASK_ROSEBUD_SYSTEM_PROMPT = [
+    'You are "Rosebud", a journaling assistant.',
+    "Answer the user's question about their past journal entries concisely and warmly,",
+    'using only the local journal context provided.',
+    'If the question cannot be answered from the given context, say so honestly.',
+].join(' ');
 const MAX_CONTEXT_ENTRIES = 12;
 const MAX_ENTRY_CHARS = 1200;
 
@@ -42,9 +46,8 @@ export async function askRosebud(
     timeRange: TimeRange,
     entries: AskRosebudEntryContext[] = []
 ): Promise<string> {
-    const { flashModel } = getDirectConfig();
     const response = await fetchDirectChatCompletion({
-        model: flashModel,
+        model: 'agent-default',
         messages: [
             { role: 'system', content: ASK_ROSEBUD_SYSTEM_PROMPT },
             {
@@ -58,7 +61,7 @@ export async function askRosebud(
             },
         ],
         temperature: 0.7,
-    });
+    }, { modelPurpose: 'flash' });
 
     if (!response.ok) {
         const text = await response.text().catch(() => '');

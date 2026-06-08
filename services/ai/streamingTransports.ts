@@ -7,7 +7,11 @@ import {
 } from './chatTypes';
 import { appendChunk, parseSseLine, readNonStreamingResponse, buildResponseError } from './sseParser';
 
-function hasReadableStream(body: unknown): body is { getReader: () => { read: () => Promise<{ done: boolean; value?: Uint8Array }> } } {
+type ReadableStreamLike = {
+    getReader: () => { read: () => Promise<{ done: boolean; value?: Uint8Array }> };
+};
+
+function hasReadableStream(body: unknown): body is ReadableStreamLike {
     return Boolean(body && typeof (body as { getReader?: unknown }).getReader === 'function');
 }
 
@@ -29,8 +33,8 @@ export async function streamChatWithXhr(
     onComplete: CompleteCallback
 ): Promise<boolean> {
     if (!hasXmlHttpRequest()) return false;
+    const request = await prepareDirectChatRequest(payload);
     return new Promise((resolve, reject) => {
-        const request = prepareDirectChatRequest(payload);
         const xhr = new globalThis.XMLHttpRequest();
         const accumulator: ChatAccumulator = { content: '', reasoning: '' };
         let buffer = '';

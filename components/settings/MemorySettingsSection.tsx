@@ -9,9 +9,12 @@ import { SettingsSection } from './SettingsSection';
 interface MemorySettingsSectionProps {
     readonly atoms: LocalMemoryAtom[];
     readonly noteText: string;
+    readonly generatedNote: string;
     readonly isBusy: boolean;
     readonly onNoteTextChange: (value: string) => void;
     readonly onSaveNote: () => void;
+    readonly onSaveGeneratedNote: () => void;
+    readonly onRefreshGeneratedNote: () => void;
     readonly onClearMemory: () => void;
 }
 
@@ -47,16 +50,21 @@ function MemoryMetric({ label, value }: { readonly label: string; readonly value
 export function MemorySettingsSection({
     atoms,
     noteText,
+    generatedNote,
     isBusy,
     onNoteTextChange,
     onSaveNote,
+    onSaveGeneratedNote,
+    onRefreshGeneratedNote,
     onClearMemory,
 }: MemorySettingsSectionProps) {
     const isDark = useColorScheme() === 'dark';
     const primaryIconColor = isDark ? '#111827' : '#111827';
+    const neutralIconColor = isDark ? '#F9FAFB' : '#111827';
     const dangerColor = isDark ? '#F87171' : '#DC2626';
     const placeholderColor = isDark ? '#9CA3AF' : '#6B7280';
     const canSave = noteText.trim().length > 0 && !isBusy;
+    const canSaveGenerated = generatedNote.trim().length > 0 && !isBusy;
 
     return (
         <SettingsSection title="Memory">
@@ -73,6 +81,43 @@ export function MemorySettingsSection({
                 <Text className="text-sm text-text-light dark:text-text-dark leading-relaxed">
                     {findProfilePreview(atoms)}
                 </Text>
+            </View>
+
+            <View className="mb-4 rounded-xl border border-divider-light dark:border-divider-dark p-3">
+                <View className="flex-row items-center justify-between mb-2">
+                    <Text className={`text-xs font-bold uppercase ${SECONDARY_TEXT_CLASS}`}>
+                        Generated note
+                    </Text>
+                    <TouchableOpacity
+                        onPress={onRefreshGeneratedNote}
+                        disabled={isBusy}
+                        className={isBusy ? 'opacity-50' : ''}
+                        accessibilityRole="button"
+                        accessibilityState={{ disabled: isBusy }}
+                        accessibilityLabel="Refresh generated memory note"
+                    >
+                        <Ionicons name="refresh-outline" size={18} color={neutralIconColor} />
+                    </TouchableOpacity>
+                </View>
+                <Text className="text-sm text-text-light dark:text-text-dark leading-relaxed">
+                    {generatedNote || 'No stable local memory pattern yet.'}
+                </Text>
+                <TouchableOpacity
+                    onPress={onSaveGeneratedNote}
+                    disabled={!canSaveGenerated}
+                    className={[
+                        'flex-row items-center justify-center gap-2 mt-3 px-4 py-3 rounded-xl',
+                        'bg-background-light dark:bg-secondary-dark',
+                        canSaveGenerated ? '' : 'opacity-50'
+                    ].join(' ')}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: !canSaveGenerated }}
+                >
+                    <Ionicons name="sparkles-outline" size={18} color={neutralIconColor} />
+                    <Text className="font-bold text-text-light dark:text-text-dark">
+                        Save generated note
+                    </Text>
+                </TouchableOpacity>
             </View>
 
             <TextInput

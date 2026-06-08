@@ -12,9 +12,11 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 import {
     buildLocalMemoryContext,
     clearMemoryAtoms,
+    generateMemoryNoteSuggestion,
     listMemoryAtoms,
     resetMemoryStorageAdapter,
     deleteMemoryAtom,
+    saveGeneratedMemoryNote,
     saveManualMemoryNote,
     saveJournalEntryMemories,
     setMemoryStorageAdapter,
@@ -109,5 +111,23 @@ describe('localMemory', () => {
         expect(note.source).toBe('manual');
         await expect(deleteMemoryAtom(note.id)).resolves.toBe(true);
         await expect(listMemoryAtoms()).resolves.toEqual([]);
+    });
+
+    it('generates a suggested settings note from non-note memory atoms', async () => {
+        await saveJournalEntryMemories(buildEntry());
+
+        const suggestion = generateMemoryNoteSuggestion(await listMemoryAtoms());
+
+        expect(suggestion).toContain('Remember for Rosebud chats');
+        expect(suggestion).toContain('balancing ambition with recovery');
+        expect(suggestion).toContain('Themes:');
+    });
+
+    it('saves generated settings notes as system note atoms', async () => {
+        const note = await saveGeneratedMemoryNote('Remember to support gentler evenings.');
+
+        expect(note.layer).toBe('note');
+        expect(note.source).toBe('system');
+        expect(note.salience).toBeGreaterThan(0.7);
     });
 });

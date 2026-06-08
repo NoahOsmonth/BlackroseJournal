@@ -1,8 +1,3 @@
-/**
- * History Screen
- * Matches updated history design.
- */
-
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,6 +12,7 @@ import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
 import { useIntentionCheckIns } from '@/hooks/intentions/useIntentionCheckIns';
 import { useTabNavigation } from '@/hooks/navigation/useTabNavigation';
 import { HistoryItem } from '@/hooks/history/historyUtils';
+import { StaggerEntrance } from '@/components/ui/StaggerEntrance';
 
 function getWeekRangeLabel(date: Date): string {
     const start = new Date(date);
@@ -67,14 +63,22 @@ export default function EntriesScreen() {
 
                 <ScrollView className="flex-1 px-4" contentContainerStyle={{ paddingBottom: 140 }}>
                     <HistoryWeekSummary summary={weeklySummary} />
-                    {sections.map((section) => (
-                        <HistorySection
-                            key={section.dateKey}
-                            label={section.label}
-                            items={section.items}
-                            onPressItem={handlePressItem}
-                        />
-                    ))}
+                    
+                    <View className="relative mt-4">
+                        {/* Continuous timeline spine line */}
+                        <View className="absolute left-[16px] top-[14px] bottom-0 w-[1.5px] bg-divider-light dark:bg-divider-dark z-0" />
+                        
+                        <StaggerEntrance staggerType="linear" baseDelayMs={60} delayFactorMs={40}>
+                            {sections.map((section) => (
+                                <HistorySection
+                                    key={section.dateKey}
+                                    label={section.label}
+                                    items={section.items}
+                                    onPressItem={handlePressItem}
+                                />
+                            ))}
+                        </StaggerEntrance>
+                    </View>
                 </ScrollView>
 
                 <BottomNav activeTab="entries" onTabPress={handleTabPress} onFabPress={() => router.push('/chat')} />

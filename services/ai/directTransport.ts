@@ -6,7 +6,7 @@
  * OpenAI-standard fields before it leaves the device.
  */
 
-import { getDirectConfig } from './directConfig';
+import { getResolvedDirectConfig, type ResolvedDirectConfig } from './directConfig';
 
 export interface DirectChatRequest {
     model: string;
@@ -20,6 +20,8 @@ export interface DirectChatRequest {
 export interface DirectChatOptions {
     /** Override the model resolved by getDirectConfig. */
     model?: string;
+    /** Use the lower-latency model when the active provider exposes one. */
+    modelPurpose?: 'default' | 'flash';
     /** Extra headers to merge on top of the defaults. */
     headers?: Record<string, string>;
     /** Optional AbortSignal forwarded to fetch. */
@@ -30,6 +32,7 @@ interface PreparedDirectChatRequest {
     url: string;
     headers: Record<string, string>;
     body: DirectChatRequest;
+    configSource: ResolvedDirectConfig['source'];
 }
 
 function buildUrl(apiBaseUrl: string): string {
@@ -37,24 +40,44 @@ function buildUrl(apiBaseUrl: string): string {
     return `${base}/chat/completions`;
 }
 
-function resolveModel(payloadModel: string | undefined, defaultModel: string): string {
+function resolveDefaultModel(config: ResolvedDirectConfig, purpose: DirectChatOptions['modelPurpose']): string {
+    return purpose === 'flash' ? config.flashModel : config.model;
+}
+
+function resolveModel(
+    payloadModel: string | undefined,
+    config: ResolvedDirectConfig,
+    purpose: DirectChatOptions['modelPurpose']
+): string {
+    const defaultModel = resolveDefaultModel(config, purpose);
     if (!payloadModel || payloadModel === 'agent-default') return defaultModel;
     return payloadModel;
 }
 
-export function prepareDirectChatRequest(
+function buildConnectionError(request: PreparedDirectChatRequest, source: ResolvedDirectConfig['source']): Error {
+    const provider = source === 'custom' ? 'custom AI provider' : 'NanoGPT';
+    const setting = source === 'custom'
+        ? 'the custom Base URL in Settings'
+        : 'EXPO_PUBLIC_NANO_GPT_API_BASE_URL';
+    return new Error(
+        `Failed to fetch: Could not connect to ${provider} at ${request.url}. ` +
+        `Check your network and ${setting}.`
+    );
+}
+
+export async function prepareDirectChatRequest(
     payload: DirectChatRequest,
     options: DirectChatOptions = {}
-): PreparedDirectChatRequest {
-    const { apiBaseUrl, apiKey, model } = getDirectConfig();
-    const url = buildUrl(apiBaseUrl);
+): Promise<PreparedDirectChatRequest> {
+    const config = await getResolvedDirectConfig();
+    const url = buildUrl(config.apiBaseUrl);
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${config.apiKey}`,
         ...(options.headers ?? {}),
     };
     const body: DirectChatRequest = {
-        model: options.model ?? resolveModel(payload.model, model),
+        model: options.model ?? resolveModel(payload.model, config, options.modelPurpose),
         messages: payload.messages,
         stream: payload.stream,
         temperature: payload.temperature,
@@ -62,14 +85,14 @@ export function prepareDirectChatRequest(
         response_format: payload.response_format,
     };
 
-    return { url, headers, body };
+    return { url, headers, body, configSource: config.source };
 }
 
 export async function fetchDirectChatCompletion(
     payload: DirectChatRequest,
     options: DirectChatOptions = {}
 ): Promise<Response> {
-    const request = prepareDirectChatRequest(payload, options);
+    const request = await prepareDirectChatRequest(payload, options);
     try {
         return await fetch(request.url, {
             method: 'POST',
@@ -78,13 +101,12 @@ export async function fetchDirectChatCompletion(
             ...(options.signal ? { signal: options.signal } : {}),
         });
     } catch {
-        throw new Error(
-            `Failed to fetch: Could not connect to NanoGPT at ${request.url}. ` +
-            'Check your network and EXPO_PUBLIC_NANO_GPT_API_BASE_URL.'
-        );
+        throw buildConnectionError(request, request.configSource);
     }
 }
 
 export { getDirectConfig } from './directConfig';
+export { getResolvedDirectConfig } from './directConfig';
 export { DirectConfigError } from './directConfig';
 export type { DirectConfig } from './directConfig';
+export type { ResolvedDirectConfig } from './directConfig';

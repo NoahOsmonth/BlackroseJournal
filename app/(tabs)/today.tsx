@@ -35,6 +35,8 @@ import { useSavedInsights } from '@/hooks/saved-insights/useSavedInsights';
 import { WeekdaySelector } from '@/components/today/WeekdaySelector';
 import { getLocalDateKey } from '@/utils/date';
 import { calculateStreakStats } from '@/utils/streakStats';
+import { SpatialView } from '@/components/ui/SpatialView';
+import { StaggerEntrance } from '@/components/ui/StaggerEntrance';
 
 export default function TodayScreen() {
     const router = useRouter();
@@ -174,69 +176,81 @@ export default function TodayScreen() {
                     contentContainerStyle={{ paddingBottom: 140 }}
                     showsVerticalScrollIndicator={false}
                 >
-                    <WeekdaySelector
-                        weekDays={weekDays}
-                        selectedDayIndex={selectedDay.dayIndex}
-                        onDaySelect={selectDay}
-                        completedDayIndices={completedDayIndices}
-                    />
-
-                    <View className="items-center justify-center mt-6">
-                        <Text className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide">
-                            Today {shortDateLabel}
-                        </Text>
-                    </View>
-
-                    <View className="mt-6 flex-row justify-between">
-                        <View className="w-[48%]">
-                            <IntentionActionCard
-                                title={'Morning\nIntention'}
-                                subtitle="Start your day"
-                                icon={<MorningIntentionIcon />}
-                                onPress={handleMorningPress}
-                                isCompleted={morningCompleted}
-                            />
-                        </View>
-                        <View className="w-[48%]">
-                            <IntentionActionCard
-                                title={'Evening\nReflection'}
-                                subtitle="Reflect & unwind"
-                                icon={<EveningReflectionIcon />}
-                                onPress={handleEveningPress}
-                                isCompleted={eveningCompleted}
-                            />
-                        </View>
-                    </View>
-
-                    <View className="mt-8">
-                        <MyIntentionsSection
-                            intentions={activeIntentions}
-                            onAdd={handleAddIntention}
-                            onSelect={(intention) => handleSelectIntention(intention.id)}
+                    <SpatialView visible={true}>
+                        <WeekdaySelector
+                            weekDays={weekDays}
+                            selectedDayIndex={selectedDay.dayIndex}
+                            onDaySelect={selectDay}
+                            completedDayIndices={completedDayIndices}
                         />
-                    </View>
 
-                    <View className="mt-8">
-                        <GoalsSection
-                            completedCount={completedCount}
-                            totalCount={totalGoals}
-                            onAddGoal={handleAddGoal}
-                            onManage={handleManageGoals}
-                        />
-                    </View>
-
-                    {!isInsightHidden && (
-                        <View className="mt-8">
-                            <EntryInsightsCard
-                                question={question}
-                                onRefresh={refresh}
-                                onBookmark={handleBookmark}
-                                onMore={() => setMoreVisible(true)}
-                            />
+                        <View className="items-center justify-center mt-6">
+                            <Text className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide">
+                                Today {shortDateLabel}
+                            </Text>
                         </View>
-                    )}
 
-                    <PersonalizeButton onPress={openSettings} />
+                        <StaggerEntrance
+                            columns={2}
+                            staggerType="diagonal"
+                            className="mt-6 justify-between w-full"
+                        >
+                            <View className="w-full">
+                                <IntentionActionCard
+                                    title={'Morning\nIntention'}
+                                    subtitle="Start your day"
+                                    icon={<MorningIntentionIcon />}
+                                    onPress={handleMorningPress}
+                                    isCompleted={morningCompleted}
+                                />
+                            </View>
+                            <View className="w-full">
+                                <IntentionActionCard
+                                    title={'Evening\nReflection'}
+                                    subtitle="Reflect & unwind"
+                                    icon={<EveningReflectionIcon />}
+                                    onPress={handleEveningPress}
+                                    isCompleted={eveningCompleted}
+                                />
+                            </View>
+                        </StaggerEntrance>
+
+                        <StaggerEntrance
+                            columns={1}
+                            staggerType="linear"
+                            className="mt-8"
+                        >
+                            <View className="w-full mb-8">
+                                <MyIntentionsSection
+                                    intentions={activeIntentions}
+                                    onAdd={handleAddIntention}
+                                    onSelect={(intention) => handleSelectIntention(intention.id)}
+                                />
+                            </View>
+
+                            <View className="w-full mb-8">
+                                <GoalsSection
+                                    completedCount={completedCount}
+                                    totalCount={totalGoals}
+                                    onAddGoal={handleAddGoal}
+                                    onManage={handleManageGoals}
+                                />
+                            </View>
+
+                            {!isInsightHidden ? (
+                                <View className="w-full mb-8">
+                                    <EntryInsightsCard
+                                        question={question}
+                                        onRefresh={refresh}
+                                        onBookmark={handleBookmark}
+                                        onMore={() => setMoreVisible(true)}
+                                    />
+                                </View>
+                            ) : null}
+
+                            <PersonalizeButton onPress={openSettings} />
+                        </StaggerEntrance>
+                    </SpatialView>
                 </ScrollView>
 
                 <BottomNav

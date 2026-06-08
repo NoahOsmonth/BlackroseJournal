@@ -14,6 +14,7 @@ export const LOCAL_BACKUP_DATA_KEYS = [
     '@rosebud_local_memory',
     '@saved_insights',
     '@weekly_insights_cache',
+    '@blackrose_custom_ai_provider',
     'user-theme-preference',
     'user-emoji-preference',
 ] as const;

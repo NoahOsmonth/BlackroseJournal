@@ -17,6 +17,13 @@ jest.mock('../../../services/ai/directConfig', () => ({
         model: 'moonshotai/kimi-k2.5:thinking',
         flashModel: 'moonshotai/kimi-k2.5',
     }),
+    getResolvedDirectConfig: () => Promise.resolve({
+        apiKey: 'sk-direct-test-key',
+        apiBaseUrl: 'https://nano-gpt.com/api/v1',
+        model: 'moonshotai/kimi-k2.5:thinking',
+        flashModel: 'moonshotai/kimi-k2.5',
+        source: 'env',
+    }),
 }));
 
 const BASE_PAYLOAD = {
@@ -85,8 +92,8 @@ describe('directTransport — fetchDirectChatCompletion', () => {
         expect(JSON.parse(String(init.body))).toEqual(BASE_PAYLOAD);
     });
 
-    it('5. maps agent-default to the configured direct model', () => {
-        const request = prepareDirectChatRequest({
+    it('5. maps agent-default to the configured direct model', async () => {
+        const request = await prepareDirectChatRequest({
             ...BASE_PAYLOAD,
             model: 'agent-default',
         });
@@ -94,13 +101,22 @@ describe('directTransport — fetchDirectChatCompletion', () => {
         expect(request.body.model).toBe('moonshotai/kimi-k2.5:thinking');
     });
 
-    it('6. strips backend-only fields from the outbound body', () => {
-        const request = prepareDirectChatRequest({
+    it('6. strips backend-only fields from the outbound body', async () => {
+        const request = await prepareDirectChatRequest({
             ...BASE_PAYLOAD,
             conversationId: 'local-chat',
         } as typeof BASE_PAYLOAD & { conversationId: string });
 
         expect(request.body).not.toHaveProperty('conversationId');
         expect(request.body).not.toHaveProperty('max_context');
+    });
+
+    it('7. maps agent-default to the flash model for flash-purpose helpers', async () => {
+        const request = await prepareDirectChatRequest({
+            ...BASE_PAYLOAD,
+            model: 'agent-default',
+        }, { modelPurpose: 'flash' });
+
+        expect(request.body.model).toBe('moonshotai/kimi-k2.5');
     });
 });

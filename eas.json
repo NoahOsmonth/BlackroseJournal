@@ -22,6 +22,12 @@
       "env": {
         "EXPO_NEW_ARCH": "false"
       }
+    },
+    "production-apk": {
+      "extends": "production",
+      "android": {
+        "buildType": "apk"
+      }
     }
   },
   "submit": {

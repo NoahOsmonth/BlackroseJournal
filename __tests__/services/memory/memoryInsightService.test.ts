@@ -7,13 +7,11 @@ jest.mock('../../../services/ai/directTransport', () => ({
 
 import {
     fetchDirectChatCompletion,
-    getDirectConfig,
 } from '../../../services/ai/directTransport';
 import { synthesizeMemoryInsight } from '../../../services/memory/memoryInsightService';
 import type { LocalMemoryAtom } from '../../../services/memory/memoryGraph.types';
 
 const mockFetchDirectChatCompletion = jest.mocked(fetchDirectChatCompletion);
-const mockGetDirectConfig = jest.mocked(getDirectConfig);
 
 const atom: LocalMemoryAtom = {
     id: 'atom-1',
@@ -28,15 +26,6 @@ const atom: LocalMemoryAtom = {
 };
 
 describe('memoryInsightService', () => {
-    beforeEach(() => {
-        mockGetDirectConfig.mockReturnValue({
-            apiKey: 'api-key',
-            apiBaseUrl: 'https://nano-gpt.com/api/v1',
-            model: 'moonshotai/kimi-k2.5:thinking',
-            flashModel: 'moonshotai/kimi-k2.5',
-        });
-    });
-
     afterEach(() => {
         jest.clearAllMocks();
     });
@@ -53,7 +42,7 @@ describe('memoryInsightService', () => {
 
         expect(result).toBe('A concise connection.');
         expect(mockFetchDirectChatCompletion).toHaveBeenCalledWith({
-            model: 'moonshotai/kimi-k2.5:thinking',
+            model: 'agent-default',
             messages: expect.arrayContaining([
                 expect.objectContaining({ role: 'system' }),
                 expect.objectContaining({

@@ -1,4 +1,3 @@
-import { getDirectConfig } from '@/services/ai/directConfig';
 import { fetchDirectChatCompletion } from '@/services/ai/directTransport';
 import {
     EntryAnalysisResult,
@@ -128,13 +127,12 @@ function normalizeTopics(value: unknown): string[] {
 }
 
 async function postInsights<TRes>(payload: InsightsChatPayload): Promise<TRes> {
-    const { flashModel } = getDirectConfig();
     const response = await fetchDirectChatCompletion({
-        model: flashModel,
+        model: 'agent-default',
         messages: payload.messages,
         temperature: payload.temperature,
         response_format: payload.response_format,
-    });
+    }, { modelPurpose: 'flash' });
     if (!response.ok) {
         const preview = await response.text().catch(() => '');
         throw new Error(`Insights request failed (status ${response.status}). ${preview.slice(0, 200)}`);

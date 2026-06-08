@@ -53,8 +53,9 @@ describe('insights — direct local NanoGPT', () => {
         const result = await generateEntryReflection({ entryText: 'Today was tough.' });
 
         expect(mockFetchDirect).toHaveBeenCalledTimes(1);
-        const [payload] = mockFetchDirect.mock.calls[0];
-        expect(payload.model).toBe('moonshotai/kimi-k2.5');
+        const [payload, options] = mockFetchDirect.mock.calls[0];
+        expect(payload.model).toBe('agent-default');
+        expect(options).toEqual({ modelPurpose: 'flash' });
         expect(payload.response_format).toEqual({ type: 'json_object' });
         expect(payload.messages[1]?.content).toContain('Today was tough.');
         expect(result.reflection).toBe('You reflected well today.');

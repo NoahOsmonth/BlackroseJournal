@@ -1,6 +1,5 @@
 import {
     fetchDirectChatCompletion,
-    getDirectConfig,
 } from '@/services/ai/directTransport';
 import type { LocalMemoryAtom } from './memoryGraph.types';
 
@@ -13,9 +12,8 @@ interface ChatCompletionResponse {
 }
 
 export async function synthesizeMemoryInsight(atom: LocalMemoryAtom): Promise<string> {
-    const config = getDirectConfig();
     const response = await fetchDirectChatCompletion({
-        model: config.model,
+        model: 'agent-default',
         messages: [
             {
                 role: 'system',

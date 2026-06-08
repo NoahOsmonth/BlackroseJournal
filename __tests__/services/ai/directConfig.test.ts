@@ -1,3 +1,5 @@
+/* eslint-disable import/first */
+
 /**
  * Tests for services/ai/directConfig.ts.
  *
@@ -7,10 +9,26 @@
  * `require()` so that getDirectConfig reads the *current* process.env
  * at call time, which is exactly how the production code works.
  */
+jest.mock('@react-native-async-storage/async-storage', () => ({
+    __esModule: true,
+    default: {
+        getItem: jest.fn(),
+        setItem: jest.fn(),
+        removeItem: jest.fn(),
+    },
+}));
+
 import {
     DirectConfigError,
     getDirectConfig,
+    getResolvedDirectConfig,
 } from '../../../services/ai/directConfig';
+import {
+    getDefaultCustomAiProviderSettings,
+    resetCustomModelStorageAdapter,
+    saveCustomAiProviderSettings,
+    setCustomModelStorageAdapter,
+} from '../../../services/ai/customModels';
 
 const KEY = 'EXPO_PUBLIC_NANO_GPT_API_KEY';
 const BASE = 'EXPO_PUBLIC_NANO_GPT_API_BASE_URL';
@@ -108,5 +126,56 @@ describe('directConfig — DirectConfigError', () => {
         expect(err).toBeInstanceOf(Error);
         expect(err.name).toBe('DirectConfigError');
         expect(err.message).toBe('boom');
+    });
+});
+
+describe('directConfig — getResolvedDirectConfig', () => {
+    beforeEach(() => {
+        setCustomModelStorageAdapter({
+            getItem: jest.fn().mockResolvedValue(null),
+            setItem: jest.fn().mockResolvedValue(undefined),
+            removeItem: jest.fn().mockResolvedValue(undefined),
+        });
+    });
+
+    afterEach(() => {
+        resetCustomModelStorageAdapter();
+    });
+
+    it('uses enabled custom provider settings before NanoGPT env config', async () => {
+        const storage = new Map<string, string>();
+        setCustomModelStorageAdapter({
+            getItem: (key) => Promise.resolve(storage.get(key) ?? null),
+            setItem: (key, value) => {
+                storage.set(key, value);
+                return Promise.resolve();
+            },
+            removeItem: (key) => {
+                storage.delete(key);
+                return Promise.resolve();
+            },
+        });
+        await saveCustomAiProviderSettings({
+            ...getDefaultCustomAiProviderSettings(),
+            enabled: true,
+            baseUrl: 'https://openrouter.ai/api/v1',
+            apiKey: 'sk-or-test',
+            selectedModelId: 'openai/gpt-4',
+            models: [{
+                id: 'openai/gpt-4',
+                contextWindow: 8192,
+                contextWindowSource: 'api',
+            }],
+        });
+
+        await expect(getResolvedDirectConfig()).resolves.toEqual({
+            apiKey: 'sk-or-test',
+            apiBaseUrl: 'https://openrouter.ai/api/v1',
+            model: 'openai/gpt-4',
+            flashModel: 'openai/gpt-4',
+            source: 'custom',
+            contextWindow: 8192,
+            contextWindowSource: 'api',
+        });
     });
 });

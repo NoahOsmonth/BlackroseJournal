@@ -42,8 +42,9 @@ describe('askRosebud service', () => {
         ]);
 
         expect(answer).toBe('ok');
-        const [payload] = mockFetchDirect.mock.calls[0];
-        expect(payload.model).toBe('moonshotai/kimi-k2.5');
+        const [payload, options] = mockFetchDirect.mock.calls[0];
+        expect(payload.model).toBe('agent-default');
+        expect(options).toEqual({ modelPurpose: 'flash' });
         expect(payload.temperature).toBe(0.7);
         expect(payload.messages[1]).toEqual({
             role: 'user',

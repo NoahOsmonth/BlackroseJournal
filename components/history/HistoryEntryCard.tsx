@@ -19,8 +19,8 @@ interface HistoryEntryCardProps {
 
 const SECONDARY_TEXT_CLASS = 'text-text-secondary-light dark:text-text-secondary-dark';
 const CARD_CLASS = [
-    'bg-surface-light dark:bg-surface-dark p-5 rounded-3xl shadow-soft',
-    'border border-gray-100 dark:border-transparent',
+    'bg-surface-light dark:bg-surface-dark p-5 rounded-3xl',
+    'border-[0.5px] border-divider-light dark:border-divider-dark relative overflow-hidden',
 ].join(' ');
 
 function formatTime(timestamp: number): string {
@@ -73,6 +73,15 @@ function resolveToneColor(tone: IconTone, isDark: boolean): string {
     return palette[tone];
 }
 
+function resolveAccentColorClass(item: HistoryItem): string {
+    if (item.type === 'checkin') {
+        if (item.checkInType === 'evening') return 'bg-persona-rose';
+        if (item.checkInType === 'morning') return 'bg-primary';
+        return 'bg-persona-teal';
+    }
+    return 'bg-accent-blue';
+}
+
 export function HistoryEntryCard({ item, onPress }: HistoryEntryCardProps) {
     const isDark = useColorScheme() === 'dark';
     const label = resolveLabel(item);
@@ -86,35 +95,51 @@ export function HistoryEntryCard({ item, onPress }: HistoryEntryCardProps) {
             className={CARD_CLASS}
             accessibilityLabel={`Open ${item.title}`}
         >
-            <View className="flex-row items-center justify-between mb-3">
-                <View className="flex-row items-center gap-1.5">
-                    <MaterialIcons name="edit-note" size={18} color={mutedIconColor} />
-                    <Text className={`text-xs font-medium ${SECONDARY_TEXT_CLASS}`}>
-                        {label}
+            {/* Z-Axis Left Accent Strip representing type */}
+            <View className={`absolute left-0 top-0 bottom-0 w-[4px] ${resolveAccentColorClass(item)}`} />
+
+            <View className="flex-col">
+                {/* Header Row: Category Label and Time */}
+                <View className="flex-row items-center justify-between mb-3.5 pl-1">
+                    <View className="flex-row items-center gap-1.5">
+                        <MaterialIcons name="edit-note" size={14} color={mutedIconColor} />
+                        <Text className={`text-[10px] font-bold uppercase tracking-wider ${SECONDARY_TEXT_CLASS}`}>
+                            {label}
+                        </Text>
+                    </View>
+                    <Text className={`text-[10px] font-medium tracking-wide ${SECONDARY_TEXT_CLASS}`}>
+                        {formatTime(item.createdAt)}
                     </Text>
                 </View>
-                <Text className={`text-xs font-medium ${SECONDARY_TEXT_CLASS}`}>
-                    {formatTime(item.createdAt)}
+
+                {/* Title and Icon Row */}
+                <View className="flex-row items-start gap-3 mb-2.5">
+                    <View className="pt-0.5">
+                        <MaterialIcons name={icon.name} size={22} color={resolveToneColor(icon.tone, isDark)} />
+                    </View>
+                    <Text className="text-base font-bold tracking-tight text-text-light dark:text-white leading-snug flex-1">
+                        {item.title}
+                    </Text>
+                </View>
+
+                {/* Summary Text */}
+                <Text className={`text-sm ${SECONDARY_TEXT_CLASS} leading-relaxed mb-4 pl-[34px]`}>
+                    {item.summary}
                 </Text>
-            </View>
-            <View className="flex-row items-start gap-2.5 mb-2">
-                <MaterialIcons name={icon.name} size={22} color={resolveToneColor(icon.tone, isDark)} />
-                <Text className="text-base font-bold text-text-light dark:text-white leading-tight flex-1">
-                    {item.title}
-                </Text>
-            </View>
-            <Text className={`text-sm ${SECONDARY_TEXT_CLASS} leading-relaxed mb-4 pl-[34px]`}>
-                {item.summary}
-            </Text>
-            <View className={`flex-row items-center gap-1.5 ${SECONDARY_TEXT_CLASS} pl-[34px]`}>
-                <MaterialIcons
-                    name={mood.icon}
-                    size={16}
-                    color={resolveToneColor(mood.tone, isDark)}
-                />
-                <Text className={`text-xs font-medium ${SECONDARY_TEXT_CLASS}`}>
-                    {mood.label}
-                </Text>
+
+                {/* Mood Capsule Badge */}
+                <View className="flex-row items-center gap-1.5 pl-[34px]">
+                    <View className="flex-row items-center gap-1.5 bg-gray-150/40 dark:bg-divider-dark/40 border-[0.5px] border-divider-light dark:border-divider-dark px-2.5 py-1 rounded-full">
+                        <MaterialIcons
+                            name={mood.icon}
+                            size={13}
+                            color={resolveToneColor(mood.tone, isDark)}
+                        />
+                        <Text className={`text-xs font-medium ${SECONDARY_TEXT_CLASS}`}>
+                            {mood.label}
+                        </Text>
+                    </View>
+                </View>
             </View>
         </Pressable>
     );

@@ -1,8 +1,3 @@
-/**
- * AppHeader Component
- * Shared header for Today and History screens
- */
-
 import { useColorScheme } from '@/hooks/theme/use-color-scheme';
 import { MaterialIcons } from '@expo/vector-icons';
 import React from 'react';
@@ -72,28 +67,40 @@ function HistoryHeader({
     draftCount,
     onDraftsPress,
 }: Pick<AppHeaderProps, 'weekRange' | 'draftCount' | 'onDraftsPress'>) {
+    const isDark = useColorScheme() === 'dark';
+    const chevronColor = isDark ? '#F9FAFB' : '#111827';
+    const activeDrafts = (draftCount ?? 0) > 0;
+
     return (
-        <View className="px-4 pt-6 pb-2">
+        <View className="px-6 pt-6 pb-3">
             <View className="items-center gap-4">
-                <View className="w-full bg-surface-light dark:bg-surface-dark p-4 rounded-2xl shadow-soft">
-                    <Text className="text-base font-semibold text-text-light dark:text-white text-center mb-1">
+                <View className="items-center">
+                    <Text className="text-[10px] font-bold tracking-[0.2em] uppercase text-text-secondary-light dark:text-text-secondary-dark mb-1.5">
                         This week
                     </Text>
-                    <Text className="text-xs text-text-secondary-light dark:text-text-secondary-dark font-medium text-center">
+                    <Text className="text-xl font-bold tracking-tight text-text-main-light dark:text-text-main-dark">
                         {weekRange}
                     </Text>
                 </View>
+
                 <Pressable
                     onPress={onDraftsPress}
-                    className="flex-row items-center gap-2 bg-surface-light dark:bg-secondary-dark px-5 py-2.5 rounded-full shadow-soft"
+                    style={({ pressed }) => [
+                        { transform: [{ scale: pressed ? 0.96 : 1 }] }
+                    ]}
+                    className="flex-row items-center gap-2 bg-surface-light dark:bg-surface-dark border-[0.5px] border-divider-light dark:border-divider-dark px-4 py-1.5 rounded-full shadow-soft"
                     accessibilityLabel="Open drafts"
                     accessibilityRole="button"
+                    testID="drafts-button"
                 >
-                    <View className="w-2 h-2 rounded-full bg-black dark:bg-white" />
-                    <Text className="text-sm font-medium text-text-light dark:text-gray-200">
+                    <View className={`w-1.5 h-1.5 rounded-full ${activeDrafts ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                    <Text 
+                        numberOfLines={1}
+                        className="text-xs font-bold text-text-main-light dark:text-text-main-dark uppercase tracking-wider"
+                    >
                         {draftCount ?? 0} drafts
                     </Text>
-                    <MaterialIcons name="chevron-right" size={18} color="#9CA3AF" />
+                    <MaterialIcons name="chevron-right" size={14} color={chevronColor} />
                 </Pressable>
             </View>
         </View>

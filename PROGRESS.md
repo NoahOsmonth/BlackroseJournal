@@ -9,6 +9,45 @@
 - [x] **TOOL-CODEX-001**: Codex CLI with OMO Light Edition
 
 ## Updates
+- **2026-06-09**: Added custom OpenAI-compatible model settings and generated memory notes:
+  - Implemented custom provider storage/fetching in `services/ai/customModels.ts`.
+    - Normalizes provider roots such as `https://openrouter.ai` to `/api/v1`.
+    - Fetches standard OpenAI-compatible `GET /models` lists with bearer auth.
+    - Reads provider context metadata including OpenRouter `context_length` and common nested fields.
+    - Falls back to user-configured context tokens when model responses omit context length.
+  - Wired custom settings into direct AI calls:
+    - `getResolvedDirectConfig()` prefers enabled custom settings over NanoGPT env defaults.
+    - Chat, Ask Rosebud, insights, memory synthesis, and the local AI worker now resolve active models
+      through the transport layer.
+    - XHR streaming fallback now awaits async request preparation before opening the request.
+  - Added Settings UI:
+    - `CustomModelSettingsSection` supports Base URL, API key, fallback context tokens, fetch, search,
+      model selection, save, and enable/disable.
+    - Models that rely on fallback context tokens show a visible warning.
+    - Local backups now include `@blackrose_custom_ai_provider`.
+  - Added generated Memory settings notes:
+    - `generateMemoryNoteSuggestion()` builds a suggested note from non-note local memory atoms.
+    - Generated notes save as `layer: 'note'`, `source: 'system'`, so they participate in the existing
+      local memory retrieval/ranking framework.
+  - Tests added/updated:
+    - `__tests__/services/ai/customModels.test.ts`
+    - `__tests__/hooks/useCustomAiModels.test.ts`
+    - `__tests__/components/CustomModelSettingsSection.test.tsx`
+    - Updated direct config/transport, AI defaults, insights, Ask Rosebud, memory, worker, local backup,
+      and settings component tests.
+  - Verified:
+    - `npm test` — 68 suites passed, 2 skipped; 220 tests passed, 5 skipped. Jest reported completion
+      but held the process open, so the completed runner was terminated manually.
+    - `npm run check:design` — passed with 0 warnings.
+    - `npm test -- --runTestsByPath __tests__/dark-mode-contrast.test.ts`
+      `__tests__/tailwind-config.test.ts __tests__/hooks/useMemoryGraph.test.tsx` — passed.
+  - Existing unrelated gates still failing:
+    - `npx tsc --noEmit` fails in `app/persona/[id].tsx`, `components/parallax-scroll-view.tsx`,
+      and `utils/dev/rawTextGuard.ts`.
+    - `npm run lint` fails on pre-existing errors in `__tests__/ChatMessage.test.tsx`,
+      `app/(tabs)/insights.tsx`, `app/goals.tsx`, `app/intentions/select.tsx`,
+      `components/today/GoalsSection.tsx`, `scripts/check-design-limits.js`, and
+      `scripts/check-legacy-shim.js`.
 - **2026-01-22**: Initialized plan for Insights page.
 - **2026-01-22**: Implemented `generateWeeklyInsights` in `services/ai.ts` with unit tests.
 - **2026-01-22**: Implemented `app/(tabs)/insights.tsx`, `hooks/useWeeklyInsights.ts`, and UI components (`EmotionalLandscapeChart`, `KeyThemes`, `CastOfCharacters`).

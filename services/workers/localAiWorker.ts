@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as BackgroundFetch from 'expo-background-fetch';
 
-import { getDirectConfig } from '@/services/ai/directConfig';
+import { getResolvedDirectConfig } from '@/services/ai/directConfig';
 
 export const LOCAL_AI_WORKER_LAST_RUN_KEY = '@blackrose_worker_last_run';
 
@@ -12,8 +12,8 @@ interface LocalAiWorkerSnapshot {
     flashModel: string;
 }
 
-function buildSnapshot(now: () => number): LocalAiWorkerSnapshot {
-    const { apiBaseUrl, model, flashModel } = getDirectConfig();
+async function buildSnapshot(now: () => number): Promise<LocalAiWorkerSnapshot> {
+    const { apiBaseUrl, model, flashModel } = await getResolvedDirectConfig();
     return {
         checkedAt: now(),
         apiBaseUrl,
@@ -26,7 +26,7 @@ export async function runLocalAiWorker(
     now: () => number = Date.now
 ): Promise<BackgroundFetch.BackgroundFetchResult> {
     try {
-        const snapshot = buildSnapshot(now);
+        const snapshot = await buildSnapshot(now);
         await AsyncStorage.setItem(LOCAL_AI_WORKER_LAST_RUN_KEY, JSON.stringify(snapshot));
         return BackgroundFetch.BackgroundFetchResult.NewData;
     } catch (error) {
@@ -34,4 +34,3 @@ export async function runLocalAiWorker(
         return BackgroundFetch.BackgroundFetchResult.Failed;
     }
 }
-

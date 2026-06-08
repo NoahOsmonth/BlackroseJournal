@@ -1,6 +1,17 @@
+/* eslint-disable import/first */
+
 import React, { useEffect, useRef } from 'react';
 import { render, act } from '@testing-library/react-native';
 import type { NativeSyntheticEvent, NativeScrollEvent, ScrollView } from 'react-native';
+
+jest.mock('@react-native-async-storage/async-storage', () => ({
+    __esModule: true,
+    default: {
+        getItem: jest.fn(),
+        setItem: jest.fn(),
+        removeItem: jest.fn(),
+    },
+}));
 
 import { useChatOrchestration } from '../../features/chat';
 import type { InlineTypingInputRef } from '../../components/InlineTypingInput';

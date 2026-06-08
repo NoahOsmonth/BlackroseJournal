@@ -31,10 +31,13 @@ import {
 // Prevent splash from auto-hiding
 SplashScreen.preventAutoHideAsync().catch(() => { });
 
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+
 export default function RootLayout() {
     useThemeSettings();
     const colorScheme = useColorScheme();
     const [appReady, setAppReady] = useState(false);
+
 
     const [fontsLoaded, fontsError] = useFonts({
         PlusJakartaSansRegular: PlusJakartaSans_400Regular,
@@ -86,29 +89,31 @@ export default function RootLayout() {
     }
 
     return (
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-            <AppErrorBoundary>
-                <SupabaseStatusBanner />
-                <Stack screenOptions={{ headerShown: false }}>
-                    <Stack.Screen name="(tabs)" />
-                    <Stack.Screen name="chat" />
-                    <Stack.Screen name="drafts" />
-                    <Stack.Screen name="saved-insights" />
-                    <Stack.Screen name="goals" />
-                    <Stack.Screen name="entry-detail" />
-                    <Stack.Screen name="checkin-detail" />
-                    <Stack.Screen name="entry-reflection" />
-                    <Stack.Screen name="suggestions" />
-                    <Stack.Screen name="streak-view" />
-                    <Stack.Screen name="streak-haiku" options={{ presentation: 'modal' }} />
-                    <Stack.Screen name="ask-rosebud" />
-                    <Stack.Screen name="happiness-recipe" />
-                    <Stack.Screen name="rewards" />
-                    <Stack.Screen name="index" />
-                    <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-                </Stack>
-                <StatusBar style="auto" />
-            </AppErrorBoundary>
-        </ThemeProvider>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+            <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+                <AppErrorBoundary>
+                    <SupabaseStatusBanner />
+                    <Stack screenOptions={{ headerShown: false }}>
+                        <Stack.Screen name="(tabs)" />
+                        <Stack.Screen name="chat" />
+                        <Stack.Screen name="drafts" />
+                        <Stack.Screen name="saved-insights" />
+                        <Stack.Screen name="goals" />
+                        <Stack.Screen name="entry-detail" />
+                        <Stack.Screen name="checkin-detail" />
+                        <Stack.Screen name="entry-reflection" />
+                        <Stack.Screen name="suggestions" />
+                        <Stack.Screen name="streak-view" />
+                        <Stack.Screen name="streak-haiku" options={{ presentation: 'modal' }} />
+                        <Stack.Screen name="ask-rosebud" />
+                        <Stack.Screen name="happiness-recipe" />
+                        <Stack.Screen name="rewards" />
+                        <Stack.Screen name="index" />
+                        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+                    </Stack>
+                    <StatusBar style="auto" />
+                </AppErrorBoundary>
+            </ThemeProvider>
+        </GestureHandlerRootView>
     );
 }

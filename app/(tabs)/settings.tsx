@@ -8,12 +8,14 @@ import {
     AboutSettingsSection,
     AccountSettingsSection,
     AppearanceSettingsSection,
+    CustomModelSettingsSection,
     DataManagementSection,
     MemorySettingsSection,
 } from '@/components/settings';
 import { useAuthSession } from '@/hooks/auth/useAuthSession';
 import { useLocalBackups } from '@/hooks/backup/useLocalBackups';
 import { useLocalMemories } from '@/hooks/memory/useLocalMemories';
+import { useCustomAiModels } from '@/hooks/settings/useCustomAiModels';
 import { useThemeSettings } from '@/hooks/useThemeSettings';
 import { signOut } from '@/services/auth/authService';
 import { clearAllEntries, getAllEntriesForExport } from '@/services/journalStorage';
@@ -24,6 +26,7 @@ export default function SettingsScreen() {
     const { user, isLoading: isAuthLoading } = useAuthSession();
     const { latestBackup, isBusy, createBackup, restoreBackup } = useLocalBackups();
     const memory = useLocalMemories();
+    const customAi = useCustomAiModels();
     const [isSigningOut, setIsSigningOut] = useState(false);
     const [memoryNote, setMemoryNote] = useState('');
 
@@ -123,6 +126,16 @@ export default function SettingsScreen() {
         }
     };
 
+    const handleSaveGeneratedMemoryNote = async () => {
+        try {
+            await memory.addGeneratedNote();
+            Alert.alert('Memory note saved', 'Generated memory note saved for future chats.');
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to save memory note.';
+            Alert.alert('Error', message);
+        }
+    };
+
     const clearLocalMemory = async () => {
         try {
             await memory.clearAll();
@@ -175,6 +188,7 @@ export default function SettingsScreen() {
                         onThemeChange={setTheme}
                         onEmojiStyleChange={setEmojiStyle}
                     />
+                    <CustomModelSettingsSection {...customAi} />
                     <DataManagementSection
                         latestBackup={latestBackup}
                         isBusy={isBusy}
@@ -186,9 +200,12 @@ export default function SettingsScreen() {
                     <MemorySettingsSection
                         atoms={memory.atoms}
                         noteText={memoryNote}
+                        generatedNote={memory.generatedNote}
                         isBusy={memory.isLoading}
                         onNoteTextChange={setMemoryNote}
                         onSaveNote={handleSaveMemoryNote}
+                        onSaveGeneratedNote={handleSaveGeneratedMemoryNote}
+                        onRefreshGeneratedNote={memory.refreshGeneratedNote}
                         onClearMemory={handleClearLocalMemory}
                     />
                     <AccountSettingsSection

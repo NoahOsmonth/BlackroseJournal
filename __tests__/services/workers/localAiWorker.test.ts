@@ -24,6 +24,13 @@ jest.mock('../../../services/ai/directConfig', () => ({
         model: 'moonshotai/kimi-k2.5:thinking',
         flashModel: 'moonshotai/kimi-k2.5',
     })),
+    getResolvedDirectConfig: jest.fn(() => Promise.resolve({
+        apiKey: 'sk-test',
+        apiBaseUrl: 'https://nano-gpt.com/api/v1',
+        model: 'moonshotai/kimi-k2.5:thinking',
+        flashModel: 'moonshotai/kimi-k2.5',
+        source: 'env',
+    })),
 }));
 
 const storage = AsyncStorage as jest.Mocked<typeof AsyncStorage>;

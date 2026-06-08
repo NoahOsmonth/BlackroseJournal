@@ -18,10 +18,6 @@ interface SummaryMetric {
 }
 
 const SECONDARY_TEXT_CLASS = 'text-text-secondary-light dark:text-text-secondary-dark';
-const WEEK_PANEL_CLASS = [
-    'bg-surface-light dark:bg-surface-dark border border-gray-100',
-    'dark:border-divider-dark rounded-3xl px-5 py-4 mb-6',
-].join(' ');
 
 function buildMetrics(summary: WeeklyHistorySummary): SummaryMetric[] {
     return [
@@ -38,53 +34,57 @@ function formatSignals(signals: readonly string[]): string {
 
 export function HistoryWeekSummary({ summary }: HistoryWeekSummaryProps) {
     const isDark = useColorScheme() === 'dark';
-    const iconColor = isDark ? '#F9FAFB' : '#111827';
     const accentColor = isDark ? '#FFB454' : '#B45309';
     const metrics = buildMetrics(summary);
 
     return (
         <View
-            className={WEEK_PANEL_CLASS}
+            className="bg-surface-light dark:bg-surface-dark border-[0.5px] border-divider-light dark:border-divider-dark rounded-3xl p-6 mb-6 relative overflow-hidden"
             accessibilityLabel={`This week has ${summary.itemCount} history items`}
         >
-            <View className="flex-row items-center justify-between mb-4">
+            <View className="flex-row items-center justify-between mb-5">
                 <View>
-                    <Text className={`text-xs font-semibold uppercase ${SECONDARY_TEXT_CLASS}`}>
+                    <Text className={`text-[10px] font-bold tracking-[0.15em] uppercase ${SECONDARY_TEXT_CLASS} mb-1`}>
                         This week
                     </Text>
-                    <Text className="text-lg font-bold text-text-main-light dark:text-text-main-dark">
+                    <Text className="text-base font-bold tracking-tight text-text-main-light dark:text-text-main-dark">
                         {summary.label}
                     </Text>
                 </View>
-                <View className="flex-row items-center gap-1">
-                    <MaterialIcons name="auto-awesome" size={17} color={accentColor} />
-                    <Text className="text-sm font-semibold text-text-main-light dark:text-text-main-dark">
+                <View className="flex-row items-center gap-1.5 bg-primary/10 dark:bg-primary-dark/20 px-3 py-1 rounded-full border-[0.5px] border-primary/20">
+                    <MaterialIcons name="auto-awesome" size={13} color={accentColor} />
+                    <Text className="text-xs font-bold text-primary dark:text-primary-dark">
                         {summary.itemCount}
                     </Text>
                 </View>
             </View>
 
-            <View className="flex-row items-center justify-between mb-4">
-                {metrics.map((metric) => (
-                    <View key={metric.label} className="items-center flex-1">
-                        <MaterialIcons name={metric.icon} size={18} color={iconColor} />
-                        <Text className="text-base font-bold text-text-main-light dark:text-text-main-dark mt-1">
+            <View className="flex-row items-center justify-between mb-5 py-2 border-y border-divider-light/60 dark:border-divider-dark/60">
+                {metrics.map((metric, idx) => (
+                    <View
+                        key={metric.label}
+                        className={`items-center flex-1 ${idx < metrics.length - 1 ? 'border-r border-divider-light dark:border-divider-dark' : ''}`}
+                    >
+                        <Text className="text-2xl font-bold tracking-tight text-text-main-light dark:text-text-main-dark leading-none mb-1">
                             {metric.value}
                         </Text>
-                        <Text className={`text-[11px] font-medium ${SECONDARY_TEXT_CLASS}`}>
+                        <Text className={`text-[10px] font-bold tracking-wider uppercase ${SECONDARY_TEXT_CLASS}`}>
                             {metric.label}
                         </Text>
                     </View>
                 ))}
             </View>
 
-            <View className="border-t border-divider-light dark:border-divider-dark pt-3">
-                <Text className={`text-xs font-semibold ${SECONDARY_TEXT_CLASS}`}>
-                    Signals
-                </Text>
-                <Text className="text-sm font-semibold text-text-main-light dark:text-text-main-dark">
-                    {formatSignals(summary.topSignals)}
-                </Text>
+            <View className="flex-row items-center gap-2 mt-1">
+                <View className="w-1.5 h-1.5 rounded-full bg-accent-blue" />
+                <View className="flex-row items-center flex-1 flex-wrap">
+                    <Text className={`text-[10px] font-bold tracking-wider uppercase ${SECONDARY_TEXT_CLASS} mr-2`}>
+                        Signals:
+                    </Text>
+                    <Text className="text-xs font-semibold text-text-main-light dark:text-text-main-dark tracking-wide">
+                        {formatSignals(summary.topSignals)}
+                    </Text>
+                </View>
             </View>
         </View>
     );

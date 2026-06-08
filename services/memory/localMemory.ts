@@ -150,6 +150,43 @@ export async function saveManualMemoryNote(content: string): Promise<LocalMemory
     });
 }
 
+export async function saveGeneratedMemoryNote(content: string): Promise<LocalMemoryAtom> {
+    const trimmed = trimText(content, 600);
+    return upsertMemoryAtom({
+        layer: 'note',
+        source: 'system',
+        sourceId: `settings:${Date.now()}`,
+        title: trimText(trimmed, 60) || 'Generated memory note',
+        content: trimmed,
+        tags: extractTags(trimmed),
+        salience: 0.78,
+        confidence: 0.72,
+    });
+}
+
+function topAtoms(atoms: readonly LocalMemoryAtom[]): LocalMemoryAtom[] {
+    return [...atoms]
+        .filter((atom) => atom.layer !== 'note')
+        .sort((a, b) => (b.salience + b.confidence) - (a.salience + a.confidence))
+        .slice(0, 3);
+}
+
+function collectThemes(atoms: readonly LocalMemoryAtom[]): string[] {
+    return uniqueValues(atoms.flatMap((atom) => atom.tags)).slice(0, 4);
+}
+
+export function generateMemoryNoteSuggestion(
+    atoms: readonly LocalMemoryAtom[]
+): string | undefined {
+    const candidates = topAtoms(atoms);
+    if (candidates.length === 0) return undefined;
+
+    const focus = candidates.map((atom) => trimText(atom.content, 140)).join(' ');
+    const themes = collectThemes(candidates);
+    const themeText = themes.length > 0 ? ` Themes: ${themes.join(', ')}.` : '';
+    return trimText(`Remember for Rosebud chats: ${focus}${themeText}`, 600);
+}
+
 function buildJournalAtoms(entry: JournalEntry): LocalMemoryAtomInput[] {
     const userText = extractUserText(entry.messages);
     const topics = entry.analysis?.topics ?? [];
