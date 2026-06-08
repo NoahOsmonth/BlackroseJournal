@@ -55,6 +55,15 @@ export const TodayIconColors = {
   morningHillDark: '#14532D',
 } as const;
 
+export const MemoryLayerColors = {
+  episodic: '#A370F7',
+  semantic: '#38BDF8',
+  profile: '#FB7185',
+  procedural: '#34D399',
+  note: '#FBBF24',
+  working: '#F472B6',
+} as const;
+
 export const Colors = {
   light: {
     text: '#111827',
@@ -79,6 +88,16 @@ export const Colors = {
     primaryDark: '#FF8C00',
   },
 };
+
+export const theme = {
+  colors: {
+    background: '#0b0c10',
+    surface: '#1f2833',
+    text: '#ffffff',
+    primary: '#45f3ff',
+    memoryLayers: MemoryLayerColors,
+  },
+} as const;
 
 export const Fonts = Platform.select({
   ios: {

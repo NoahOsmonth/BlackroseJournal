@@ -23,6 +23,12 @@ module.exports = {
                 'primary-dark': '#FF8C00',
                 'persona-rose': '#E91E63',
                 'persona-teal': '#2DD4BF',
+                'memory-episodic': '#A370F7',
+                'memory-semantic': '#38BDF8',
+                'memory-profile': '#FB7185',
+                'memory-procedural': '#34D399',
+                'memory-note': '#FBBF24',
+                'memory-working': '#F472B6',
                 // Main text
                 'text-light': '#111827',
                 'text-dark': '#F9FAFB',

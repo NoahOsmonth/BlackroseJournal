@@ -25,6 +25,13 @@ Keep the repo clean, modular, and easy to maintain while protecting long-term UX
 - `services/`: API/AI/network/storage integrations.
 - `constants/`: theme and static configuration values.
 - `__tests__/`: Jest tests (prefer colocated test helpers when needed).
+- `backend/`: Node.js backend (AI agent, routes).
+- `utils/`: Pure utility functions and dev guards. No side effects.
+- `scripts/`: Build/CI tooling (`check-design-limits.js`).
+- `assets/`: Static assets (fonts, images, embedded HTML engines).
+- `example-design/`: HTML/CSS reference prototypes. Not deployed.
+- `notes/`: Developer docs (Supabase setup, local storage).
+- `supabase/`: Database migrations and email templates.
 
 ### Folder Organization (Required)
 - **Feature folders for hooks/services:**
@@ -45,11 +52,24 @@ Keep the repo clean, modular, and easy to maintain while protecting long-term UX
 - Keep utilities pure and side-effect free.
 - Avoid circular dependencies across layers.
 
+> **Note:** The backend uses a provider/profile AI config system (`backend/src/config/ai/`).
+> The `NANO_GPT_*` env var names are legacy. The current default is `moonshotai/kimi-k2.5:thinking`.
+
 ## Modularity Rules
 - One file, one responsibility.
 - Prefer composition over large “all-in-one” components.
 - Extract repeated UI into `components/` and repeated logic into `hooks/`.
 - Keep component props minimal and typed.
+
+### Prototype Files Validation Strategy
+Any HTML engine configuration residing within `example-design/` functions strictly as structural reference layouts. Production ports must extract runtime engine specifications into decoupled modules within `assets/` to ensure structural decoupling.
+
+### Data Provider Architectural Matrix
+Data providers operate deterministically using the toggle flag `EXPO_PUBLIC_DATA_PROVIDER`. Local execution strategies must completely intercept storage calls locally to isolate dependencies from active network pathways.
+
+### Canvas / WebView Integration Standards
+High-frequency rendering layers must execute encapsulated raw JS modules explicitly bounded inside a `react-native-webview` configuration block, transferring payload state transitions via synchronized data bridges.
+
 ## Design Consistency Rules
 Maintain a unified look and feel across the app:
 - **Strict Design Adherence:** When a reference design (HTML/CSS/Figma) is provided, match every element exactly (spacing, colors, radii, font sizes, shadows). Do not approximate.
@@ -87,8 +107,7 @@ These rules exist because invisible text and buttons have been a recurring probl
 - Add static safety tests when appropriate (e.g., disallow raw text nodes inside `View`/`Pressable` for web).
 - If a test isn’t feasible, document the reason in `PROGRESS.md` and create a follow-up task.
 ## Test Folder Organization (`__tests__/`)
-Keep the test folder structured to prevent clutter as tests grow:
-- **Flat structure OK for now** (< 10 files), but organize when scaling.
+The test suite spans across 55+ localized testing matrices. Developers appending testing logic must configure isolated structural components directly under target directory structures using explicit modular structures rather than cluttering global entry paths.
 - **Naming convention:** `<Subject>.test.ts(x)` — match the source file name.
 - **Subfolder strategy (when > 10 tests):**
   - `__tests__/components/` — component-level tests (ChatMessage, Header, etc.)
@@ -115,46 +134,11 @@ Keep the test folder structured to prevent clutter as tests grow:
   - `NANO_GPT_API_BASE_URL=https://nano-gpt.com/api/v1`
   - `NANO_GPT_MODEL=moonshotai/kimi-k2.5:thinking`
   - `NANO_GPT_FLASH_MODEL=moonshotai/kimi-k2.5`
-  - `OPENROUTER_EMBEDDING_API_KEY=...` (for SimpleMem embeddings)
-  - `SIMPLEMEM_ENABLED=true`
 - Start the backend:
   - `cd backend`
   - `npm install`
   - `npm run dev`
 - Ensure the app points to the backend (`EXPO_PUBLIC_AGENT_BASE_URL` or `AGENT_BASE_URL`), then restart Expo.
-
-## Backend Deployment (Railway)
-The backend is **deployed and live** on Railway.
-
-- **URL:** `https://backend-production-30af.up.railway.app`
-- **Health check:** `GET /health` → `{"status":"ok"}`
-- **Project:** blackrose (Railway)
-- **Service:** backend
-
-### Railway Environment Variables
-| Variable | Value |
-|----------|-------|
-| `PORT` | `8787` |
-| `ALLOWED_ORIGINS` | `*` |
-| `NANO_GPT_API_KEY` | *(set)* |
-| `NANO_GPT_API_BASE_URL` | `https://nano-gpt.com/api/v1` |
-| `NANO_GPT_MODEL` | `moonshotai/kimi-k2.5:thinking` |
-| `NANO_GPT_FLASH_MODEL` | `moonshotai/kimi-k2.5` |
-| `OPENROUTER_EMBEDDING_API_KEY` | *(set)* |
-| `SIMPLEMEM_ENABLED` | `true` |
-
-### Deploying Updates
-```bash
-cd backend
-npx tsc              # verify build passes locally first
-railway up            # deploy to Railway
-```
-Railway auto-redeploys when environment variables are changed via `railway variables set`.
-
-### Key Notes
-- The root `.env` has `EXPO_PUBLIC_AGENT_BASE_URL` pointing to the Railway URL.
-- CORS is configured to allow all origins (`ALLOWED_ORIGINS=*`). For production, restrict to specific domains.
-- The `railway.toml` in `backend/` configures: Nixpacks builder, `npm run build` → `npm start`, healthcheck on `/health`.
 
 ## Definition of Done
 - Design/UI files stay within the 200–500 line target (max 500).
@@ -201,6 +185,21 @@ npm test -- --verbose
 ### Run TypeScript Type Check
 ```bash
 npx tsc --noEmit
+```
+
+### Run Design Limits
+```bash
+npm run check:design
+```
+
+### Run Backend Tests
+```bash
+cd backend && npm test
+```
+
+### Run Backend Type Check
+```bash
+cd backend && npx tsc --noEmit
 ```
 
 ### Run Linting

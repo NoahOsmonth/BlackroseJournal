@@ -764,3 +764,59 @@
     - `npm run lint` still fails on pre-existing errors in `__tests__/ChatMessage.test.tsx`,
       `app/goals.tsx`, `app/intentions/select.tsx`, `components/today/GoalsSection.tsx`,
       `scripts/check-design-limits.js`, and `scripts/check-legacy-shim.js`, plus existing warnings.
+
+- **2026-06-08**: Redesigned memory-graph.html prototype:
+  - **Aesthetic Overhaul**: Imported Google Fonts (`Plus Jakarta Sans` for UI, `Playfair Display` for titles/quotes). Applied dark romantic variables, true black background, and glassmorphism styling (`backdrop-filter`) to matches the Blackrose brand.
+  - **Camera Controls**: Implemented click-drag panning and cursor-centered scroll zooming (plus mobile pinch-to-zoom).
+  - **Draggable Nodes**: Enabled real-time interactive dragging to let users manually adjust node positions.
+  - **Organic Geometries**: Added distinctive styles/rotations for the 6 memory layers (Episodic orbit, Semantic diamond, Profile concentric rings, Procedural triangle, Note star, Working active flame).
+  - **Neural Particle Pulses**: Animated light sparks traveling along connected paths between ideas.
+  - **Visualizer Settings HUD**: Collapsible controller sidebar for physics adjustments (gravity, attraction, speed) and render toggles (grid, orbits, particles).
+  - **Thematic Insight Synthesis**: Added button inside mobile bottom sheet & desktop details to generate dynamically compiled relationship summaries with a character typewriter effect.
+  - **Keyboard Shortcuts**: Added bindings for search (`/` or `Ctrl+K`) and dismissal (`Escape`).
+  - **Verification**: Verified using Jest (all 55 test suites, 186 tests passing). Checked responsive behaviors and canvas camera controls.
+
+- **2026-06-08**: Memory Graph production integration from `new-plan.md`:
+  - Added graph data/classification utilities under `services/memory/`:
+    - `memoryGraph.types.ts`
+    - `memoryGraphUtils.ts`
+    - `memoryClassifier.ts`
+    - `memoryInsightService.ts`
+  - Added `hooks/memory/useMemoryGraph.ts` to adapt existing phone-local memory atoms into graph nodes,
+    layer filters, search results, graph connections, selection state, and insight synthesis actions.
+  - Added the encapsulated canvas runtime at `assets/memory-graph/engine.html`, bridged through
+    `react-native-webview` in `components/memory-graph/MemoryGraphWebView.tsx` and a web iframe
+    bridge in `components/memory-graph/MemoryGraphWebView.web.tsx`.
+  - Replaced the Explore placeholder with the Memory Graph screen and added split UI components:
+    `MemoryGraphHeader`, `MemoryGraphFilters`, `MemoryGraphSheet`, and `MemoryGraphWebView`.
+  - Updated `BottomNav` so the Explore route is presented as the Memory tab with the `hub` icon while
+    preserving Today, Insights, History, and Settings routes.
+  - Added memory layer runtime/Tailwind color tokens and installed the Expo-compatible
+    `react-native-webview@13.15.0` dependency.
+  - Updated `AGENTS.md` per `new-plan.md`:
+    - Added missing directory ownership mappings.
+    - Removed stale SimpleMem and Railway deployment guidance.
+    - Added backend AI config note, prototype validation, data provider, and WebView/canvas standards.
+    - Added `npm run check:design`, `cd backend && npm test`, and `cd backend && npx tsc --noEmit`.
+  - Tests added:
+    - `__tests__/services/memory/memoryGraphUtils.test.ts`
+    - `__tests__/services/memory/memoryClassifier.test.ts`
+    - `__tests__/services/memory/memoryInsightService.test.ts`
+    - `__tests__/hooks/useMemoryGraph.test.tsx`
+    - `__tests__/components/MemoryGraphComponents.test.tsx`
+    - `__tests__/components/BottomNav.test.ts`
+    - `__tests__/docs/agentsMemoryGraph.test.ts`
+    - `__tests__/memoryGraphAsset.test.ts`
+  - Verified:
+    - `npm run test:run -- --testPathPattern="memoryClassifier|memoryInsightService|memoryGraph|MemoryGraph|useMemoryGraph|BottomNav|agentsMemoryGraph|memoryGraphAsset|tailwind-config"` — 9 suites, 20 tests passing.
+    - `npm run test:run -- --forceExit` — 62 suites passed, 2 skipped; 198 tests passed, 5 skipped.
+    - `npm run check:design` — passed with 0 warnings.
+    - `cd backend && npm test` — backend TypeScript smoke check passed.
+    - `cd backend && npx tsc --noEmit` — passed.
+    - Targeted `npx eslint` on all new/edited files owned by this change — passed.
+  - Existing unrelated gates still failing:
+    - `npx tsc --noEmit` still fails only in `app/persona/[id].tsx`,
+      `components/parallax-scroll-view.tsx`, and `utils/dev/rawTextGuard.ts`.
+    - `npm run lint` still fails on pre-existing errors in `__tests__/ChatMessage.test.tsx`,
+      `app/goals.tsx`, `app/intentions/select.tsx`, `components/today/GoalsSection.tsx`,
+      `scripts/check-design-limits.js`, and `scripts/check-legacy-shim.js`, plus existing warnings.

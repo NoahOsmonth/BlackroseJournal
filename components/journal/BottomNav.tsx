@@ -22,14 +22,22 @@ interface TabConfig {
     label: string;
 }
 
-const leftTabs: TabConfig[] = [
+export const tabConfig: TabConfig[] = [
     { name: 'today', icon: 'today', label: 'Today' },
-    { name: 'explore', icon: 'explore', label: 'Explore' },
+    { name: 'explore', icon: 'hub', label: 'Memory' },
+    { name: 'insights', icon: 'lightbulb', label: 'Insights' },
+    { name: 'entries', icon: 'history-edu', label: 'History' },
+    { name: 'settings', icon: 'settings', label: 'Settings' },
+];
+
+const leftTabs: TabConfig[] = [
+    tabConfig[0],
+    tabConfig[1],
 ];
 
 const rightTabs: TabConfig[] = [
-    { name: 'insights', icon: 'lightbulb', label: 'Insights' },
-    { name: 'entries', icon: 'history-edu', label: 'History' },
+    tabConfig[2],
+    tabConfig[3],
 ];
 
 export function BottomNav({ activeTab, onTabPress, onFabPress }: BottomNavProps) {
