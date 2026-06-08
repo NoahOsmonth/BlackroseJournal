@@ -721,3 +721,46 @@
     - `npm run lint` fails on pre-existing errors in `__tests__/ChatMessage.test.tsx`, `app/goals.tsx`,
       `app/intentions/select.tsx`, `components/today/GoalsSection.tsx`, `scripts/check-design-limits.js`,
       and `scripts/check-legacy-shim.js`.
+
+- **2026-06-08**: Rosebud local memory research plan, first implementation, and weekly history UX:
+  - Added the active memory epic plan in `PLAN.md`, the 1744-word research-backed invention paper in
+    `idea.md`, and the implementation contract in `memory.md`.
+  - Implemented phone-local Memory Loom foundation:
+    - `services/memory/localMemory.ts` and `.types.ts` store on-device memory atoms under
+      `@rosebud_local_memory`.
+    - Completed journal entries now create episodic, profile/about-user, and semantic theme memories.
+    - Drafts are intentionally excluded from long-term memory.
+    - Retrieval builds a bounded Local Memory Capsule by lexical overlap, salience, recency, and access count.
+    - `hooks/memory/useLocalMemoryContext.ts` exposes prompt memory to the chat route.
+    - `hooks/memory/useLocalMemories.ts` exposes local memory atoms/actions to Settings.
+    - `app/chat.tsx` injects local memory alongside the therapist prompt and saved feedback guidance.
+    - `components/settings/MemorySettingsSection.tsx` shows memory counts, an about-user preview,
+      manual note input, and a clear-memory action.
+    - Local backups now include `@rosebud_local_memory`.
+  - Added richer History week UX:
+    - `components/history/HistoryWeekSummary.tsx` summarizes this week's entries, check-ins,
+      active days, and recurring signals.
+    - `hooks/history/historyUtils.ts` now builds weekly summaries, and `useHistoryFeed` exposes them.
+    - `HistoryEntryCard` icon colors now use `useColorScheme()` instead of hardcoded static colors.
+  - Tests added/updated:
+    - `__tests__/services/localMemory.test.ts`
+    - `__tests__/hooks/useLocalMemories.test.tsx`
+    - `__tests__/hooks/historyUtils.test.ts`
+    - `__tests__/components/HistoryWeekSummary.test.tsx`
+    - `__tests__/components/MemorySettingsSection.test.tsx`
+    - `__tests__/localBackup.test.ts`
+    - `__tests__/dark-mode-contrast.test.ts`
+  - Verified:
+    - `npm run test:run -- --testPathPattern="localMemory|useLocalMemories|MemorySettingsSection|historyUtils|HistoryWeekSummary|localBackup|dark-mode-contrast" --runInBand` — 18 tests passing.
+    - `npm run test:run -- --runInBand --forceExit` — 55 suites passed, 2 skipped; 186 tests passed, 5 skipped.
+    - `npm run check:design` — passed with 0 warnings.
+    - `npx eslint` on all new/edited files owned by this change — passed.
+    - Line-width scan on new/edited files — no lines over 120 characters.
+    - Expo web smoke at `http://localhost:19006/settings` and `/entries` — Memory settings
+      section and weekly History summary rendered after app initialization.
+  - Existing unrelated gates still failing:
+    - `npm run typecheck` still fails only in `app/persona/[id].tsx`,
+      `components/parallax-scroll-view.tsx`, and `utils/dev/rawTextGuard.ts`.
+    - `npm run lint` still fails on pre-existing errors in `__tests__/ChatMessage.test.tsx`,
+      `app/goals.tsx`, `app/intentions/select.tsx`, `components/today/GoalsSection.tsx`,
+      `scripts/check-design-limits.js`, and `scripts/check-legacy-shim.js`, plus existing warnings.

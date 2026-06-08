@@ -12,6 +12,7 @@
 import { PromptPeriod } from '@/constants/dailyPrompts';
 import { THERAPIST_SYSTEM_PROMPT } from '@/constants/aiPrompts';
 import { useAiFeedback } from '@/hooks/feedback/useAiFeedback';
+import { useLocalMemoryContext } from '@/hooks/memory/useLocalMemoryContext';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
@@ -29,6 +30,7 @@ import type {
     JournalEntry,
     JournalEntryAnalysis,
 } from '../services/journal/journalStorage.types';
+import { saveJournalEntryMemories } from '../services/memory/localMemory';
 
 type ChatParams = {
     mode?: string;
@@ -65,11 +67,16 @@ export default function ChatScreen() {
         scope: 'journal',
         conversationId,
     });
+    const { context: localMemoryContext } = useLocalMemoryContext({
+        query: continuedEntry?.title,
+    });
     const systemPrompt = useMemo(
-        () => feedbackGuidance
-            ? `${THERAPIST_SYSTEM_PROMPT}\n\n${feedbackGuidance}`
-            : THERAPIST_SYSTEM_PROMPT,
-        [feedbackGuidance]
+        () => [
+            THERAPIST_SYSTEM_PROMPT,
+            localMemoryContext,
+            feedbackGuidance,
+        ].filter(Boolean).join('\n\n'),
+        [feedbackGuidance, localMemoryContext]
     );
 
     const {
@@ -191,10 +198,10 @@ export default function ChatScreen() {
                 console.warn('AI entry analysis failed, saving entry without analysis', err);
             }
 
-            let savedEntryId = entryId;
+            let savedEntry: JournalEntry | null = null;
 
             if (entryId) {
-                await update(entryId, {
+                savedEntry = await update(entryId, {
                     title,
                     emoji,
                     messages,
@@ -202,14 +209,17 @@ export default function ChatScreen() {
                     analysis,
                 });
             } else {
-                const created = await create({
+                savedEntry = await create({
                     title,
                     emoji,
                     messages,
                     status: 'completed',
                     analysis,
                 });
-                savedEntryId = created.id;
+            }
+            const savedEntryId = savedEntry?.id ?? entryId;
+            if (savedEntry) {
+                await saveJournalEntryMemories(savedEntry);
             }
 
             // Clear chat and navigate to post-finish reflection
@@ -276,7 +286,10 @@ export default function ChatScreen() {
 
                         {isLoading && !streamingMessage && (
                             <View className="flex-row items-center gap-2 ml-4">
-                                <TypingIndicator colorClassName="text-slate-500 dark:text-slate-400" sizeClassName="text-sm" />
+                                <TypingIndicator
+                                    colorClassName="text-slate-500 dark:text-slate-400"
+                                    sizeClassName="text-sm"
+                                />
                                 <Text className="text-slate-500 dark:text-slate-400 text-sm">AI is thinking</Text>
                             </View>
                         )}
@@ -285,7 +298,10 @@ export default function ChatScreen() {
                             <View
                                 accessibilityRole="alert"
                                 accessibilityLabel={errorMessage}
-                                className="rounded-xl border border-divider-light dark:border-divider-dark bg-yellow-300/20 dark:bg-yellow-300/10 p-3"
+                                className={[
+                                    'rounded-xl border border-divider-light dark:border-divider-dark',
+                                    'bg-yellow-300/20 dark:bg-yellow-300/10 p-3',
+                                ].join(' ')}
                             >
                                 <Text className="text-text-light dark:text-text-dark text-sm">
                                     {errorMessage}
@@ -307,7 +323,12 @@ export default function ChatScreen() {
                                         accessibilityLabel="Dismiss error message"
                                         className="px-2 py-1"
                                     >
-                                        <Text className="text-text-secondary-light dark:text-text-secondary-dark text-xs">
+                                        <Text
+                                            className={[
+                                                'text-text-secondary-light dark:text-text-secondary-dark',
+                                                'text-xs',
+                                            ].join(' ')}
+                                        >
                                             Dismiss
                                         </Text>
                                     </Pressable>

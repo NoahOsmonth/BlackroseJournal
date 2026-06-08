@@ -83,7 +83,10 @@ describe("dark mode contrast safety", () => {
         const content = fs.readFileSync(file, "utf-8");
         expect(content).toContain("{mood.label}");
         expect(content).toContain(
-            '<Text className="text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark">{mood.label}</Text>'
+            "const SECONDARY_TEXT_CLASS = 'text-text-secondary-light dark:text-text-secondary-dark';"
+        );
+        expect(content).toContain(
+            'className={`text-xs font-medium ${SECONDARY_TEXT_CLASS}`}'
         );
     });
 });

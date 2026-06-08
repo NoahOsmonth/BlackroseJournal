@@ -9,9 +9,11 @@ import {
     AccountSettingsSection,
     AppearanceSettingsSection,
     DataManagementSection,
+    MemorySettingsSection,
 } from '@/components/settings';
 import { useAuthSession } from '@/hooks/auth/useAuthSession';
 import { useLocalBackups } from '@/hooks/backup/useLocalBackups';
+import { useLocalMemories } from '@/hooks/memory/useLocalMemories';
 import { useThemeSettings } from '@/hooks/useThemeSettings';
 import { signOut } from '@/services/auth/authService';
 import { clearAllEntries, getAllEntriesForExport } from '@/services/journalStorage';
@@ -21,7 +23,9 @@ export default function SettingsScreen() {
     const { theme, setTheme, emojiStyle, setEmojiStyle } = useThemeSettings();
     const { user, isLoading: isAuthLoading } = useAuthSession();
     const { latestBackup, isBusy, createBackup, restoreBackup } = useLocalBackups();
+    const memory = useLocalMemories();
     const [isSigningOut, setIsSigningOut] = useState(false);
+    const [memoryNote, setMemoryNote] = useState('');
 
     const handleTabPress = (tab: 'today' | 'explore' | 'entries' | 'settings' | 'insights') => {
         if (tab !== 'settings') {
@@ -108,6 +112,38 @@ export default function SettingsScreen() {
         );
     };
 
+    const handleSaveMemoryNote = async () => {
+        try {
+            await memory.addNote(memoryNote);
+            setMemoryNote('');
+            Alert.alert('Memory note saved', 'Rosebud can use this note in future journal chats.');
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to save memory note.';
+            Alert.alert('Error', message);
+        }
+    };
+
+    const clearLocalMemory = async () => {
+        try {
+            await memory.clearAll();
+            Alert.alert('Memory cleared', 'Local AI memory has been cleared from this device.');
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to clear memory.';
+            Alert.alert('Error', message);
+        }
+    };
+
+    const handleClearLocalMemory = () => {
+        Alert.alert(
+            'Clear local memory',
+            'Delete Rosebud local AI memories from this device?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Clear', style: 'destructive', onPress: clearLocalMemory },
+            ]
+        );
+    };
+
     const handleSignOut = async () => {
         if (isSigningOut) {
             return;
@@ -146,6 +182,14 @@ export default function SettingsScreen() {
                         onRestoreLatestBackup={handleRestoreLatestBackup}
                         onExportJournalJson={handleExportJournalJson}
                         onClearJournalEntries={handleClearJournalEntries}
+                    />
+                    <MemorySettingsSection
+                        atoms={memory.atoms}
+                        noteText={memoryNote}
+                        isBusy={memory.isLoading}
+                        onNoteTextChange={setMemoryNote}
+                        onSaveNote={handleSaveMemoryNote}
+                        onClearMemory={handleClearLocalMemory}
                     />
                     <AccountSettingsSection
                         email={user?.email ?? null}

@@ -38,12 +38,13 @@ describe('localBackup', () => {
         mockStore.set('@journal_entries', '{"entry-1":{"title":"Morning"}}');
         mockStore.set('@goals', '{"goal-1":{"title":"Walk"}}');
         mockStore.set('@ai_response_feedback', '{"feedback-1":{"value":"up"}}');
+        mockStore.set('@rosebud_local_memory', '{"memory-1":{"title":"Rest"}}');
 
         const backup = await createLocalBackup('Friday backup');
         const backups = await listLocalBackups();
 
         expect(backup.name).toBe('Friday backup');
-        expect(backup.itemCount).toBe(3);
+        expect(backup.itemCount).toBe(4);
         expect(backups).toEqual([backup]);
     });
 

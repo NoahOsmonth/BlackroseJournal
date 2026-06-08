@@ -11,6 +11,7 @@ export const LOCAL_BACKUP_DATA_KEYS = [
     '@personas',
     '@persona_draft_settings',
     '@ai_response_feedback',
+    '@rosebud_local_memory',
     '@saved_insights',
     '@weekly_insights_cache',
     'user-theme-preference',

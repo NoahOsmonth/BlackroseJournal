@@ -11,6 +11,7 @@ import { useRouter } from 'expo-router';
 import { AppHeader } from '@/components/navigation';
 import { BottomNav } from '@/components/journal';
 import { HistorySection } from '@/components/history/HistorySection';
+import { HistoryWeekSummary } from '@/components/history/HistoryWeekSummary';
 import { useHistoryFeed } from '@/hooks/history/useHistoryFeed';
 import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
 import { useIntentionCheckIns } from '@/hooks/intentions/useIntentionCheckIns';
@@ -29,7 +30,7 @@ function getWeekRangeLabel(date: Date): string {
 
 export default function EntriesScreen() {
     const router = useRouter();
-    const { sections } = useHistoryFeed();
+    const { sections, weeklySummary } = useHistoryFeed();
     const { drafts } = useJournalEntries();
     const { drafts: checkInDrafts } = useIntentionCheckIns();
     const { goToTab } = useTabNavigation();
@@ -65,6 +66,7 @@ export default function EntriesScreen() {
                 />
 
                 <ScrollView className="flex-1 px-4" contentContainerStyle={{ paddingBottom: 140 }}>
+                    <HistoryWeekSummary summary={weeklySummary} />
                     {sections.map((section) => (
                         <HistorySection
                             key={section.dateKey}
