@@ -1,208 +1,177 @@
-# Agent Operating Guide
+# AGENTS.md
 
-## Purpose
-Keep the repo clean, modular, and easy to maintain while protecting long-term UX and test quality.
+You are a brilliant, fast, literal-minded contractor with amnesia between tasks. You follow exactly what is written here, nothing more. This file is a **behavioral correction layer for this repo's specific failure modes** — not general best practices. If a rule isn't here, don't infer it from vibes.
 
-## Non-negotiables ✅
-- **Design/UI file size limit:** target **200–500 lines**, hard max **500 lines**.
-	- **Design/UI files include:** anything under `app/`, `components/`, `components/ui/`, `global.css`, `constants/theme.ts`, and any theme/style helpers.
-	- If a file approaches **450 lines**, split it (extract subcomponents, hooks, styles, or helpers).
-- **Code size standards (industry guide):**
-	- **Function length:** target **5 lines**; acceptable **5–15 lines** if still single-responsibility.
-	- **Component/class size:** **< 200 lines** is the sweet spot.
-	- **General file size:** aim for **< 400 lines**; **400–600** only with strong justification.
-	- **Critical threshold:** **1,000+ lines** is a refactor stop sign.
-	- **Line width:** **80–120 characters** to prevent horizontal scrolling.
-	- **Complexity over length:** avoid deep nesting; prefer flatter control flow over long nested `if` chains.
-- **Separation of concerns:** UI renders, hooks manage state, services handle I/O.
-- **Tests are mandatory for changes:** update existing tests or add new ones every change.
+Every rule below prevents a real bug. Don't add aspirational rules. Don't restate what the model already knows.
 
-## Repo Structure & Ownership
-- `app/`: routes + screens (no heavy business logic).
-- `components/`: reusable UI and composite components.
-- `components/ui/`: small, atomic UI primitives only.
-- `hooks/`: state, data-flow orchestration, side-effects.
-- `services/`: API/AI/network/storage integrations.
-- `constants/`: theme and static configuration values.
-- `__tests__/`: Jest tests (prefer colocated test helpers when needed).
-- `backend/`: Node.js backend (AI agent, routes).
-- `utils/`: Pure utility functions and dev guards. No side effects.
-- `scripts/`: Build/CI tooling (`check-design-limits.js`).
-- `assets/`: Static assets (fonts, images, embedded HTML engines).
-- `example-design/`: HTML/CSS reference prototypes. Not deployed.
-- `notes/`: Developer docs (Supabase setup, local storage).
-- `supabase/`: Database migrations and email templates.
+---
 
-### Folder Organization (Required)
-- **Feature folders for hooks/services:**
-	- `hooks/<feature>/...` (e.g., `hooks/journal`, `hooks/insights`, `hooks/theme`)
-	- `services/<feature>/...` (e.g., `services/ai`, `services/journal`, `services/memory`)
-- Legacy root-level files may exist **only as re-exports**. New code should import from the feature folder paths.
+## Most-violated rules (read first)
 
-### Navigation Rules
-- Use the shared `AppHeader` (in `components/navigation`) for Today + History headers.
-- Use navigation hooks for behavior:
-	- `useHeaderActions` for Settings/Rewards.
-	- `useTabNavigation` for switching tabs (prefer `router.navigate` over `push`).
+### 1. Every color is a token. Every `<Text>` has a `dark:` variant.
 
-## Separation of Concerns Rules
-- UI components **do not** call network/services directly.
-- Services **do not** import UI components.
-- Hooks **may** call services but should expose simple state + actions to UI.
-- Keep utilities pure and side-effect free.
-- Avoid circular dependencies across layers.
+Bare `<Text className="text-gray-900">` is **invisible in dark mode** because RN text does not inherit color from parent Views. This is the #1 recurring bug in this repo.
 
-> **Note:** The backend uses a provider/profile AI config system (`backend/src/config/ai/`).
-> The `NANO_GPT_*` env var names are legacy. The current default is `moonshotai/kimi-k2.5:thinking`.
+```tsx
+// BAD
+<Text className="text-gray-900">Hello</Text>
+<Icon color="#111827" />
 
-## Modularity Rules
-- One file, one responsibility.
-- Prefer composition over large “all-in-one” components.
-- Extract repeated UI into `components/` and repeated logic into `hooks/`.
-- Keep component props minimal and typed.
-
-### Prototype Files Validation Strategy
-Any HTML engine configuration residing within `example-design/` functions strictly as structural reference layouts. Production ports must extract runtime engine specifications into decoupled modules within `assets/` to ensure structural decoupling.
-
-### Data Provider Architectural Matrix
-Data providers operate deterministically using the toggle flag `EXPO_PUBLIC_DATA_PROVIDER`. Local execution strategies must completely intercept storage calls locally to isolate dependencies from active network pathways.
-
-### Canvas / WebView Integration Standards
-High-frequency rendering layers must execute encapsulated raw JS modules explicitly bounded inside a `react-native-webview` configuration block, transferring payload state transitions via synchronized data bridges.
-
-## Design Consistency Rules
-Maintain a unified look and feel across the app:
-- **Strict Design Adherence:** When a reference design (HTML/CSS/Figma) is provided, match every element exactly (spacing, colors, radii, font sizes, shadows). Do not approximate.
-- **Use theme tokens:** always pull colors, spacing, fonts, and radii from `constants/theme.ts`—never hardcode values.
-- **Consistent spacing:** use a spacing scale (e.g., 4/8/12/16/24) from the theme; avoid magic numbers.
-- **Typography:** stick to the defined font families, sizes, and weights in the theme; add new variants to theme first.
-- **Component patterns:** reuse existing primitives from `components/ui/` before creating new ones.
-- **Naming conventions:** component and style names should be descriptive and follow existing patterns (PascalCase components, camelCase styles/props).
-- **Dark/light mode:** ensure new UI respects both color schemes; test visually when possible.
-- **Animation style:** keep motion subtle and consistent (use Reanimated patterns already in the codebase).
-- **Accessibility:** include accessibility labels/roles; maintain sufficient color contrast.
-- **Review before adding:** if a new pattern or color is needed, discuss or document the rationale to avoid one-offs.
-
-### Dark Mode / Light Mode Rules (CRITICAL)
-These rules exist because invisible text and buttons have been a recurring problem. **Follow strictly.**
-
-1. **All colors must come from `tailwind.config.js` tokens.** NativeWind silently drops undefined tokens—no error, just invisible UI. If you need a new color, add it to `tailwind.config.js` first.
-2. **Never hardcode icon colors.** Use `useColorScheme()` and pick light/dark values dynamically:
-   ```tsx
-   const { colorScheme } = useColorScheme();
-   const iconColor = colorScheme === 'dark' ? '#F9FAFB' : '#111827';
-   ```
-3. **Every `<Text>` must have a `dark:` color variant.** React Native text does NOT inherit color from parent Views. Bare `<Text className="text-gray-900">` is invisible in dark mode—always add `dark:text-gray-100` or similar.
-4. **Test both modes visually** after any color/style change. Use Playwright or toggle in Settings.
-5. **`tailwind.config.js` must have `darkMode: 'class'`** — this is required for NativeWind web dark mode toggling via `setColorScheme()`.
-6. **Guard tests exist:** `__tests__/tailwind-config.test.ts` validates all 23 required color tokens. `__tests__/dark-mode-contrast.test.ts` catches hardcoded icon colors. **Do not skip these tests.**
-7. **Two color systems coexist:** `constants/theme.ts` (JS runtime) and `tailwind.config.js` (Tailwind/NativeWind). Components use both. When adding colors, check which system the component uses and add to the correct one (or both).
-8. **Web dark mode hook:** `hooks/theme/use-color-scheme.web.ts` must use NativeWind's `useColorScheme`, not React Native's. RN's hook only reads media queries; NativeWind's responds to `setColorScheme()`.
-## Testing Rules (Required)
-- Every change must include **new or updated tests**.
-- Prefer user-centric assertions (visible text, accessibility labels) over implementation details.
-- Keep snapshots small and intentional; avoid large snapshots.
-- For logic/services: test success + failure paths with mocks.
-- For backend/remote changes (Supabase/agent): add an **integration smoke test** under `__tests__/integration/` gated by `RUN_INTEGRATION_TESTS=1` to verify required tables/endpoints exist.
-- Add static safety tests when appropriate (e.g., disallow raw text nodes inside `View`/`Pressable` for web).
-- If a test isn’t feasible, document the reason in `PROGRESS.md` and create a follow-up task.
-## Test Folder Organization (`__tests__/`)
-The test suite spans across 55+ localized testing matrices. Developers appending testing logic must configure isolated structural components directly under target directory structures using explicit modular structures rather than cluttering global entry paths.
-- **Naming convention:** `<Subject>.test.ts(x)` — match the source file name.
-- **Subfolder strategy (when > 10 tests):**
-  - `__tests__/components/` — component-level tests (ChatMessage, Header, etc.)
-  - `__tests__/hooks/` — hook tests (useChatOrchestration, etc.)
-  - `__tests__/services/` — service/API tests (ai.ts, storage, etc.)
-  - `__tests__/screens/` — integration/screen tests (ChatScreen, etc.)
-- **Colocated helpers:** test utilities can live in `__tests__/helpers/` or inline if small.
-- **Avoid duplication:** shared mocks go in `__tests__/mocks/` or `__mocks__/` (Jest convention).
-- **Max test file size:** aim for **< 300 lines**; split if tests grow too large.
-## Agent Workflow Plan
-1. Read `PLAN.md`/`TASKS/` and confirm scope.
-2. Identify impacted files and ensure design files stay within the 200–500 line target (max 500).
-3. Implement changes with strict SoC and modular structure.
-4. Add/update tests for every change.
-5. Run relevant tests and fix failures.
-6. Update `PROGRESS.md` with outcomes and any follow-ups.
-7. If AI chat features are touched, ensure the backend agent is configured and running locally.
-
-## Backend Agent Setup (Local)
-- Create `backend/.env` with:
-  - `PORT=8787`
-  - `ALLOWED_ORIGINS=http://localhost:19006,http://localhost:8081`
-  - `NANO_GPT_API_KEY=...`
-  - `NANO_GPT_API_BASE_URL=https://nano-gpt.com/api/v1`
-  - `NANO_GPT_MODEL=moonshotai/kimi-k2.5:thinking`
-  - `NANO_GPT_FLASH_MODEL=moonshotai/kimi-k2.5`
-- Start the backend:
-  - `cd backend`
-  - `npm install`
-  - `npm run dev`
-- Ensure the app points to the backend (`EXPO_PUBLIC_AGENT_BASE_URL` or `AGENT_BASE_URL`), then restart Expo.
-
-## Definition of Done
-- Design/UI files stay within the 200–500 line target (max 500).
-- Functions/components/files follow the code size standards above.
-- Tests added/updated and passing.
-- No new lint/type errors.
-- `PROGRESS.md` updated with what changed.
-
-## How to Run Tests
-
-### Run All Tests
-```bash
-npm test
+// GOOD
+<Text className="text-gray-900 dark:text-gray-100">Hello</Text>
+const { colorScheme } = useColorScheme();
+const iconColor = colorScheme === 'dark' ? '#F9FAFB' : '#111827';
 ```
 
-### Run Tests with Pattern Matching
-```bash
-# Run specific test file
-npm test -- --testPathPattern="ChatScreen"
+Two color systems coexist — pick the right one per file:
+- `tailwind.config.js` — NativeWind classes (`text-gray-900`, `bg-surface`, etc.). Add new tokens here first. NativeWind silently drops undefined tokens — no error, just invisible UI.
+- `constants/theme.ts` — JS runtime values for non-NativeWind code.
 
-# Run tests matching multiple patterns
-npm test -- --testPathPattern="EmotionalLandscape|KeyThemes"
+Guard tests catch this and must not be skipped: `__tests__/tailwind-config.test.ts` (23 color tokens) and `__tests__/dark-mode-contrast.test.ts` (hardcoded icon colors). Web dark mode requires `darkMode: 'class'` in `tailwind.config.js` for `setColorScheme()` to work.
 
-# Run all tests in a folder
-npm test -- --testPathPattern="services"
-npm test -- --testPathPattern="components"
-npm test -- --testPathPattern="screens"
-npm test -- --testPathPattern="hooks"
+### 2. UI → hooks → services. Never skip a layer. Never loop back.
 
-# Run integration smoke tests (Supabase + agent health)
-RUN_INTEGRATION_TESTS=1 npm test -- --testPathPattern="integration"
+```tsx
+// BAD — screen calling service directly
+function JournalScreen() {
+  const data = await fetch('/api/journal');
+}
+
+// GOOD — screen calls hook, hook calls service
+function JournalScreen() {
+  const { entries } = useJournalEntries();
+}
 ```
 
-### Run Tests in Watch Mode
+- UI components do not import from `services/`.
+- Services do not import from `components/` or `hooks/`.
+- Hooks may call services and expose simple state + actions to UI.
+- `utils/` is pure — no I/O, no hooks, no side effects.
+- No circular dependencies across layers.
+
+### 3. Design/UI files are 200–500 lines, hard max 500.
+
+Applies to: `app/`, `components/`, `components/ui/`, `global.css`, `constants/theme.ts`, and any theme/style helpers. At 450 lines, split — extract subcomponents, hooks, styles, or helpers. Enforced by `npm run check:design`.
+
+### 4. Tests are part of the diff.
+
+Every change updates or adds tests. If a test isn't feasible, document the reason in `PROGRESS.md` and create a follow-up task — never silently skip.
+
+### 5. Use the shared navigation primitives.
+
+- `AppHeader` in `components/navigation` for Today + History headers.
+- `useHeaderActions` for Settings/Rewards buttons.
+- `useTabNavigation` for tab switching.
+- Prefer `router.navigate` over `router.push` for tab switches.
+
+Don't reinvent navigation per screen.
+
+---
+
+## Directory intent
+
+Don't memorize file lists. These are boundaries and purpose:
+
+- `app/` — routes and screens. No business logic.
+- `components/` — reusable composite UI. `components/ui/` is atomic primitives only.
+- `hooks/<feature>/` and `services/<feature>/` — feature-scoped state and I/O. New code imports from the feature path, not from root.
+- `backend/` — Node.js AI agent and routes. AI provider/profile config lives in `backend/src/config/ai/`. **The `NANO_GPT_*` env var names are legacy** — current default model is `moonshotai/kimi-k2.5:thinking`.
+- `example-design/` — HTML/CSS reference prototypes. Not deployed. Production ports extract runtime engine specs into `assets/` modules, not into the prototype folder.
+- `assets/` — embedded HTML engines, fonts, images.
+- `notes/` — developer docs (Supabase setup, local storage).
+- `supabase/` — migrations and email templates.
+- `scripts/` — build/CI tooling (e.g. `check-design-limits.js`).
+
+Legacy root-level files in `hooks/` and `services/` may exist as re-exports only. New code imports from the feature path.
+
+---
+
+## What NOT to touch
+
+- `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock` — lockfiles.
+- `supabase/migrations/` — schema changes need a review and a **new** migration file. Never edit an applied migration.
+- `node_modules/`, `dist/`, `.expo/`, `.next/`, build outputs.
+- Anything marked `// DO NOT EDIT`, `// @generated`, or produced by a script.
+- `example-design/` — copy patterns out, don't modify the reference.
+
+If a generated file looks wrong, regenerate it from its source. Don't hand-edit.
+
+---
+
+## Concrete commands
+
+Copy-paste these. Don't guess.
+
+### Tests
+
 ```bash
-npm test -- --watch
+npm test                                                # all
+npm test -- --testPathPattern="ChatScreen"              # one file
+npm test -- --testPathPattern="EmotionalLandscape|KeyThemes"  # OR pattern
+npm test -- --testPathPattern="services"                # one folder
+npm test -- --watch                                     # watch mode
+npm test -- --verbose                                   # verbose output
+RUN_INTEGRATION_TESTS=1 npm test -- --testPathPattern="integration"  # Supabase + agent smoke
 ```
 
-### Run Tests with Verbose Output
-```bash
-npm test -- --verbose
-```
+### Type-check, lint, design-limits
 
-### Run TypeScript Type Check
 ```bash
-npx tsc --noEmit
-```
-
-### Run Design Limits
-```bash
-npm run check:design
-```
-
-### Run Backend Tests
-```bash
+npx tsc --noEmit              # TS check
+npm run lint                  # lint
+npm run check:design          # design/UI file size enforcement
+cd backend && npx tsc --noEmit
 cd backend && npm test
 ```
 
-### Run Backend Type Check
-```bash
-cd backend && npx tsc --noEmit
+### Backend (local AI agent)
+
+`backend/.env`:
+```
+PORT=8787
+ALLOWED_ORIGINS=http://localhost:19006,http://localhost:8081
+NANO_GPT_API_KEY=...
+NANO_GPT_API_BASE_URL=https://nano-gpt.com/api/v1
+NANO_GPT_MODEL=moonshotai/kimi-k2.5:thinking
+NANO_GPT_FLASH_MODEL=moonshotai/kimi-k2.5
 ```
 
-### Run Linting
-```bash
-npm run lint
-```
+Start: `cd backend && npm install && npm run dev`. Set `EXPO_PUBLIC_AGENT_BASE_URL` (or `AGENT_BASE_URL`) in the app env, then restart Expo.
+
+---
+
+## Repo-specific gotchas
+
+- **Data provider toggle:** `EXPO_PUBLIC_DATA_PROVIDER` switches between Supabase and local. Local mode **must** intercept all storage calls locally — never reach the network.
+- **React Native WebView:** High-frequency rendering layers run encapsulated raw JS modules inside the WebView, not in the RN bridge. State transfers go through synchronized data bridges.
+- **Web dark mode hook:** `hooks/theme/use-color-scheme.web.ts` uses NativeWind's `useColorScheme`, not React Native's. RN's hook only reads media queries; NativeWind's responds to `setColorScheme()`.
+- **Test layout:** Once a folder has >10 tests, split into `__tests__/{components,hooks,services,screens}/`. Naming: `<Subject>.test.ts(x)` matching the source file. Cap test files at 300 lines. Shared mocks go in `__tests__/mocks/` or `__mocks__/`.
+- **Snapshots:** Keep small and intentional. Prefer user-centric assertions (visible text, a11y labels) over implementation details.
+- **No `any`:** If a type is genuinely unknown, use `unknown` and narrow it.
+
+---
+
+## Workflow
+
+1. Read `PLAN.md` / `TASKS/`, confirm scope.
+2. Implement with strict SoC and modular structure.
+3. Add or update tests for the change.
+4. Run `npm test` (relevant pattern), `npx tsc --noEmit`, `npm run lint`, `npm run check:design`. Fix all failures.
+5. Update `PROGRESS.md` with outcomes and follow-ups.
+6. If AI chat features changed, confirm backend is running and `EXPO_PUBLIC_AGENT_BASE_URL` is set.
+
+---
+
+## Done = all of these
+
+- [ ] Design/UI files ≤ 500 lines (`npm run check:design` clean).
+- [ ] Tests added or updated, all green.
+- [ ] `npx tsc --noEmit`, `npm run lint`, `npm run check:design` clean.
+- [ ] `PROGRESS.md` updated.
+- [ ] Nothing in the "What NOT to touch" list was modified.
+
+---
+
+## Living changelog of pain
+
+This file grows from real incidents, not from imagined failure modes. When an agent does something wrong, add the one line that stops it recurring. If a rule is no longer preventing real bugs, delete it.
