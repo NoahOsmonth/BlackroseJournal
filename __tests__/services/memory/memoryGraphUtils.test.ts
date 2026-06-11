@@ -4,7 +4,7 @@ import {
     filterAtomsByTime,
 } from '../../../services/memory/memoryGraphUtils';
 import type {
-    LocalMemoryAtom,
+    MemoryGraphAtom,
     MemoryLayer,
 } from '../../../services/memory/memoryGraph.types';
 
@@ -13,7 +13,7 @@ function atom(
     layer: MemoryLayer,
     tags: string[],
     createdAt = '2026-01-01T00:00:00.000Z'
-): LocalMemoryAtom {
+): MemoryGraphAtom {
     return {
         id,
         entryId: id,

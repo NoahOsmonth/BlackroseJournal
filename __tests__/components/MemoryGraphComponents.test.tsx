@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { MemoryGraphFilters } from '../../components/memory-graph/MemoryGraphFilters';
 import { MemoryGraphSheet } from '../../components/memory-graph/MemoryGraphSheet';
-import type { LocalMemoryAtom } from '../../services/memory/memoryGraph.types';
+import type { MemoryGraphAtom } from '../../services/memory/memoryGraph.types';
 
 jest.mock('../../hooks/use-color-scheme', () => ({
     useColorScheme: () => 'light',
@@ -21,7 +21,7 @@ jest.mock('@expo/vector-icons', () => ({
     },
 }));
 
-const atom: LocalMemoryAtom = {
+const atom: MemoryGraphAtom = {
     id: 'atom-1',
     entryId: 'entry-1',
     title: 'Career pressure',

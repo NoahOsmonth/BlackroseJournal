@@ -3,12 +3,12 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import memoryGraphEngine from '@/assets/memory-graph/engine.html';
 import type {
-    LocalMemoryAtom,
+    MemoryGraphAtom,
     MemoryConnection,
 } from '@/services/memory/memoryGraph.types';
 
 interface WebViewProps {
-    atoms: LocalMemoryAtom[];
+    atoms: MemoryGraphAtom[];
     connections: MemoryConnection[];
     onSelectNode: (id: string | null) => void;
 }

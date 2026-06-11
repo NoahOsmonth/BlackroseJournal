@@ -1,6 +1,6 @@
 import type {
     JournalEntry,
-    LocalMemoryAtom,
+    MemoryGraphAtom,
     MemoryLayer,
 } from './memoryGraph.types';
 
@@ -38,7 +38,7 @@ function normalizeLayer(layer: unknown): MemoryLayer {
     return MEMORY_LAYERS.includes(layer as MemoryLayer) ? layer as MemoryLayer : 'note';
 }
 
-function fallbackAtom(entry: JournalEntry): LocalMemoryAtom {
+function fallbackAtom(entry: JournalEntry): MemoryGraphAtom {
     return {
         id: `atom_${entry.id}`,
         entryId: entry.id,
@@ -52,7 +52,7 @@ function fallbackAtom(entry: JournalEntry): LocalMemoryAtom {
     };
 }
 
-function buildAtom(entry: JournalEntry, result: ClassificationResult): LocalMemoryAtom {
+function buildAtom(entry: JournalEntry, result: ClassificationResult): MemoryGraphAtom {
     return {
         id: `atom_${entry.id}`,
         entryId: entry.id,
@@ -76,7 +76,7 @@ Respond strictly with valid JSON containing layer, salience, confidence, tags.`;
 export async function classifyJournalEntry(
     entry: JournalEntry,
     apiKey: string
-): Promise<LocalMemoryAtom> {
+): Promise<MemoryGraphAtom> {
     try {
         const response = await fetch(KIMI_API_URL, {
             method: 'POST',
@@ -109,6 +109,6 @@ export async function classifyJournalEntry(
 export async function classifyJournalEntries(
     entries: JournalEntry[],
     apiKey: string
-): Promise<LocalMemoryAtom[]> {
+): Promise<MemoryGraphAtom[]> {
     return Promise.all(entries.map((entry) => classifyJournalEntry(entry, apiKey)));
 }

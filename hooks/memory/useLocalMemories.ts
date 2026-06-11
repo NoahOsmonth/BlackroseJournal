@@ -6,6 +6,7 @@ import {
     listMemoryAtoms,
     saveGeneratedMemoryNote,
     saveManualMemoryNote,
+    subscribeMemoryChanges,
 } from '@/services/memory/localMemory';
 import type { LocalMemoryAtom } from '@/services/memory/localMemory.types';
 
@@ -64,6 +65,9 @@ export function useLocalMemories(): UseLocalMemoriesReturn {
 
     useEffect(() => {
         refresh().catch(() => setIsLoading(false));
+        return subscribeMemoryChanges(() => {
+            refresh().catch(() => setIsLoading(false));
+        });
     }, [refresh]);
 
     return {

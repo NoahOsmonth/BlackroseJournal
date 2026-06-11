@@ -9,6 +9,7 @@ jest.mock('../../services/memory/localMemory', () => ({
     listMemoryAtoms: jest.fn(),
     saveGeneratedMemoryNote: jest.fn(),
     saveManualMemoryNote: jest.fn(),
+    subscribeMemoryChanges: jest.fn(() => () => undefined),
 }));
 
 import {

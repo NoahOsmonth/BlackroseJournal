@@ -7,7 +7,7 @@ import {
 } from '@/services/memory/memoryGraphUtils';
 import type { LocalMemoryAtom as StoredMemoryAtom } from '@/services/memory/localMemory.types';
 import type {
-    LocalMemoryAtom,
+    MemoryGraphAtom,
     MemoryLayer,
 } from '@/services/memory/memoryGraph.types';
 
@@ -25,7 +25,7 @@ export interface UseMemoryGraphOptions {
     initialQuery?: string;
 }
 
-function toGraphAtom(atom: StoredMemoryAtom): LocalMemoryAtom {
+function toGraphAtom(atom: StoredMemoryAtom): MemoryGraphAtom {
     return {
         id: atom.id,
         entryId: atom.sourceId ?? atom.id,
@@ -39,7 +39,7 @@ function toGraphAtom(atom: StoredMemoryAtom): LocalMemoryAtom {
     };
 }
 
-function matchesQuery(atom: LocalMemoryAtom, query: string): boolean {
+function matchesQuery(atom: MemoryGraphAtom, query: string): boolean {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return true;
     const haystack = `${atom.title} ${atom.content} ${atom.tags.join(' ')}`.toLowerCase();

@@ -9,11 +9,11 @@ import {
     fetchDirectChatCompletion,
 } from '../../../services/ai/directTransport';
 import { synthesizeMemoryInsight } from '../../../services/memory/memoryInsightService';
-import type { LocalMemoryAtom } from '../../../services/memory/memoryGraph.types';
+import type { MemoryGraphAtom } from '../../../services/memory/memoryGraph.types';
 
 const mockFetchDirectChatCompletion = jest.mocked(fetchDirectChatCompletion);
 
-const atom: LocalMemoryAtom = {
+const atom: MemoryGraphAtom = {
     id: 'atom-1',
     entryId: 'entry-1',
     title: 'Career pressure',

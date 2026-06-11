@@ -55,3 +55,6 @@ app-example
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+
+# OMC agent tool state
+.omc/

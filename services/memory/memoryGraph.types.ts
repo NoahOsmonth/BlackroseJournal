@@ -13,7 +13,11 @@ export interface JournalEntry {
     createdAt: string;
 }
 
-export interface LocalMemoryAtom {
+// Display model for the memory graph. NOT the stored atom:
+// createdAt is an ISO string and salience is on a 1-10 display scale,
+// converted from the stored 0-1 scale in useMemoryGraph's toGraphAtom().
+// Never write a MemoryGraphAtom back to storage.
+export interface MemoryGraphAtom {
     id: string;
     entryId: string;
     title: string;
@@ -33,6 +37,6 @@ export interface MemoryConnection {
 }
 
 export interface MemoryGraphData {
-    atoms: LocalMemoryAtom[];
+    atoms: MemoryGraphAtom[];
     connections: MemoryConnection[];
 }

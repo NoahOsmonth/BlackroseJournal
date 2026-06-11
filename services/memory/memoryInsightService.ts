@@ -1,7 +1,7 @@
 import {
     fetchDirectChatCompletion,
 } from '@/services/ai/directTransport';
-import type { LocalMemoryAtom } from './memoryGraph.types';
+import type { MemoryGraphAtom } from './memoryGraph.types';
 
 interface ChatCompletionResponse {
     choices?: {
@@ -11,7 +11,7 @@ interface ChatCompletionResponse {
     }[];
 }
 
-export async function synthesizeMemoryInsight(atom: LocalMemoryAtom): Promise<string> {
+export async function synthesizeMemoryInsight(atom: MemoryGraphAtom): Promise<string> {
     const response = await fetchDirectChatCompletion({
         model: 'agent-default',
         messages: [

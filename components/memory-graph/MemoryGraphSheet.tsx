@@ -11,10 +11,10 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, MemoryLayerColors } from '@/constants/theme';
 import { navAwareBottomPadding } from '@/constants/spacing';
-import type { LocalMemoryAtom } from '@/services/memory/memoryGraph.types';
+import type { MemoryGraphAtom } from '@/services/memory/memoryGraph.types';
 
 interface SheetProps {
-    atom: LocalMemoryAtom;
+    atom: MemoryGraphAtom;
     insight: string | null;
     isLoading: boolean;
     onClose: () => void;

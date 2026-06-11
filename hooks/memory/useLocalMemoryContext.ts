@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { buildLocalMemoryContext } from '@/services/memory/localMemory';
+import { buildLocalMemoryContext, subscribeMemoryChanges } from '@/services/memory/localMemory';
 
 interface UseLocalMemoryContextOptions {
     query?: string;
@@ -27,19 +27,19 @@ export function useLocalMemoryContext({
         }
 
         setIsLoading(true);
-        const nextContext = await buildLocalMemoryContext({ query, limit: 8 });
-        setContext(nextContext);
-        setIsLoading(false);
+        try {
+            const nextContext = await buildLocalMemoryContext({ query });
+            setContext(nextContext);
+        } finally {
+            setIsLoading(false);
+        }
     }, [enabled, query]);
 
     useEffect(() => {
-        let active = true;
-        refresh().catch(() => {
-            if (active) setIsLoading(false);
+        refresh().catch(() => undefined);
+        return subscribeMemoryChanges(() => {
+            refresh().catch(() => undefined);
         });
-        return () => {
-            active = false;
-        };
     }, [refresh]);
 
     return { context, isLoading, refresh };

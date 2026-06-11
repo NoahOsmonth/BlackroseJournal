@@ -29,13 +29,18 @@ export interface LocalMemoryAtom {
 export interface LocalMemoryAtomInput {
     layer: LocalMemoryLayer;
     source: LocalMemorySource;
-    sourceId?: string;
+    sourceId: string;
     title: string;
     content: string;
     tags?: string[];
     salience?: number;
     confidence?: number;
     createdAt?: number;
+}
+
+export interface LocalMemoryEnvelope {
+    schemaVersion: number;
+    atoms: Record<string, LocalMemoryAtom>;
 }
 
 export interface LocalMemoryPromptOptions {

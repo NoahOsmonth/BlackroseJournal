@@ -1,15 +1,15 @@
 import type {
-    LocalMemoryAtom,
+    MemoryGraphAtom,
     MemoryConnection,
     MemoryLayer,
 } from './memoryGraph.types';
 
-function sharedTagsFor(atomA: LocalMemoryAtom, atomB: LocalMemoryAtom): string[] {
+function sharedTagsFor(atomA: MemoryGraphAtom, atomB: MemoryGraphAtom): string[] {
     const atomBTags = new Set(atomB.tags.map((tag) => tag.toLowerCase()));
     return atomA.tags.filter((tag) => atomBTags.has(tag.toLowerCase()));
 }
 
-export function computeConnections(atoms: LocalMemoryAtom[]): MemoryConnection[] {
+export function computeConnections(atoms: MemoryGraphAtom[]): MemoryConnection[] {
     const connections: MemoryConnection[] = [];
 
     atoms.forEach((atomA, index) => {
@@ -30,17 +30,17 @@ export function computeConnections(atoms: LocalMemoryAtom[]): MemoryConnection[]
 }
 
 export function filterAtomsByTime(
-    atoms: LocalMemoryAtom[],
+    atoms: MemoryGraphAtom[],
     rangeDays: number,
     now = Date.now()
-): LocalMemoryAtom[] {
+): MemoryGraphAtom[] {
     const cutoff = now - rangeDays * 24 * 60 * 60 * 1000;
     return atoms.filter((atom) => Date.parse(atom.createdAt) >= cutoff);
 }
 
 export function filterAtomsByLayer(
-    atoms: LocalMemoryAtom[],
+    atoms: MemoryGraphAtom[],
     activeLayers: Set<MemoryLayer>
-): LocalMemoryAtom[] {
+): MemoryGraphAtom[] {
     return atoms.filter((atom) => activeLayers.has(atom.layer));
 }

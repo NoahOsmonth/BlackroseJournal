@@ -1,7 +1,6 @@
 import React, { createRef } from 'react';
 import { ScrollView } from 'react-native';
 import { render } from '@testing-library/react-native';
-import type { ReactTestInstance } from 'react-test-renderer';
 
 import { IntentionChatBody } from '../components/intentions/IntentionChatBody';
 import type { InlineTypingInputRef } from '../components/InlineTypingInput';
@@ -13,11 +12,6 @@ jest.mock('@expo/vector-icons', () => ({
 jest.mock('../hooks/use-color-scheme', () => ({
     useColorScheme: () => 'dark',
 }));
-
-function classNameFor(node: ReactTestInstance): string {
-    const className = node.props.className;
-    return typeof className === 'string' ? className : '';
-}
 
 describe('IntentionChatBody', () => {
     it('renders the flow label header and an input writing surface', () => {
@@ -45,7 +39,7 @@ describe('IntentionChatBody', () => {
     });
 
     it('shows the Thinking indicator only when loading and no streaming message', () => {
-        const { getByLabelText, queryByLabelText } = render(
+        const { getByLabelText } = render(
             <IntentionChatBody
                 scrollViewRef={createRef<ScrollView>()}
                 inputRef={createRef<InlineTypingInputRef>()}
@@ -75,7 +69,7 @@ describe('IntentionChatBody', () => {
                 flowLabel="Intention Setting"
                 headerDate="Fri, Jan 23"
                 messages={[]}
-                streamingMessage={{ content: 'in flight' }}
+                streamingMessage={{ id: 's1', role: 'assistant', content: 'in flight', reasoning: '', isStreaming: true }}
                 isLoading={true}
                 feedback={{}}
                 onSubmitInput={jest.fn()}

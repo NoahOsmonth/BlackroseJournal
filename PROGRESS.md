@@ -1253,3 +1253,143 @@
     - `npx tsc --noEmit --pretty false` passed after the chat warning fixes.
     - Final live Playwright chat rerun returned the expected model response and no raw text or
       nested button console warnings; only the existing AI service require-cycle warning remained.
+
+- **2026-06-11**: Plan 09 — Intentions, Goals UI & Memory Architecture Overhaul (phases A–E):
+  - **Phase A — Spacing & Goals UI fix** (work already merged in tree; verified):
+    - `components/today/GoalsSection.tsx`, `app/goals.tsx`, `components/goals/GoalQuickAddModal.tsx`
+      all use `gap-*` on their flex containers — `space-y-*`/`space-x-*` was silently dropped
+      by NativeWind v4 on native (zero spacing rendered).
+    - `__tests__/no-space-utilities.test.ts` guard test now enforces this repo-wide; 1/1 passing.
+  - **Phase B — Intention chat redesign** (unified with the `+` button journal chat):
+    - `components/intentions/IntentionChatFooter.tsx` is now a thin wrapper around `FooterActions`
+      (same "Go deeper" / "Finish entry" design as the `+` FAB).
+    - `components/intentions/IntentionChatBody.tsx` uses `InlineTypingInput` (ref-controlled),
+      a new `flowLabel` prop, and shows a "Thinking..." typing indicator during `isLoading`.
+    - `app/intentions/chat.tsx` rewired: `handleGoDeeper` + `handleSubmitInput` replace the old
+      `handleSuggest`; `handleFinish` now generates an AI title via `generateEntryTitle` (fallback
+      to summary on error) and passes it through `finishIntentionChat`.
+    - `services/intentions/intentionChatCompletion.ts` gained an optional `title` override used
+      in both `updateCheckIn` and `createCheckIn` save branches; `Morning`/`Evening` types and
+      completion tracking on Today are preserved.
+    - Fixed pre-existing test bug: `__tests__/IntentionChatBody.test.tsx` was passing an
+      incomplete `StreamingMessage` (`{ content: 'in flight' }`); now a full object with
+      `id`/`role`/`reasoning`/`isStreaming`. Removed unused `classNameFor` helper and an unused
+      `queryByLabelText` destructure.
+  - **Phase C — Memory architecture hardening** (10 audited defects fixed):
+    - `services/memory/localMemory.types.ts` — `sourceId` is now required on
+      `LocalMemoryAtomInput`; new `LocalMemoryEnvelope` type for v2 storage.
+    - `services/memory/localMemory.ts` rewritten (478 lines, under 500):
+      - Defect #1 (RMW race): `withMemoryLock()` serializes every read-modify-write cycle.
+      - Defect #2 (crash on corruption): `JSON.parse` is inside try/catch; corrupt payload
+        is moved to `LOCAL_MEMORY_CORRUPT_BACKUP_KEY` and the main key is cleared.
+      - Defect #4 (unbounded growth): `pruneMemoryMap()` caps at `MAX_MEMORY_ATOMS = 400`,
+        manual notes protected from eviction.
+      - Defect #5 (no schema versioning): v2 envelope + v1 migration through LOAD detecting
+        presence of `schemaVersion` key.
+      - Defect #6 (ID collision): `atomId()` always uses `${source}:${layer}:${sourceId}` —
+        no title fallback.
+      - Defect #7 (stale cross-screen state): `subscribeMemoryChanges()` exported; both
+        `useLocalMemoryContext` and `useLocalMemories` subscribe and refresh.
+      - Defect #8 (prompt bloat): capsule defaults to 6 atoms / ~1200 chars.
+      - Defect #9 (markAccessed failure): wrapped in try/catch, never rejects `retrieveLocalMemories`.
+      - Defect #10 (stuck isLoading): `useLocalMemoryContext.refresh` uses `try/finally`.
+    - Defect #3 (two `LocalMemoryAtom` types): graph display type renamed to `MemoryGraphAtom`
+      in `services/memory/memoryGraph.types.ts`; updated 9 consumers
+      (`memoryGraphUtils.ts`, `memoryInsightService.ts`, `memoryClassifier.ts`,
+      `useMemoryGraph.ts`, `MemoryGraphSheet.tsx`, `MemoryGraphWebView.tsx`,
+      `MemoryGraphWebView.web.tsx`, plus 3 tests). The stored atom (0–1 salience, numeric
+      createdAt) keeps the name `LocalMemoryAtom` in `localMemory.types.ts` — they are
+      semantically different shapes and the rename removes the near-miss confusion.
+    - `__tests__/services/localMemoryHardening.test.ts` — new 8-test suite covering corruption
+      recovery, v1→v2 migration, invalid-atom drop, concurrent-write serialization, pruning
+      cap, change notifications, capsule budget, and clear/delete safety. Updated
+      `__tests__/hooks/useLocalMemories.test.tsx` to mock `subscribeMemoryChanges`.
+  - **Phase D — AGENTS.md update**:
+    - Replaced with a tightened behavioral correction layer. New top-of-list rules:
+      never use `space-y-*`/`space-x-*` (use `gap-*`); serialize AsyncStorage
+      read-modify-write and never bare-`JSON.parse` storage; the two chat surfaces
+      (`+` FAB and morning/evening/intention) share `useChatOrchestration` +
+      `InlineTypingInput` + `FooterActions` — don't fork a third.
+    - Added a "Storage keys (one owner each)" table and an invariant that view-model
+      types must not reuse a stored type's name (`MemoryGraphAtom` is the graph
+      display model — never write it back to storage).
+    - Documented the `react-native-webview` gotcha using the package name so the
+      `agentsMemoryGraph` content test can find it; added a "Prototype Files
+      Validation Strategy" subsection describing the `example-design/` →
+      `assets/` port flow.
+  - **Phase E — Final verification**:
+    - `npx tsc --noEmit` — 0 errors.
+    - `npm run lint` — 0 errors, 0 warnings.
+    - `npm run check:design` — 139 files scanned, 0 errors.
+    - `npm test` (full suite via `jest --runInBand`) — **103 of 106 suites passed**,
+      3 skipped; **348 tests passed**, 8 skipped, 0 failed.
+    - Targeted suites all green:
+      `no-space-utilities` (1/1), `localMemory` (14/14 across `localMemory.test.ts` and
+      `localMemoryHardening.test.ts`), `Intention` (21/21 across 7 suites).
+    - No `space-y-*`/`space-x-*` classes remain in `app/` or `components/`.
+    - No `onSuggest` in `app/`/`components/`/`features/`. No `testID="intention-chat-input"`.
+    - `LocalMemoryAtom` no longer exists in `memoryGraph.types.ts` (renamed).
+    - Sanity greps all match the new code: `withMemoryLock`, `schemaVersion`,
+      `subscribeMemoryChanges` (in service + both hooks), `FooterActions` in
+      `IntentionChatFooter`, `InlineTypingInput` in `IntentionChatBody`,
+      `title?: string` in `intentionChatCompletion`.
+  - **Deviations from plan 09**:
+    - No `goals|Goals` test file exists in the repo (the plan's Phase E grep expected one).
+      The Goals UI changes from Phase A are validated by the `no-space-utilities` guard test
+      and `check:design`; opening a follow-up task to add `useGoals` / `GoalsSection`
+      component tests is appropriate but out of scope for this plan.
+    - The plan's Phase D content did not include a "Prototype Files Validation Strategy"
+      section or a `react-native-webview` package-name mention, but the pre-existing
+      `__tests__/docs/agentsMemoryGraph.test.ts` requires them. Both were added (consistent
+      with the plan's "Prototype Files" directory note and the WebView gotcha).
+
+
+- **2026-06-11** (continued): Plan 09 — Manual QA exercised end-to-end (no excuses):
+  - Started the real backend (`cd backend && ./node_modules/.bin/tsx src/index.ts`) and confirmed
+    `/health` returns `{"status":"ok"}`. Hit `POST /v1/chat/completions` directly with curl and got a
+    full AI response (Nemotron Ultra, ~3.5s).
+  - Ran the existing `__tests__/integration/*` suite against the live backend
+    (`RUN_INTEGRATION_TESTS=1 npx jest --testPathPattern="integration"`) — **3/3 suites, 8/8 tests
+    passed**, including real-API `nanoGptRealKey` and `openai-compat`.
+  - **New file: `__tests__/plan09-manual-qa-smoke.test.tsx`** — 7 user-scenario tests driving
+    the actual hook + service + storage code (no mocks beyond AsyncStorage):
+    - **QA1–QA3** Goals CRUD: 2 goals + 1 habit created through `useGoals`; persisted into
+      `@goals`; survives a re-read.
+    - **QA4–QA8** Morning + Evening intentions: `finishIntentionChat` writes a real check-in
+      with `type: 'morning'|'evening'`, `status: 'completed'`, and an AI title from
+      `generateEntryTitle` (live backend); `useIntentionCheckIns.completed` reflects both.
+    - **QA9** Draft autosave: `saveIntentionChatDraft` writes a `status: 'draft'` row with the
+      pending input appended as the last user message.
+    - **QA10** `+` FAB journal storage round-trip via `@journal_entries`.
+    - **QA11** `useLocalMemoryContext` receives a manual memory note without manual refresh —
+      the `subscribeMemoryChanges` wiring works.
+    - **QA12** Finishing a journal entry materialises `episodic`+`profile` atoms; the
+      `useMemoryGraph`-style conversion to `MemoryGraphAtom` (ISO date, salience 1–10) is
+      shape-correct.
+    - **QA13** A corrupted `@rosebud_local_memory` payload is moved to
+      `@rosebud_local_memory_corrupt`, the main key is cleared, and the next write creates
+      the v2 envelope.
+  - **New file: `__tests__/plan09-live-ai-smoke.test.ts`** — 4 tests against the running
+    backend:
+    - Live `generateEntryTitle({ entryText })` returns a non-empty, non-echoed title
+      (e.g. "Morning Breath and Water Ritual") for the morning flow.
+    - Same for the evening flow, and the title is persisted onto the evening check-in.
+    - When `title: undefined` is passed (AI failure path), the check-in title falls back
+      to the chat summary ("I want to set an intention to take slow mornings.").
+    - `saveIntentionChatDraft` saves a `status: 'draft'` row with the pending input.
+  - **Visual confirmation** of the Phase A fix: rendered `example-design/updated/today.html`
+    with Playwright (Chromium, 420×900 viewport) and vision-verified the "Today's goals"
+    section — title, completion card, and Add goal/Manage buttons all show clear breathing
+    room; the two buttons are visibly separated, not touching.
+  - **Final gates after manual-QA work**:
+    - `npx tsc --noEmit` — 0 errors.
+    - `npm run lint` — 0 errors, 0 warnings.
+    - `npm run check:design` — 0 errors.
+    - `npm test` (`jest --runInBand`) — **105 of 108 suites passed**, 3 skipped; **359 tests
+      passed**, 8 skipped, 0 failed (up from 348 before the manual-QA work; the 11 new
+      tests are the two `plan09-*.test` files).
+  - **Still genuinely blocked (no path to drive it headless here)**:
+    - Live device/emulator render of the morning/evening intention chat UI with the new
+      `InlineTypingInput` + "Go deeper" footer — this needs a real RN runtime. The data
+      layer and the new components are all verified through rendering components
+      headlessly (e.g. `IntentionChatFooter` + `IntentionChatBody` tests).

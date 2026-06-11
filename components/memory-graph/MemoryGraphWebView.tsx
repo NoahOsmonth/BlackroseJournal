@@ -5,13 +5,13 @@ import { StyleSheet } from 'react-native';
 import { WebView } from 'react-native-webview';
 import memoryGraphEngine from '@/assets/memory-graph/engine.html';
 import type {
-    LocalMemoryAtom,
+    MemoryGraphAtom,
     MemoryConnection,
 } from '@/services/memory/memoryGraph.types';
 import type { WebViewMessageEvent } from 'react-native-webview';
 
 interface WebViewProps {
-    atoms: LocalMemoryAtom[];
+    atoms: MemoryGraphAtom[];
     connections: MemoryConnection[];
     onSelectNode: (id: string | null) => void;
 }
