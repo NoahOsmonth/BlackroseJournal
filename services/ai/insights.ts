@@ -6,6 +6,7 @@ import {
     WeeklyInsightsEntry,
     WeeklyInsightsResult,
 } from './insightsTypes';
+import { INSIGHTS_TEMPERATURE } from './generationSettings';
 
 const FALLBACK_REFLECTION = 'Thanks for sharing—your entry shows real self-awareness.';
 const FALLBACK_KEY_INSIGHT = 'A small consistent step today can shift tomorrow.';
@@ -153,7 +154,7 @@ export async function generateEntryReflection(input: { entryText: string }): Pro
                 { role: 'system', content: REFLECTION_SYSTEM_PROMPT },
                 { role: 'user', content: `Entry:\n${input.entryText}` },
             ],
-            temperature: 0.7,
+            temperature: INSIGHTS_TEMPERATURE,
             response_format: { type: 'json_object' },
         });
         const suggestions = Array.isArray(data.suggestions)
@@ -182,7 +183,7 @@ export async function generateEntryAnalysis(input: { entryText: string }): Promi
                 { role: 'system', content: ENTRY_ANALYSIS_SYSTEM_PROMPT },
                 { role: 'user', content: `Entry:\n${input.entryText}` },
             ],
-            temperature: 0.7,
+            temperature: INSIGHTS_TEMPERATURE,
             response_format: { type: 'json_object' },
         });
         const topics = normalizeTopics(data.topics);
@@ -218,7 +219,7 @@ export async function generateWeeklyInsights(entries: WeeklyInsightsEntry[]): Pr
                 { role: 'system', content: WEEKLY_SYSTEM_PROMPT },
                 { role: 'user', content: `Entries:\n${combinedText}` },
             ],
-            temperature: 0.7,
+            temperature: INSIGHTS_TEMPERATURE,
             response_format: { type: 'json_object' },
         });
         return {
@@ -247,7 +248,7 @@ export async function generateEntryTitle(input: { entryText: string }): Promise<
                 { role: 'system', content: TITLE_SYSTEM_PROMPT },
                 { role: 'user', content: `Entry:\n${input.entryText}` },
             ],
-            temperature: 0.7,
+            temperature: INSIGHTS_TEMPERATURE,
             response_format: { type: 'json_object' },
         });
         const cleaned = typeof data.title === 'string' ? data.title.trim().replace(/^["']|["']$/g, '') : '';
@@ -267,7 +268,7 @@ export async function generateStreakHaiku(input: { entryText: string; streakCoun
                     content: `Streak: ${input.streakCount} day(s)\nEntry:\n${input.entryText}`,
                 },
             ],
-            temperature: 0.7,
+            temperature: INSIGHTS_TEMPERATURE,
             response_format: { type: 'json_object' },
         });
         const lines = Array.isArray(data.lines) ? data.lines : [];

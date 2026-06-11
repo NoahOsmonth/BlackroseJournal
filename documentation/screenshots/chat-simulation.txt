@@ -1,0 +1,9 @@
+chat_text_seen=true
+resume_banner_or_resume_text_seen=true
+chat_text_preview=R Rosebud  Drafts  nemotron 3 ultra 550b a55b · 1M ctx One sentence only: BlackroseJournal browser chat smoke ok. I'm here with you. What's on your mind? 💭  Go deeper  Finish entry
+entries_text_preview=THIS WEEK Jun 7 - Jun 13 0 DRAFTS   Resume your last conversation One sentence only: BlackroseJournal browser chat smoke ok.  THIS WEEK Jun 7 - Jun 13  0 0 ENTRIES 0 CHECK-INS 0 ACTIVE DAYS SIGNALS: Write more this week to reveal signals  Today  Memory   Insights  History
+console_events=warning: Require cycle: services/ai/ai.ts -> services/ai/useChat.ts -> services/ai/ai.ts
+
+Require cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle. | error: Unexpected text node: . A text node cannot be a child of a <View>. | error: Unexpected text node: . A text node cannot be a child of a <View>. | error: Unexpected text node: . A text node cannot be a child of a <View>. | error: Unexpected text node: . A text node cannot be a child of a <View>. | error: Unexpected text node: . A text node cannot be a child of a <View>. | warning: Require cycle: services/ai/ai.ts -> services/ai/useChat.ts -> services/ai/ai.ts
+
+Require cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle. | warning: "shadow*" style props are deprecated. Use "boxShadow". | warning: props.pointerEvents is deprecated. Use style.pointerEvents

@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { ScrollView, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 
 import { AppHeader } from '@/components/navigation';
-import { BottomNav } from '@/components/journal';
+import { BottomNav, ResumeSessionBanner } from '@/components/journal';
+import { ScreenContainer } from '@/components/ui/ScreenContainer';
+import { navAwareBottomPadding, TIMELINE_INDENT } from '@/constants/spacing';
 import { HistorySection } from '@/components/history/HistorySection';
 import { HistoryWeekSummary } from '@/components/history/HistoryWeekSummary';
 import { useHistoryFeed } from '@/hooks/history/useHistoryFeed';
@@ -13,6 +16,10 @@ import { useIntentionCheckIns } from '@/hooks/intentions/useIntentionCheckIns';
 import { useTabNavigation } from '@/hooks/navigation/useTabNavigation';
 import { HistoryItem } from '@/hooks/history/historyUtils';
 import { StaggerEntrance } from '@/components/ui/StaggerEntrance';
+import {
+    getMostRecentActiveSession,
+    type ChatSession,
+} from '@/services/ai/sessionStorage';
 
 function getWeekRangeLabel(date: Date): string {
     const start = new Date(date);
@@ -24,14 +31,58 @@ function getWeekRangeLabel(date: Date): string {
     return `${format(start)} - ${format(end)}`;
 }
 
+function sessionTitle(session: ChatSession): string {
+    const lastUser = [...session.messages].reverse().find((m) => m.role === 'user');
+    const text = (lastUser ?? session.messages[session.messages.length - 1])?.content.trim() ?? '';
+    if (!text) return 'Tap to continue';
+    return text.length > 80 ? `${text.slice(0, 80).trim()}...` : text;
+}
+
+function isIntentionSession(session: ChatSession): boolean {
+    return session.mode === 'morning'
+        || session.mode === 'evening'
+        || session.mode === 'intention';
+}
+
 export default function EntriesScreen() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const { sections, weeklySummary } = useHistoryFeed();
     const { drafts } = useJournalEntries();
     const { drafts: checkInDrafts } = useIntentionCheckIns();
     const { goToTab } = useTabNavigation();
 
     const draftCount = drafts.length + checkInDrafts.length;
+
+    const [activeSession, setActiveSession] = useState<ChatSession | null>(null);
+    const [dismissedId, setDismissedId] = useState<string | null>(null);
+
+    useFocusEffect(
+        useCallback(() => {
+            let isActive = true;
+            getMostRecentActiveSession().then((session) => {
+                if (isActive) setActiveSession(session);
+            });
+            return () => {
+                isActive = false;
+            };
+        }, [])
+    );
+
+    const showBanner = activeSession !== null
+        && activeSession.conversationId !== dismissedId;
+
+    const handleResumeSession = () => {
+        if (!activeSession) return;
+        if (isIntentionSession(activeSession)) {
+            router.push({
+                pathname: '/intentions/chat',
+                params: { resume: activeSession.conversationId, ...activeSession.routeParams },
+            });
+            return;
+        }
+        router.push({ pathname: '/chat', params: { resume: activeSession.conversationId } });
+    };
 
     const handleTabPress = (tab: 'today' | 'explore' | 'entries' | 'settings' | 'insights') => {
         if (tab !== 'entries') {
@@ -52,8 +103,7 @@ export default function EntriesScreen() {
     };
 
     return (
-        <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
-            <View className="flex-1 max-w-md mx-auto w-full">
+        <ScreenContainer edges="top">
                 <AppHeader
                     variant="history"
                     weekRange={getWeekRangeLabel(new Date())}
@@ -61,13 +111,30 @@ export default function EntriesScreen() {
                     onDraftsPress={() => router.push('/drafts')}
                 />
 
-                <ScrollView className="flex-1 px-4" contentContainerStyle={{ paddingBottom: 140 }}>
+                <ScrollView
+                    className="flex-1"
+                    style={{ paddingHorizontal: TIMELINE_INDENT }}
+                    contentContainerStyle={{ paddingBottom: navAwareBottomPadding(insets.bottom) }}
+                >
+                    {showBanner && activeSession && (
+                        <View className="mt-2">
+                            <ResumeSessionBanner
+                                title={sessionTitle(activeSession)}
+                                onResume={handleResumeSession}
+                                onDismiss={() => setDismissedId(activeSession.conversationId)}
+                            />
+                        </View>
+                    )}
+
                     <HistoryWeekSummary summary={weeklySummary} />
-                    
+
                     <View className="relative mt-4">
                         {/* Continuous timeline spine line */}
-                        <View className="absolute left-[16px] top-[14px] bottom-0 w-[1.5px] bg-divider-light dark:bg-divider-dark z-0" />
-                        
+                        <View
+                            className="absolute top-[14px] bottom-0 w-[1.5px] bg-divider-light dark:bg-divider-dark z-0"
+                            style={{ left: TIMELINE_INDENT }}
+                        />
+
                         <StaggerEntrance staggerType="linear" baseDelayMs={60} delayFactorMs={40}>
                             {sections.map((section) => (
                                 <HistorySection
@@ -82,7 +149,6 @@ export default function EntriesScreen() {
                 </ScrollView>
 
                 <BottomNav activeTab="entries" onTabPress={handleTabPress} onFabPress={() => router.push('/chat')} />
-            </View>
-        </SafeAreaView>
+        </ScreenContainer>
     );
 }

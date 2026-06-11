@@ -24,6 +24,19 @@ const TRANSITION_SPRING = {
     reduceMotion: ReduceMotion.System,
 };
 
+const OPACITY_TIMING = { duration: 250, reduceMotion: ReduceMotion.System };
+
+export function getSpatialFrame(progress: number) {
+    const hiddenProgress = 1 - progress;
+
+    return {
+        opacity: progress,
+        translateY: hiddenProgress * 35,
+        scale: progress + hiddenProgress * 0.94,
+        rotateX: hiddenProgress * -6,
+    };
+}
+
 export function SpatialView({
     visible = true,
     children,
@@ -31,31 +44,30 @@ export function SpatialView({
     className = '',
     testID,
 }: SpatialViewProps) {
-    const activeVal = useSharedValue(visible ? 1 : 0);
+    const initialFrame = getSpatialFrame(visible ? 1 : 0);
+    const opacityVal = useSharedValue(initialFrame.opacity);
+    const translateYVal = useSharedValue(initialFrame.translateY);
+    const scaleVal = useSharedValue(initialFrame.scale);
+    const rotateXVal = useSharedValue(initialFrame.rotateX);
 
     useEffect(() => {
-        activeVal.value = visible ? 1 : 0;
-    }, [visible, activeVal]);
+        const frame = getSpatialFrame(visible ? 1 : 0);
+
+        opacityVal.value = withTiming(frame.opacity, OPACITY_TIMING);
+        translateYVal.value = withSpring(frame.translateY, TRANSITION_SPRING);
+        scaleVal.value = withSpring(frame.scale, TRANSITION_SPRING);
+        rotateXVal.value = withSpring(frame.rotateX, TRANSITION_SPRING);
+    }, [visible, opacityVal, translateYVal, scaleVal, rotateXVal]);
 
     const animatedStyle = useAnimatedStyle(() => {
-        const tVal = activeVal.value;
-
-        // Apply smooth spring physics to translation, scale, and tilt
-        const translateY = withSpring((1 - tVal) * 35, TRANSITION_SPRING);
-        const scale = withSpring(tVal + (1 - tVal) * 0.94, TRANSITION_SPRING);
-        const rotateXVal = withSpring((1 - tVal) * -6, TRANSITION_SPRING);
-        
-        // Use smooth linear/bezier timing for opacity to prevent spring flickers in visibility
-        const opacity = withTiming(tVal, { duration: 250, reduceMotion: ReduceMotion.System });
-
         return {
-            opacity,
+            opacity: opacityVal.value,
             transform: [
                 { perspective: 1000 },
-                { translateY },
-                { scale },
-                { rotateX: `${rotateXVal}deg` },
-            ] as any,
+                { translateY: translateYVal.value },
+                { scale: scaleVal.value },
+                { rotateX: `${rotateXVal.value}deg` },
+            ] as ViewStyle['transform'],
         };
     });
 

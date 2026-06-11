@@ -5,11 +5,13 @@
 
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, Share, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 
 import { BottomNav } from '@/components/journal';
+import { ScreenContainer } from '@/components/ui/ScreenContainer';
+import { navAwareBottomPadding } from '@/constants/spacing';
 import { AppHeader } from '@/components/navigation';
 import { GoalQuickAddModal } from '@/components/goals/GoalQuickAddModal';
 import {
@@ -40,6 +42,7 @@ import { StaggerEntrance } from '@/components/ui/StaggerEntrance';
 
 export default function TodayScreen() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const { weekDays, selectedDay, selectDay, monthLabel, shortDateLabel } = useSelectedDay();
     const { completed: entries } = useJournalEntries();
     const { completed: checkIns } = useIntentionCheckIns();
@@ -161,8 +164,7 @@ export default function TodayScreen() {
     };
 
     return (
-        <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
-            <View className="flex-1 max-w-md mx-auto w-full">
+        <ScreenContainer edges="top">
                 <AppHeader
                     variant="today"
                     title={monthLabel}
@@ -173,7 +175,7 @@ export default function TodayScreen() {
 
                 <ScrollView
                     className="flex-1 px-5"
-                    contentContainerStyle={{ paddingBottom: 140 }}
+                    contentContainerStyle={{ paddingBottom: navAwareBottomPadding(insets.bottom) }}
                     showsVerticalScrollIndicator={false}
                 >
                     <SpatialView visible={true}>
@@ -267,7 +269,10 @@ export default function TodayScreen() {
 
                 {moreVisible && (
                     <View className="absolute inset-0 bg-black/40 justify-end">
-                        <View className="bg-surface-light dark:bg-surface-dark rounded-t-3xl p-6">
+                        <View
+                            className="bg-surface-light dark:bg-surface-dark rounded-t-3xl p-6"
+                            style={{ paddingBottom: insets.bottom + 24 }}
+                        >
                             <Text className="text-sm font-semibold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide mb-4">
                                 More options
                             </Text>
@@ -289,7 +294,6 @@ export default function TodayScreen() {
                         </View>
                     </View>
                 )}
-            </View>
-        </SafeAreaView>
+        </ScreenContainer>
     );
 }

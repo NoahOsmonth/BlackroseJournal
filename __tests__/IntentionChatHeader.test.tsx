@@ -12,6 +12,20 @@ jest.mock('../hooks/use-color-scheme', () => ({
     useColorScheme: () => 'dark',
 }));
 
+jest.mock('../hooks/settings/useActiveModelContext', () => ({
+    useActiveModelContext: () => ({
+        context: {
+            model: 'moonshotai/kimi-k2.5:thinking',
+            contextWindow: 128_000,
+            source: 'known',
+            providerSource: 'env',
+        },
+        error: null,
+        isLoading: false,
+        refresh: jest.fn(),
+    }),
+}));
+
 function classNameFor(node: ReactTestInstance): string {
     const className = node.props.className;
     return typeof className === 'string' ? className : '';
@@ -29,6 +43,7 @@ describe('IntentionChatHeader', () => {
         );
 
         expect(getByText('Rosebud')).toBeTruthy();
+        expect(getByText(/128k ctx/)).toBeTruthy();
         expect(getByLabelText('Choose persona')).toBeTruthy();
         expect(classNameFor(getByLabelText('Choose persona'))).toContain(
             'bg-gray-100 dark:bg-card-dark'

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
     clearMemoryAtoms,
+    deleteMemoryAtom,
     generateMemoryNoteSuggestion,
     listMemoryAtoms,
     saveGeneratedMemoryNote,
@@ -16,6 +17,7 @@ interface UseLocalMemoriesReturn {
     addNote: (content: string) => Promise<void>;
     addGeneratedNote: () => Promise<void>;
     refreshGeneratedNote: () => void;
+    removeAtom: (id: string) => Promise<void>;
     clearAll: () => Promise<void>;
 }
 
@@ -50,6 +52,11 @@ export function useLocalMemories(): UseLocalMemoriesReturn {
         setGeneratedNote(generateMemoryNoteSuggestion(atoms) ?? '');
     }, [atoms]);
 
+    const removeAtom = useCallback(async (id: string) => {
+        await deleteMemoryAtom(id);
+        await refresh();
+    }, [refresh]);
+
     const clearAll = useCallback(async () => {
         await clearMemoryAtoms();
         await refresh();
@@ -67,6 +74,7 @@ export function useLocalMemories(): UseLocalMemoriesReturn {
         addNote,
         addGeneratedNote,
         refreshGeneratedNote,
+        removeAtom,
         clearAll,
     };
 }

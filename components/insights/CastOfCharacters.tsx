@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text } from 'react-native';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 interface CastOfCharactersProps {
   characters: string[];
@@ -11,9 +12,11 @@ export function CastOfCharacters({ characters }: CastOfCharactersProps) {
       <Text className="font-semibold mb-2 text-text-primary-light dark:text-text-primary-dark">Cast of Characters</Text>
       
       {(!characters || characters.length === 0) ? (
-        <View className="flex-grow flex items-center justify-center py-4">
-          <Text className="text-text-secondary-light dark:text-text-secondary-dark text-sm">Not enough data</Text>
-        </View>
+        <EmptyState
+          icon="groups"
+          title="People will appear here"
+          message="Names and roles show up after they recur across your entries."
+        />
       ) : (
         <View className="flex-row flex-wrap gap-2">
            {characters.map((char, index) => (

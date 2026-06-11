@@ -1,4 +1,5 @@
 import { renderHook, act } from '@testing-library/react-native';
+import { useThemeSettings } from '../hooks/theme/useThemeSettings';
 
 // --- Mocks ---
 const mockSetColorScheme = jest.fn();
@@ -18,8 +19,6 @@ jest.mock('@/services/settings/userSettingsRemote', () => ({
     loadRemoteUserSettings: jest.fn().mockResolvedValue(null),
     saveRemoteUserSettings: jest.fn().mockResolvedValue(undefined),
 }));
-
-import { useThemeSettings } from '../hooks/theme/useThemeSettings';
 
 describe('useThemeSettings', () => {
     afterEach(() => {

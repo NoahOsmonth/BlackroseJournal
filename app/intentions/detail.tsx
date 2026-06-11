@@ -9,11 +9,13 @@ import { getIntentionAreaConfig } from '@/constants/intentions';
 import { getLocalDateKey } from '@/utils/date';
 import { useIntentionDetail } from '@/hooks/intentions/useIntentionDetail';
 import { useIntentions } from '@/hooks/intentions/useIntentions';
+import { useNavBack } from '@/hooks/navigation/useNavBack';
 
 const heroImage = require('@/assets/intentions/intention-hero.png');
 
 export default function IntentionDetailScreen() {
     const router = useRouter();
+    const goBack = useNavBack('/(tabs)/today');
     const params = useLocalSearchParams<{ id?: string }>();
     const intentionId = Array.isArray(params.id) ? params.id[0] : params.id;
 
@@ -37,7 +39,7 @@ export default function IntentionDetailScreen() {
     }, [latestCheckIn]);
 
     const handleBack = () => {
-        router.back();
+        goBack();
     };
 
     const handleResume = () => {
@@ -49,7 +51,7 @@ export default function IntentionDetailScreen() {
         if (!intentionId) return;
         await archive(intentionId);
         setMoreVisible(false);
-        router.back();
+        goBack();
     };
 
     const handleDelete = () => {
@@ -65,7 +67,7 @@ export default function IntentionDetailScreen() {
                     onPress: async () => {
                         await remove(intentionId);
                         setMoreVisible(false);
-                        router.back();
+                        goBack();
                     },
                 },
             ]
@@ -182,12 +184,33 @@ export default function IntentionDetailScreen() {
                                 onPress={() => {
                                     setMoreVisible(false);
                                     if (intentionId) {
-                                        router.push({ pathname: '/intentions/edit', params: { id: intentionId } });
+                                        router.push({
+                                            pathname: '/intentions/chat',
+                                            params: { intentionId, mode: 'refine' },
+                                        });
                                     }
                                 }}
                                 className="py-3"
                             >
-                                <Text className="text-base text-text-light dark:text-white">Edit</Text>
+                                <Text className="text-base text-text-light dark:text-white">
+                                    Refine with Rosebud
+                                </Text>
+                            </Pressable>
+                            <Pressable
+                                onPress={() => {
+                                    setMoreVisible(false);
+                                    if (intentionId) {
+                                        router.push({
+                                            pathname: '/intentions/edit',
+                                            params: { id: intentionId, advanced: '1' },
+                                        });
+                                    }
+                                }}
+                                className="py-3"
+                            >
+                                <Text className="text-base text-text-light dark:text-white">
+                                    Advanced direct edit
+                                </Text>
                             </Pressable>
                             <Pressable onPress={handleArchive} className="py-3">
                                 <Text className="text-base text-text-light dark:text-white">Archive</Text>

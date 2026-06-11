@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* global __dirname */
 
 /**
  * check-design-limits.js

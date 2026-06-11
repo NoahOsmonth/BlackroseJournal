@@ -35,6 +35,14 @@ export function appendChunk(
     if (content || reasoning) onChunk(content || '', reasoning);
 }
 
+function assertFinalContent(accumulator: ChatAccumulator): void {
+    if (accumulator.content.trim().length > 0) return;
+    if (accumulator.reasoning.trim().length > 0) {
+        throw new Error('AI response ended after reasoning without a final answer. Please retry.');
+    }
+    throw new Error('AI response did not include a final answer. Please retry.');
+}
+
 function decodeStreamChunk(
     decoder: TextDecoder,
     value: Uint8Array | undefined,
@@ -60,6 +68,7 @@ function processStreamLines(
         const parsed = parseSseLine(line);
         if (!parsed) continue;
         if (parsed.done) {
+            assertFinalContent(accumulator);
             onComplete(accumulator.content, accumulator.reasoning);
             return true;
         }
@@ -85,6 +94,7 @@ export async function readStreamResponse(
         buffer = remainder;
         if (processStreamLines(lines, accumulator, onChunk, onComplete)) return;
     }
+    assertFinalContent(accumulator);
     onComplete(accumulator.content, accumulator.reasoning);
 }
 
@@ -122,9 +132,16 @@ function parseSseTranscript(rawText: string): ChatAccumulator | null {
 export async function readNonStreamingResponse(response: Response): Promise<ChatAccumulator> {
     const rawText = await response.text();
     const parsed = parseJsonSafely(rawText);
-    if (parsed) return extractMessageContent(parsed);
+    if (parsed) {
+        const result = extractMessageContent(parsed);
+        assertFinalContent(result);
+        return result;
+    }
     const sseContent = parseSseTranscript(rawText);
-    if (sseContent) return sseContent;
+    if (sseContent) {
+        assertFinalContent(sseContent);
+        return sseContent;
+    }
     const preview = rawText.slice(0, 200);
     throw new Error(`AI response was not valid JSON. Preview: ${preview}`);
 }

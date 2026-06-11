@@ -13,6 +13,18 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
     },
 }));
 
+jest.mock('../../hooks/settings/useGenerationSettings', () => ({
+    useGenerationSettings: () => ({
+        settings: { temperature: 1, topP: 0.9, maxTokens: 32_768 },
+        modelContext: null,
+        contextError: null,
+        isLoading: false,
+        update: jest.fn(),
+        reset: jest.fn(),
+        refreshContext: jest.fn(),
+    }),
+}));
+
 import { useChatOrchestration } from '../../features/chat';
 import type { InlineTypingInputRef } from '../../components/InlineTypingInput';
 

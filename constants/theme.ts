@@ -91,10 +91,10 @@ export const Colors = {
 
 export const theme = {
   colors: {
-    background: '#0b0c10',
-    surface: '#1f2833',
-    text: '#ffffff',
-    primary: '#45f3ff',
+    background: Colors.dark.background,
+    surface: Colors.dark.surface,
+    text: Colors.dark.text,
+    primary: Colors.light.primary,
     memoryLayers: MemoryLayerColors,
   },
 } as const;

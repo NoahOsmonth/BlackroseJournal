@@ -3,10 +3,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Text } from 'react-native';
 
+import type { PersonaAvatarKey } from '@/constants/personas';
 import { PersonaForm, PersonaFormValues } from '@/components/personas/PersonaForm';
 import { usePersonas } from '@/hooks/personas/usePersonas';
 import { getPersona } from '@/services/personas/personasStorage';
 import { savePersonaDraftSettings } from '@/services/personas/personaDraftSettings';
+
+function isPersonaAvatarKey(value: string | undefined): value is PersonaAvatarKey {
+    return value === 'persona-default' || value === 'persona-new';
+}
 
 export default function EditPersonaScreen() {
     const router = useRouter();
@@ -28,7 +33,7 @@ export default function EditPersonaScreen() {
                 prompt: persona.prompt,
                 model: persona.model,
                 imagination: persona.imagination,
-                avatarKey: persona.avatarKey,
+                avatarKey: isPersonaAvatarKey(persona.avatarKey) ? persona.avatarKey : undefined,
             });
         };
         load();

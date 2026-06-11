@@ -7,5 +7,6 @@ export { BottomNav } from './BottomNav';
 export { DraftCard } from './DraftCard';
 export { EntryCard } from './EntryCard';
 export { FAB } from './FAB';
+export { ResumeSessionBanner } from './ResumeSessionBanner';
 export { WeekSection } from './WeekSection';
 

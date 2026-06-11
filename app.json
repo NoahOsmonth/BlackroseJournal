@@ -1,50 +1,52 @@
 {
-    "expo": {
-        "name": "blackrosejournal",
-        "slug": "blackrosejournal",
-        "scheme": "blackrosejournal",
-        "version": "0.0.1",
-        "userInterfaceStyle": "automatic",
-        "jsEngine": "hermes",
-        "newArchEnabled": true,
-        "platforms": [
-            "ios",
-            "android",
-            "web"
+  "expo": {
+    "name": "blackrosejournal",
+    "slug": "blackrosejournal",
+    "scheme": "blackrosejournal",
+    "version": "0.0.1",
+    "userInterfaceStyle": "automatic",
+    "jsEngine": "hermes",
+    "newArchEnabled": true,
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
+    "icon": "assets/images/icon.png",
+    "splash": {
+      "image": "assets/images/splash-icon.png",
+      "backgroundColor": "#000000"
+    },
+    "ios": {
+      "bundleIdentifier": "com.blackrosejournal",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "fetch",
+          "processing"
         ],
-        "icon": "assets/images/icon.png",
-        "splash": {
-            "image": "assets/images/splash-icon.png",
-            "backgroundColor": "#000000"
-        },
-        "ios": {
-            "bundleIdentifier": "com.blackrosejournal",
-            "infoPlist": {
-                "UIBackgroundModes": [
-                    "fetch",
-                    "processing"
-                ],
-                "BGTaskSchedulerPermittedIdentifiers": [
-                    "blackrosejournal.local-ai-maintenance"
-                ]
-            }
-        },
-        "android": {
-            "package": "com.blackrosejournal",
-            "adaptiveIcon": {
-                "foregroundImage": "assets/images/android-icon-foreground.png",
-                "backgroundImage": "assets/images/android-icon-background.png",
-                "monochromeImage": "assets/images/android-icon-monochrome.png"
-            }
-        },
-        "plugins": [
-            "expo-router",
-            "expo-task-manager"
-        ],
-        "extra": {
-            "eas": {
-                "projectId": "your-project-id"
-            }
-        }
-    }
+        "BGTaskSchedulerPermittedIdentifiers": [
+          "blackrosejournal.local-ai-maintenance"
+        ]
+      }
+    },
+    "android": {
+      "package": "com.blackrosejournal",
+      "adaptiveIcon": {
+        "foregroundImage": "assets/images/android-icon-foreground.png",
+        "backgroundImage": "assets/images/android-icon-background.png",
+        "monochromeImage": "assets/images/android-icon-monochrome.png"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-task-manager"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2d99055f-914e-4e27-8a65-1be1b25a0c5b"
+      }
+    },
+    "owner": "noahosmonth"
+  }
 }

@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ChatMessage } from '@/components/ChatMessage';
 import { EntryAnalysisPanel } from '@/components/entries/EntryAnalysisPanel';
 import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
+import { useNavBack } from '@/hooks/navigation/useNavBack';
 import { generateEntryAnalysis } from '@/services/ai';
 import type { JournalEntry } from '@/services/journal/journalStorage.types';
 
@@ -20,7 +21,7 @@ function buildEntryText(entry: JournalEntry): string {
 }
 
 export default function EntryDetailScreen() {
-    const router = useRouter();
+    const goBack = useNavBack('/(tabs)/entries');
     const params = useLocalSearchParams<{ id?: string }>();
     const entryId = Array.isArray(params.id) ? params.id[0] : params.id;
     const { getById, update } = useJournalEntries();
@@ -82,7 +83,7 @@ export default function EntryDetailScreen() {
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
             <View className="flex-1 max-w-md mx-auto w-full">
                 <View className="flex-row items-center justify-between px-4 py-4">
-                    <Pressable onPress={() => router.back()} className="p-2 -ml-2">
+                    <Pressable onPress={goBack} className="p-2 -ml-2">
                         <MaterialIcons name="arrow-back" size={24} color={iconColor} />
                     </Pressable>
                     <Text className="text-lg font-semibold text-text-light dark:text-white" numberOfLines={1}>

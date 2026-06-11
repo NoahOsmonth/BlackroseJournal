@@ -8,7 +8,7 @@ jest.mock('expo-constants', () => ({
     expoConfig: { extra: {} },
 }));
 
-describe('Kimi-only model configuration', () => {
+describe('NVIDIA default model configuration', () => {
     const originalEnv = process.env;
 
     beforeEach(() => {
@@ -24,20 +24,29 @@ describe('Kimi-only model configuration', () => {
         process.env = originalEnv;
     });
 
-    it('uses Kimi defaults for the backend AI config (frontend has no LLM config post-PR6)', () => {
+    it('uses Nemotron Ultra defaults for the backend AI config', () => {
         const backendConfig = getBackendAiConfig();
-        expect(backendConfig.model).toBe('moonshotai/kimi-k2.5:thinking');
-        expect(backendConfig.flashModel).toBe('moonshotai/kimi-k2.5');
+        expect(backendConfig.model).toBe('nvidia/nemotron-3-ultra-550b-a55b');
+        expect(backendConfig.flashModel).toBe('nvidia/nemotron-3-ultra-550b-a55b');
     });
 
-    it('keeps persona model picker focused on Kimi variants only', () => {
+    it('keeps persona model picker focused on supported NanoGPT variants', () => {
+        // The model list was extracted from app/persona/advanced.tsx into the
+        // shared constants/aiModels.ts (WS3/WS6) so generation and the picker
+        // draw from one source. Assert against that source of truth.
+        const modelsPath = path.join(process.cwd(), 'constants', 'aiModels.ts');
+        const modelsContent = fs.readFileSync(modelsPath, 'utf-8');
+
+        expect(modelsContent).toContain("'nvidia/nemotron-3-ultra-550b-a55b'");
+        expect(modelsContent).toContain("'moonshotai/kimi-k2.5:thinking'");
+        expect(modelsContent).toContain("'moonshotai/kimi-k2.5'");
+        expect(modelsContent).not.toContain('glm-4.7');
+        expect(modelsContent).not.toContain("'agent-default'");
+
+        // The advanced screen still draws its model list from the shared constants.
         const advancedPath = path.join(process.cwd(), 'app', 'persona', 'advanced.tsx');
         const advancedContent = fs.readFileSync(advancedPath, 'utf-8');
-
-        expect(advancedContent).toContain("'moonshotai/kimi-k2.5:thinking'");
-        expect(advancedContent).toContain("'moonshotai/kimi-k2.5'");
+        expect(advancedContent).toContain("@/constants/aiModels");
         expect(advancedContent).not.toContain('glm-4.7');
-        expect(advancedContent).not.toContain("'agent-default'");
     });
 });
-

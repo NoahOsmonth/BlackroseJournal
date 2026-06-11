@@ -2,6 +2,12 @@ import { THERAPIST_SYSTEM_PROMPT } from '@/constants/aiPrompts';
 import { DailyPrompt } from '@/constants/dailyPrompts';
 import { useCallback, useRef } from 'react';
 import { streamChat } from './ai';
+import { buildDailyCheckInSystemPrompt } from './dailyCheckInPrompt';
+import {
+    DEFAULT_GENERATION,
+    GenerationSettings,
+    sanitizeGenerationSettings,
+} from './generationSettings';
 import {
     CompleteCallback,
     ErrorCallback,
@@ -10,15 +16,7 @@ import {
     StreamingCallback,
 } from './chatTypes';
 
-function buildDailyCheckInSystemPrompt(prompt: DailyPrompt): string {
-    return `${THERAPIST_SYSTEM_PROMPT}
-
-## Current Check-In Context
-The user is doing a "${prompt.title}" daily check-in. The prompt they're responding to is:
-"${prompt.promptText}"
-
-Begin the conversation with an appropriate greeting for this time of day and gently invite them to share what's on their mind. Use the follow-up style: "${prompt.aiFollowUp}"`;
-}
+export { buildDailyCheckInSystemPrompt };
 
 function appendAssistantMessage(
     messagesRef: React.MutableRefObject<Message[]>,
@@ -41,6 +39,7 @@ export function useChat() {
     const messagesRef = useRef<Message[]>([]);
     const systemPromptRef = useRef<string | undefined>(undefined);
     const conversationIdRef = useRef<string>(generateConversationId());
+    const generationRef = useRef<GenerationSettings>(DEFAULT_GENERATION);
 
     const setMessages = useCallback((messages: Message[], systemPrompt?: string) => {
         messagesRef.current = messages;
@@ -53,6 +52,10 @@ export function useChat() {
 
     const setSystemPrompt = useCallback((systemPrompt?: string) => {
         systemPromptRef.current = systemPrompt;
+    }, []);
+
+    const setGenerationSettings = useCallback((settings?: Partial<GenerationSettings>) => {
+        generationRef.current = sanitizeGenerationSettings(settings);
     }, []);
 
     const sendMessage = useCallback(
@@ -75,7 +78,11 @@ export function useChat() {
                 onChunk,
                 (fullContent, fullReasoning) => appendAssistantMessage(messagesRef, fullContent, fullReasoning, onComplete),
                 onError,
-                { systemPrompt: basePrompt, conversationId: conversationIdRef.current }
+                {
+                    systemPrompt: basePrompt,
+                    conversationId: conversationIdRef.current,
+                    generation: generationRef.current,
+                }
             );
         },
         []
@@ -112,7 +119,11 @@ export function useChat() {
                     onComplete(fullContent, fullReasoning);
                 },
                 onError,
-                { systemPrompt: basePrompt, conversationId: conversationIdRef.current }
+                {
+                    systemPrompt: basePrompt,
+                    conversationId: conversationIdRef.current,
+                    generation: generationRef.current,
+                }
             );
         },
         []
@@ -149,7 +160,11 @@ export function useChat() {
                     onComplete(fullContent, fullReasoning);
                 },
                 onError,
-                { systemPrompt, conversationId: conversationIdRef.current }
+                {
+                    systemPrompt,
+                    conversationId: conversationIdRef.current,
+                    generation: generationRef.current,
+                }
             );
         },
         []
@@ -167,6 +182,7 @@ export function useChat() {
         setMessages,
         setConversationId,
         setSystemPrompt,
+        setGenerationSettings,
         clearMessages,
     };
 }

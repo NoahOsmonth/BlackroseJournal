@@ -6,6 +6,13 @@
  * it (with a one-time warn) for unknown names so a future typo doesn't
  * crash the runtime.
  */
+import { getAiConfig } from '../../../backend/src/config/ai';
+import {
+    getProviderForProfile,
+    __resetProfileWarnForTests,
+    type Provider,
+} from '../../../backend/src/services/ai/provider';
+
 jest.mock('../../../backend/src/config/ai', () => {
     const real = jest.requireActual('../../../backend/src/config/ai') as typeof import('../../../backend/src/config/ai');
     return {
@@ -14,13 +21,6 @@ jest.mock('../../../backend/src/config/ai', () => {
         validateConfig: real.validateConfig,
     };
 });
-
-import { getAiConfig } from '../../../backend/src/config/ai';
-import {
-    getProviderForProfile,
-    __resetProfileWarnForTests,
-    type Provider,
-} from '../../../backend/src/services/ai/provider';
 
 const VALID_ENV = {
     AI_DEFAULT_API_KEY: 'sk-test-key-1234',
@@ -108,9 +108,7 @@ describe('provider — resolveProfile', () => {
         configMod.getAiConfig.mockImplementationOnce(() => {
             throw new Error('Invalid AI config: AI_DEFAULT_API_KEY (apiKey) is required.');
         });
-        // require (not import) — top-level import is stale after resetModules
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const providerModule = require('../../../backend/src/services/ai/provider') as typeof import('../../../backend/src/services/ai/provider');
+        const providerModule = jest.requireActual('../../../backend/src/services/ai/provider') as typeof import('../../../backend/src/services/ai/provider');
         const provider = providerModule.getProviderForProfile('default');
         const result = (() => {
             try {

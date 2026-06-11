@@ -15,6 +15,7 @@ interface PersonaSheetProps {
     onClose: () => void;
     onSelectPersona: (persona: Persona) => void;
     onCreatePersona: () => void;
+    onGeneratePersona?: () => void;
     onOpenSettings: (persona: Persona) => void;
 }
 
@@ -26,6 +27,7 @@ export function PersonaSheet({
     onClose,
     onSelectPersona,
     onCreatePersona,
+    onGeneratePersona,
     onOpenSettings,
 }: PersonaSheetProps) {
     const colorScheme = useColorScheme();
@@ -96,7 +98,7 @@ export function PersonaSheet({
                                 onOpenSettings={onOpenSettings}
                             />
                         ))}
-                        <NewPersonaCard onCreate={onCreatePersona} />
+                        <NewPersonaCard onCreate={onCreatePersona} onGenerate={onGeneratePersona} />
                     </ScrollView>
                 </View>
             </View>

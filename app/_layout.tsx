@@ -4,6 +4,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 // Import reanimated FIRST
 import 'react-native-reanimated';
@@ -30,8 +31,6 @@ import {
 
 // Prevent splash from auto-hiding
 SplashScreen.preventAutoHideAsync().catch(() => { });
-
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 export default function RootLayout() {
     useThemeSettings();
@@ -106,10 +105,11 @@ export default function RootLayout() {
                         <Stack.Screen name="streak-view" />
                         <Stack.Screen name="streak-haiku" options={{ presentation: 'modal' }} />
                         <Stack.Screen name="ask-rosebud" />
+                        <Stack.Screen name="memory-graph" />
                         <Stack.Screen name="happiness-recipe" />
                         <Stack.Screen name="rewards" />
+                        <Stack.Screen name="persona/generate" />
                         <Stack.Screen name="index" />
-                        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
                     </Stack>
                     <StatusBar style="auto" />
                 </AppErrorBoundary>

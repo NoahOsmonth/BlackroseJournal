@@ -1,31 +1,49 @@
 import React from 'react';
-import { Text } from 'react-native';
 import { render } from '@testing-library/react-native';
 import { ChatMessage } from '../components/ChatMessage';
+
+const mockMarkdownRender = jest.fn();
 
 jest.mock('@/hooks/use-color-scheme', () => ({
     useColorScheme: () => 'light',
 }));
 
 jest.mock('@/components/ui/TypingIndicator', () => {
-    const ReactMock = require('react');
-    const { Text: RNText } = require('react-native');
+    const React = jest.requireActual('react');
+    const { Text: RNText } = jest.requireActual('react-native');
     return {
-        TypingIndicator: () => <RNText testID="typing-indicator">typing</RNText>,
+        TypingIndicator: function TypingIndicator() {
+            return React.createElement(RNText, { testID: 'typing-indicator' }, 'typing');
+        },
     };
 });
 
 jest.mock('react-native-marked', () => {
-    const ReactMock = require('react');
-    const { Text: RNText } = require('react-native');
-    return ({ value }: { value: string }) => <RNText>{value}</RNText>;
+    const React = jest.requireActual('react');
+    const { Text: RNText } = jest.requireActual('react-native');
+    return function MockMarkdown({ value }: { value: string }) {
+        mockMarkdownRender(value);
+        return React.createElement(RNText, { testID: 'markdown' }, value);
+    };
 });
 
 jest.mock('@expo/vector-icons', () => ({
     MaterialIcons: () => null,
 }));
 
+function hasEmptyTextChild(node: unknown): boolean {
+    if (node === '') return true;
+    if (!node || typeof node !== 'object') return false;
+
+    const children = (node as { children?: unknown[] }).children;
+    return Array.isArray(children) && children.some(hasEmptyTextChild);
+}
+
 describe('ChatMessage streaming visibility', () => {
+    beforeEach(() => {
+        mockMarkdownRender.mockClear();
+    });
+
     it('renders user messages with warm user text colors', () => {
         const { getByText } = render(<ChatMessage text="mine" />);
 
@@ -44,12 +62,13 @@ describe('ChatMessage streaming visibility', () => {
 
     it('shows streamed reasoning when content has not started', () => {
         const { queryByTestId, getByText } = render(
-            <ChatMessage isAi text="" reasoning="thinking" isStreaming={true} />
+            <ChatMessage isAi text="" reasoning="1. thinking." isStreaming={true} />
         );
 
         expect(queryByTestId('typing-indicator')).toBeNull();
         expect(getByText('AI reasoning (live)')).toBeTruthy();
-        expect(getByText('thinking')).toBeTruthy();
+        expect(getByText('1. thinking.')).toBeTruthy();
+        expect(mockMarkdownRender).not.toHaveBeenCalled();
     });
 
     it('renders streamed text while streaming is active', () => {
@@ -61,5 +80,29 @@ describe('ChatMessage streaming visibility', () => {
 
         expect(queryByTestId('typing-indicator')).toBeNull();
         expect(getByText('stream')).toBeTruthy();
+        expect(mockMarkdownRender).not.toHaveBeenCalled();
+    });
+
+    it('renders completed plain AI prose without markdown', () => {
+        const { getByText, queryByTestId } = render(
+            <ChatMessage isAi text="Plain answer." />
+        );
+
+        expect(getByText('Plain answer.')).toBeTruthy();
+        expect(queryByTestId('markdown')).toBeNull();
+        expect(mockMarkdownRender).not.toHaveBeenCalled();
+    });
+
+    it('does not render empty reasoning as a raw child', () => {
+        const { toJSON } = render(<ChatMessage isAi text="Plain answer." reasoning="" />);
+
+        expect(hasEmptyTextChild(toJSON())).toBe(false);
+    });
+
+    it('renders completed AI text through markdown', () => {
+        const { getByTestId } = render(<ChatMessage isAi text="**done**" />);
+
+        expect(getByTestId('markdown')).toBeTruthy();
+        expect(mockMarkdownRender).toHaveBeenCalledWith('**done**');
     });
 });

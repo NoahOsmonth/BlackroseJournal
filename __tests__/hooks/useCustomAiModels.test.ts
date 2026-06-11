@@ -72,4 +72,31 @@ describe('useCustomAiModels', () => {
             })
         );
     });
+
+    it('enables the custom provider when a fetched model is selected', async () => {
+        fetchMock.mockResolvedValue(new Response(JSON.stringify({
+            data: [
+                { id: 'openai/gpt-4', name: 'GPT-4', context_length: 8192 },
+                { id: 'anthropic/claude', name: 'Claude', context_length: 200000 },
+            ],
+        }), { status: 200 }));
+
+        const { result } = renderHook(() => useCustomAiModels());
+        await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+        act(() => result.current.setBaseUrl('https://openrouter.ai'));
+        act(() => result.current.setApiKey('sk-or-test'));
+        await act(async () => result.current.fetchModels());
+        await act(async () => result.current.selectModel('anthropic/claude'));
+
+        expect(result.current.settings.enabled).toBe(true);
+        expect(result.current.settings.selectedModelId).toBe('anthropic/claude');
+        expect(result.current.status).toEqual({
+            kind: 'success',
+            message: 'Custom model selected and enabled.',
+        });
+        await expect(getActiveCustomModelConfig()).resolves.toEqual(
+            expect.objectContaining({ model: 'anthropic/claude' })
+        );
+    });
 });

@@ -6,8 +6,8 @@ export interface AiConfig {
 }
 
 const DEFAULT_API_BASE_URL = 'https://nano-gpt.com/api/v1';
-const DEFAULT_MODEL = 'moonshotai/kimi-k2.5:thinking';
-const DEFAULT_FLASH_MODEL = 'moonshotai/kimi-k2.5';
+const DEFAULT_MODEL = 'nvidia/nemotron-3-ultra-550b-a55b';
+const DEFAULT_FLASH_MODEL = 'nvidia/nemotron-3-ultra-550b-a55b';
 
 function readEnv(key: string): string | undefined {
   return process.env[key];

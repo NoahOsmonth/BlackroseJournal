@@ -28,7 +28,7 @@ function buildMetrics(summary: WeeklyHistorySummary): SummaryMetric[] {
 }
 
 function formatSignals(signals: readonly string[]): string {
-    if (signals.length === 0) return 'quiet, reflective, open';
+    if (signals.length === 0) return 'Write more this week to reveal signals';
     return signals.map((signal) => signal[0].toUpperCase() + signal.slice(1)).join(' / ');
 }
 

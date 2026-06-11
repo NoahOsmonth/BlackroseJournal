@@ -55,7 +55,7 @@ export default function IntentionSelectScreen() {
                 <View className="items-center mb-8 text-center px-4">
                     <CompassBadge />
                     <Text className="mt-6 text-[19px] leading-relaxed font-medium text-text-light dark:text-white">
-                        What's one area of life that's calling for your attention right now?
+                        What&apos;s one area of life that&apos;s calling for your attention right now?
                     </Text>
                 </View>
 

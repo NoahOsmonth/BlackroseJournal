@@ -8,6 +8,9 @@
  *  - The returned Response is the exact same object the provider returned
  *  - The body is NOT consumed by the wrapper
  */
+import { createChatCompletionStream } from '../backend/src/agent/modelClient';
+import { getProviderForProfile } from '../backend/src/services/ai';
+
 jest.mock('../backend/src/services/ai', () => {
     const actual = jest.requireActual('../backend/src/services/ai');
     return {
@@ -15,9 +18,6 @@ jest.mock('../backend/src/services/ai', () => {
         getProviderForProfile: jest.fn(),
     };
 });
-
-import { getProviderForProfile } from '../backend/src/services/ai';
-import { createChatCompletionStream } from '../backend/src/agent/modelClient';
 
 const mockGetProviderForProfile = getProviderForProfile as jest.MockedFunction<
     typeof getProviderForProfile

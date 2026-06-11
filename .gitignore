@@ -38,7 +38,7 @@ yarn-error.*
 
 # local databases and generated data
 backend/data/
-data/
+/data/
 
 # typescript
 *.tsbuildinfo

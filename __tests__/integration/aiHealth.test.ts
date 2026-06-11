@@ -28,8 +28,8 @@ const express = require('../../backend/node_modules/express') as () => TestExpre
 const VALID_ENV = {
     AI_DEFAULT_API_KEY: 'sk-test-key-1234',
     AI_DEFAULT_API_BASE_URL: 'https://nano-gpt.com/api/v1',
-    AI_DEFAULT_MODEL: 'moonshotai/kimi-k2.5:thinking',
-    AI_DEFAULT_FLASH_MODEL: 'moonshotai/kimi-k2.5',
+    AI_DEFAULT_MODEL: 'nvidia/nemotron-3-ultra-550b-a55b',
+    AI_DEFAULT_FLASH_MODEL: 'nvidia/nemotron-3-ultra-550b-a55b',
 };
 
 function buildApp(): TestExpressApp {

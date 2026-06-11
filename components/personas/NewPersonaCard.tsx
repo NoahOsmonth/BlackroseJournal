@@ -1,12 +1,14 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { NewPersonaAvatar } from './NewPersonaAvatar';
 
 interface NewPersonaCardProps {
     onCreate: () => void;
+    onGenerate?: () => void;
 }
 
-export function NewPersonaCard({ onCreate }: NewPersonaCardProps) {
+export function NewPersonaCard({ onCreate, onGenerate }: NewPersonaCardProps) {
     return (
         <View
             testID="new-persona-card"
@@ -21,14 +23,27 @@ export function NewPersonaCard({ onCreate }: NewPersonaCardProps) {
                     </Text>
                 </View>
             </View>
-            <Pressable
-                onPress={onCreate}
-                testID="new-persona-create"
-                className="w-full bg-gray-900 dark:bg-white py-4 rounded-2xl items-center shadow-lg"
-                accessibilityLabel="Create persona"
-            >
-                <Text className="font-semibold text-white dark:text-black">Create</Text>
-            </Pressable>
+            <View className="w-full gap-2">
+                {onGenerate && (
+                    <Pressable
+                        onPress={onGenerate}
+                        testID="new-persona-generate"
+                        className="w-full flex-row items-center justify-center gap-2 border border-primary py-4 rounded-2xl"
+                        accessibilityLabel="Generate persona with AI"
+                    >
+                        <MaterialIcons name="auto-awesome" size={18} color="#FF9F0A" />
+                        <Text className="font-semibold text-primary">Generate with AI</Text>
+                    </Pressable>
+                )}
+                <Pressable
+                    onPress={onCreate}
+                    testID="new-persona-create"
+                    className="w-full bg-gray-900 dark:bg-white py-4 rounded-2xl items-center shadow-lg"
+                    accessibilityLabel="Create persona"
+                >
+                    <Text className="font-semibold text-white dark:text-black">Create</Text>
+                </Pressable>
+            </View>
         </View>
     );
 }

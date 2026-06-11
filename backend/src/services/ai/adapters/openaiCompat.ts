@@ -29,6 +29,7 @@ export function isRetryable(err: unknown): boolean {
 function buildRequestBody(req: ChatRequest): Record<string, unknown> {
     const body: Record<string, unknown> = { messages: req.messages };
     if (req.temperature !== undefined) body.temperature = req.temperature;
+    if (req.topP !== undefined) body.top_p = req.topP;
     if (req.maxTokens !== undefined) body.max_tokens = req.maxTokens;
     if (req.stream === true) body.stream = true;
     return body;

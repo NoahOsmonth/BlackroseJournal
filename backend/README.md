@@ -22,8 +22,8 @@ Create `.env` in `backend/`:
 ### Model (LLM)
 - `NANO_GPT_API_KEY=`
 - `NANO_GPT_API_BASE_URL=https://nano-gpt.com/api/v1`
-- `NANO_GPT_MODEL=moonshotai/kimi-k2.5:thinking`
-- `NANO_GPT_FLASH_MODEL=moonshotai/kimi-k2.5`
+- `NANO_GPT_MODEL=nvidia/nemotron-3-ultra-550b-a55b`
+- `NANO_GPT_FLASH_MODEL=nvidia/nemotron-3-ultra-550b-a55b`
 
 ## Scripts
 

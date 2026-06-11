@@ -11,6 +11,7 @@ export interface Persona {
     model: string;
     imagination: number;
     avatarKey?: string;
+    avatarUrl?: string;
     isActive?: boolean;
     createdAt: number;
     updatedAt: number;
@@ -24,6 +25,7 @@ export interface PersonaCreateInput {
     model: string;
     imagination: number;
     avatarKey?: string;
+    avatarUrl?: string;
 }
 
 export interface PersonaUpdateInput {
@@ -34,5 +36,6 @@ export interface PersonaUpdateInput {
     model?: string;
     imagination?: number;
     avatarKey?: string;
+    avatarUrl?: string;
     isActive?: boolean;
 }

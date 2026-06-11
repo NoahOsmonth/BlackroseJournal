@@ -16,6 +16,7 @@ import type { ChatMessage } from './types';
 
 export interface ChatCompletionOptions {
     temperature?: number;
+    topP?: number;
     maxTokens?: number;
     model?: string;
 }
@@ -31,6 +32,7 @@ function buildRequest(
 ): ChatRequest {
     const req: ChatRequest = { messages, stream };
     if (options.temperature !== undefined) req.temperature = options.temperature;
+    if (options.topP !== undefined) req.topP = options.topP;
     if (options.maxTokens !== undefined) req.maxTokens = options.maxTokens;
     return req;
 }

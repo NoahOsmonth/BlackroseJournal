@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    Alert,
     ScrollView,
     View,
     Share,
@@ -10,40 +9,35 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Speech from 'expo-speech';
 import * as Clipboard from 'expo-clipboard';
 
-import { useChatOrchestration } from '@/features/chat';
+import { useChatOrchestration, useChatSessionFlush, useResumeChatSession, flowForCheckInType } from '@/features/chat';
+import {
+    removeSession,
+    type ChatSessionMode,
+} from '@/services/ai/sessionStorage';
 import { InlineTypingInputRef } from '@/components/InlineTypingInput';
 import { usePersonas } from '@/hooks/personas/usePersonas';
 import { useIntentionCheckIns } from '@/hooks/intentions/useIntentionCheckIns';
-import { useIntentions } from '@/hooks/intentions/useIntentions';
-import { buildIntentionSystemPrompt } from '@/services/intentions/intentionPrompts';
 import {
-    createCheckIn,
     getCheckIn,
     getIntention,
-    updateCheckIn,
 } from '@/services/intentions/intentionsStorage';
 import { Intention, IntentionArea, IntentionCheckInType } from '@/services/intentions/intentionsStorage.types';
 import { getIntentionAreaConfig } from '@/constants/intentions';
 import { hasContent } from '@/hooks/journal/useEntryUtils';
 import { markIntentionGoalComplete } from '@/services/goals/goalsStorage';
-import { PersonaSheet } from '@/components/personas/PersonaSheet';
-import { PersonaSettingsSheet } from '@/components/personas/PersonaSettingsSheet';
-import { FeedbackCommentModal } from '@/components/intentions/FeedbackCommentModal';
+import {
+    finishIntentionChat,
+    saveIntentionChatDraft,
+} from '@/services/intentions/intentionChatCompletion';
 import { getLocalDateKey } from '@/utils/date';
 import { IntentionChatHeader } from '@/components/intentions/IntentionChatHeader';
 import { IntentionChatFooter } from '@/components/intentions/IntentionChatFooter';
 import { IntentionChatBody } from '@/components/intentions/IntentionChatBody';
+import { IntentionChatOverlays } from '@/components/intentions/IntentionChatOverlays';
 import { useAiFeedback } from '@/hooks/feedback/useAiFeedback';
 import { useIntentionFeedbackModal } from '@/hooks/feedback/useIntentionFeedbackModal';
 import type { AiFeedbackValue } from '@/services/feedback/feedbackStorage';
 import { usePersonaSettingsActions } from '@/hooks/personas/usePersonaSettingsActions';
-
-function buildSummary(messages: { role: string; content: string }[]): string {
-    const first = messages.find((m) => m.role === 'user');
-    if (!first) return 'No summary yet.';
-    const text = first.content.trim();
-    return text.length > 160 ? `${text.slice(0, 160).trim()}...` : text;
-}
 
 export default function IntentionChatScreen() {
     const router = useRouter();
@@ -59,7 +53,6 @@ export default function IntentionChatScreen() {
         isLoading: isPersonasLoading,
     } = usePersonas();
     const { completed: checkIns } = useIntentionCheckIns();
-    const { create: createIntention } = useIntentions();
 
     const [intention, setIntention] = useState<Intention | null>(null);
     const [inputValue, setInputValue] = useState('');
@@ -71,7 +64,9 @@ export default function IntentionChatScreen() {
     const areaParam = Array.isArray(params.area) ? params.area[0] : params.area;
     const intentionId = Array.isArray(params.intentionId) ? params.intentionId[0] : params.intentionId;
     const typeParam = Array.isArray(params.type) ? params.type[0] : params.type;
+    const modeParam = Array.isArray(params.mode) ? params.mode[0] : params.mode;
     const draftIdParam = Array.isArray(params.draftId) ? params.draftId[0] : params.draftId;
+    const resumeId = Array.isArray(params.resume) ? params.resume[0] : params.resume;
 
     const checkInType = (typeParam as IntentionCheckInType) ?? 'intention';
     const areaConfig = areaParam ? getIntentionAreaConfig(areaParam as IntentionArea) : undefined;
@@ -97,10 +92,11 @@ export default function IntentionChatScreen() {
     }, [checkIns, intentionId]);
 
     const conversationId = useMemo(() => {
+        if (resumeId) return resumeId;
         if (draftCheckInId) return draftCheckInId;
         if (intentionId) return `intention_${intentionId}_${Date.now()}`;
         return `intention_${Date.now()}`;
-    }, [draftCheckInId, intentionId]);
+    }, [resumeId, draftCheckInId, intentionId]);
 
     const {
         feedbackByMessageId,
@@ -117,34 +113,54 @@ export default function IntentionChatScreen() {
         Object.entries(feedbackByMessageId).map(([id, record]) => [id, record.value])
     ) as Record<string, AiFeedbackValue>, [feedbackByMessageId]);
 
-    const systemPrompt = useMemo(
-        () => buildIntentionSystemPrompt({
-            type: checkInType,
+    const isRefineMode = modeParam === 'refine';
+    const flow = useMemo(
+        () => (isRefineMode ? flowForCheckInType('intentionRefine') : flowForCheckInType(checkInType)),
+        [checkInType, isRefineMode]
+    );
+    const flowContext = useMemo(
+        () => ({
+            activePersona,
             areaLabel: areaConfig?.label,
             intentionTitle: intention?.title,
-            personaPrompt: activePersona?.prompt,
             memorySummary,
             feedbackGuidance,
         }),
-        [
-            activePersona?.prompt,
-            areaConfig?.label,
-            checkInType,
-            feedbackGuidance,
-            intention?.title,
-            memorySummary,
-        ]
+        [activePersona, areaConfig?.label, intention?.title, memorySummary, feedbackGuidance]
     );
 
     const initialPrompt = useMemo(() => {
-        if (draftIdParam || draftCheckInId || isFeedbackLoading || isPersonasLoading) {
+        if (resumeId || draftIdParam || draftCheckInId || isFeedbackLoading || isPersonasLoading) {
             return undefined;
         }
         return {
-            systemPrompt,
+            systemPrompt: flow.buildSystemPrompt(flowContext),
             triggerText: '[Start intention check-in]',
         };
-    }, [draftCheckInId, draftIdParam, isFeedbackLoading, isPersonasLoading, systemPrompt]);
+    }, [resumeId, draftCheckInId, draftIdParam, isFeedbackLoading, isPersonasLoading, flow, flowContext]);
+
+    const checkInMode: ChatSessionMode = checkInType === 'morning'
+        ? 'morning'
+        : checkInType === 'evening' ? 'evening' : 'intention';
+
+    const persistRouteParams = useMemo(() => {
+        const routeParams: Record<string, string> = {};
+        if (intentionId) routeParams.intentionId = intentionId;
+        if (areaParam) routeParams.area = areaParam;
+        if (typeParam) routeParams.type = typeParam;
+        if (modeParam) routeParams.mode = modeParam;
+        return Object.keys(routeParams).length > 0 ? routeParams : undefined;
+    }, [areaParam, intentionId, modeParam, typeParam]);
+
+    const persist = useMemo(
+        () => ({
+            conversationId,
+            mode: checkInMode,
+            personaId: activePersona?.id,
+            routeParams: persistRouteParams,
+        }),
+        [conversationId, checkInMode, activePersona?.id, persistRouteParams]
+    );
 
     const {
         messages,
@@ -154,6 +170,7 @@ export default function IntentionChatScreen() {
         clearError,
         handleNewChat,
         initializeMessages,
+        clearPersistedSession,
         scrollToBottom,
         handleScroll,
     } = useChatOrchestration({
@@ -161,7 +178,10 @@ export default function IntentionChatScreen() {
         inputRef,
         mode: 'intention',
         conversationId,
+        flow,
+        flowContext,
         initialPrompt,
+        persist,
     });
 
     const { handleThumb, feedbackModalProps } = useIntentionFeedbackModal({
@@ -199,51 +219,53 @@ export default function IntentionChatScreen() {
         };
     }, [draftIdParam, initializeMessages, setActive]);
 
+    // Resume an autosaved check-in session (conversationId already matches via the resume param).
+    useResumeChatSession({
+        resumeId,
+        initializeMessages,
+        onPersona: setActive,
+    });
+
+    // Flush the live conversation to the session store on blur/unmount so a
+    // back-gesture (previously only the explicit close button) is recoverable.
+    const { finalize } = useChatSessionFlush({
+        conversationId,
+        mode: checkInMode,
+        messages,
+        personaId: activePersona?.id,
+        routeParams: persistRouteParams,
+    });
+
     useEffect(() => {
         scrollToBottom();
     }, [messages, streamingMessage, scrollToBottom]);
 
     const handleClose = useCallback(async () => {
+        finalize();
         const hasDraftContent = hasContent(messages) || inputValue.trim().length > 0;
         if (hasDraftContent) {
-            const draftMessages = [...messages];
-            if (inputValue.trim()) {
-                draftMessages.push({
-                    id: Date.now().toString(),
-                    role: 'user',
-                    content: inputValue.trim(),
-                    timestamp: Date.now(),
-                });
-            }
-
-            if (draftCheckInId) {
-                await updateCheckIn(draftCheckInId, {
-                    messages: draftMessages,
-                    status: 'draft',
-                    summary: buildSummary(draftMessages),
-                    title: buildSummary(draftMessages),
-                });
-            } else {
-                const draft = await createCheckIn({
-                    intentionId,
-                    type: checkInType,
-                    title: buildSummary(draftMessages),
-                    summary: buildSummary(draftMessages),
-                    mood: 'Reflective',
-                    personaId: activePersona?.id,
-                    messages: draftMessages,
-                    status: 'draft',
-                });
-                setDraftCheckInId(draft.id);
-            }
+            const draftId = await saveIntentionChatDraft({
+                messages,
+                inputValue,
+                draftCheckInId,
+                intentionId,
+                checkInType,
+                personaId: activePersona?.id,
+            });
+            if (draftId) setDraftCheckInId(draftId);
         }
+
+        // Saved as an explicit check-in draft — drop the autosave session.
+        await clearPersistedSession();
 
         handleNewChat();
         router.replace('/(tabs)/today');
     }, [
         activePersona?.id,
         checkInType,
+        clearPersistedSession,
         draftCheckInId,
+        finalize,
         handleNewChat,
         inputValue,
         intentionId,
@@ -256,48 +278,18 @@ export default function IntentionChatScreen() {
             return;
         }
 
-        const finalMessages = [...messages];
-        if (inputValue.trim()) {
-            finalMessages.push({
-                id: Date.now().toString(),
-                role: 'user',
-                content: inputValue.trim(),
-                timestamp: Date.now(),
-            });
-        }
-
-        const summary = buildSummary(finalMessages);
-        const title = buildSummary(finalMessages);
-        let resolvedIntention = intention;
-
-        if (!intentionId && checkInType === 'intention') {
-            resolvedIntention = await createIntention({
-                title,
-                description: summary,
-                area: (areaParam ?? 'wellbeing') as IntentionArea,
-            });
-        }
-
-        if (draftCheckInId) {
-            await updateCheckIn(draftCheckInId, {
-                messages: finalMessages,
-                status: 'completed',
-                summary,
-                title,
-                personaId: activePersona?.id,
-            });
-        } else {
-            await createCheckIn({
-                intentionId: resolvedIntention?.id,
-                type: checkInType,
-                title,
-                summary,
-                mood: 'Reflective',
-                personaId: activePersona?.id,
-                messages: finalMessages,
-                status: 'completed',
-            });
-        }
+        finalize();
+        const { resolvedIntention } = await finishIntentionChat({
+            messages,
+            inputValue,
+            draftCheckInId,
+            intentionId,
+            checkInType,
+            personaId: activePersona?.id,
+            intention,
+            areaParam,
+            isRefineMode,
+        });
 
         if (resolvedIntention && checkInType === 'intention') {
             await markIntentionGoalComplete(
@@ -306,6 +298,9 @@ export default function IntentionChatScreen() {
                 resolvedIntention.id
             );
         }
+
+        // Completed check-in must not linger as an active session.
+        await removeSession(conversationId);
 
         handleNewChat();
         if (resolvedIntention) {
@@ -317,12 +312,14 @@ export default function IntentionChatScreen() {
         activePersona?.id,
         areaParam,
         checkInType,
-        createIntention,
+        conversationId,
         draftCheckInId,
+        finalize,
         handleNewChat,
         inputValue,
         intention,
         intentionId,
+        isRefineMode,
         messages,
         router,
     ]);
@@ -370,7 +367,7 @@ export default function IntentionChatScreen() {
     };
 
     return (
-        <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
+        <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top', 'bottom']}>
             <View className="flex-1 max-w-md mx-auto w-full bg-background-light dark:bg-background-dark">
                 <IntentionChatHeader
                     personaName={activePersona?.name ?? 'Rosebud'}
@@ -399,38 +396,18 @@ export default function IntentionChatScreen() {
                 <IntentionChatFooter
                     isMuted={isMuted}
                     onToggleMuted={handleToggleMuted}
-                    onVoicePress={() => Alert.alert('Voice input', 'Voice input is coming soon.')}
-                    onImagePress={() => Alert.alert('Add image', 'Image upload is coming soon.')}
                     onFinish={handleFinish}
                     onSuggest={handleSuggest}
                 />
 
-                <PersonaSheet
-                    visible={personaSheetOpen}
+                <IntentionChatOverlays
+                    personaSheetOpen={personaSheetOpen}
                     personas={personas}
-                    activePersonaId={activePersona?.id}
                     activePersona={activePersona}
-                    onClose={() => setPersonaSheetOpen(false)}
-                    onSelectPersona={async (persona) => {
-                        await setActive(persona.id);
-                        setPersonaSheetOpen(false);
-                    }}
-                    onCreatePersona={() => {
-                        setPersonaSheetOpen(false);
-                        router.push('/persona/new');
-                    }}
-                    onOpenSettings={personaSettings.openSettings}
-                />
-                <PersonaSettingsSheet
-                    visible={personaSettings.settingsOpen}
-                    persona={personaSettings.settingsPersona}
-                    onClose={personaSettings.closeSettings}
-                    onEdit={personaSettings.editPersona}
-                    onAdvanced={personaSettings.openAdvanced}
-                    onDelete={personaSettings.deletePersona}
-                />
-                <FeedbackCommentModal
-                    {...feedbackModalProps}
+                    setPersonaSheetOpen={setPersonaSheetOpen}
+                    setActive={setActive}
+                    personaSettings={personaSettings}
+                    feedbackModalProps={feedbackModalProps}
                 />
             </View>
         </SafeAreaView>

@@ -39,6 +39,10 @@ module.exports = {
                 'user-text-dark': '#FDBA74',
                 // AI / accent text
                 'accent-blue': '#3B82F6',
+                // Accent placeholders (WS8 refines) — defined so badges aren't invisible
+                'accent-green': '#34C759',
+                'accent-green-dark': '#32D74B',
+                'accent-yellow': '#FFD60A',
                 'ai-text': '#38BDF8',
                 // Semantic text variants
                 'text-primary-light': '#111827',

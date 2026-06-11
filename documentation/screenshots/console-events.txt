@@ -1,0 +1,47 @@
+warning: Require cycle: services/ai/ai.ts -> services/ai/useChat.ts -> services/ai/ai.ts
+
+Require cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle.
+warning: "shadow*" style props are deprecated. Use "boxShadow".
+warning: props.pointerEvents is deprecated. Use style.pointerEvents
+warning: Require cycle: services/ai/ai.ts -> services/ai/useChat.ts -> services/ai/ai.ts
+
+Require cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle.
+warning: "shadow*" style props are deprecated. Use "boxShadow".
+warning: props.pointerEvents is deprecated. Use style.pointerEvents
+warning: Require cycle: services/ai/ai.ts -> services/ai/useChat.ts -> services/ai/ai.ts
+
+Require cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle.
+warning: "shadow*" style props are deprecated. Use "boxShadow".
+warning: props.pointerEvents is deprecated. Use style.pointerEvents
+warning: Require cycle: services/ai/ai.ts -> services/ai/useChat.ts -> services/ai/ai.ts
+
+Require cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle.
+warning: "shadow*" style props are deprecated. Use "boxShadow".
+warning: props.pointerEvents is deprecated. Use style.pointerEvents
+warning: Require cycle: services/ai/ai.ts -> services/ai/useChat.ts -> services/ai/ai.ts
+
+Require cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle.
+warning: props.pointerEvents is deprecated. Use style.pointerEvents
+warning: "shadow*" style props are deprecated. Use "boxShadow".
+warning: Supabase config missing. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY.
+warning: Require cycle: services/ai/ai.ts -> services/ai/useChat.ts -> services/ai/ai.ts
+
+Require cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle.
+warning: Require cycle: services/ai/ai.ts -> services/ai/useChat.ts -> services/ai/ai.ts
+
+Require cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle.
+warning: Require cycle: services/ai/ai.ts -> services/ai/useChat.ts -> services/ai/ai.ts
+
+Require cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle.
+warning: Require cycle: services/ai/ai.ts -> services/ai/useChat.ts -> services/ai/ai.ts
+
+Require cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle.
+warning: Require cycle: services/ai/ai.ts -> services/ai/useChat.ts -> services/ai/ai.ts
+
+Require cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle.
+warning: Require cycle: services/ai/ai.ts -> services/ai/useChat.ts -> services/ai/ai.ts
+
+Require cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle.
+warning: Require cycle: services/ai/ai.ts -> services/ai/useChat.ts -> services/ai/ai.ts
+
+Require cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle.

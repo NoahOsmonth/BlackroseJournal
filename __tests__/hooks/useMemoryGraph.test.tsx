@@ -54,6 +54,7 @@ describe('useMemoryGraph', () => {
             addNote: jest.fn(),
             addGeneratedNote: jest.fn(),
             refreshGeneratedNote: jest.fn(),
+            removeAtom: jest.fn(),
             clearAll: jest.fn(),
         });
         mockSynthesizeMemoryInsight.mockResolvedValue('A concise connection.');

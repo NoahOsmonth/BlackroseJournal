@@ -4,6 +4,7 @@ import { act, renderHook, waitFor } from '@testing-library/react-native';
 
 jest.mock('../../services/memory/localMemory', () => ({
     clearMemoryAtoms: jest.fn(),
+    deleteMemoryAtom: jest.fn(),
     generateMemoryNoteSuggestion: jest.fn(),
     listMemoryAtoms: jest.fn(),
     saveGeneratedMemoryNote: jest.fn(),
@@ -12,6 +13,7 @@ jest.mock('../../services/memory/localMemory', () => ({
 
 import {
     clearMemoryAtoms,
+    deleteMemoryAtom,
     generateMemoryNoteSuggestion,
     listMemoryAtoms,
     saveGeneratedMemoryNote,
@@ -20,6 +22,7 @@ import {
 import { useLocalMemories } from '../../hooks/memory/useLocalMemories';
 
 const mockClearMemoryAtoms = jest.mocked(clearMemoryAtoms);
+const mockDeleteMemoryAtom = jest.mocked(deleteMemoryAtom);
 const mockGenerateMemoryNoteSuggestion = jest.mocked(generateMemoryNoteSuggestion);
 const mockListMemoryAtoms = jest.mocked(listMemoryAtoms);
 const mockSaveGeneratedMemoryNote = jest.mocked(saveGeneratedMemoryNote);
@@ -32,6 +35,7 @@ describe('useLocalMemories', () => {
         mockSaveGeneratedMemoryNote.mockResolvedValue({} as never);
         mockSaveManualMemoryNote.mockResolvedValue({} as never);
         mockClearMemoryAtoms.mockResolvedValue(undefined);
+        mockDeleteMemoryAtom.mockResolvedValue(true);
     });
 
     afterEach(() => {
@@ -81,6 +85,21 @@ describe('useLocalMemories', () => {
         });
 
         expect(mockClearMemoryAtoms).toHaveBeenCalledTimes(1);
+        expect(mockListMemoryAtoms).toHaveBeenCalledTimes(2);
+    });
+
+    it('deletes a local memory atom and refreshes', async () => {
+        const { result } = renderHook(() => useLocalMemories());
+
+        await waitFor(() => {
+            expect(result.current.isLoading).toBe(false);
+        });
+
+        await act(async () => {
+            await result.current.removeAtom('atom-1');
+        });
+
+        expect(mockDeleteMemoryAtom).toHaveBeenCalledWith('atom-1');
         expect(mockListMemoryAtoms).toHaveBeenCalledTimes(2);
     });
 });

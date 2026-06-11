@@ -40,8 +40,8 @@ describe('backend/src/config/ai — config loader foundation (PR1)', () => {
 
         expect(cfg.apiKey).toBe('sk-test');
         expect(cfg.apiBaseUrl).toBe('https://api.openai.com/v1');
-        expect(cfg.model).toBe('moonshotai/kimi-k2.5:thinking');
-        expect(cfg.flashModel).toBe('moonshotai/kimi-k2.5');
+        expect(cfg.model).toBe('nvidia/nemotron-3-ultra-550b-a55b');
+        expect(cfg.flashModel).toBe('nvidia/nemotron-3-ultra-550b-a55b');
         expect(Object.isFrozen(cfg)).toBe(true);
     });
 
@@ -113,14 +113,14 @@ describe('backend/src/config/ai — config loader foundation (PR1)', () => {
         expect(() => validateConfig(input)).not.toThrow();
     });
 
-    it('loadConfig() defaults model and flashModel to the kimi pair', () => {
+    it('loadConfig() defaults model and flashModel to Nemotron Ultra', () => {
         process.env.AI_DEFAULT_API_KEY = 'sk-test';
 
         const { loadConfig } = freshConfigModule();
         const cfg = loadConfig();
 
-        expect(cfg.model).toBe('moonshotai/kimi-k2.5:thinking');
-        expect(cfg.flashModel).toBe('moonshotai/kimi-k2.5');
+        expect(cfg.model).toBe('nvidia/nemotron-3-ultra-550b-a55b');
+        expect(cfg.flashModel).toBe('nvidia/nemotron-3-ultra-550b-a55b');
     });
 
     it('loadConfig() honors explicit AI_DEFAULT_MODEL overrides', () => {

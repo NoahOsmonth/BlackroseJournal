@@ -1,5 +1,6 @@
 import React from 'react';
 import { Text, View } from 'react-native';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 interface KeyThemesProps {
   themes: string[];
@@ -15,7 +16,11 @@ export function KeyThemes({ themes }: KeyThemesProps) {
       <Text className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark mb-4">Key Themes</Text>
 
       {!mainTheme ? (
-        <Text className="text-text-secondary-light dark:text-text-secondary-dark text-sm italic">Not enough data</Text>
+        <EmptyState
+          icon="local-florist"
+          title="Themes need a few entries"
+          message="Keep journaling and Rosebud will surface the patterns that repeat."
+        />
       ) : (
         <>
           <Text className="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark mb-4">{mainTheme}</Text>

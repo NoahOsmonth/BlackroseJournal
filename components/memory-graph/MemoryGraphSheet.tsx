@@ -8,7 +8,9 @@ import {
     View,
 } from 'react-native';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, MemoryLayerColors } from '@/constants/theme';
+import { navAwareBottomPadding } from '@/constants/spacing';
 import type { LocalMemoryAtom } from '@/services/memory/memoryGraph.types';
 
 interface SheetProps {
@@ -27,12 +29,14 @@ export function MemoryGraphSheet({
     onSynthesize,
 }: SheetProps) {
     const colorScheme = useColorScheme();
+    const insets = useSafeAreaInsets();
     const iconColor = colorScheme === 'dark' ? Colors.dark.text : Colors.light.text;
 
     return (
         <View
-            className="absolute left-3 right-3 bottom-28 max-h-[48%] rounded-3xl border
+            className="absolute left-3 right-3 max-h-[48%] rounded-3xl border
             border-divider-light dark:border-divider-dark bg-surface-light dark:bg-surface-dark p-4"
+            style={{ bottom: navAwareBottomPadding(insets.bottom) }}
         >
             <View className="mb-3 flex-row items-start justify-between">
                 <View className="flex-1 pr-3">

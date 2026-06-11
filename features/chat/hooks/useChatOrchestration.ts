@@ -11,7 +11,7 @@
  * - Initial prompt context for daily check-in mode
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Keyboard,
     NativeScrollEvent,
@@ -22,7 +22,18 @@ import { InlineTypingInputRef } from '../../../components/InlineTypingInput';
 import { DAILY_PROMPTS, DailyPrompt, PromptPeriod } from '../../../constants/dailyPrompts';
 import { DirectConfigError } from '../../../services/ai/directConfig';
 import { Message, useChat } from '../../../services/ai';
+import { resolveGenerationSettings } from '../../../services/ai/generationSettings';
+import {
+    ChatSessionMode,
+    pruneStaleSessions,
+    removeSession,
+    saveSession,
+} from '../../../services/ai/sessionStorage';
+import { useGenerationSettings } from '../../../hooks/settings/useGenerationSettings';
+import type { ChatFlow, ChatFlowContext } from '../flows/types';
 import { StreamingMessage } from '../types';
+
+const PERSIST_DEBOUNCE_MS = 600;
 
 const getFriendlyErrorMessage = (error: Error): string => {
     if (error instanceof DirectConfigError) {
@@ -54,6 +65,14 @@ const getFriendlyErrorMessage = (error: Error): string => {
 
 export type ChatMode = 'freeform' | 'dailyCheckIn' | 'continue' | 'intention';
 
+/** Describes how a live conversation is autosaved to the session store for crash recovery. */
+export interface ChatPersistOptions {
+    conversationId: string;
+    mode: ChatSessionMode;
+    personaId?: string;
+    routeParams?: Record<string, string>;
+}
+
 export interface UseChatOrchestrationOptions {
     scrollViewRef: React.RefObject<ScrollView | null>;
     inputRef: React.RefObject<InlineTypingInputRef | null>;
@@ -67,6 +86,17 @@ export interface UseChatOrchestrationOptions {
     initialPrompt?: { systemPrompt: string; triggerText: string };
     /** Optional system prompt override for regular sends without starting a chat. */
     systemPrompt?: string;
+    /**
+     * Declarative flow descriptor. When provided, the system prompt is derived
+     * from `flow.buildSystemPrompt(flowContext)` and (if defined) the opener
+     * from `flow.openingMessage(flowContext)`. The string `systemPrompt` option
+     * remains a fallback for incremental migration.
+     */
+    flow?: ChatFlow;
+    /** Inputs consumed by the active `flow`. */
+    flowContext?: ChatFlowContext;
+    /** When provided, the conversation is debounced-autosaved to the session store. */
+    persist?: ChatPersistOptions;
 }
 
 export interface UseChatOrchestrationReturn {
@@ -80,6 +110,8 @@ export interface UseChatOrchestrationReturn {
     clearError: () => void;
     handleNewChat: () => void;
     initializeMessages: (initialMessages: Message[]) => void;
+    /** Removes the autosaved session for the active conversation (call on finish/discard). */
+    clearPersistedSession: () => Promise<void>;
     scrollToBottom: (options?: ScrollToBottomOptions) => void;
     handleScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
     /** The prompt being used for daily check-in, if applicable */
@@ -105,6 +137,9 @@ export function useChatOrchestration({
     conversationId,
     initialPrompt,
     systemPrompt,
+    flow,
+    flowContext,
+    persist,
 }: UseChatOrchestrationOptions): UseChatOrchestrationReturn {
     const [messages, setMessages] = useState<Message[]>([]);
     const [streamingMessage, setStreamingMessage] = useState<StreamingMessage | null>(null);
@@ -119,8 +154,10 @@ export function useChatOrchestration({
         sendInitialMessage,
         setMessages: setChatMessages,
         setConversationId,
+        setGenerationSettings,
         setSystemPrompt,
     } = useChat();
+    const { settings: generationDefaults } = useGenerationSettings();
     const hasInitialized = useRef(false);
 
     // Get current prompt for daily check-in mode
@@ -134,17 +171,88 @@ export function useChatOrchestration({
         }
     }, [conversationId, setConversationId]);
 
-    useEffect(() => {
-        if (initialPrompt?.systemPrompt) {
-            setSystemPrompt(initialPrompt.systemPrompt);
+    // Derive the effective system prompt: a flow descriptor takes precedence,
+    // falling back to the string `systemPrompt` option for incremental migration.
+    const resolvedSystemPrompt = useMemo(() => {
+        if (flow) {
+            return flow.buildSystemPrompt(flowContext ?? {});
         }
-    }, [initialPrompt?.systemPrompt, setSystemPrompt]);
+        return systemPrompt;
+    }, [flow, flowContext, systemPrompt]);
+
+    // Effective initial prompt: when a flow is active and the caller opted into
+    // an opener (via `initialPrompt`), the flow drives the system prompt and —
+    // if it defines one — the opening message, replacing bare trigger text.
+    const effectiveInitialPrompt = useMemo(() => {
+        if (!initialPrompt) return undefined;
+        if (!flow) return initialPrompt;
+        const opener = flow.openingMessage?.(flowContext ?? {});
+        return {
+            systemPrompt: resolvedSystemPrompt ?? initialPrompt.systemPrompt,
+            triggerText: opener ?? initialPrompt.triggerText,
+        };
+    }, [initialPrompt, flow, flowContext, resolvedSystemPrompt]);
 
     useEffect(() => {
-        if (systemPrompt) {
-            setSystemPrompt(systemPrompt);
+        if (effectiveInitialPrompt?.systemPrompt) {
+            setSystemPrompt(effectiveInitialPrompt.systemPrompt);
         }
-    }, [setSystemPrompt, systemPrompt]);
+    }, [effectiveInitialPrompt?.systemPrompt, setSystemPrompt]);
+
+    useEffect(() => {
+        if (resolvedSystemPrompt) {
+            setSystemPrompt(resolvedSystemPrompt);
+        }
+    }, [resolvedSystemPrompt, setSystemPrompt]);
+
+    const effectiveGeneration = useMemo(() => resolveGenerationSettings(
+        generationDefaults,
+        flow?.generationOverride?.(flowContext ?? {}),
+        flowContext?.activePersona?.imagination
+    ), [flow, flowContext, generationDefaults]);
+
+    useEffect(() => {
+        setGenerationSettings(effectiveGeneration);
+    }, [effectiveGeneration, setGenerationSettings]);
+
+    // Keep the latest persist descriptor in a ref so the debounced save reads
+    // current values without re-subscribing on every option change.
+    const persistRef = useRef<ChatPersistOptions | undefined>(persist);
+    persistRef.current = persist;
+
+    // Prune stale/over-cap sessions once when a persistent chat mounts.
+    useEffect(() => {
+        if (!persist) return;
+        void pruneStaleSessions();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Debounced autosave: persist the conversation as it grows so a crash or a
+    // fast unmount loses at most the last message.
+    useEffect(() => {
+        const target = persistRef.current;
+        if (!target || messages.length === 0) return;
+
+        const timer = setTimeout(() => {
+            void saveSession({
+                conversationId: target.conversationId,
+                mode: target.mode,
+                personaId: target.personaId,
+                routeParams: target.routeParams,
+                messages,
+                updatedAt: Date.now(),
+                createdAt: Date.now(),
+            });
+        }, PERSIST_DEBOUNCE_MS);
+
+        return () => clearTimeout(timer);
+    }, [messages, persist?.conversationId, persist?.mode, persist?.personaId]);
+
+    const clearPersistedSession = useCallback(async () => {
+        const id = persistRef.current?.conversationId;
+        if (!id) return;
+        await removeSession(id);
+    }, []);
 
     const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
         shouldAutoScrollRef.current = isNearBottom(event.nativeEvent);
@@ -193,7 +301,7 @@ export function useChatOrchestration({
 
     // Trigger initial AI message for custom prompts
     useEffect(() => {
-        if (!initialPrompt || hasInitialized.current) {
+        if (!effectiveInitialPrompt || hasInitialized.current) {
             return;
         }
 
@@ -203,8 +311,8 @@ export function useChatOrchestration({
         scrollToBottom({ force: true });
 
         sendInitialMessage(
-            initialPrompt.systemPrompt,
-            initialPrompt.triggerText,
+            effectiveInitialPrompt.systemPrompt,
+            effectiveInitialPrompt.triggerText,
             (chunk, reasoning) => {
                 setStreamingMessage(prev => prev ? {
                     ...prev,
@@ -230,14 +338,14 @@ export function useChatOrchestration({
                 setMessages([{
                     id: tempStreamingId,
                     role: 'assistant',
-                    content: initialPrompt.triggerText,
+                    content: effectiveInitialPrompt.triggerText,
                     timestamp: Date.now(),
                 }]);
                 handleAiError(error);
             }
         );
     }, [
-        initialPrompt,
+        effectiveInitialPrompt,
         beginStreaming,
         clearError,
         focusInput,
@@ -426,6 +534,7 @@ export function useChatOrchestration({
         clearError,
         handleNewChat,
         initializeMessages,
+        clearPersistedSession,
         scrollToBottom,
         handleScroll,
         currentPrompt,

@@ -108,9 +108,21 @@ export default function AskRosebudScreen() {
 
                 {/* Entry count indicator */}
                 <View className="px-4 mb-4">
-                    <Text className="text-sm text-text-secondary-light dark:text-text-secondary-dark text-center">
-                        Analyzing {filteredEntries.length} entries
-                    </Text>
+                    <View className="flex-row items-center justify-between gap-3">
+                        <Text className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
+                            Analyzing {filteredEntries.length} entries
+                        </Text>
+                        <Pressable
+                            onPress={() => router.push('/saved-insights')}
+                            accessibilityRole="button"
+                            accessibilityLabel="Open saved insights"
+                            className="rounded-full bg-surface-light px-3 py-2 dark:bg-surface-dark"
+                        >
+                            <Text className="text-xs font-bold text-primary">
+                                Saved insights
+                            </Text>
+                        </Pressable>
+                    </View>
                 </View>
 
                 <ScrollView

@@ -13,6 +13,7 @@ export interface DirectChatRequest {
     messages: { role: string; content: string }[];
     stream?: boolean;
     temperature?: number;
+    top_p?: number;
     max_tokens?: number;
     response_format?: { type: 'json_object' };
 }
@@ -50,6 +51,7 @@ function resolveModel(
     purpose: DirectChatOptions['modelPurpose']
 ): string {
     const defaultModel = resolveDefaultModel(config, purpose);
+    if (config.source === 'custom') return defaultModel;
     if (!payloadModel || payloadModel === 'agent-default') return defaultModel;
     return payloadModel;
 }
@@ -73,6 +75,7 @@ export async function prepareDirectChatRequest(
     const url = buildUrl(config.apiBaseUrl);
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
+        Accept: payload.stream ? 'text/event-stream' : 'application/json',
         Authorization: `Bearer ${config.apiKey}`,
         ...(options.headers ?? {}),
     };
@@ -81,6 +84,7 @@ export async function prepareDirectChatRequest(
         messages: payload.messages,
         stream: payload.stream,
         temperature: payload.temperature,
+        top_p: payload.top_p,
         max_tokens: payload.max_tokens,
         response_format: payload.response_format,
     };

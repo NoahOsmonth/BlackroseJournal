@@ -78,7 +78,7 @@ export function useWeeklyInsights() {
             } catch (cacheError) {
                 console.warn('Failed to cache insights:', cacheError);
             }
-        } catch (err) {
+        } catch {
             setError('Failed to load insights.');
         } finally {
             setIsAiLoading(false);

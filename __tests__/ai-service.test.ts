@@ -5,14 +5,14 @@ jest.mock('../services/ai/directConfig', () => ({
     getDirectConfig: () => ({
         apiKey: 'sk-direct-test-key',
         apiBaseUrl: 'https://nano-gpt.com/api/v1',
-        model: 'moonshotai/kimi-k2.5:thinking',
-        flashModel: 'moonshotai/kimi-k2.5',
+        model: 'nvidia/nemotron-3-ultra-550b-a55b',
+        flashModel: 'nvidia/nemotron-3-ultra-550b-a55b',
     }),
     getResolvedDirectConfig: () => Promise.resolve({
         apiKey: 'sk-direct-test-key',
         apiBaseUrl: 'https://nano-gpt.com/api/v1',
-        model: 'moonshotai/kimi-k2.5:thinking',
-        flashModel: 'moonshotai/kimi-k2.5',
+        model: 'nvidia/nemotron-3-ultra-550b-a55b',
+        flashModel: 'nvidia/nemotron-3-ultra-550b-a55b',
         source: 'env',
     }),
 }));
@@ -270,7 +270,11 @@ describe('ai service fallback parsing', () => {
 
     it('does not send memoryNamespace in chat payloads', async () => {
         fetchMock.mockResolvedValue(
-            new Response('data: [DONE]\n\n', {
+            new Response([
+                'data: {"choices":[{"delta":{"content":"ok"}}]}',
+                'data: [DONE]',
+                '',
+            ].join('\n'), {
                 status: 200,
                 headers: { 'Content-Type': 'text/event-stream' },
             })
@@ -306,7 +310,7 @@ describe('ai service fallback parsing', () => {
         const headers = init.headers as Record<string, string>;
         expect(headers.Authorization).toBe('Bearer sk-direct-test-key');
         const body = JSON.parse(String(init.body)) as Record<string, unknown>;
-        expect(body.model).toBe('moonshotai/kimi-k2.5:thinking');
+        expect(body.model).toBe('nvidia/nemotron-3-ultra-550b-a55b');
     });
 
     it('surfaces a friendly error when NanoGPT returns 401', async () => {

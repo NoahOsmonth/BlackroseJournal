@@ -1,5 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
 export type ContextWindowSource = 'api' | 'known' | 'fallback';
 
 export interface CustomAiModel {
@@ -60,9 +58,24 @@ const NESTED_CONTEXT_PATHS = [
     ['model_info', 'context_length'],
     ['top_provider', 'context_length'],
 ];
-const KNOWN_CONTEXT_WINDOWS: Record<string, number> = {};
+const KNOWN_CONTEXT_WINDOWS: Record<string, number> = {
+    'nvidia/nemotron-3-ultra-550b-a55b': 1_000_000,
+    'moonshotai/kimi-k2.5:thinking': 128_000,
+    'moonshotai/kimi-k2.5': 128_000,
+};
 
-let storageAdapter: StorageAdapter = AsyncStorage;
+async function getAsyncStorage(): Promise<StorageAdapter> {
+    const module = await import('@react-native-async-storage/async-storage');
+    return module.default;
+}
+
+const asyncStorageAdapter: StorageAdapter = {
+    getItem: async (key) => (await getAsyncStorage()).getItem(key),
+    setItem: async (key, value) => (await getAsyncStorage()).setItem(key, value),
+    removeItem: async (key) => (await getAsyncStorage()).removeItem(key),
+};
+
+let storageAdapter: StorageAdapter = asyncStorageAdapter;
 
 export class CustomModelSettingsError extends Error {
     constructor(message: string) {
@@ -76,7 +89,7 @@ export function setCustomModelStorageAdapter(adapter: StorageAdapter): void {
 }
 
 export function resetCustomModelStorageAdapter(): void {
-    storageAdapter = AsyncStorage;
+    storageAdapter = asyncStorageAdapter;
 }
 
 export function getDefaultCustomAiProviderSettings(): CustomAiProviderSettings {
@@ -143,7 +156,7 @@ function readNested(record: ModelRecord, path: readonly string[]): unknown {
     ), record);
 }
 
-function readContextFromApi(record: ModelRecord): number | undefined {
+export function readContextFromApi(record: ModelRecord): number | undefined {
     for (const key of CONTEXT_KEYS) {
         const value = toPositiveInteger(record[key]);
         if (value) return value;
@@ -157,7 +170,7 @@ function readContextFromApi(record: ModelRecord): number | undefined {
     return undefined;
 }
 
-function knownContextWindow(modelId: string): number | undefined {
+export function getKnownContextWindow(modelId: string): number | undefined {
     const normalized = modelId.toLowerCase();
     return KNOWN_CONTEXT_WINDOWS[normalized];
 }
@@ -168,7 +181,7 @@ function buildModel(record: unknown, fallbackContextWindow: number): CustomAiMod
     }
 
     const apiContext = readContextFromApi(record);
-    const knownContext = knownContextWindow(record.id);
+    const knownContext = getKnownContextWindow(record.id);
     const contextWindow = apiContext ?? knownContext ?? fallbackContextWindow;
     const source: ContextWindowSource = apiContext
         ? 'api'

@@ -81,6 +81,19 @@ describe('openaiCompat adapter — wire shape', () => {
         expect(body).not.toHaveProperty('reasoning_effort');
     });
 
+    it('1b. forwards topP as top_p when provided', async () => {
+        const fetchMock = jest.fn().mockResolvedValue(
+            mockJsonResponse(200, { choices: [{ message: { content: 'ok' } }] })
+        );
+        global.fetch = fetchMock as unknown as typeof fetch;
+
+        await openaiCompatChat({ ...BASE_REQ, topP: 0.65 }, PROFILE);
+
+        const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+        const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+        expect(body.top_p).toBe(0.65);
+    });
+
     it('2. sets Authorization: Bearer <key> on every call', async () => {
         const fetchMock = jest.fn().mockResolvedValue(
             mockJsonResponse(200, { choices: [{ message: { content: 'ok' } }] })

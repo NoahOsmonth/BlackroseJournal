@@ -31,6 +31,7 @@ async function buildChatPayload(request: ChatCompletionRequest): Promise<{ messa
     ],
     options: {
       temperature: request.temperature,
+      topP: request.top_p,
       maxTokens: request.max_tokens,
       model: modelOverride,
     },

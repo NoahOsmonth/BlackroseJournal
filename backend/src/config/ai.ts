@@ -27,8 +27,8 @@ const ENV_MODEL = 'AI_DEFAULT_MODEL';
 const ENV_FLASH_MODEL = 'AI_DEFAULT_FLASH_MODEL';
 
 const DEFAULT_API_BASE_URL = 'https://nano-gpt.com/api/v1';
-const DEFAULT_MODEL = 'moonshotai/kimi-k2.5:thinking';
-const DEFAULT_FLASH_MODEL = 'moonshotai/kimi-k2.5';
+const DEFAULT_MODEL = 'nvidia/nemotron-3-ultra-550b-a55b';
+const DEFAULT_FLASH_MODEL = 'nvidia/nemotron-3-ultra-550b-a55b';
 
 const FIELDS: readonly (readonly [keyof AiConfigInput, string])[] = [
   ['apiKey', ENV_API_KEY],

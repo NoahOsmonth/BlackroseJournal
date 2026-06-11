@@ -3,8 +3,7 @@ import path from "path";
 describe("babel config", () => {
     it("uses NativeWind JSX runtime and plugins", () => {
         const babelConfigPath = path.join(process.cwd(), "babel.config.js");
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const buildConfig = require(babelConfigPath) as (
+        const buildConfig = jest.requireActual(babelConfigPath) as (
             api: { cache: (value: boolean) => void }
         ) => {
             presets?: unknown[];

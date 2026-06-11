@@ -35,4 +35,11 @@ describe('HistoryWeekSummary', () => {
         expect(screen.getByText('Check-ins')).toBeTruthy();
         expect(screen.getByText('Career / Rest')).toBeTruthy();
     });
+
+    it('uses actionable signal copy instead of a hardcoded mood fallback', () => {
+        render(<HistoryWeekSummary summary={{ ...summary, topSignals: [] }} />);
+
+        expect(screen.getByText('Write more this week to reveal signals')).toBeTruthy();
+        expect(screen.queryByText('quiet, reflective, open')).toBeNull();
+    });
 });

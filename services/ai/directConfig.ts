@@ -8,8 +8,8 @@
  * Env vars (all read at call time, not at module load):
  *   EXPO_PUBLIC_NANO_GPT_API_KEY       (required; stored locally for device builds)
  *   EXPO_PUBLIC_NANO_GPT_API_BASE_URL  (optional; defaults to https://nano-gpt.com/api/v1)
- *   EXPO_PUBLIC_NANO_GPT_MODEL         (optional; defaults to moonshotai/kimi-k2.5:thinking)
- *   EXPO_PUBLIC_NANO_GPT_FLASH_MODEL   (optional; defaults to moonshotai/kimi-k2.5)
+ *   EXPO_PUBLIC_NANO_GPT_MODEL         (optional; defaults to nvidia/nemotron-3-ultra-550b-a55b)
+ *   EXPO_PUBLIC_NANO_GPT_FLASH_MODEL   (optional; defaults to nvidia/nemotron-3-ultra-550b-a55b)
  */
 
 import { getActiveCustomModelConfig, type ContextWindowSource } from './customModels';
@@ -28,8 +28,8 @@ export interface ResolvedDirectConfig extends DirectConfig {
 }
 
 const DEFAULT_API_BASE_URL = 'https://nano-gpt.com/api/v1';
-const DEFAULT_MODEL = 'moonshotai/kimi-k2.5:thinking';
-const DEFAULT_FLASH_MODEL = 'moonshotai/kimi-k2.5';
+const DEFAULT_MODEL = 'nvidia/nemotron-3-ultra-550b-a55b';
+const DEFAULT_FLASH_MODEL = 'nvidia/nemotron-3-ultra-550b-a55b';
 const PLACEHOLDER_API_KEY = 'YOUR_NANO_GPT_API_KEY';
 
 export class DirectConfigError extends Error {

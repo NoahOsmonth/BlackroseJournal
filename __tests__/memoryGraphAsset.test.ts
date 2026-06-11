@@ -33,7 +33,11 @@ describe('memory graph asset integration', () => {
         expect(webView).toContain('@/assets/memory-graph/engine.html');
         expect(webBridge).toContain('iframe');
         expect(webBridge).toContain('@/assets/memory-graph/engine.html');
+        expect(webView).toContain("expo-file-system/legacy");
+        expect(webView).toContain('FileSystem.readAsStringAsync');
+        expect(webView).toContain('source={{ html: engineHtml');
         expect(webView).not.toContain('example-design');
+        expect(webView).not.toContain('source={engineUri ? { uri: engineUri }');
         expect(webBridge).not.toContain('example-design');
     });
 });

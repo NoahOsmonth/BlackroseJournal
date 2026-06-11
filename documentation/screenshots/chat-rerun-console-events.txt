@@ -1,0 +1,9 @@
+info: %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+log: Running application "main" with appParams:
+ {rootTag: #root, hydrate: undefined} 
+Development-level warnings: ON.
+Performance optimizations: OFF.
+warning: Require cycle: services/ai/ai.ts -> services/ai/useChat.ts -> services/ai/ai.ts
+
+Require cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle.
+info: [workers] Background tasks not available on this platform.

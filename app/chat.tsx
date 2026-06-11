@@ -1,18 +1,18 @@
 /**
  * Chat Screen
- * 
+ *
  * Main chat screen for journaling - thin route component that composes UI and invokes hooks.
  * All state orchestration is delegated to useChatOrchestration hook.
- * 
+ *
  * Supports two modes:
  * - freeform: User-initiated chat (default)
  * - dailyCheckIn: Prompted check-in with AI greeting
  */
 
 import { PromptPeriod } from '@/constants/dailyPrompts';
-import { THERAPIST_SYSTEM_PROMPT } from '@/constants/aiPrompts';
 import { useAiFeedback } from '@/hooks/feedback/useAiFeedback';
 import { useLocalMemoryContext } from '@/hooks/memory/useLocalMemoryContext';
+import { usePersonas } from '@/hooks/personas/usePersonas';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
@@ -21,8 +21,9 @@ import { ChatMessage } from '../components/ChatMessage';
 import { FooterActions } from '../components/FooterActions';
 import { Header } from '../components/Header';
 import { InlineTypingInput, InlineTypingInputRef } from '../components/InlineTypingInput';
+import { ChatPersonaSheet } from '../components/personas/ChatPersonaSheet';
 import { TypingIndicator } from '../components/ui/TypingIndicator';
-import { ChatMode, useChatOrchestration } from '../features/chat';
+import { ChatMode, FLOWS, useChatOrchestration, useChatSessionFlush, useResumeChatSession } from '../features/chat';
 import { generateTitle, hasContent, inferMoodEmoji } from '../hooks/useEntryUtils';
 import { useJournalEntries } from '../hooks/useJournalEntries';
 import { generateEntryAnalysis, generateEntryTitle } from '../services/ai';
@@ -36,6 +37,7 @@ type ChatParams = {
     mode?: string;
     promptPeriod?: string;
     entryId?: string;
+    resume?: string;
 };
 
 export default function ChatScreen() {
@@ -47,11 +49,14 @@ export default function ChatScreen() {
     const [inputValue, setInputValue] = useState('');
     const [continuedEntry, setContinuedEntry] = useState<JournalEntry | null>(null);
     const [readOnlyMessageCount, setReadOnlyMessageCount] = useState(0);
+    const [personaSheetOpen, setPersonaSheetOpen] = useState(false);
     const { create, update, getById } = useJournalEntries();
+    const { personas, activePersona, setActive } = usePersonas();
 
     const entryId = Array.isArray(params.entryId)
         ? params.entryId[0]
         : params.entryId;
+    const resumeId = Array.isArray(params.resume) ? params.resume[0] : params.resume;
     const modeParam = Array.isArray(params.mode) ? params.mode[0] : params.mode;
     const promptPeriod = Array.isArray(params.promptPeriod)
         ? params.promptPeriod[0]
@@ -59,24 +64,33 @@ export default function ChatScreen() {
     const resolvedMode: ChatMode = modeParam === 'dailyCheckIn' || modeParam === 'continue'
         ? modeParam
         : 'freeform';
+    // Resume keeps the original conversationId so backend long-term memory re-links;
+    // otherwise reuse the entry id, or mint a fresh stable id for this session.
     const conversationId = useMemo(
-        () => entryId ?? `chat_${Date.now()}`,
-        [entryId]
+        () => resumeId ?? entryId ?? `chat_${Date.now()}`,
+        [resumeId, entryId]
     );
     const { guidance: feedbackGuidance } = useAiFeedback({
         scope: 'journal',
+        personaId: activePersona?.id,
         conversationId,
     });
     const { context: localMemoryContext } = useLocalMemoryContext({
         query: continuedEntry?.title,
     });
-    const systemPrompt = useMemo(
-        () => [
-            THERAPIST_SYSTEM_PROMPT,
-            localMemoryContext,
-            feedbackGuidance,
-        ].filter(Boolean).join('\n\n'),
-        [feedbackGuidance, localMemoryContext]
+    const flow = resolvedMode === 'continue' ? FLOWS.continue : FLOWS.freeform;
+    const flowContext = useMemo(
+        () => ({ activePersona, localMemoryContext, feedbackGuidance }),
+        [activePersona, localMemoryContext, feedbackGuidance]
+    );
+
+    const persist = useMemo(
+        () => ({
+            conversationId,
+            mode: (resolvedMode === 'continue' ? 'continue' : 'freeform') as 'continue' | 'freeform',
+            routeParams: entryId ? { entryId } : undefined,
+        }),
+        [conversationId, resolvedMode, entryId]
     );
 
     const {
@@ -90,6 +104,7 @@ export default function ChatScreen() {
         clearError,
         handleNewChat,
         initializeMessages,
+        clearPersistedSession,
         scrollToBottom,
         handleScroll,
     } = useChatOrchestration({
@@ -98,8 +113,24 @@ export default function ChatScreen() {
         mode: resolvedMode,
         promptPeriod: promptPeriod as PromptPeriod,
         conversationId,
-        systemPrompt,
+        flow,
+        flowContext,
+        persist,
     });
+
+    // Flush the live conversation to the session store on blur/unmount, as a
+    // backup to the debounced autosave inside the hook. finalize() suppresses
+    // further flushes once the conversation is finished or explicitly closed.
+    const { finalize } = useChatSessionFlush({
+        conversationId,
+        mode: resolvedMode === 'continue' ? 'continue' : 'freeform',
+        messages,
+        routeParams: entryId ? { entryId } : undefined,
+    });
+
+    // Resume an autosaved session: restore its messages (conversationId already
+    // matches via the resume param).
+    useResumeChatSession({ resumeId, initializeMessages });
 
     useEffect(() => {
         let isActive = true;
@@ -138,6 +169,7 @@ export default function ChatScreen() {
     }, [handleNewChat]);
 
     const handleClose = useCallback(async () => {
+        finalize();
         // Save as draft if there's content
         if (hasContent(messages)) {
             try {
@@ -164,14 +196,18 @@ export default function ChatScreen() {
             }
         }
 
+        // The conversation now lives as an explicit draft — drop the autosave session.
+        await clearPersistedSession();
+
         // Clear chat and navigate back to entries
         resetChatState();
         router.replace('/(tabs)/entries');
-    }, [messages, resetChatState, router, create, update, entryId, continuedEntry]);
+    }, [messages, resetChatState, router, create, update, entryId, continuedEntry, clearPersistedSession, finalize]);
 
     const handleFinishEntry = useCallback(async () => {
         if (!hasContent(messages) || isSaving) return;
 
+        finalize();
         setIsSaving(true);
         try {
             const entryText = messages
@@ -222,6 +258,9 @@ export default function ChatScreen() {
                 await saveJournalEntryMemories(savedEntry);
             }
 
+            // Completed work must not linger as an active session.
+            await clearPersistedSession();
+
             // Clear chat and navigate to post-finish reflection
             handleNewChat();
             if (savedEntryId) {
@@ -234,7 +273,7 @@ export default function ChatScreen() {
         } finally {
             setIsSaving(false);
         }
-    }, [messages, isSaving, router, create, update, entryId, handleNewChat]);
+    }, [messages, isSaving, router, create, update, entryId, handleNewChat, clearPersistedSession, finalize]);
 
     const canFinish = hasContent(messages) && !isLoading && !isSaving;
     const trimmedInput = inputValue.trim();
@@ -249,9 +288,13 @@ export default function ChatScreen() {
     }, [trimmedInput, isLoading, handleSendMessage]);
 
     return (
-        <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
+        <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top', 'bottom']}>
             <View className="flex-1 max-w-md mx-auto w-full bg-background-light dark:bg-background-dark">
-                <Header onClose={handleClose} />
+                <Header
+                    onClose={personaSheetOpen ? () => setPersonaSheetOpen(false) : handleClose}
+                    personaName={activePersona?.name ?? 'Rosebud'}
+                    onPersonaPress={() => setPersonaSheetOpen(true)}
+                />
 
                 <ScrollView
                     ref={scrollViewRef}
@@ -346,18 +389,27 @@ export default function ChatScreen() {
                                 placeholder="Type your thoughts..."
                             />
                         )}
-
-                        <View className="pt-4">
-                            <FooterActions
-                                onGoDeeper={handleGoDeeper}
-                                onFinishEntry={handleFinishEntry}
-                                disabled={isLoading || isSaving}
-                                canGoDeeper={canGoDeeper}
-                                canFinish={canFinish}
-                            />
-                        </View>
                     </View>
                 </ScrollView>
+
+                {/* Pinned action footer — kept outside the ScrollView so it never overlaps the last message */}
+                <View className="px-6 pt-3 pb-1 border-t border-divider-light dark:border-divider-dark">
+                    <FooterActions
+                        onGoDeeper={handleGoDeeper}
+                        onFinishEntry={handleFinishEntry}
+                        disabled={isLoading || isSaving}
+                        canGoDeeper={canGoDeeper}
+                        canFinish={canFinish}
+                    />
+                </View>
+
+                <ChatPersonaSheet
+                    visible={personaSheetOpen}
+                    personas={personas}
+                    activePersona={activePersona}
+                    onClose={() => setPersonaSheetOpen(false)}
+                    onSelect={setActive}
+                />
             </View>
         </SafeAreaView>
     );

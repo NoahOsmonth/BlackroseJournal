@@ -9,6 +9,15 @@ import {
     fetchDirectChatCompletion,
     prepareDirectChatRequest,
 } from '../../../services/ai/directTransport';
+import { getResolvedDirectConfig } from '../../../services/ai/directConfig';
+
+const TEST_ENV_RESOLVED_CONFIG = {
+    apiKey: 'sk-direct-test-key',
+    apiBaseUrl: 'https://nano-gpt.com/api/v1',
+    model: 'moonshotai/kimi-k2.5:thinking',
+    flashModel: 'moonshotai/kimi-k2.5',
+    source: 'env',
+} as const;
 
 jest.mock('../../../services/ai/directConfig', () => ({
     getDirectConfig: () => ({
@@ -17,13 +26,13 @@ jest.mock('../../../services/ai/directConfig', () => ({
         model: 'moonshotai/kimi-k2.5:thinking',
         flashModel: 'moonshotai/kimi-k2.5',
     }),
-    getResolvedDirectConfig: () => Promise.resolve({
+    getResolvedDirectConfig: jest.fn(() => Promise.resolve({
         apiKey: 'sk-direct-test-key',
         apiBaseUrl: 'https://nano-gpt.com/api/v1',
         model: 'moonshotai/kimi-k2.5:thinking',
         flashModel: 'moonshotai/kimi-k2.5',
         source: 'env',
-    }),
+    })),
 }));
 
 const BASE_PAYLOAD = {
@@ -39,6 +48,7 @@ describe('directTransport — fetchDirectChatCompletion', () => {
     beforeEach(() => {
         fetchMock = jest.fn();
         global.fetch = fetchMock as unknown as typeof fetch;
+        jest.mocked(getResolvedDirectConfig).mockResolvedValue(TEST_ENV_RESOLVED_CONFIG);
     });
 
     afterEach(() => {
@@ -88,6 +98,7 @@ describe('directTransport — fetchDirectChatCompletion', () => {
         const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
         const headers = init.headers as Record<string, string>;
         expect(headers['Content-Type']).toBe('application/json');
+        expect(headers.Accept).toBe('application/json');
         expect(typeof init.body).toBe('string');
         expect(JSON.parse(String(init.body))).toEqual(BASE_PAYLOAD);
     });
@@ -118,5 +129,50 @@ describe('directTransport — fetchDirectChatCompletion', () => {
         }, { modelPurpose: 'flash' });
 
         expect(request.body.model).toBe('moonshotai/kimi-k2.5');
+    });
+
+    it('8. asks for event-stream responses when streaming', async () => {
+        const request = await prepareDirectChatRequest({
+            ...BASE_PAYLOAD,
+            stream: true,
+        });
+
+        expect(request.headers.Accept).toBe('text/event-stream');
+    });
+
+    it('9. forwards top_p in the OpenAI-compatible request body', async () => {
+        const request = await prepareDirectChatRequest({
+            ...BASE_PAYLOAD,
+            temperature: 0.4,
+            top_p: 0.65,
+            max_tokens: 2048,
+        });
+
+        expect(request.body).toMatchObject({
+            temperature: 0.4,
+            top_p: 0.65,
+            max_tokens: 2048,
+        });
+    });
+
+    it('10. always uses the selected custom provider model when custom config is enabled', async () => {
+        jest.mocked(getResolvedDirectConfig).mockResolvedValue({
+            apiKey: 'sk-custom-test-key',
+            apiBaseUrl: 'https://openrouter.ai/api/v1',
+            model: 'openai/gpt-4o',
+            flashModel: 'openai/gpt-4o',
+            source: 'custom',
+            contextWindow: 128000,
+            contextWindowSource: 'fallback',
+        });
+
+        const request = await prepareDirectChatRequest({
+            ...BASE_PAYLOAD,
+            model: 'moonshotai/kimi-k2.5:thinking',
+        });
+
+        expect(request.url).toBe('https://openrouter.ai/api/v1/chat/completions');
+        expect(request.headers.Authorization).toBe('Bearer sk-custom-test-key');
+        expect(request.body.model).toBe('openai/gpt-4o');
     });
 });

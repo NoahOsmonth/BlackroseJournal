@@ -11,12 +11,12 @@ import {
 } from 'phosphor-react-native';
 import { IntentionArea } from '@/services/intentions/intentionsStorage.types';
 
-export const INTENTION_AREAS: Array<{
+export const INTENTION_AREAS: {
     id: IntentionArea;
     label: string;
     icon: typeof Heart;
     color: string;
-}> = [
+}[] = [
     { id: 'wellbeing', label: 'Wellbeing', icon: Heart, color: '#F472B6' },
     { id: 'career', label: 'Career', icon: Briefcase, color: '#D97706' },
     { id: 'finances', label: 'Finances', icon: Money, color: '#10B981' },

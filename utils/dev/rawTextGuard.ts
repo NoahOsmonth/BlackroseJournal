@@ -12,6 +12,11 @@ const VIEW_COMPONENTS = new Set([
 
 let isInstalled = false;
 const warned = new Set<string>();
+type CreateElementShim = (
+    type: unknown,
+    props: unknown,
+    ...children: React.ReactNode[]
+) => React.ReactElement;
 
 function getTypeName(type: unknown): string {
     if (typeof type === 'string') {
@@ -19,7 +24,8 @@ function getTypeName(type: unknown): string {
     }
 
     if (typeof type === 'function') {
-        return type.displayName || type.name || '';
+        const namedType = type as { displayName?: string; name?: string };
+        return namedType.displayName || namedType.name || '';
     }
 
     if (typeof type === 'object' && type) {
@@ -53,7 +59,8 @@ function findRawText(children: React.ReactNode, parentIsText: boolean): string |
             const typeName = getTypeName(child.type);
             const nextIsText = isTextContext(typeName, parentIsText);
             if (!nextIsText) {
-                const nested = findRawText(child.props?.children, nextIsText);
+                const props = child.props as { children?: React.ReactNode } | undefined;
+                const nested = findRawText(props?.children, nextIsText);
                 if (nested) {
                     return nested;
                 }
@@ -78,10 +85,12 @@ export function installRawTextGuard(): void {
     }
 
     isInstalled = true;
-    const originalCreateElement = React.createElement;
+    const originalCreateElement = React.createElement as unknown as CreateElementShim;
+    const reactWithMutableCreateElement = React as unknown as {
+        createElement: CreateElementShim;
+    };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (React as any).createElement = (type: any, props: any, ...children: any[]) => {
+    reactWithMutableCreateElement.createElement = (type, props, ...children) => {
         const typeName = getTypeName(type);
         if (VIEW_COMPONENTS.has(typeName)) {
             const rawText = findRawText(children, false);

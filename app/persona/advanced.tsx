@@ -12,28 +12,18 @@ import {
 } from '@/services/personas/personaDraftSettings';
 import { ImaginationSlider } from '@/components/personas/ImaginationSlider';
 import { ModelPickerModal } from '@/components/personas/ModelPickerModal';
-
-const MODELS = [
-    'moonshotai/kimi-k2.5:thinking',
-    'moonshotai/kimi-k2.5',
-] as const;
-const MODEL_LABELS: Record<(typeof MODELS)[number], string> = {
-    'moonshotai/kimi-k2.5:thinking': 'Kimi K2.5 Thinking',
-    'moonshotai/kimi-k2.5': 'Kimi K2.5',
-};
-const MODEL_OPTIONS = MODELS.map((id) => ({ id, label: MODEL_LABELS[id] }));
+import {
+    PERSONA_MODELS,
+    PERSONA_MODEL_LABELS as MODEL_LABELS,
+    PERSONA_MODEL_OPTIONS as MODEL_OPTIONS,
+    PersonaModelId,
+    resolvePersonaModel as resolveModel,
+} from '@/constants/aiModels';
 
 function getImaginationLabel(value: number): string {
     if (value <= 33) return 'Consistent';
     if (value <= 66) return 'Balanced';
     return 'Creative';
-}
-
-function resolveModel(value?: string): (typeof MODELS)[number] {
-    if (value && MODELS.includes(value as (typeof MODELS)[number])) {
-        return value as (typeof MODELS)[number];
-    }
-    return MODELS[0];
 }
 
 export default function PersonaAdvancedScreen() {
@@ -43,7 +33,7 @@ export default function PersonaAdvancedScreen() {
     const params = useLocalSearchParams<{ personaId?: string }>();
     const personaId = Array.isArray(params.personaId) ? params.personaId[0] : params.personaId;
 
-    const [model, setModel] = useState<(typeof MODELS)[number]>(MODELS[0]);
+    const [model, setModel] = useState<PersonaModelId>(PERSONA_MODELS[0]);
     const [imagination, setImagination] = useState(25);
     const [showModelPicker, setShowModelPicker] = useState(false);
 
@@ -83,7 +73,7 @@ export default function PersonaAdvancedScreen() {
         router.back();
     };
 
-    const handleSelectModel = (nextModel: (typeof MODELS)[number]) => {
+    const handleSelectModel = (nextModel: PersonaModelId) => {
         setModel(nextModel);
         setShowModelPicker(false);
     };
@@ -150,7 +140,7 @@ export default function PersonaAdvancedScreen() {
                 visible={showModelPicker}
                 options={MODEL_OPTIONS}
                 selectedId={model}
-                onSelect={(id) => handleSelectModel(id as (typeof MODELS)[number])}
+                onSelect={(id) => handleSelectModel(id as PersonaModelId)}
                 onClose={() => setShowModelPicker(false)}
             />
         </SafeAreaView>

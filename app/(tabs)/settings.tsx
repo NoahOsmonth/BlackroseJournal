@@ -1,38 +1,46 @@
 import React, { useState } from 'react';
-import { Alert, ScrollView, Share, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, ScrollView, Share, Text } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
 import { BottomNav } from '@/components/journal';
+import { ScreenContainer } from '@/components/ui/ScreenContainer';
+import { APP_ABOUT_COPY, APP_PRIVACY_COPY } from '@/constants/appInfo';
+import { navAwareBottomPadding } from '@/constants/spacing';
 import {
     AboutSettingsSection,
     AccountSettingsSection,
     AppearanceSettingsSection,
     CustomModelSettingsSection,
     DataManagementSection,
+    GenerationSettingsSection,
     MemorySettingsSection,
 } from '@/components/settings';
 import { useAuthSession } from '@/hooks/auth/useAuthSession';
 import { useLocalBackups } from '@/hooks/backup/useLocalBackups';
 import { useLocalMemories } from '@/hooks/memory/useLocalMemories';
 import { useCustomAiModels } from '@/hooks/settings/useCustomAiModels';
+import { useGenerationSettings } from '@/hooks/settings/useGenerationSettings';
+import { useTabNavigation } from '@/hooks/navigation/useTabNavigation';
 import { useThemeSettings } from '@/hooks/useThemeSettings';
 import { signOut } from '@/services/auth/authService';
 import { clearAllEntries, getAllEntriesForExport } from '@/services/journalStorage';
 
 export default function SettingsScreen() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const { theme, setTheme, emojiStyle, setEmojiStyle } = useThemeSettings();
     const { user, isLoading: isAuthLoading } = useAuthSession();
     const { latestBackup, isBusy, createBackup, restoreBackup } = useLocalBackups();
     const memory = useLocalMemories();
     const customAi = useCustomAiModels();
+    const generation = useGenerationSettings();
+    const { goToTab } = useTabNavigation();
     const [isSigningOut, setIsSigningOut] = useState(false);
-    const [memoryNote, setMemoryNote] = useState('');
 
     const handleTabPress = (tab: 'today' | 'explore' | 'entries' | 'settings' | 'insights') => {
         if (tab !== 'settings') {
-            router.push(`/(tabs)/${tab}`);
+            goToTab(tab);
         }
     };
 
@@ -115,48 +123,6 @@ export default function SettingsScreen() {
         );
     };
 
-    const handleSaveMemoryNote = async () => {
-        try {
-            await memory.addNote(memoryNote);
-            setMemoryNote('');
-            Alert.alert('Memory note saved', 'Rosebud can use this note in future journal chats.');
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Failed to save memory note.';
-            Alert.alert('Error', message);
-        }
-    };
-
-    const handleSaveGeneratedMemoryNote = async () => {
-        try {
-            await memory.addGeneratedNote();
-            Alert.alert('Memory note saved', 'Generated memory note saved for future chats.');
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Failed to save memory note.';
-            Alert.alert('Error', message);
-        }
-    };
-
-    const clearLocalMemory = async () => {
-        try {
-            await memory.clearAll();
-            Alert.alert('Memory cleared', 'Local AI memory has been cleared from this device.');
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Failed to clear memory.';
-            Alert.alert('Error', message);
-        }
-    };
-
-    const handleClearLocalMemory = () => {
-        Alert.alert(
-            'Clear local memory',
-            'Delete Rosebud local AI memories from this device?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Clear', style: 'destructive', onPress: clearLocalMemory },
-            ]
-        );
-    };
-
     const handleSignOut = async () => {
         if (isSigningOut) {
             return;
@@ -175,9 +141,11 @@ export default function SettingsScreen() {
     };
 
     return (
-        <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
-            <View className="flex-1 max-w-md mx-auto w-full relative">
-                <ScrollView className="flex-1 px-4 pt-6 pb-24">
+        <ScreenContainer edges="top" className="relative">
+                <ScrollView
+                    className="flex-1 px-4 pt-6"
+                    contentContainerStyle={{ paddingBottom: navAwareBottomPadding(insets.bottom) }}
+                >
                     <Text className="text-3xl font-serif font-bold text-text-light dark:text-text-dark mb-8">
                         Settings
                     </Text>
@@ -188,6 +156,7 @@ export default function SettingsScreen() {
                         onThemeChange={setTheme}
                         onEmojiStyleChange={setEmojiStyle}
                     />
+                    <GenerationSettingsSection {...generation} />
                     <CustomModelSettingsSection {...customAi} />
                     <DataManagementSection
                         latestBackup={latestBackup}
@@ -199,14 +168,8 @@ export default function SettingsScreen() {
                     />
                     <MemorySettingsSection
                         atoms={memory.atoms}
-                        noteText={memoryNote}
-                        generatedNote={memory.generatedNote}
                         isBusy={memory.isLoading}
-                        onNoteTextChange={setMemoryNote}
-                        onSaveNote={handleSaveMemoryNote}
-                        onSaveGeneratedNote={handleSaveGeneratedMemoryNote}
-                        onRefreshGeneratedNote={memory.refreshGeneratedNote}
-                        onClearMemory={handleClearLocalMemory}
+                        onOpenMemoryHub={() => goToTab('explore')}
                     />
                     <AccountSettingsSection
                         email={user?.email ?? null}
@@ -220,11 +183,11 @@ export default function SettingsScreen() {
                     <AboutSettingsSection
                         onAboutPress={() => Alert.alert(
                             'About',
-                            'Journal App v1.0.0\n\nYour personal AI-powered journaling companion.'
+                            APP_ABOUT_COPY
                         )}
                         onPrivacyPress={() => Alert.alert(
                             'Privacy Policy',
-                            'Core journal data is stored locally on your device by default.'
+                            APP_PRIVACY_COPY
                         )}
                     />
                 </ScrollView>
@@ -234,7 +197,6 @@ export default function SettingsScreen() {
                     onTabPress={handleTabPress}
                     onFabPress={() => router.push('/chat')}
                 />
-            </View>
-        </SafeAreaView>
+        </ScreenContainer>
     );
 }

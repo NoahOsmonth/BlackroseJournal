@@ -20,9 +20,16 @@ const LAYERS: MemoryLayer[] = [
 export function MemoryGraphFilters({ activeLayers, onToggle }: FilterProps) {
     return (
         <ScrollView
+            testID="memory-layer-filters"
             horizontal
-            className="max-h-14 border-b border-divider-light dark:border-divider-dark"
-            contentContainerStyle={{ gap: 8, paddingHorizontal: 20, paddingVertical: 12 }}
+            className="border-b border-divider-light dark:border-divider-dark"
+            contentContainerStyle={{
+                alignItems: 'center',
+                gap: 8,
+                minHeight: 60,
+                paddingHorizontal: 20,
+                paddingVertical: 10,
+            }}
             showsHorizontalScrollIndicator={false}
         >
             {LAYERS.map((layer) => {
@@ -31,10 +38,11 @@ export function MemoryGraphFilters({ activeLayers, onToggle }: FilterProps) {
                 return (
                     <Pressable
                         key={layer}
+                        testID={`memory-layer-filter-${layer}`}
                         accessibilityLabel={`Toggle ${layer} memories`}
                         accessibilityRole="button"
                         accessibilityState={{ selected: isActive }}
-                        className={`flex-row items-center rounded-full border px-3 py-2 ${
+                        className={`min-h-9 flex-row items-center rounded-full border px-3 py-2 ${
                             isActive
                                 ? 'border-divider-dark bg-background-dark dark:bg-surface-dark'
                                 : 'border-divider-light dark:border-divider-dark'
@@ -46,11 +54,13 @@ export function MemoryGraphFilters({ activeLayers, onToggle }: FilterProps) {
                             style={{ backgroundColor: MemoryLayerColors[layer] }}
                         />
                         <Text
+                            numberOfLines={1}
                             className={`text-xs font-semibold capitalize ${
                                 isActive
                                     ? 'text-text-dark dark:text-text-dark'
                                     : 'text-text-secondary-light dark:text-text-secondary-dark'
                             }`}
+                            style={{ lineHeight: 16 }}
                         >
                             {layer}
                         </Text>

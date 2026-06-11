@@ -31,37 +31,22 @@ const atoms: LocalMemoryAtom[] = [{
 }];
 
 describe('MemorySettingsSection', () => {
-    it('renders memory metrics and handles note actions', () => {
-        const onNoteTextChange = jest.fn();
-        const onSaveNote = jest.fn();
-        const onSaveGeneratedNote = jest.fn();
-        const onRefreshGeneratedNote = jest.fn();
-        const onClearMemory = jest.fn();
+    it('renders memory metrics and opens the Memory hub', () => {
+        const onOpenMemoryHub = jest.fn();
 
         render(
             <MemorySettingsSection
                 atoms={atoms}
-                noteText="Keep evenings gentle"
-                generatedNote="Remember for Rosebud chats: quieter evenings help."
                 isBusy={false}
-                onNoteTextChange={onNoteTextChange}
-                onSaveNote={onSaveNote}
-                onSaveGeneratedNote={onSaveGeneratedNote}
-                onRefreshGeneratedNote={onRefreshGeneratedNote}
-                onClearMemory={onClearMemory}
+                onOpenMemoryHub={onOpenMemoryHub}
             />
         );
 
-        fireEvent.changeText(screen.getByLabelText('Memory note'), 'Pin sleep gently');
-        fireEvent.press(screen.getByText('Save generated note'));
-        fireEvent.press(screen.getByText('Save note'));
-        fireEvent.press(screen.getByText('Clear'));
+        fireEvent.press(screen.getByLabelText('Open Memory hub'));
 
         expect(screen.getByText('Recent journal pattern: the user wants calmer evenings.'))
             .toBeTruthy();
-        expect(onNoteTextChange).toHaveBeenCalledWith('Pin sleep gently');
-        expect(onSaveGeneratedNote).toHaveBeenCalledTimes(1);
-        expect(onSaveNote).toHaveBeenCalledTimes(1);
-        expect(onClearMemory).toHaveBeenCalledTimes(1);
+        expect(screen.getByText('Open Memory')).toBeTruthy();
+        expect(onOpenMemoryHub).toHaveBeenCalledTimes(1);
     });
 });

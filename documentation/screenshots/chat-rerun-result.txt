@@ -1,0 +1,6 @@
+body_includes_expected_phrase=true
+body_text_excerpt=R Rosebud  Drafts  nemotron 3 ultra 550b a55b · 1M ctx Respond with only this sentence: BlackroseJournal Nemotron UI smoke ok. BlackroseJournal Nemotron UI smoke ok.  Go deeper  Finish entry
+relevant_events:
+warning: Require cycle: services/ai/ai.ts -> services/ai/useChat.ts -> services/ai/ai.ts
+
+Require cycles are allowed, but can result in uninitialized values. Consider refactoring to remove the need for a cycle.

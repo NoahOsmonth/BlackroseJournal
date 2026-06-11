@@ -33,6 +33,16 @@ export { useChat } from './useChat';
 
 const DEFAULT_DIRECT_MODEL = 'agent-default';
 
+function normalizeUnknownError(error: unknown): Error {
+    if (error instanceof Error) return error;
+    if (typeof error === 'string') return new Error(error);
+    try {
+        return new Error(JSON.stringify(error));
+    } catch {
+        return new Error('Unknown error occurred');
+    }
+}
+
 export async function streamChat(
     messages: Message[],
     onChunk: StreamingCallback,
@@ -44,7 +54,12 @@ export async function streamChat(
         const resolved = resolveStreamOptions(options);
         const systemPrompt = resolved.systemPrompt || THERAPIST_SYSTEM_PROMPT;
         const streamPayload = buildChatPayload(
-            DEFAULT_DIRECT_MODEL, messages, systemPrompt, true, resolved.conversationId
+            DEFAULT_DIRECT_MODEL,
+            messages,
+            systemPrompt,
+            true,
+            resolved.conversationId,
+            resolved.generation
         );
 
         const usedXhrStreaming = await streamChatWithXhr(
@@ -69,18 +84,22 @@ export async function streamChat(
         await emitSimulatedStreaming(fallbackResult, onChunk);
         onComplete(fallbackResult.content, fallbackResult.reasoning);
     } catch (error) {
-        if (error instanceof Error) onError(error);
-        else onError(new Error('Unknown error occurred'));
+        onError(normalizeUnknownError(error));
     }
 }
 
 export async function completeChat(
     messages: Message[],
     systemPrompt: string,
-    options?: { conversationId?: string }
+    options?: { conversationId?: string; generation?: StreamChatOptions['generation'] }
 ): Promise<ChatAccumulator> {
     const payload = buildChatPayload(
-        DEFAULT_DIRECT_MODEL, messages, systemPrompt, false, options?.conversationId
+        DEFAULT_DIRECT_MODEL,
+        messages,
+        systemPrompt,
+        false,
+        options?.conversationId,
+        options?.generation
     );
     const response = await fetchChatCompletion(payload);
     if (!response.ok) {

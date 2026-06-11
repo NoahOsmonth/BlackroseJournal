@@ -5,6 +5,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useNavBack } from '@/hooks/navigation/useNavBack';
 import { useStreakStats } from '@/hooks/streaks/useStreakStats';
 import { buildCalendarDays } from '@/utils/streakStats';
 
@@ -12,6 +13,7 @@ const dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 export default function StreakViewScreen() {
     const router = useRouter();
+    const goBack = useNavBack('/(tabs)/today');
     const { dayKeys, currentStreak, longestStreak, totalDays } = useStreakStats();
     const colorScheme = useColorScheme();
     const iconColor = colorScheme === 'dark' ? '#F9FAFB' : '#111827';
@@ -30,7 +32,7 @@ export default function StreakViewScreen() {
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
             <View className="flex-1 max-w-md mx-auto w-full">
                 <View className="flex-row items-center justify-between px-4 py-4">
-                    <Pressable onPress={() => router.back()} className="p-2 -ml-2" accessibilityLabel="Back">
+                    <Pressable onPress={goBack} className="p-2 -ml-2" accessibilityLabel="Back">
                         <MaterialIcons name="arrow-back" size={24} color={iconColor} />
                     </Pressable>
                     <Text className="text-lg font-semibold text-text-light dark:text-white">Streak</Text>

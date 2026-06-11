@@ -1,3 +1,9 @@
+import {
+    DEFAULT_GENERATION,
+    GenerationSettings,
+    sanitizeGenerationSettings,
+} from './generationSettings';
+
 export interface Message {
     id: string;
     role: 'user' | 'assistant';
@@ -21,6 +27,7 @@ export interface ErrorCallback {
 export interface StreamChatOptions {
     systemPrompt?: string;
     conversationId?: string;
+    generation?: Partial<GenerationSettings>;
 }
 
 export interface ChatRequestPayload {
@@ -28,6 +35,7 @@ export interface ChatRequestPayload {
     messages: { role: 'system' | 'user' | 'assistant'; content: string }[];
     stream: boolean;
     temperature: number;
+    top_p: number;
     max_tokens: number;
     conversationId?: string;
 }
@@ -59,8 +67,10 @@ export function buildChatPayload(
     messages: Message[],
     systemPrompt: string,
     stream: boolean,
-    conversationId?: string
+    conversationId?: string,
+    generation: Partial<GenerationSettings> = DEFAULT_GENERATION
 ): ChatRequestPayload {
+    const settings = sanitizeGenerationSettings(generation);
     return {
         model,
         messages: [
@@ -68,8 +78,9 @@ export function buildChatPayload(
             ...messages.map((m) => ({ role: m.role, content: m.content })),
         ],
         stream,
-        temperature: 1.0,
-        max_tokens: 32768,
+        temperature: settings.temperature,
+        top_p: settings.topP,
+        max_tokens: settings.maxTokens,
         conversationId,
     };
 }

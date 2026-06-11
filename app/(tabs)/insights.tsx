@@ -4,8 +4,8 @@
  */
 
 import React from 'react';
-import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 
@@ -13,6 +13,8 @@ import { CastOfCharacters } from '@/components/insights/CastOfCharacters';
 import { EmotionalLandscapeChart } from '@/components/insights/EmotionalLandscapeChart';
 import { KeyThemes } from '@/components/insights/KeyThemes';
 import { BottomNav } from '@/components/journal';
+import { ScreenContainer } from '@/components/ui/ScreenContainer';
+import { navAwareBottomPadding } from '@/constants/spacing';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useThemeSettings } from '@/hooks/useThemeSettings';
 import { useWeeklyInsights } from '@/hooks/useWeeklyInsights';
@@ -85,7 +87,7 @@ const WeeklyReportCard = ({
                     </View>
                     <View className="border-l-2 border-primary pl-4 py-1">
                         <Text className="text-sm leading-relaxed text-text-primary-light dark:text-text-primary-dark font-medium italic">
-                            "{weeklySummary}"
+                            &quot;{weeklySummary}&quot;
                         </Text>
                     </View>
                 </View>
@@ -141,6 +143,35 @@ interface WritingStatsCardProps {
     entries: number;
     dailyWords: number[];
 }
+
+interface AskRosebudCardProps {
+    onPress: () => void;
+    iconColor: string;
+}
+
+const AskRosebudCard = ({ onPress, iconColor }: AskRosebudCardProps) => (
+    <Pressable
+        onPress={onPress}
+        className="mb-8 rounded-2xl border border-divider-light bg-surface-light p-5 shadow-sm dark:border-divider-dark dark:bg-surface-dark/40"
+        accessibilityRole="button"
+        accessibilityLabel="Ask about your journal"
+    >
+        <View className="flex-row items-center gap-3">
+            <View className="rounded-full bg-primary/10 p-3 dark:bg-primary-dark/20">
+                <MaterialIcons name="question-answer" size={22} color={iconColor} />
+            </View>
+            <View className="flex-1">
+                <Text className="text-sm font-bold text-text-primary-light dark:text-text-primary-dark">
+                    Ask about your journal
+                </Text>
+                <Text className="mt-1 text-xs leading-5 text-text-secondary-light dark:text-text-secondary-dark">
+                    Ask Rosebud to find patterns across entries, moods, themes, and people.
+                </Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={22} color={iconColor} />
+        </View>
+    </Pressable>
+);
 
 const WritingStatsCard = ({
     words,
@@ -225,10 +256,10 @@ const WritingStatsCard = ({
 
 export default function InsightsScreen() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
     const iconSecondary = isDark ? '#9CA3AF' : '#6B7280';
-    const iconPrimary = isDark ? '#F9FAFB' : '#111827';
     const { insights, weeklyStats, weekDateRange, isLoading } = useWeeklyInsights();
     const { emojiStyle } = useThemeSettings();
 
@@ -242,20 +273,28 @@ export default function InsightsScreen() {
         router.push('/chat');
     };
 
+    const handleAskRosebud = () => {
+        router.push('/ask-rosebud');
+    };
+
     const isLocked = weeklyStats.entriesCount < 5;
 
     return (
-        <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
-            <View className="flex-1 max-w-md mx-auto w-full">
+        <ScreenContainer edges="top">
                 <View className="px-4 pt-6 flex-1">
                     <Header dateRange={weekDateRange} />
 
                     <ScrollView
                         className="flex-1"
-                        contentContainerStyle={{ paddingBottom: 100 }}
+                        contentContainerStyle={{ paddingBottom: navAwareBottomPadding(insets.bottom) }}
                         showsVerticalScrollIndicator={false}
                     >
                         <SpatialView visible={true}>
+                            <AskRosebudCard
+                                onPress={handleAskRosebud}
+                                iconColor={iconSecondary}
+                            />
+
                             <WeeklyReportCard
                                 isLocked={isLocked}
                                 entriesNeeded={Math.max(0, 5 - weeklyStats.entriesCount)}
@@ -303,7 +342,6 @@ export default function InsightsScreen() {
                     onTabPress={handleTabPress}
                     onFabPress={handleNewEntry}
                 />
-            </View>
-        </SafeAreaView>
+        </ScreenContainer>
     );
 }

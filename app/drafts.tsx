@@ -1,12 +1,18 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
 import { useIntentionCheckIns } from '@/hooks/intentions/useIntentionCheckIns';
+import {
+    loadSessions,
+    removeSession,
+    type ChatSession,
+} from '@/services/ai/sessionStorage';
 
 interface DraftItem {
     id: string;
@@ -23,6 +29,19 @@ function formatDraftTime(timestamp: number): string {
     }`;
 }
 
+function sessionTitle(session: ChatSession): string {
+    const lastUser = [...session.messages].reverse().find((m) => m.role === 'user');
+    const text = (lastUser ?? session.messages[session.messages.length - 1])?.content.trim() ?? '';
+    if (!text) return 'Untitled session';
+    return text.length > 80 ? `${text.slice(0, 80).trim()}...` : text;
+}
+
+function isIntentionSession(session: ChatSession): boolean {
+    return session.mode === 'morning'
+        || session.mode === 'evening'
+        || session.mode === 'intention';
+}
+
 export default function DraftsScreen() {
     const router = useRouter();
     const colorScheme = useColorScheme();
@@ -30,6 +49,23 @@ export default function DraftsScreen() {
     const { drafts, remove } = useJournalEntries();
     const { drafts: checkInDrafts, remove: removeCheckIn } = useIntentionCheckIns();
     const [sortMode, setSortMode] = useState<'recent' | 'title'>('recent');
+    const [sessions, setSessions] = useState<ChatSession[]>([]);
+
+    const refreshSessions = useCallback(() => {
+        let isActive = true;
+        loadSessions().then((loaded) => {
+            if (!isActive) return;
+            const active = loaded
+                .filter((session) => session.messages.length > 0)
+                .sort((a, b) => b.updatedAt - a.updatedAt);
+            setSessions(active);
+        });
+        return () => {
+            isActive = false;
+        };
+    }, []);
+
+    useFocusEffect(refreshSessions);
 
     const items = useMemo<DraftItem[]>(() => {
         const journalItems = drafts.map((entry) => ({
@@ -71,6 +107,22 @@ export default function DraftsScreen() {
         await removeCheckIn(item.id);
     };
 
+    const handleResumeSession = (session: ChatSession) => {
+        if (isIntentionSession(session)) {
+            router.push({
+                pathname: '/intentions/chat',
+                params: { resume: session.conversationId, ...session.routeParams },
+            });
+            return;
+        }
+        router.push({ pathname: '/chat', params: { resume: session.conversationId } });
+    };
+
+    const handleDeleteSession = async (session: ChatSession) => {
+        await removeSession(session.conversationId);
+        setSessions((prev) => prev.filter((s) => s.conversationId !== session.conversationId));
+    };
+
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
             <View className="flex-1 max-w-md mx-auto w-full">
@@ -91,6 +143,55 @@ export default function DraftsScreen() {
                 </View>
 
                 <ScrollView className="flex-1 px-4 pt-2 pb-6" showsVerticalScrollIndicator={false}>
+                    {sessions.length > 0 && (
+                        <View className="mb-6">
+                            <Text className="text-[12px] font-semibold tracking-wider text-text-secondary-light dark:text-text-secondary-dark uppercase mb-3">
+                                Active
+                            </Text>
+                            <View className="space-y-3">
+                                {sessions.map((session) => (
+                                    <Pressable
+                                        key={session.conversationId}
+                                        onPress={() => handleResumeSession(session)}
+                                        accessibilityLabel="Resume session"
+                                        className="bg-surface-light dark:bg-card-dark rounded-xl shadow-soft border border-gray-100 dark:border-divider-dark overflow-hidden active:opacity-80"
+                                    >
+                                        <View className="p-4 pb-3">
+                                            <Text className="text-[11px] font-semibold tracking-wider text-primary uppercase mb-2">
+                                                Autosaved
+                                            </Text>
+                                            <Text
+                                                className="text-[16px] leading-snug font-medium text-text-light dark:text-white"
+                                                numberOfLines={2}
+                                            >
+                                                {sessionTitle(session)}
+                                            </Text>
+                                        </View>
+                                        <View className="h-px bg-divider-light dark:bg-divider-dark mx-4" />
+                                        <View className="px-4 py-3 flex-row items-center justify-between">
+                                            <Text className="text-[13px] text-text-secondary-light dark:text-text-secondary-dark font-medium">
+                                                {formatDraftTime(session.updatedAt)}
+                                            </Text>
+                                            <Pressable
+                                                onPress={() => handleDeleteSession(session)}
+                                                accessibilityLabel="Delete session"
+                                                hitSlop={8}
+                                            >
+                                                <MaterialIcons name="delete" size={20} color="#9CA3AF" />
+                                            </Pressable>
+                                        </View>
+                                    </Pressable>
+                                ))}
+                            </View>
+                        </View>
+                    )}
+
+                    {sessions.length > 0 && items.length > 0 && (
+                        <Text className="text-[12px] font-semibold tracking-wider text-text-secondary-light dark:text-text-secondary-dark uppercase mb-3">
+                            Saved drafts
+                        </Text>
+                    )}
+
                     <View className="space-y-4">
                         {items.map((item) => (
                             <View

@@ -27,7 +27,7 @@ export function generateTitle(messages: Message[]): string {
 /**
  * Mood keyword to emoji mapping
  */
-const moodPatterns: Array<{ pattern: RegExp; emoji: string }> = [
+const moodPatterns: { pattern: RegExp; emoji: string }[] = [
     { pattern: /\b(happy|joy|excited|great|amazing|wonderful|fantastic|blessed)\b/i, emoji: '🥳' },
     { pattern: /\b(sad|down|depressed|crying|tears|miss)\b/i, emoji: '😢' },
     { pattern: /\b(stressed|overwhelmed|anxious|anxiety|worried|nervous)\b/i, emoji: '😰' },

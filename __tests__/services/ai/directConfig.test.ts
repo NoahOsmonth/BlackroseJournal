@@ -110,13 +110,13 @@ describe('directConfig — getDirectConfig', () => {
         expect(cfg.apiBaseUrl).toBe('https://nano-gpt.com/api/v1');
     });
 
-    it('5. falls back to moonshotai/kimi-k2.5:thinking and moonshotai/kimi-k2.5 for models', () => {
+    it('5. falls back to Nemotron Ultra for model and flash model', () => {
         process.env[KEY] = 'sk-test-key';
 
         const cfg = getDirectConfig();
 
-        expect(cfg.model).toBe('moonshotai/kimi-k2.5:thinking');
-        expect(cfg.flashModel).toBe('moonshotai/kimi-k2.5');
+        expect(cfg.model).toBe('nvidia/nemotron-3-ultra-550b-a55b');
+        expect(cfg.flashModel).toBe('nvidia/nemotron-3-ultra-550b-a55b');
     });
 });
 

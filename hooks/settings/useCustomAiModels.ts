@@ -167,7 +167,14 @@ export function useCustomAiModels(): UseCustomAiModelsReturn {
     }, [draft, persist, settings]);
 
     const selectModel = useCallback(async (modelId: string) => {
-        await persist({ ...settings, selectedModelId: modelId });
+        const selected = settings.models.some((model) => model.id === modelId);
+        if (!selected) {
+            setStatus({ kind: 'error', message: 'Selected model is not available.' });
+            return;
+        }
+
+        await persist({ ...settings, enabled: true, selectedModelId: modelId });
+        setStatus({ kind: 'success', message: 'Custom model selected and enabled.' });
     }, [persist, settings]);
 
     const setEnabled = useCallback(async (enabled: boolean) => {

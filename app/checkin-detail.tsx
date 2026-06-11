@@ -1,13 +1,14 @@
 import React, { useMemo } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { IntentionCheckIn } from '@/services/intentions/intentionsStorage.types';
 import { ChatMessage } from '@/components/ChatMessage';
 import { useCheckInDetail } from '@/hooks/intentions/useCheckInDetail';
+import { useNavBack } from '@/hooks/navigation/useNavBack';
 
 function resolveLabel(checkIn: IntentionCheckIn): string {
     if (checkIn.type === 'evening') return 'Evening Reflection';
@@ -16,7 +17,7 @@ function resolveLabel(checkIn: IntentionCheckIn): string {
 }
 
 export default function CheckInDetailScreen() {
-    const router = useRouter();
+    const goBack = useNavBack('/(tabs)/entries');
     const params = useLocalSearchParams<{ id?: string }>();
     const checkInId = Array.isArray(params.id) ? params.id[0] : params.id;
 
@@ -35,7 +36,7 @@ export default function CheckInDetailScreen() {
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
             <View className="flex-1 max-w-md mx-auto w-full">
                 <View className="flex-row items-center justify-between px-4 py-4">
-                    <Pressable onPress={() => router.back()} className="p-2 -ml-2">
+                    <Pressable onPress={goBack} className="p-2 -ml-2">
                         <MaterialIcons name="arrow-back" size={24} color={iconColor} />
                     </Pressable>
                     <Text className="text-lg font-semibold text-text-light dark:text-white">

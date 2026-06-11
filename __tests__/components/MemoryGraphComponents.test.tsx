@@ -9,6 +9,10 @@ jest.mock('../../hooks/use-color-scheme', () => ({
     useColorScheme: () => 'light',
 }));
 
+jest.mock('react-native-safe-area-context', () => ({
+    useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
+
 jest.mock('@expo/vector-icons', () => ({
     MaterialIcons: ({ name }: { name: string }) => {
         const React = jest.requireActual('react');
@@ -44,6 +48,23 @@ describe('MemoryGraph components', () => {
 
         expect(screen.getByText('episodic')).toBeTruthy();
         expect(onToggle).toHaveBeenCalledWith('profile');
+    });
+
+    it('keeps layer filters tall enough for Android text rendering', () => {
+        render(
+            <MemoryGraphFilters
+                activeLayers={new Set(['episodic', 'profile'])}
+                onToggle={jest.fn()}
+            />
+        );
+
+        expect(screen.getByTestId('memory-layer-filters').props.contentContainerStyle)
+            .toMatchObject({ minHeight: 60, paddingVertical: 10 });
+        expect(screen.getByTestId('memory-layer-filter-episodic').props.className)
+            .toContain('min-h-9');
+        expect(screen.getByText('episodic').props.style).toMatchObject({ lineHeight: 16 });
+        expect(screen.getByText('semantic').props.numberOfLines).toBe(1);
+        expect(screen.getByText('profile').props.numberOfLines).toBe(1);
     });
 
     it('renders selected atom details and synthesis action', () => {

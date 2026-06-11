@@ -23,6 +23,10 @@ function isOkStatus(status: number): boolean {
     return status >= 200 && status < 300;
 }
 
+function hasFinalContent(accumulator: ChatAccumulator): boolean {
+    return accumulator.content.trim().length > 0;
+}
+
 export async function fetchChatCompletion(payload: ChatRequestPayload): Promise<Response> {
     return fetchDirectChatCompletion(payload);
 }
@@ -57,6 +61,10 @@ export async function streamChatWithXhr(
                 if (!parsed) continue;
                 if (parsed.done) {
                     settle(() => {
+                        if (!hasFinalContent(accumulator)) {
+                            reject(new Error('XHR stream ended without a final AI answer.'));
+                            return;
+                        }
                         onComplete(accumulator.content, accumulator.reasoning);
                         resolve(true);
                     });
@@ -77,6 +85,10 @@ export async function streamChatWithXhr(
             processIncoming();
             if (settled) return;
             if (isOkStatus(xhr.status)) {
+                if (!hasFinalContent(accumulator)) {
+                    settle(() => resolve(false));
+                    return;
+                }
                 settle(() => {
                     onComplete(accumulator.content, accumulator.reasoning);
                     resolve(true);

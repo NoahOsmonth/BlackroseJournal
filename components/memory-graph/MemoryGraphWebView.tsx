@@ -1,4 +1,5 @@
 import { Asset } from 'expo-asset';
+import * as FileSystem from 'expo-file-system/legacy';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { WebView } from 'react-native-webview';
@@ -16,6 +17,7 @@ interface WebViewProps {
 }
 
 const FALLBACK_HTML = '<html><body style="background:#000"></body></html>';
+const MEMORY_GRAPH_BASE_URL = 'https://memory-graph.local';
 
 export function MemoryGraphWebView({
     atoms,
@@ -23,7 +25,7 @@ export function MemoryGraphWebView({
     onSelectNode,
 }: WebViewProps) {
     const webViewRef = useRef<WebView>(null);
-    const [engineUri, setEngineUri] = useState<string | null>(null);
+    const [engineHtml, setEngineHtml] = useState(FALLBACK_HTML);
     const [isLoaded, setIsLoaded] = useState(false);
 
     const syncData = useCallback(() => {
@@ -32,13 +34,23 @@ export function MemoryGraphWebView({
     }, [atoms, connections]);
 
     useEffect(() => {
+        let isMounted = true;
+
         Asset.fromModule(memoryGraphEngine)
             .downloadAsync()
-            .then((asset) => {
+            .then((asset) => FileSystem.readAsStringAsync(asset.localUri ?? asset.uri))
+            .then((html) => {
+                if (!isMounted) return;
                 setIsLoaded(false);
-                setEngineUri(asset.localUri ?? asset.uri);
+                setEngineHtml(html);
             })
-            .catch(() => setEngineUri(null));
+            .catch(() => {
+                if (isMounted) setEngineHtml(FALLBACK_HTML);
+            });
+
+        return () => {
+            isMounted = false;
+        };
     }, []);
 
     useEffect(() => {
@@ -59,7 +71,7 @@ export function MemoryGraphWebView({
             ref={webViewRef}
             style={styles.webView}
             originWhitelist={['*']}
-            source={engineUri ? { uri: engineUri } : { html: FALLBACK_HTML }}
+            source={{ html: engineHtml, baseUrl: MEMORY_GRAPH_BASE_URL }}
             onLoadEnd={() => setIsLoaded(true)}
             onMessage={handleMessage}
             javaScriptEnabled

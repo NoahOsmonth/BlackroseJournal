@@ -11,14 +11,14 @@ jest.mock('../services/ai/directConfig', () => ({
     getDirectConfig: () => ({
         apiKey: 'sk-direct-test-key',
         apiBaseUrl: 'https://nano-gpt.com/api/v1',
-        model: 'moonshotai/kimi-k2.5:thinking',
-        flashModel: 'moonshotai/kimi-k2.5',
+        model: 'nvidia/nemotron-3-ultra-550b-a55b',
+        flashModel: 'nvidia/nemotron-3-ultra-550b-a55b',
     }),
     getResolvedDirectConfig: () => Promise.resolve({
         apiKey: 'sk-direct-test-key',
         apiBaseUrl: 'https://nano-gpt.com/api/v1',
-        model: 'moonshotai/kimi-k2.5:thinking',
-        flashModel: 'moonshotai/kimi-k2.5',
+        model: 'nvidia/nemotron-3-ultra-550b-a55b',
+        flashModel: 'nvidia/nemotron-3-ultra-550b-a55b',
         source: 'env',
     }),
 }));
@@ -62,7 +62,7 @@ describe('AI defaults — direct local NanoGPT', () => {
         const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
         const body = JSON.parse(String(init.body)) as Record<string, unknown>;
         expect(body).toEqual(expect.objectContaining({
-            model: 'moonshotai/kimi-k2.5:thinking',
+            model: 'nvidia/nemotron-3-ultra-550b-a55b',
             temperature: 1,
             max_tokens: 32768,
         }));
@@ -102,7 +102,7 @@ describe('AI defaults — direct local NanoGPT', () => {
         for (const call of fetchMock.mock.calls) {
             const [, init] = call as [string, RequestInit];
             const body = JSON.parse(String(init.body)) as Record<string, unknown>;
-            expect(body.model).toBe('moonshotai/kimi-k2.5');
+            expect(body.model).toBe('nvidia/nemotron-3-ultra-550b-a55b');
             expect(body.temperature).toBe(0.7);
             expect(body).not.toHaveProperty('conversationId');
         }

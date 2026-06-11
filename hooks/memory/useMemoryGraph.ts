@@ -20,6 +20,11 @@ const ALL_LAYERS: MemoryLayer[] = [
     'working',
 ];
 
+export interface UseMemoryGraphOptions {
+    initialLayer?: MemoryLayer;
+    initialQuery?: string;
+}
+
 function toGraphAtom(atom: StoredMemoryAtom): LocalMemoryAtom {
     return {
         id: atom.id,
@@ -41,13 +46,19 @@ function matchesQuery(atom: LocalMemoryAtom, query: string): boolean {
     return haystack.includes(normalized);
 }
 
-export function useMemoryGraph() {
+function initialLayers(layer?: MemoryLayer): Set<MemoryLayer> {
+    return layer && ALL_LAYERS.includes(layer)
+        ? new Set([layer])
+        : new Set(ALL_LAYERS);
+}
+
+export function useMemoryGraph(options: UseMemoryGraphOptions = {}) {
     const { atoms: storedAtoms, isLoading, refresh } = useLocalMemories();
     const [activeLayers, setActiveLayers] = useState<Set<MemoryLayer>>(
-        () => new Set(ALL_LAYERS)
+        () => initialLayers(options.initialLayer)
     );
     const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-    const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useState(options.initialQuery ?? '');
     const [insight, setInsight] = useState<string | null>(null);
     const [isSynthesizing, setIsSynthesizing] = useState(false);
 

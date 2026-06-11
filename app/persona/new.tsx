@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import { Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { PersonaForm, PersonaFormValues } from '@/components/personas/PersonaForm';
@@ -15,7 +17,7 @@ const defaultValues: PersonaFormValues = {
     tagline: '',
     voice: 'Onyx',
     prompt: '',
-    model: 'moonshotai/kimi-k2.5:thinking',
+    model: 'nvidia/nemotron-3-ultra-550b-a55b',
     imagination: 25,
     avatarKey: 'persona-default',
 };
@@ -63,6 +65,16 @@ export default function NewPersonaScreen() {
 
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
+            <View className="px-4 pt-3">
+                <Pressable
+                    onPress={() => router.push('/persona/generate')}
+                    className="flex-row items-center justify-center gap-2 py-3 rounded-2xl border border-primary"
+                    accessibilityLabel="Generate persona with AI"
+                >
+                    <MaterialIcons name="auto-awesome" size={18} color="#FF9F0A" />
+                    <Text className="text-[15px] font-semibold text-primary">Generate with AI</Text>
+                </Pressable>
+            </View>
             <PersonaForm
                 title="New persona"
                 submitLabel="Create"

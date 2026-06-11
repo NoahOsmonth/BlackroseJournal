@@ -9,7 +9,230 @@
 - [x] **TOOL-CODEX-001**: Codex CLI with OMO Light Edition
 
 ## Updates
-- **2026-06-09**: Added custom OpenAI-compatible model settings and generated memory notes:
+- **2026-06-10**: WS7 — navigation fallback standardization:
+  - Added `hooks/navigation/useNavBack.ts`, which uses `router.back()` only when a back stack exists and
+    otherwise falls back with `router.replace(...)` to a sensible tab route.
+  - Adopted the hook on deep-linkable/detail routes called out by WS7:
+    `app/entry-detail.tsx`, `app/checkin-detail.tsx`, `app/goals.tsx`,
+    `app/intentions/detail.tsx`, `app/saved-insights.tsx`, and `app/streak-view.tsx`.
+  - Also adopted it on `app/memory-graph.tsx` so graph deep links fall back to the Memory tab.
+  - Added `__tests__/hooks/useNavBack.test.ts` for both real-back-stack and fallback behavior.
+  - Verified:
+    - `npm run test:run -- --testPathPattern="useNavBack|MemoryGraphRoute" --runInBand` — 2 suites
+      passed; 3 tests passed.
+    - `npm run test:run -- --runInBand` — 96 suites passed, 3 skipped; 316 tests passed, 8 skipped
+      (existing AI legacy deprecation warnings printed by tests).
+    - `npx tsc --noEmit` — passed.
+    - `npm run lint` — 0 errors; existing warning remains in
+      `__tests__/components/ScreenContainer.test.tsx`.
+    - `npm run check:design` — passed with 0 errors; existing warning remains
+      `app/intentions/chat.tsx` at 493 lines (under the 500 hard max).
+- **2026-06-10**: WS7 — Memory / About Me hub:
+  - Rebuilt the Explore tab as a real Memory home via `components/memory/MemoryHubScreen.tsx`, keeping
+    `app/(tabs)/explore.tsx` as a thin route wrapper.
+  - Added reusable memory UI under `components/memory/`:
+    `MemoryAtomCard`, `MemoryHubSummary`, `MemoryNotesPanel`, and shared display/filter helpers.
+  - The Memory tab now shows about-user memory, counts, recurring themes, generated/manual notes,
+    searchable layer-filtered atoms, per-atom delete, clear-all, and an `Explore graph` action that routes
+    to `/memory-graph` with the active layer/query when present.
+  - Exposed `removeAtom()` from `useLocalMemories()` so UI can wire the existing `deleteMemoryAtom()`
+    service without reaching into storage directly.
+  - Slimmed Settings → Memory down to a summary plus `Open Memory`, so memory inspection/editing is no
+    longer buried inside Settings.
+  - Tests added/updated:
+    - `__tests__/screens/ExploreScreen.test.tsx`
+    - `__tests__/components/MemoryAtomCard.test.tsx`
+    - Updated `useLocalMemories`, `useMemoryGraph`, and `MemorySettingsSection` tests.
+  - Verified:
+    - `npm run test:run -- --testPathPattern="MemoryAtomCard|ExploreScreen|MemorySettingsSection|useLocalMemories|useMemoryGraph" --runInBand` — 5 suites passed; 11 tests passed.
+    - `npm run test:run -- --runInBand` — 95 suites passed, 3 skipped; 314 tests passed, 8 skipped
+      (existing AI legacy deprecation warnings printed by tests).
+    - `npx tsc --noEmit` — passed.
+    - `npm run lint` — 0 errors; existing warning remains in
+      `__tests__/components/ScreenContainer.test.tsx`.
+    - `npm run check:design` — passed with 0 errors; existing warning remains
+      `app/intentions/chat.tsx` at 493 lines (under the 500 hard max).
+- **2026-06-10**: WS7 — Memory Graph route + orphan modal cleanup:
+  - Extracted the existing graph implementation into `components/memory-graph/MemoryGraphScreen.tsx` so the
+    Explore tab and a standalone route share one implementation instead of duplicating graph UI.
+  - Added `app/memory-graph.tsx`, registered it in `app/_layout.tsx`, and wired optional `layer`, `tag`, and
+    `q` params into the graph's initial active layer/search query. The graph header now supports a back
+    affordance for the standalone route.
+  - Removed the orphan Expo template modal route: deleted `app/modal.tsx` and removed the `modal` stack
+    registration from `_layout`.
+  - Replaced the graph's empty overlay copy with the shared `EmptyState` pattern, removing the stale
+    `No memory nodes yet.` string from the Memory tab path.
+  - Tests added/updated:
+    - `__tests__/screens/MemoryGraphRoute.test.tsx`
+    - `__tests__/nav/no-orphan-modal.test.ts`
+    - Updated Explore and tab-bottom-spacing tests for the shared graph screen.
+  - Verified:
+    - `npm run test:run -- --forceExit` — 94 suites passed, 3 skipped; 310 tests passed, 8 skipped.
+    - `npx tsc --noEmit` — passed.
+    - `npm run lint` — 0 errors; existing warning remains in
+      `__tests__/components/ScreenContainer.test.tsx`.
+    - `npm run check:design` — passed with 0 errors; existing warning remains
+      `app/intentions/chat.tsx` at 493 lines (under the 500 hard max).
+    - `cd backend && npx tsc --noEmit` and `cd backend && npm test` — passed.
+- **2026-06-10**: WS7 — surfaced Ask Rosebud from Insights:
+  - Added a prominent `Ask about your journal` action card near the top of the Insights tab. It routes to
+    `/ask-rosebud`, making the existing journal Q&A screen reachable from the primary IA instead of dark.
+  - Added a `Saved insights` link on the Ask Rosebud screen that routes to `/saved-insights`, connecting
+    the Q&A flow to the existing saved-insights route.
+  - Tests added:
+    - `__tests__/screens/AskRosebudReachable.test.tsx`
+    - `__tests__/screens/AskRosebudSavedInsights.test.tsx`
+  - Verified:
+    - `npm run test:run -- --forceExit` — 92 suites passed, 3 skipped; 308 tests passed, 8 skipped.
+    - `npx tsc --noEmit` — passed.
+    - `npm run lint` — 0 errors; existing warning remains in
+      `__tests__/components/ScreenContainer.test.tsx`.
+    - `npm run check:design` — passed with 0 errors; existing warning remains
+      `app/intentions/chat.tsx` at 493 lines (under the 500 hard max).
+- **2026-06-10**: WS8 — AI-slop cleanup focused pass (identity, dead affordances, empty states):
+  - Added `constants/appInfo.ts` with `APP_NAME`, `APP_TAGLINE`, `APP_VERSION`, and reusable About/Privacy
+    copy. Settings now shows `BlackroseJournal` with the configured app version instead of the placeholder
+    `Journal App v1.0.0` text, and privacy copy now states the local-first behavior honestly.
+  - Removed the non-functional voice/image buttons from `IntentionChatFooter` and dropped the
+    "coming soon" alerts from `app/intentions/chat.tsx`. The footer keeps implemented volume, finish, and
+    suggest controls only. Also replaced its hardcoded icon colors with theme-derived values.
+  - Added `components/ui/EmptyState.tsx` and used it for empty Key Themes and Cast of Characters states,
+    replacing vague `Not enough data` copy with actionable guidance.
+  - Replaced the hardcoded weekly history signal fallback (`quiet, reflective, open`) with a plain prompt to
+    write more entries before signals appear.
+  - Remapped the stale `theme` export in `constants/theme.ts` away from the off-brand cyan/dark palette and
+    onto the real `Colors` palette while preserving `MemoryLayerColors`.
+  - Tests added/updated:
+    - `__tests__/components/EmptyState.test.tsx`
+    - `__tests__/components/IntentionChatFooter.test.tsx`
+    - `__tests__/components/InsightEmptyStates.test.tsx`
+    - `__tests__/settings/appInfo.test.ts`
+    - `__tests__/no-coming-soon.test.ts`
+    - `__tests__/no-slop-theme.test.ts`
+    - Updated HistoryWeekSummary and Tailwind token guards.
+  - Verified:
+    - `npm run test:run -- --forceExit` — 90 suites passed, 3 skipped; 306 tests passed, 8 skipped.
+    - `npx tsc --noEmit` — passed.
+    - `npm run lint` — 0 errors; existing warning remains in
+      `__tests__/components/ScreenContainer.test.tsx`.
+    - `npm run check:design` — passed with 0 errors; existing warning remains
+      `app/intentions/chat.tsx` at 493 lines (under the 500 hard max).
+- **2026-06-10**: WS4 — AI tuning (temperature/top_p/context auto-detect):
+  - Added `services/ai/generationSettings.ts` with persisted global defaults, clamping, presets,
+    `INSIGHTS_TEMPERATURE`, and persona-imagination temperature mapping. The WS2 `ChatFlow` type now uses
+    concrete `GenerationSettings` / `Partial<GenerationSettings>` instead of the temporary `unknown` shape.
+  - Added `services/ai/modelContext.ts` to detect the active model context window, cache default-provider
+    `/models` results by base URL + model, use custom-provider context metadata directly, and fall back to
+    known Kimi 128k context before the generic 128k fallback.
+  - Threaded generation settings through the live chat path:
+    `useChatOrchestration` reads `useGenerationSettings()`, merges global defaults + flow overrides +
+    active persona imagination, then passes the effective settings through `useChat` → `streamChat` /
+    `completeChat` → `buildChatPayload` → direct transport.
+  - Added `top_p` end-to-end for frontend direct calls and backend OpenAI-compatible calls. Backend request
+    parsing now accepts `top_p`, maps it to provider `topP`, and forwards it upstream as `top_p`.
+  - Added Settings → Generation panel with temperature/top-p sliders, presets, reset, refreshable detected
+    context window, and source badge. Main chat and intention chat headers now show active model + context
+    length (for example `Kimi K2.5 · 128k ctx`).
+  - Replaced insights helper magic `0.7` values with `INSIGHTS_TEMPERATURE`.
+  - Tests added/updated:
+    - `__tests__/services/ai/generationSettings.test.ts`
+    - `__tests__/services/ai/chatPayload.test.ts`
+    - `__tests__/services/ai/modelContext.test.ts`
+    - `__tests__/services/ai/imaginationToTemperature.test.ts`
+    - Updated direct transport, backend OpenAI-compatible adapter, chat orchestration, and
+      `IntentionChatHeader` tests for `top_p`, generation defaults, and the context readout.
+  - Verified:
+    - `npm run test:run -- --forceExit` — 84 suites passed, 3 skipped; 297 tests passed, 8 skipped.
+    - `npx tsc --noEmit` — passed.
+    - `npm run lint` — 0 errors; 1 pre-existing warning in `__tests__/components/ScreenContainer.test.tsx`.
+    - `npm run check:design` — passed with 0 errors; existing warning remains
+      `app/intentions/chat.tsx` at 496 lines (under the 500 hard max).
+    - `cd backend && npx tsc --noEmit` — passed.
+    - `cd backend && npm test` — passed (backend test script is `tsc --noEmit`).
+- **2026-06-10**: WS2 — ChatFlow abstraction (keystone refactor, behavior-preserving):
+  - Collapsed the duplicated chat-orchestration prompt assembly in `app/chat.tsx` and
+    `app/intentions/chat.tsx` into a declarative flow registry consumed by the one shared engine
+    `features/chat/hooks/useChatOrchestration.ts`. This is the seam later workstreams hook into:
+    persona (WS3), tuning (WS4), and guided stages (WS5) are now implemented once per flow instead of
+    per screen.
+  - `features/chat/flows/types.ts` (new): `ChatFlowId`, `ChatFlowContext`, `GuidedStage`, `ChatFlow`.
+    `generation?` is typed `unknown` for now (WS4 introduces the concrete `GenerationSettings` type and
+    tightens it); `generationOverride` returns `Record<string, unknown>` as a placeholder.
+  - `features/chat/flows/index.ts` (new): `FLOWS: Record<ChatFlowId, ChatFlow>` plus a single shared
+    `composeSystemPrompt(base, ctx)` helper (`[base, localMemoryContext, persona?, feedbackGuidance]
+    .filter(Boolean).join('\n\n')`). `freeform`/`continue` use `composeSystemPrompt(THERAPIST_SYSTEM_PROMPT,
+    ctx)`; `morning`/`evening`/`intention`/`intentionRefine` delegate to `buildIntentionSystemPrompt`
+    for byte-identical output; `dailyCheckIn` delegates to the extracted daily-checkin builder. Also
+    exports `flowForCheckInType(type)`.
+  - `services/ai/dailyCheckInPrompt.ts` (new): extracted the pure `buildDailyCheckInSystemPrompt` out of
+    `services/ai/useChat.ts` (which re-exports it, delegating) so the flow registry stays free of the
+    streaming/AsyncStorage import chain `useChat.ts` pulls. Output is unchanged; the daily-checkin runtime
+    path (`sendInitialPrompt`) still calls the same builder.
+  - `useChatOrchestration` now accepts optional `flow?: ChatFlow` + `flowContext?: ChatFlowContext`. When
+    a flow is present, the system prompt is derived from `flow.buildSystemPrompt(flowContext)` and (when
+    defined) the opener from `flow.openingMessage(flowContext)`. The string `systemPrompt` option remains a
+    working fallback (incremental migration). WS1 `persist`/debounced-autosave logic is untouched.
+  - `app/chat.tsx`: removed the inline `systemPrompt` useMemo; now passes `flow={FLOWS.continue|freeform}`
+    + `flowContext={{ localMemoryContext, feedbackGuidance }}`. Persona stays out (WS3 adds it).
+  - `app/intentions/chat.tsx`: removed the inline `buildIntentionSystemPrompt` useMemo; now selects the flow
+    via `flowForCheckInType(checkInType)` and passes `flowContext` (activePersona, areaLabel, intentionTitle,
+    memorySummary, feedbackGuidance). Dropped from 497 → 491 lines (under the 500 hard limit).
+  - Tests: `__tests__/features/chatFlows.test.ts` (new, 13 tests) asserts each flow's `buildSystemPrompt`
+    is byte-identical to the legacy assembly for the same context, persona block present iff `activePersona`
+    is provided, and `flowForCheckInType` mapping. Existing chat + intention tests stayed green.
+  - Verified: `npx tsc --noEmit` → 0 errors; `npm run test:run` → 78 of 81 suites pass (3 skipped),
+    268 passed / 8 skipped (was 255 baseline + 13 new, no regressions); `npm run check:design` → 0 errors
+    (1 pre-existing warning on `app/chat.tsx` size); `eslint` on all touched files → 0 problems.
+- **2026-06-10**: WS1 — Chat session persistence (fixed the lost-session bug):
+  - **Root cause**: chat messages lived only in ephemeral React state
+    (`features/chat/hooks/useChatOrchestration.ts` `useState`, `services/ai/useChat.ts` `useRef`);
+    the only save path was `handleClose()` wired solely to the Header X button. System back / tab
+    switch / FAB relaunch unmounted the component and lost everything, and `conversationId` was
+    regenerated per mount. `app/intentions/chat.tsx` had the same flaw.
+  - Added `services/ai/sessionStorage.ts` (new): AsyncStorage-backed store of in-flight chat
+    sessions, kept SEPARATE from journal drafts. Mirrors the `customModels.ts` storage-adapter +
+    sanitize-on-read pattern (`setChatSessionStorageAdapter`/`resetChatSessionStorageAdapter` for
+    tests). `ChatSession { conversationId, mode, messages, personaId?, routeParams?, updatedAt,
+    createdAt }`. Functions: `loadSessions`, `getSession`, `saveSession`, `removeSession`,
+    `getMostRecentActiveSession` (newest non-empty within 7 days), `pruneStaleSessions` (drops >7d
+    and beyond a 10-session cap). Never throws — returns safe defaults. Key `@blackrose_chat_sessions`.
+  - `useChatOrchestration` now accepts an optional `persist` option; a ~600ms debounced effect calls
+    `saveSession` whenever `messages` changes (length > 0), `pruneStaleSessions()` runs once on mount,
+    and `clearPersistedSession()` is exposed. Existing signatures/behavior unchanged (additive only).
+    Because both chat surfaces use this hook, autosave fixes session loss for both at once.
+  - Added two shared lifecycle hooks to avoid duplicating logic across the two screens and keep both
+    route files under the 500-line design limit:
+    - `features/chat/hooks/useChatSessionFlush.ts`: `useFocusEffect` blur flush + `useEffect` unmount
+      flush, with `finalize()` to suppress flushes after finish/discard.
+    - `features/chat/hooks/useResumeChatSession.ts`: loads a `resume`d session and restores its messages
+      (conversationId already aligned via the resume param so backend memory re-links).
+  - `app/chat.tsx`: passes `persist` to the hook, reads a new `resume` param (restores messages +
+    conversationId, stops regenerating), flushes on blur/unmount, and clears the session on finish/discard.
+  - `app/intentions/chat.tsx`: mirrored autosave/flush + `resume` handling; its existing check-in-draft
+    save on close is preserved, and the session is removed on finish so a back-gesture mid-conversation
+    is now recoverable.
+  - `components/journal/ResumeSessionBanner.tsx` (new): dismissible "Resume your last conversation"
+    banner using NativeWind tokens with dark variants.
+  - `app/(tabs)/entries.tsx`: on focus, calls `getMostRecentActiveSession()` and renders the resume
+    banner above the feed → routes to `/chat?resume=<id>` or `/intentions/chat` with saved routeParams.
+    Keeps the WS0 `<ScreenContainer edges="top">`.
+  - `app/drafts.tsx`: added an "Active" section (autosaved sessions; tap = resume, delete = removeSession)
+    ABOVE the existing "Saved drafts" list, which is unchanged.
+  - Tests added:
+    - `__tests__/services/ai/sessionStorage.test.ts` (12 tests): upsert/get/remove, createdAt preserved,
+      `getMostRecentActiveSession` ignores empty + stale (>7d), `pruneStaleSessions` drops old + beyond
+      cap, save caps at 10, corrupt JSON → safe default, malformed records/messages sanitized.
+    - `__tests__/hooks/useChatOrchestration.session.test.tsx` (5 tests, jest fake timers): prune-on-mount,
+      debounced `saveSession` on append, no save when empty, `clearPersistedSession` removes, no autosave
+      after `handleNewChat` empties messages.
+  - Verified:
+    - `npx tsc --noEmit` — 0 errors.
+    - `npm run test:run` — 77 suites passed, 3 skipped; **255 tests passed** (up from 239 baseline,
+      +16 from the new suites), 8 skipped, 0 failed.
+    - `npm run check:design` — 0 errors (PASSED). 1 warning: `app/intentions/chat.tsx` at 498 lines
+      (≥450 warning threshold, under the 500 hard max).
+    - `npx eslint` on all new/edited files owned by this change — 0 errors.
+
   - Implemented custom provider storage/fetching in `services/ai/customModels.ts`.
     - Normalizes provider roots such as `https://openrouter.ai` to `/api/v1`.
     - Fetches standard OpenAI-compatible `GET /models` lists with bearer auth.
@@ -29,25 +252,38 @@
     - `generateMemoryNoteSuggestion()` builds a suggested note from non-note local memory atoms.
     - Generated notes save as `layer: 'note'`, `source: 'system'`, so they participate in the existing
       local memory retrieval/ranking framework.
+  - Fixed custom model activation/chat follow-up:
+    - Selecting a fetched model now validates the model, enables the custom provider immediately, and
+      persists the selected model ID.
+    - Direct chat now prefers the enabled custom model over stale payload defaults and sends streaming
+      requests with `Accept: text/event-stream`.
+    - Streaming and non-streaming response parsing now rejects reasoning-only or empty completions
+      instead of saving blank assistant messages.
+    - App chat request defaults remain at `max_tokens: 32768`.
+  - Fixed Memory tab phone layout:
+    - Memory layer filter chips now have stable vertical sizing and one-line labels so episodic,
+      semantic, and profile text is not clipped in APK/mobile layouts.
+    - The Memory graph stage and Settings/Insights scroll views now reserve enough bottom space to avoid
+      overlap with the absolute bottom navigation.
   - Tests added/updated:
     - `__tests__/services/ai/customModels.test.ts`
     - `__tests__/hooks/useCustomAiModels.test.ts`
     - `__tests__/components/CustomModelSettingsSection.test.tsx`
+    - `__tests__/integration/nanoGptRealKey.test.ts`
+    - `__tests__/services/ai/streamingCompletionGuard.test.ts`
+    - `__tests__/screens/ExploreScreen.test.tsx`
+    - `__tests__/screens/TabBottomSpacing.test.ts`
     - Updated direct config/transport, AI defaults, insights, Ask Rosebud, memory, worker, local backup,
       and settings component tests.
   - Verified:
-    - `npm test` — 68 suites passed, 2 skipped; 220 tests passed, 5 skipped. Jest reported completion
-      but held the process open, so the completed runner was terminated manually.
+    - `npm run test:run -- --forceExit` — 73 suites passed, 3 skipped; 232 tests passed, 8 skipped.
+    - `RUN_INTEGRATION_TESTS=1 npm test -- --runTestsByPath __tests__/integration/nanoGptRealKey.test.ts`
+      — passed against the real `.env` NanoGPT key for model fetch, non-streaming chat, custom-provider
+      activation, and app `streamChat`.
     - `npm run check:design` — passed with 0 warnings.
-    - `npm test -- --runTestsByPath __tests__/dark-mode-contrast.test.ts`
-      `__tests__/tailwind-config.test.ts __tests__/hooks/useMemoryGraph.test.tsx` — passed.
-  - Existing unrelated gates still failing:
-    - `npx tsc --noEmit` fails in `app/persona/[id].tsx`, `components/parallax-scroll-view.tsx`,
-      and `utils/dev/rawTextGuard.ts`.
-    - `npm run lint` fails on pre-existing errors in `__tests__/ChatMessage.test.tsx`,
-      `app/(tabs)/insights.tsx`, `app/goals.tsx`, `app/intentions/select.tsx`,
-      `components/today/GoalsSection.tsx`, `scripts/check-design-limits.js`, and
-      `scripts/check-legacy-shim.js`.
+    - `npx tsc --noEmit` — passed.
+    - `npm run lint` — passed with no warnings.
+    - `git diff --check` — passed.
 - **2026-01-22**: Initialized plan for Insights page.
 - **2026-01-22**: Implemented `generateWeeklyInsights` in `services/ai.ts` with unit tests.
 - **2026-01-22**: Implemented `app/(tabs)/insights.tsx`, `hooks/useWeeklyInsights.ts`, and UI components (`EmotionalLandscapeChart`, `KeyThemes`, `CastOfCharacters`).
@@ -859,3 +1095,161 @@
     - `npm run lint` still fails on pre-existing errors in `__tests__/ChatMessage.test.tsx`,
       `app/goals.tsx`, `app/intentions/select.tsx`, `components/today/GoalsSection.tsx`,
       `scripts/check-design-limits.js`, and `scripts/check-legacy-shim.js`, plus existing warnings.
+
+- **2026-06-09**: Fixed EAS Android bundle missing the data provider service:
+  - Root cause:
+    - `.gitignore` used `data/`, which ignores any directory named `data` at any depth.
+    - That caused `services/data/dataProvider.ts` to exist locally but stay ignored/untracked, so EAS cloud
+      builds did not receive it and Metro failed resolving `@/services/data/dataProvider`.
+  - Changed `.gitignore` to `/data/` so only the root local data directory is ignored while feature folders
+    like `services/data/` are packageable.
+  - Added `__tests__/gitignore-dataProvider.test.ts` to fail if git starts ignoring
+    `services/data/dataProvider.ts` again.
+  - Verified:
+    - `git check-ignore -v services/data/dataProvider.ts services/data || true` — no ignored paths.
+    - `npm test -- --testPathPattern="dataProvider|gitignore-dataProvider|supabaseClient-local-only`
+      `|syncQueue-local-only"` — Jest ran the full suite due npm argument forwarding; 69 suites passed,
+      2 skipped; 221 tests passed, 5 skipped. The completed Jest process had to be stopped after its
+      open-handle wait message.
+    - `npm run test:run -- --testPathPattern="dataProvider|gitignore-dataProvider`
+      `|supabaseClient-local-only|syncQueue-local-only" --forceExit` — 4 suites passed; 6 tests passed.
+    - `npm run check:design` — passed with 0 warnings.
+    - `npx expo export:embed --eager --platform android --dev false` — passed and bundled 4,991 modules.
+    - `npx tsc --noEmit --pretty false` — still fails only in the pre-existing
+      `app/persona/[id].tsx`, `components/parallax-scroll-view.tsx`, and `utils/dev/rawTextGuard.ts` errors.
+
+- **2026-06-09**: Fixed and emulator-tested release APK navigation crashes:
+  - Reproduced the installed APK crash on the Android `test_avd` emulator:
+    - Built `android/app/build/outputs/apk/release/app-release.apk` with `./gradlew assembleRelease`.
+    - Installed with `adb install`.
+    - Tapping the Today tab killed `com.blackrosejournal` with
+      `NumberFormatException: For input string: "[object Object]"` in Android transform parsing.
+  - Root cause:
+    - `components/ui/SpatialView.tsx` formatted a Reanimated spring animation object as a `rotateX`
+      transform string, which native Android/Fabric parsed as `[object Object]`.
+  - Fix:
+    - Moved `SpatialView` animation targets into numeric shared values, then formatted `rotateX` from the
+      numeric shared value only.
+    - Added `getSpatialFrame()` and `__tests__/components/SpatialView.test.tsx` to guard against object
+      transform payloads.
+  - Also fixed a real APK-only Memory tab issue found during emulator testing:
+    - Memory Graph WebView rendered Android `ERR_ACCESS_DENIED` from loading the HTML engine by asset URI.
+    - `components/memory-graph/MemoryGraphWebView.tsx` now reads the bundled HTML asset with
+      `expo-file-system/legacy` and loads it through inline `source={{ html, baseUrl }}`.
+    - Updated `__tests__/memoryGraphAsset.test.ts` to guard the native inline HTML loader.
+  - Final release APK verification on emulator:
+    - Rebuilt and reinstalled the final `app-release.apk`.
+    - Verified Today, Memory, Insights, History, Create entry, Create close, Settings, Streak, Drafts,
+      Drafts filter, weekday chips, Morning Intention, Evening Reflection, Set intention, Add goal,
+      Manage goals, insight refresh/save/more, Memory search, and Memory layer chips.
+    - Every tapped path kept `com.blackrosejournal` alive/focused with no `FATAL EXCEPTION`,
+      `E/AndroidRuntime`, React JS fatal, or `ERR_ACCESS_DENIED` log entries.
+  - Verified commands:
+    - `npm run test:run -- --runTestsByPath __tests__/components/SpatialView.test.tsx`
+      `__tests__/memoryGraphAsset.test.ts __tests__/gitignore-dataProvider.test.ts`
+      `__tests__/dataProvider.test.ts --forceExit` — 4 suites passed, 7 tests passed.
+    - `npm run test:run -- --forceExit` — 70 suites passed, 2 skipped; 223 tests passed, 5 skipped.
+    - `npm run check:design` — passed with 0 warnings.
+    - `./gradlew assembleRelease` from `android/` — passed.
+    - Final `adb install -r android/app/build/outputs/apk/release/app-release.apk` — passed.
+  - Existing unrelated gates still failing:
+    - `npx tsc --noEmit --pretty false` still fails in `app/persona/[id].tsx`,
+      `components/parallax-scroll-view.tsx`, and `utils/dev/rawTextGuard.ts`.
+    - `npm run lint` still fails on existing errors in `__tests__/ChatMessage.test.tsx`,
+      `app/(tabs)/insights.tsx`, `app/goals.tsx`, `app/intentions/select.tsx`,
+      `components/today/GoalsSection.tsx`, `scripts/check-design-limits.js`,
+      and `scripts/check-legacy-shim.js`, plus existing warnings.
+
+- **2026-06-09**: Fixed custom AI model activation, chat completion guards, and Memory tab clipping:
+  - Verified `.env` and `backend/.env` contain a real-looking NanoGPT key plus:
+    - `EXPO_PUBLIC_NANO_GPT_API_BASE_URL=https://nano-gpt.com/api/v1`
+    - `EXPO_PUBLIC_NANO_GPT_MODEL=moonshotai/kimi-k2.5:thinking`
+    - `EXPO_PUBLIC_NANO_GPT_FLASH_MODEL=moonshotai/kimi-k2.5`
+  - Live-tested the real root `.env` key without logging secrets:
+    - `GET /models` returned HTTP 200 with 627 models.
+    - `POST /chat/completions` returned HTTP 200 and final message content with
+      `max_tokens: 32768`.
+    - A streaming `POST /chat/completions` returned `text/event-stream`, reached `[DONE]`, streamed
+      reasoning first, then returned final content.
+  - Fixed custom provider selection:
+    - Tapping a fetched model now persists it as selected and enables the custom provider immediately.
+    - Direct chat transport now always uses the selected custom-provider model when custom config is active,
+      even if older persona/default payloads contain a different model string.
+    - Streaming requests now send `Accept: text/event-stream`; non-streaming requests send
+      `Accept: application/json`.
+  - Hardened chat completion handling:
+    - Reasoning-only or empty final completions now become retryable errors instead of saving blank AI replies.
+    - Android XHR streaming fallback now rejects/falls back when it reaches `[DONE]` without final content.
+    - Confirmed app chat still uses `max_tokens: 32768`, inside the requested 16k-32k range.
+  - Fixed Memory tab layout:
+    - Removed the tight `max-h-14` filter rail constraint that could clip Android text.
+    - Added stable layer-chip min height, explicit `lineHeight: 16`, and single-line labels for
+      episodic/semantic/profile/procedural/note/working chips.
+    - Added bottom reservation on the Memory graph stage so the no-nodes state and graph do not sit under
+      the absolute bottom nav on phone layouts.
+  - Tests added/updated:
+    - `__tests__/services/ai/streamingCompletionGuard.test.ts`
+    - `__tests__/integration/nanoGptRealKey.test.ts` gated by `RUN_INTEGRATION_TESTS=1`
+    - `__tests__/screens/ExploreScreen.test.tsx`
+    - Updated `directTransport`, `useCustomAiModels`, `ai-service`, and `MemoryGraphComponents` tests.
+  - Verified commands:
+    - `npm test -- --runTestsByPath __tests__/services/ai/directTransport.test.ts`
+      `__tests__/hooks/useCustomAiModels.test.ts`
+      `__tests__/services/ai/streamingCompletionGuard.test.ts __tests__/ai-service.test.ts`
+      `__tests__/components/MemoryGraphComponents.test.tsx __tests__/screens/ExploreScreen.test.tsx`
+      — 6 suites passed, 26 tests passed.
+    - `RUN_INTEGRATION_TESTS=1 npm test -- --runTestsByPath`
+      `__tests__/integration/nanoGptRealKey.test.ts` — 3 tests passed against the real configured
+      NanoGPT key, including direct NanoGPT chat, the app custom-provider fetch/select/chat path, and
+      the app `streamChat` path.
+    - `npm run test:run -- --forceExit` — 72 suites passed, 3 skipped; 230 tests passed, 8 skipped.
+    - `npm run check:design` — passed with 0 warnings.
+    - `git diff --check` — passed.
+  - Existing unrelated gates still failing:
+    - `npx tsc --noEmit` still fails in `app/persona/[id].tsx`,
+      `components/parallax-scroll-view.tsx`, and `utils/dev/rawTextGuard.ts`.
+    - `npm run lint` still fails on existing errors in `__tests__/ChatMessage.test.tsx`,
+      `app/(tabs)/insights.tsx`, `app/goals.tsx`, `app/intentions/select.tsx`,
+      `components/today/GoalsSection.tsx`, `scripts/check-design-limits.js`,
+      and `scripts/check-legacy-shim.js`, plus existing warnings.
+
+- **2026-06-11**: Switched the app/backend default AI model to
+  `nvidia/nemotron-3-ultra-550b-a55b`, completed the conversational intention refinement path,
+  and documented browser simulation results:
+  - Updated root/backend env defaults, backend config defaults, direct AI config, persona defaults,
+    custom model context lookup, README/example env files, and model-related tests for the NVIDIA
+    Nemotron model.
+  - Verified the configured real NanoGPT key without logging secrets:
+    - Direct non-streaming NanoGPT chat returned HTTP 200.
+    - Direct streaming NanoGPT chat returned HTTP 200.
+    - `RUN_INTEGRATION_TESTS=1 npm run test:run -- --runTestsByPath`
+      `__tests__/integration/nanoGptRealKey.test.ts --forceExit` passed 3 real API tests.
+  - Completed WS5 intention cleanup:
+    - Intention detail now defaults to "Refine with Rosebud".
+    - Direct intention editing remains available through the advanced edit route.
+    - Intentions chat now supports refine mode and updates the existing intention on finish.
+    - Deprecated `DailyJournalingCard` was removed.
+  - Fixed browser-simulation warnings:
+    - `ResumeSessionBanner` no longer nests a dismiss button inside the resume button.
+    - `TypingIndicator` no longer renders text glyph dots inside view containers.
+    - `ChatMessage` renders streaming/reasoning/plain prose through `Text`, uses Markdown only for
+      explicit completed Markdown content, and coerces `hasReasoning` to a boolean to avoid empty
+      raw children on React Native Web.
+  - Added simulation report:
+    - `documentation/plan-execution-simulation-2026-06-11.md`
+    - Playwright screenshots and result logs under `documentation/screenshots/`.
+  - Verified commands:
+    - `npm run test:run -- --forceExit` — 101 suites passed, 3 skipped; 333 tests passed,
+      8 skipped.
+    - `npx tsc --noEmit --pretty false` — passed.
+    - `npm run lint` — passed.
+    - `npm run check:design` — passed with 139 files scanned and 0 warnings.
+    - `cd backend && npm test` — passed.
+    - `cd backend && npx tsc --noEmit --pretty false` — passed.
+    - `git diff --check` — passed after normalizing line endings in touched files.
+    - Focused warning-regression tests passed:
+      `__tests__/ChatMessage.test.tsx`, `__tests__/components/TypingIndicator.test.tsx`,
+      and `__tests__/components/ResumeSessionBanner.test.tsx`.
+    - `npx tsc --noEmit --pretty false` passed after the chat warning fixes.
+    - Final live Playwright chat rerun returned the expected model response and no raw text or
+      nested button console warnings; only the existing AI service require-cycle warning remained.

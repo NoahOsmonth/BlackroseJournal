@@ -3,7 +3,7 @@ import { Image, Pressable, Text, TextInput, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
-import { getPersonaAvatarSource, PersonaAvatarKey } from '@/constants/personas';
+import { getPersonaAvatarSource, PERSONA_VOICES, PersonaAvatarKey } from '@/constants/personas';
 import { AvatarPickerModal } from './AvatarPickerModal';
 import { VoicePickerModal } from './VoicePickerModal';
 
@@ -27,7 +27,7 @@ interface PersonaFormProps {
     onChange?: (values: PersonaFormValues) => void;
 }
 
-const VOICE_OPTIONS = ['Onyx', 'Nova', 'Echo'];
+const VOICE_OPTIONS = [...PERSONA_VOICES];
 
 export function PersonaForm({
     title,

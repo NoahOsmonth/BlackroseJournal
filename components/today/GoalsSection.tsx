@@ -31,7 +31,7 @@ export function GoalsSection({
         <View className="space-y-3">
             <View className="flex-row items-center justify-between px-1">
                 <Text className="text-[13px] font-semibold text-text-secondary-light dark:text-text-secondary-dark">
-                    Today's goals
+                    Today&apos;s goals
                 </Text>
             </View>
             <View className="bg-surface-light dark:bg-surface-dark rounded-[24px] p-8 items-center text-center shadow-soft border border-gray-100 dark:border-white/5">
