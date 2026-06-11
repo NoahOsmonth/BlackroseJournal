@@ -47,7 +47,7 @@ export function PersonaSettingsSheet({
                             {persona.name}
                         </Text>
                     </View>
-                    <View className="space-y-2">
+                    <View className="gap-2">
                         <Pressable
                             onPress={() => onEdit(persona)}
                             className="flex-row items-center gap-3 px-4 py-3 rounded-xl border border-divider-light dark:border-divider-dark"

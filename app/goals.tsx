@@ -40,12 +40,12 @@ export default function GoalsScreen() {
                 </View>
 
                 <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
-                    <View className="space-y-6 pb-10">
+                    <View className="gap-6 pb-10">
                         <View>
                             <Text className="text-xs uppercase tracking-wide text-text-secondary-light dark:text-text-secondary-dark mb-2">
                                 Today&apos;s goals
                             </Text>
-                            <View className="space-y-2">
+                            <View className="gap-3">
                                 {todayGoals.map((goal) => (
                                     <Pressable
                                         key={goal.id}
@@ -74,7 +74,7 @@ export default function GoalsScreen() {
                             <Text className="text-xs uppercase tracking-wide text-text-secondary-light dark:text-text-secondary-dark mb-2">
                                 Habits
                             </Text>
-                            <View className="space-y-2">
+                            <View className="gap-3">
                                 {habits.map((habit) => {
                                     const completed = (habit.habitCompletions ?? []).includes(dateKey);
                                     return (

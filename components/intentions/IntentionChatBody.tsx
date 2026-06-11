@@ -1,11 +1,11 @@
 import React from 'react';
 import {
+    ActivityIndicator,
     NativeScrollEvent,
     NativeSyntheticEvent,
     Pressable,
     ScrollView,
     Text,
-    TextInput,
     View,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -14,16 +14,20 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { Message } from '@/services/ai/ai';
 import type { StreamingMessage } from '@/features/chat';
+import { InlineTypingInput, InlineTypingInputRef } from '@/components/InlineTypingInput';
 import { IntentionChatMessage } from './IntentionChatMessage';
 
 interface IntentionChatBodyProps {
     readonly scrollViewRef: React.RefObject<ScrollView | null>;
+    readonly inputRef: React.Ref<InlineTypingInputRef>;
+    readonly flowLabel: string;
     readonly headerDate: string;
     readonly messages: readonly Message[];
     readonly streamingMessage: StreamingMessage | null;
+    readonly isLoading: boolean;
     readonly feedback: Record<string, 'up' | 'down'>;
-    readonly inputValue: string;
-    readonly onInputChange: (value: string) => void;
+    readonly onSubmitInput: (text: string) => void;
+    readonly onInputTextChange: (text: string) => void;
     readonly onSettingsPress: () => void;
     readonly onPlay: (text: string) => void;
     readonly onCopy: (text: string) => void;
@@ -35,12 +39,15 @@ interface IntentionChatBodyProps {
 
 export function IntentionChatBody({
     scrollViewRef,
+    inputRef,
+    flowLabel,
     headerDate,
     messages,
     streamingMessage,
+    isLoading,
     feedback,
-    inputValue,
-    onInputChange,
+    onSubmitInput,
+    onInputTextChange,
     onSettingsPress,
     onPlay,
     onCopy,
@@ -52,7 +59,6 @@ export function IntentionChatBody({
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
     const settingsIconColor = isDark ? Colors.dark.tabIconDefault : Colors.light.tabIconDefault;
-    const placeholderColor = isDark ? Colors.dark.tabIconDefault : Colors.light.tabIconDefault;
 
     return (
         <ScrollView
@@ -64,16 +70,16 @@ export function IntentionChatBody({
             scrollEventThrottle={80}
             onContentSizeChange={onContentSizeChange}
         >
-            <View className="flex-row items-center space-x-2 mb-4">
+            <View className="flex-row items-center gap-2 mb-4">
                 <Text className="text-[10px] font-bold tracking-wider text-text-secondary-light dark:text-text-secondary-dark uppercase">
-                    Intention Setting - {headerDate}
+                    {flowLabel} - {headerDate}
                 </Text>
                 <Pressable onPress={onSettingsPress} accessibilityLabel="Open persona settings">
                     <MaterialIcons name="settings" size={12} color={settingsIconColor} />
                 </Pressable>
             </View>
 
-            <View className="space-y-4">
+            <View className="gap-4">
                 {messages.map((message) => (
                     <IntentionChatMessage
                         key={message.id}
@@ -91,18 +97,24 @@ export function IntentionChatBody({
                         {streamingMessage.content}
                     </Text>
                 )}
+
+                {isLoading && !streamingMessage && (
+                    <View className="flex-row items-center gap-2 py-1" accessibilityLabel="Rosebud is thinking">
+                        <ActivityIndicator size="small" color={settingsIconColor} />
+                        <Text className="text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
+                            Thinking...
+                        </Text>
+                    </View>
+                )}
             </View>
 
-            <View className="mt-8">
-                <TextInput
-                    testID="intention-chat-input"
-                    value={inputValue}
-                    onChangeText={onInputChange}
+            <View className="mt-8 pb-6">
+                <InlineTypingInput
+                    ref={inputRef}
+                    onSubmit={onSubmitInput}
+                    onTextChange={onInputTextChange}
+                    disabled={isLoading}
                     placeholder="Write"
-                    placeholderTextColor={placeholderColor}
-                    className="border-0 outline-none p-0 text-[17px] text-text-light dark:text-white"
-                    multiline
-                    autoFocus
                 />
             </View>
         </ScrollView>

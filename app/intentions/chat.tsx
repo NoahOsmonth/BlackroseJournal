@@ -28,7 +28,9 @@ import { markIntentionGoalComplete } from '@/services/goals/goalsStorage';
 import {
     finishIntentionChat,
     saveIntentionChatDraft,
+    withPendingInput,
 } from '@/services/intentions/intentionChatCompletion';
+import { generateEntryTitle } from '@/services/ai';
 import { getLocalDateKey } from '@/utils/date';
 import { IntentionChatHeader } from '@/components/intentions/IntentionChatHeader';
 import { IntentionChatFooter } from '@/components/intentions/IntentionChatFooter';
@@ -60,6 +62,7 @@ export default function IntentionChatScreen() {
     const [draftUpdatedAt, setDraftUpdatedAt] = useState<number | null>(null);
     const [personaSheetOpen, setPersonaSheetOpen] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
 
     const areaParam = Array.isArray(params.area) ? params.area[0] : params.area;
     const intentionId = Array.isArray(params.intentionId) ? params.intentionId[0] : params.intentionId;
@@ -69,6 +72,10 @@ export default function IntentionChatScreen() {
     const resumeId = Array.isArray(params.resume) ? params.resume[0] : params.resume;
 
     const checkInType = (typeParam as IntentionCheckInType) ?? 'intention';
+    const trimmedInput = inputValue.trim();
+    const flowLabel = checkInType === 'morning'
+        ? 'Morning Intention'
+        : checkInType === 'evening' ? 'Evening Reflection' : 'Intention Setting';
     const areaConfig = areaParam ? getIntentionAreaConfig(areaParam as IntentionArea) : undefined;
 
     useEffect(() => {
@@ -274,39 +281,60 @@ export default function IntentionChatScreen() {
     ]);
 
     const handleFinish = useCallback(async () => {
-        if (!hasContent(messages) && !inputValue.trim()) {
+        if ((!hasContent(messages) && !inputValue.trim()) || isSaving) {
             return;
         }
 
         finalize();
-        const { resolvedIntention } = await finishIntentionChat({
-            messages,
-            inputValue,
-            draftCheckInId,
-            intentionId,
-            checkInType,
-            personaId: activePersona?.id,
-            intention,
-            areaParam,
-            isRefineMode,
-        });
+        setIsSaving(true);
+        try {
+            const finalMessages = withPendingInput(messages, inputValue);
+            const entryText = finalMessages
+                .filter((message) => message.role === 'user')
+                .map((message) => message.content)
+                .join('\n\n');
 
-        if (resolvedIntention && checkInType === 'intention') {
-            await markIntentionGoalComplete(
-                resolvedIntention.title,
-                getLocalDateKey(new Date()),
-                resolvedIntention.id
-            );
-        }
+            let generatedTitle: string | undefined;
+            if (entryText.trim()) {
+                try {
+                    generatedTitle = await generateEntryTitle({ entryText });
+                } catch (error) {
+                    console.warn('AI title generation failed, using summary fallback', error);
+                }
+            }
 
-        // Completed check-in must not linger as an active session.
-        await removeSession(conversationId);
+            const { resolvedIntention } = await finishIntentionChat({
+                messages,
+                inputValue,
+                draftCheckInId,
+                intentionId,
+                checkInType,
+                personaId: activePersona?.id,
+                intention,
+                areaParam,
+                isRefineMode,
+                title: generatedTitle,
+            });
 
-        handleNewChat();
-        if (resolvedIntention) {
-            router.replace({ pathname: '/intentions/detail', params: { id: resolvedIntention.id } });
-        } else {
-            router.replace('/(tabs)/today');
+            if (resolvedIntention && checkInType === 'intention') {
+                await markIntentionGoalComplete(
+                    resolvedIntention.title,
+                    getLocalDateKey(new Date()),
+                    resolvedIntention.id
+                );
+            }
+
+            // Completed check-in must not linger as an active session.
+            await removeSession(conversationId);
+
+            handleNewChat();
+            if (resolvedIntention) {
+                router.replace({ pathname: '/intentions/detail', params: { id: resolvedIntention.id } });
+            } else {
+                router.replace('/(tabs)/today');
+            }
+        } finally {
+            setIsSaving(false);
         }
     }, [
         activePersona?.id,
@@ -320,19 +348,31 @@ export default function IntentionChatScreen() {
         intention,
         intentionId,
         isRefineMode,
+        isSaving,
         messages,
         router,
     ]);
 
-    const handleSuggest = useCallback(async () => {
-        if (!inputValue.trim() || isLoading) {
+    const handleSubmitInput = useCallback(async (text: string) => {
+        const trimmed = text.trim();
+        if (!trimmed || isLoading) {
             return;
         }
-        const text = inputValue.trim();
         setInputValue('');
         clearError();
+        await handleSendMessage(trimmed);
+    }, [clearError, handleSendMessage, isLoading]);
+
+    const handleGoDeeper = useCallback(async () => {
+        if (!trimmedInput || isLoading) {
+            return;
+        }
+        const text = trimmedInput;
+        setInputValue('');
+        inputRef.current?.clear();
+        clearError();
         await handleSendMessage(text);
-    }, [clearError, handleSendMessage, inputValue, isLoading]);
+    }, [clearError, handleSendMessage, isLoading, trimmedInput]);
 
     const handlePlay = (text: string) => {
         if (isMuted) return;
@@ -378,12 +418,15 @@ export default function IntentionChatScreen() {
 
                 <IntentionChatBody
                     scrollViewRef={scrollViewRef}
+                    inputRef={inputRef}
+                    flowLabel={flowLabel}
                     headerDate={headerDate}
                     messages={messages}
                     streamingMessage={streamingMessage}
+                    isLoading={isLoading}
                     feedback={feedback}
-                    inputValue={inputValue}
-                    onInputChange={setInputValue}
+                    onSubmitInput={handleSubmitInput}
+                    onInputTextChange={setInputValue}
                     onSettingsPress={personaSettings.openActiveSettings}
                     onPlay={handlePlay}
                     onCopy={handleCopy}
@@ -396,8 +439,11 @@ export default function IntentionChatScreen() {
                 <IntentionChatFooter
                     isMuted={isMuted}
                     onToggleMuted={handleToggleMuted}
-                    onFinish={handleFinish}
-                    onSuggest={handleSuggest}
+                    onGoDeeper={handleGoDeeper}
+                    onFinishEntry={handleFinish}
+                    disabled={isLoading || isSaving}
+                    canGoDeeper={trimmedInput.length > 0}
+                    canFinish={hasContent(messages) || trimmedInput.length > 0}
                 />
 
                 <IntentionChatOverlays

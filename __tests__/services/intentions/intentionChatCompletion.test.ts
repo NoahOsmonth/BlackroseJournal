@@ -118,4 +118,53 @@ describe('intentionChatCompletion', () => {
         expect(createCheckIn).not.toHaveBeenCalled();
         expect(result.resolvedIntention?.id).toBe('intent_1');
     });
+
+    it('uses the AI-generated title for the check-in when provided', async () => {
+        await finishIntentionChat({
+            messages: [userMessage],
+            inputValue: '',
+            draftCheckInId: null,
+            checkInType: 'intention',
+            intention: null,
+            isRefineMode: false,
+            title: 'A Walk Each Morning',
+        });
+
+        expect(createCheckIn).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'A Walk Each Morning',
+            summary: userMessage.content,
+        }));
+    });
+
+    it('uses the AI-generated title when updating an existing draft', async () => {
+        await finishIntentionChat({
+            messages: [userMessage],
+            inputValue: '',
+            draftCheckInId: 'draft_existing',
+            checkInType: 'evening',
+            intention: null,
+            isRefineMode: false,
+            title: '  An Evening Wind-down  ',
+        });
+
+        expect(updateCheckIn).toHaveBeenCalledWith('draft_existing', expect.objectContaining({
+            title: 'An Evening Wind-down',
+            summary: userMessage.content,
+        }));
+    });
+
+    it('falls back to the chat summary when no title is provided', async () => {
+        await finishIntentionChat({
+            messages: [userMessage],
+            inputValue: '',
+            draftCheckInId: null,
+            checkInType: 'morning',
+            intention: null,
+            isRefineMode: false,
+        });
+
+        expect(createCheckIn).toHaveBeenCalledWith(expect.objectContaining({
+            title: userMessage.content,
+        }));
+    });
 });

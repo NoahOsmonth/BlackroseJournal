@@ -32,7 +32,7 @@ export function ModelPickerModal({
                     <Text className="text-[17px] font-semibold text-text-light dark:text-white mb-4 text-center">
                         Choose model
                     </Text>
-                    <View className="space-y-2">
+                    <View className="gap-2">
                         {options.map((option) => {
                             const isActive = option.id === selectedId;
                             return (

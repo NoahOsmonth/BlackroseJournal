@@ -19,7 +19,7 @@ export function MyIntentionsSection({
     const hasIntentions = cards.length > 0;
 
     return (
-        <View className="space-y-3">
+        <View className="gap-3">
             <Text className="text-[13px] font-semibold text-text-secondary-light dark:text-text-secondary-dark ml-1">
                 My intentions
             </Text>

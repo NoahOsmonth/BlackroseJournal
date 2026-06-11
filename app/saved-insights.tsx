@@ -25,7 +25,7 @@ export default function SavedInsightsScreen() {
                 </View>
 
                 <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
-                    <View className="space-y-4 pb-8">
+                    <View className="gap-4 pb-8">
                         {insights.map((insight) => (
                             <View
                                 key={insight.id}

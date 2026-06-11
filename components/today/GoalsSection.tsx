@@ -28,7 +28,7 @@ export function GoalsSection({
     const message = getGoalMessage(completedCount, totalCount);
 
     return (
-        <View className="space-y-3">
+        <View className="gap-3">
             <View className="flex-row items-center justify-between px-1">
                 <Text className="text-[13px] font-semibold text-text-secondary-light dark:text-text-secondary-dark">
                     Today&apos;s goals
@@ -45,7 +45,7 @@ export function GoalsSection({
                     {message}
                 </Text>
             </View>
-            <View className="flex-row gap-3">
+            <View className="flex-row gap-4">
                 <Pressable
                     onPress={onAddGoal}
                     className="flex-1 bg-surface-light dark:bg-surface-dark h-12 rounded-xl items-center justify-center shadow-soft border border-gray-100 dark:border-white/5"

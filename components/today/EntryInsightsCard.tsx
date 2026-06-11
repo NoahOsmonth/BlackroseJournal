@@ -16,7 +16,7 @@ export function EntryInsightsCard({
     onMore,
 }: EntryInsightsCardProps) {
     return (
-        <View className="space-y-3">
+        <View className="gap-3">
             <Text className="text-[13px] font-semibold text-text-secondary-light dark:text-text-secondary-dark text-center">
                 Based on your entries
             </Text>

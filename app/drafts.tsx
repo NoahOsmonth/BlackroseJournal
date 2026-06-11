@@ -148,7 +148,7 @@ export default function DraftsScreen() {
                             <Text className="text-[12px] font-semibold tracking-wider text-text-secondary-light dark:text-text-secondary-dark uppercase mb-3">
                                 Active
                             </Text>
-                            <View className="space-y-3">
+                            <View className="gap-3">
                                 {sessions.map((session) => (
                                     <Pressable
                                         key={session.conversationId}
@@ -192,7 +192,7 @@ export default function DraftsScreen() {
                         </Text>
                     )}
 
-                    <View className="space-y-4">
+                    <View className="gap-4">
                         {items.map((item) => (
                             <View
                                 key={item.id}

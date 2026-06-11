@@ -60,7 +60,7 @@ export default function IntentionSelectScreen() {
                 </View>
 
                 <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-                    <View className="space-y-3 pb-6">
+                    <View className="gap-3 pb-6">
                         {INTENTION_AREAS.map((area) => (
                             <IntentionAreaButton
                                 key={area.id}

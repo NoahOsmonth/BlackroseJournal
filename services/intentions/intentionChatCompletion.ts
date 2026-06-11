@@ -79,6 +79,7 @@ interface FinishChatOptions extends SaveDraftOptions {
     intention: Intention | null;
     areaParam?: string;
     isRefineMode: boolean;
+    title?: string;
 }
 
 interface FinishChatResult {
@@ -97,14 +98,16 @@ export async function finishIntentionChat({
     intention,
     areaParam,
     isRefineMode,
+    title,
 }: FinishChatOptions): Promise<FinishChatResult> {
     const finalMessages = withPendingInput(messages, inputValue);
     const summary = buildIntentionChatSummary(finalMessages);
+    const checkInTitle = title?.trim() ? title.trim() : summary;
     let resolvedIntention = intention;
 
     if (!intentionId && checkInType === 'intention') {
         resolvedIntention = await createIntention({
-            title: summary,
+            title: checkInTitle,
             description: summary,
             area: (areaParam ?? 'wellbeing') as IntentionArea,
         });
@@ -117,14 +120,14 @@ export async function finishIntentionChat({
             messages: finalMessages,
             status: 'completed',
             summary,
-            title: summary,
+            title: checkInTitle,
             personaId,
         });
     } else {
         await createCheckIn({
             intentionId: resolvedIntention?.id,
             type: checkInType,
-            title: summary,
+            title: checkInTitle,
             summary,
             mood: 'Reflective',
             personaId,

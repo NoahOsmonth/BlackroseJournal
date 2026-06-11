@@ -298,7 +298,7 @@ export default function ChatScreen() {
 
                 <ScrollView
                     ref={scrollViewRef}
-                    className="flex-1 px-6 py-4 space-y-6"
+                    className="flex-1 px-6 py-4 gap-6"
                     contentContainerStyle={{ paddingBottom: 20 }}
                     showsVerticalScrollIndicator={false}
                     onScroll={handleScroll}

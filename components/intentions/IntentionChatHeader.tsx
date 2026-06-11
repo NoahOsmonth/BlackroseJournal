@@ -32,7 +32,7 @@ export function IntentionChatHeader({
             <View className="flex-row items-center justify-between">
                 <Pressable
                     onPress={onOpenPersona}
-                    className="flex-row items-center space-x-2 bg-gray-100 dark:bg-card-dark border border-divider-light dark:border-divider-dark rounded-full pl-1 pr-3 py-1"
+                    className="flex-row items-center gap-2 bg-gray-100 dark:bg-card-dark border border-divider-light dark:border-divider-dark rounded-full pl-1 pr-3 py-1"
                     accessibilityLabel="Choose persona"
                 >
                     <View
@@ -46,7 +46,7 @@ export function IntentionChatHeader({
                     </Text>
                     <MaterialIcons name="expand-more" size={18} color={chevronIconColor} />
                 </Pressable>
-                <View className="flex-row items-center space-x-4">
+                <View className="flex-row items-center gap-4">
                     <Pressable onPress={onOpenDrafts} accessibilityLabel="Open drafts">
                         <Text className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">
                             Drafts

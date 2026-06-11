@@ -27,7 +27,7 @@ export function VoicePickerModal({
                     <Text className="text-[17px] font-semibold text-text-light dark:text-white mb-4 text-center">
                         Choose voice
                     </Text>
-                    <View className="space-y-2">
+                    <View className="gap-2">
                         {options.map((voice) => {
                             const isActive = voice === selected;
                             return (

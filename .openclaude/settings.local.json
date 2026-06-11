@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm test:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run:*)",
+      "Bash(git stash:*)",
+      "Bash(grep -n generateEntryTitle services/ai/*.ts)",
+      "Bash(ls services/ai/index*)"
+    ]
+  }
+}

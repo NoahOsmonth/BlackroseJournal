@@ -14,7 +14,7 @@ export function NewPersonaCard({ onCreate, onGenerate }: NewPersonaCardProps) {
             testID="new-persona-card"
             className="snap-center shrink-0 w-[80vw] max-w-sm bg-transparent rounded-3xl p-6 flex flex-col items-center justify-between text-center relative border-2 border-dashed border-gray-300 dark:border-gray-700 h-[380px]"
         >
-            <View className="flex-1 items-center justify-center space-y-5">
+            <View className="flex-1 items-center justify-center gap-5">
                 <NewPersonaAvatar />
                 <View className="items-center">
                     <Text className="text-xl font-bold text-text-light dark:text-white">New persona</Text>

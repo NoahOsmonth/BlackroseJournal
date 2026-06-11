@@ -35,7 +35,7 @@ export function Header({ onClose, onDraftsPress, personaName, onPersonaPress }: 
           disabled={!isPersonaPill}
           accessibilityRole={isPersonaPill ? 'button' : undefined}
           accessibilityLabel={isPersonaPill ? `Persona: ${pillLabel}. Tap to switch.` : undefined}
-          className="flex-row items-center space-x-1.5 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm gap-1.5"
+          className="flex-row items-center bg-white dark:bg-slate-800 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm gap-1.5"
         >
           <View className="w-5 h-5 bg-primary rounded-full items-center justify-center">
             <Text className="text-[10px] text-surface-light dark:text-surface-light font-bold leading-none mt-[1px]">{pillInitial}</Text>
@@ -45,7 +45,7 @@ export function Header({ onClose, onDraftsPress, personaName, onPersonaPress }: 
         </Pressable>
 
         {/* Right Actions */}
-        <View className="flex-row items-center space-x-4 gap-4">
+        <View className="flex-row items-center gap-4">
           <Pressable onPress={onDraftsPress}>
             <Text className="text-[15px] font-serif text-user-text dark:text-user-text-dark">Drafts</Text>
           </Pressable>

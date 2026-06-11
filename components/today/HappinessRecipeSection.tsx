@@ -28,7 +28,7 @@ export function HappinessRecipeSection({
     const isDark = colorScheme === 'dark';
 
     return (
-        <View className="space-y-3">
+        <View className="gap-3">
             {/* Header row */}
             <View className="flex-row justify-between items-center ml-1">
                 <Text className="text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide">

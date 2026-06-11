@@ -27,7 +27,7 @@ export function GoalQuickAddModal({ visible, onClose, onSubmit }: GoalQuickAddMo
                     <Text className="text-lg font-semibold text-text-light dark:text-white mb-4">
                         Add a goal
                     </Text>
-                    <View className="flex-row gap-2 mb-4">
+                    <View className="flex-row gap-3 mb-4">
                         <Pressable
                             onPress={() => setType('goal')}
                             className={`flex-1 py-2 rounded-full border ${type === 'goal'

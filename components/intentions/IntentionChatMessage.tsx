@@ -32,7 +32,7 @@ export function IntentionChatMessage({
     const displayContent = resolveIntentionChatContent(message.content);
 
     return (
-        <View className="space-y-2">
+        <View className="gap-2">
             <Text
                 testID="intention-chat-message-text"
                 className={`max-w-[320px] text-[17px] leading-relaxed ${isAssistant
@@ -43,7 +43,7 @@ export function IntentionChatMessage({
                 {displayContent}
             </Text>
             {isAssistant && (
-                <View className="flex-row items-center space-x-5">
+                <View className="flex-row items-center gap-5">
                     <Pressable onPress={() => onPlay(displayContent)} accessibilityLabel="Play message">
                         <MaterialIcons name="play-arrow" size={22} color={actionIconColor} />
                     </Pressable>

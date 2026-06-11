@@ -4,6 +4,7 @@ import { render } from '@testing-library/react-native';
 import type { ReactTestInstance } from 'react-test-renderer';
 
 import { IntentionChatBody } from '../components/intentions/IntentionChatBody';
+import type { InlineTypingInputRef } from '../components/InlineTypingInput';
 
 jest.mock('@expo/vector-icons', () => ({
     MaterialIcons: () => null,
@@ -19,16 +20,19 @@ function classNameFor(node: ReactTestInstance): string {
 }
 
 describe('IntentionChatBody', () => {
-    it('renders the write input as a transparent borderless field', () => {
-        const { getByTestId, getByText } = render(
+    it('renders the flow label header and an input writing surface', () => {
+        const { getByPlaceholderText } = render(
             <IntentionChatBody
                 scrollViewRef={createRef<ScrollView>()}
+                inputRef={createRef<InlineTypingInputRef>()}
+                flowLabel="Intention Setting"
                 headerDate="Fri, Jan 23"
                 messages={[]}
                 streamingMessage={null}
+                isLoading={false}
                 feedback={{}}
-                inputValue=""
-                onInputChange={jest.fn()}
+                onSubmitInput={jest.fn()}
+                onInputTextChange={jest.fn()}
                 onSettingsPress={jest.fn()}
                 onPlay={jest.fn()}
                 onCopy={jest.fn()}
@@ -37,9 +41,52 @@ describe('IntentionChatBody', () => {
             />
         );
 
-        expect(getByText('Intention Setting - Fri, Jan 23')).toBeTruthy();
-        expect(classNameFor(getByTestId('intention-chat-input'))).toContain(
-            'border-0 outline-none p-0'
+        expect(getByPlaceholderText('Write')).toBeTruthy();
+    });
+
+    it('shows the Thinking indicator only when loading and no streaming message', () => {
+        const { getByLabelText, queryByLabelText } = render(
+            <IntentionChatBody
+                scrollViewRef={createRef<ScrollView>()}
+                inputRef={createRef<InlineTypingInputRef>()}
+                flowLabel="Intention Setting"
+                headerDate="Fri, Jan 23"
+                messages={[]}
+                streamingMessage={null}
+                isLoading={true}
+                feedback={{}}
+                onSubmitInput={jest.fn()}
+                onInputTextChange={jest.fn()}
+                onSettingsPress={jest.fn()}
+                onPlay={jest.fn()}
+                onCopy={jest.fn()}
+                onShare={jest.fn()}
+                onThumb={jest.fn()}
+            />
         );
+
+        expect(getByLabelText('Rosebud is thinking')).toBeTruthy();
+
+        const inputRef = createRef<InlineTypingInputRef>();
+        const { queryByLabelText: q } = render(
+            <IntentionChatBody
+                scrollViewRef={createRef<ScrollView>()}
+                inputRef={inputRef}
+                flowLabel="Intention Setting"
+                headerDate="Fri, Jan 23"
+                messages={[]}
+                streamingMessage={{ content: 'in flight' }}
+                isLoading={true}
+                feedback={{}}
+                onSubmitInput={jest.fn()}
+                onInputTextChange={jest.fn()}
+                onSettingsPress={jest.fn()}
+                onPlay={jest.fn()}
+                onCopy={jest.fn()}
+                onShare={jest.fn()}
+                onThumb={jest.fn()}
+            />
+        );
+        expect(q('Rosebud is thinking')).toBeNull();
     });
 });
