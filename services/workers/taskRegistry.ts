@@ -15,10 +15,6 @@ import { WORKER_TASK_NAMES } from './taskNames';
 
 let registered = false;
 
-TaskManager.defineTask(WORKER_TASK_NAMES.LOCAL_AI_MAINTENANCE, async () =>
-    runLocalAiWorker()
-);
-
 /**
  * Register every background worker defined in `WORKER_TASK_NAMES`.
  *
@@ -32,6 +28,10 @@ export async function registerAllWorkers(): Promise<void> {
         return;
     }
     registered = true;
+
+    TaskManager.defineTask(WORKER_TASK_NAMES.LOCAL_AI_MAINTENANCE, async () =>
+        runLocalAiWorker()
+    );
 
     const available = await TaskManager.isAvailableAsync();
     if (!available) {

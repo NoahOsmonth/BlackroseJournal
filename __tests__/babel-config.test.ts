@@ -27,13 +27,12 @@ describe("babel config", () => {
                 preset === "nativewind/babel" ||
                 (Array.isArray(preset) && preset[0] === "nativewind/babel")
         );
-        const hasNativewindPlugin = plugins.some(
-            (plugin) =>
-                plugin === "nativewind/babel" ||
-                (Array.isArray(plugin) && plugin[0] === "nativewind/babel")
-        );
 
-        expect(hasNativewindPreset || hasNativewindPlugin).toBe(true);
+        // NativeWind v4 with Expo only needs jsxImportSource: "nativewind" in
+        // babel-preset-expo. The standalone "nativewind/babel" preset is an
+        // alternative setup, not a complement, and including both can double-
+        // transform JSX/CSS.
+        expect(hasNativewindPreset).toBe(false);
         expect(plugins).not.toContain("react-native-css-interop/dist/babel-plugin");
         expect(plugins[plugins.length - 1]).toBe(
             "react-native-reanimated/plugin"
