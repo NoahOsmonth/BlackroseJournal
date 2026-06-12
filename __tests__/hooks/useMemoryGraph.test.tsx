@@ -71,6 +71,7 @@ describe('useMemoryGraph', () => {
         expect(result.current.atoms[0]).toMatchObject({
             id: 'atom-1',
             entryId: 'entry-1',
+            source: 'journal',
             salience: 7,
         });
         expect(result.current.connections).toEqual([{
@@ -82,6 +83,31 @@ describe('useMemoryGraph', () => {
 
         act(() => result.current.setSearchQuery('identity'));
         expect(result.current.atoms.map((atom) => atom.id)).toEqual(['atom-2']);
+    });
+
+    it('maps intention source atoms through to the graph display model', () => {
+        mockUseLocalMemories.mockReturnValue({
+            atoms: [
+                storedAtom({ id: 'atom-3', source: 'intention', layer: 'episodic' }),
+            ],
+            isLoading: false,
+            generatedNote: '',
+            refresh: jest.fn(),
+            addNote: jest.fn(),
+            addGeneratedNote: jest.fn(),
+            refreshGeneratedNote: jest.fn(),
+            removeAtom: jest.fn(),
+            clearAll: jest.fn(),
+        });
+
+        const { result } = renderHook(() => useMemoryGraph());
+
+        expect(result.current.atoms).toHaveLength(1);
+        expect(result.current.atoms[0]).toMatchObject({
+            id: 'atom-3',
+            source: 'intention',
+            layer: 'episodic',
+        });
     });
 
     it('synthesizes insight for the selected graph atom', async () => {

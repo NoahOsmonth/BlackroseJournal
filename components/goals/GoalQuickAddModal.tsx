@@ -24,7 +24,7 @@ export function GoalQuickAddModal({ visible, onClose, onSubmit }: GoalQuickAddMo
                     className="bg-surface-light dark:bg-surface-dark rounded-t-3xl p-6"
                     onTouchEnd={(e) => e.stopPropagation()}
                 >
-                    <Text className="text-lg font-semibold text-text-light dark:text-white mb-4">
+                    <Text className="text-lg font-semibold text-text-light dark:text-text-dark mb-4">
                         Add a goal
                     </Text>
                     <View className="flex-row gap-3 mb-4">
@@ -62,7 +62,7 @@ export function GoalQuickAddModal({ visible, onClose, onSubmit }: GoalQuickAddMo
                         onChangeText={setTitle}
                         placeholder="What do you want to do?"
                         placeholderTextColor="#9CA3AF"
-                        className="bg-background-light dark:bg-background-dark rounded-2xl px-4 py-3 text-text-light dark:text-white"
+                        className="bg-background-light dark:bg-background-dark rounded-2xl px-4 py-3 text-text-light dark:text-text-dark"
                     />
                     <View className="flex-row gap-3 mt-5">
                         <Pressable

@@ -29,7 +29,7 @@ export function ModelPickerModal({
                     <View className="items-center mb-4">
                         <View className="w-10 h-1 bg-divider-light dark:bg-divider-dark rounded-full" />
                     </View>
-                    <Text className="text-[17px] font-semibold text-text-light dark:text-white mb-4 text-center">
+                    <Text className="text-[17px] font-semibold text-text-light dark:text-text-dark mb-4 text-center">
                         Choose model
                     </Text>
                     <View className="gap-2">
@@ -45,7 +45,7 @@ export function ModelPickerModal({
                                         }`}
                                     accessibilityLabel={`Select ${option.label}`}
                                 >
-                                    <Text className="text-base text-text-light dark:text-white">
+                                    <Text className="text-base text-text-light dark:text-text-dark">
                                         {option.label}
                                     </Text>
                                 </Pressable>

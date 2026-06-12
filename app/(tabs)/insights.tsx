@@ -142,6 +142,7 @@ interface WritingStatsCardProps {
     words: number;
     entries: number;
     dailyWords: number[];
+    maxWords: number;
 }
 
 interface AskRosebudCardProps {
@@ -177,8 +178,8 @@ const WritingStatsCard = ({
     words,
     entries,
     dailyWords,
+    maxWords,
 }: WritingStatsCardProps) => {
-    const maxWords = Math.max(...dailyWords, 1);
     const todayIndex = new Date().getDay();
 
     return (
@@ -307,6 +308,7 @@ export default function InsightsScreen() {
                                 words={weeklyStats.totalWords}
                                 entries={weeklyStats.entriesCount}
                                 dailyWords={weeklyStats.dailyWords}
+                                maxWords={weeklyStats.maxWords}
                             />
 
                             <View className="mb-6">

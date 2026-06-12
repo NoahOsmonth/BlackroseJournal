@@ -1,3 +1,5 @@
+import type { LocalMemorySource } from './localMemory.types';
+
 export type MemoryLayer =
     | 'episodic'
     | 'semantic'
@@ -20,6 +22,7 @@ export interface JournalEntry {
 export interface MemoryGraphAtom {
     id: string;
     entryId: string;
+    source: LocalMemorySource;
     title: string;
     content: string;
     layer: MemoryLayer;

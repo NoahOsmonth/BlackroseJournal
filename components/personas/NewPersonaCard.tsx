@@ -17,8 +17,8 @@ export function NewPersonaCard({ onCreate, onGenerate }: NewPersonaCardProps) {
             <View className="flex-1 items-center justify-center gap-5">
                 <NewPersonaAvatar />
                 <View className="items-center">
-                    <Text className="text-xl font-bold text-text-light dark:text-white">New persona</Text>
-                    <Text className="text-text-secondary-light dark:text-gray-400 font-medium">
+                    <Text className="text-xl font-bold text-text-light dark:text-text-dark">New persona</Text>
+                    <Text className="text-text-secondary-light dark:text-text-secondary-dark font-medium">
                         Build your dream team
                     </Text>
                 </View>

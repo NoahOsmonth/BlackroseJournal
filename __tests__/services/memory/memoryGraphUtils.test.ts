@@ -17,6 +17,7 @@ function atom(
     return {
         id,
         entryId: id,
+        source: 'journal',
         title: id,
         content: `Memory ${id}`,
         layer,

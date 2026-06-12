@@ -56,6 +56,7 @@ jest.mock('../../hooks/useWeeklyInsights', () => ({
             entriesCount: 2,
             totalWords: 120,
             dailyWords: [0, 40, 0, 80, 0, 0, 0],
+            maxWords: 80,
         },
         weekDateRange: 'Jun 7 - Jun 13',
         isLoading: false,

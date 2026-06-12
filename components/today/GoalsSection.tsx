@@ -41,7 +41,7 @@ export function GoalsSection({
                         <View className="w-5 h-5 rounded-full bg-pink-500" />
                     </View>
                 </View>
-                <Text className="text-[15px] font-medium text-text-light dark:text-white max-w-[200px] text-center">
+                <Text className="text-[15px] font-medium text-text-light dark:text-text-dark max-w-[200px] text-center">
                     {message}
                 </Text>
             </View>
@@ -51,14 +51,14 @@ export function GoalsSection({
                     className="flex-1 bg-surface-light dark:bg-surface-dark h-12 rounded-xl items-center justify-center shadow-soft border border-gray-100 dark:border-white/5"
                     accessibilityLabel="Add goal"
                 >
-                    <Text className="text-sm font-medium text-text-light dark:text-white">Add goal</Text>
+                    <Text className="text-sm font-medium text-text-light dark:text-text-dark">Add goal</Text>
                 </Pressable>
                 <Pressable
                     onPress={onManage}
                     className="flex-1 bg-surface-light dark:bg-surface-dark h-12 rounded-xl items-center justify-center shadow-soft border border-gray-100 dark:border-white/5"
                     accessibilityLabel="Manage goals"
                 >
-                    <Text className="text-sm font-medium text-text-light dark:text-white">Manage</Text>
+                    <Text className="text-sm font-medium text-text-light dark:text-text-dark">Manage</Text>
                 </Pressable>
             </View>
         </View>

@@ -11,6 +11,7 @@ import {
     AboutSettingsSection,
     AccountSettingsSection,
     AppearanceSettingsSection,
+    ColorThemeSettingsSection,
     CustomModelSettingsSection,
     DataManagementSection,
     GenerationSettingsSection,
@@ -29,7 +30,16 @@ import { clearAllEntries, getAllEntriesForExport } from '@/services/journalStora
 export default function SettingsScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
-    const { theme, setTheme, emojiStyle, setEmojiStyle } = useThemeSettings();
+    const {
+        theme,
+        setTheme,
+        emojiStyle,
+        setEmojiStyle,
+        colorTheme,
+        setColorThemePreset,
+        applyColorThemeEdit,
+        resetColorTheme,
+    } = useThemeSettings();
     const { user, isLoading: isAuthLoading } = useAuthSession();
     const { latestBackup, isBusy, createBackup, restoreBackup } = useLocalBackups();
     const memory = useLocalMemories();
@@ -155,6 +165,12 @@ export default function SettingsScreen() {
                         emojiStyle={emojiStyle}
                         onThemeChange={setTheme}
                         onEmojiStyleChange={setEmojiStyle}
+                    />
+                    <ColorThemeSettingsSection
+                        colorTheme={colorTheme}
+                        onPresetChange={setColorThemePreset}
+                        onPickerConfirm={applyColorThemeEdit}
+                        onReset={resetColorTheme}
                     />
                     <GenerationSettingsSection {...generation} />
                     <CustomModelSettingsSection {...customAi} />

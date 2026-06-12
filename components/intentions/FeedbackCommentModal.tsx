@@ -43,7 +43,7 @@ export function FeedbackCommentModal({
             <View className="flex-1 justify-end bg-black/50">
                 <View className="rounded-t-[28px] bg-surface-light dark:bg-surface-dark p-5">
                     <View className="flex-row items-center justify-between">
-                        <Text className="text-lg font-bold text-text-light dark:text-white">
+                        <Text className="text-lg font-bold text-text-light dark:text-text-dark">
                             {titleFor(value)}
                         </Text>
                         <Pressable
@@ -66,7 +66,7 @@ export function FeedbackCommentModal({
                         placeholder="Add a note about tone, pacing, or wording..."
                         placeholderTextColor={placeholderColor}
                         multiline
-                        className="mt-4 min-h-28 rounded-2xl border border-divider-light dark:border-divider-dark p-4 text-base text-text-light dark:text-white"
+                        className="mt-4 min-h-28 rounded-2xl border border-divider-light dark:border-divider-dark p-4 text-base text-text-light dark:text-text-dark"
                     />
 
                     <View className="mt-5 flex-row justify-end gap-3">

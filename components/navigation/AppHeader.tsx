@@ -34,12 +34,12 @@ function TodayHeader({
                     hitSlop={8}
                 >
                     <MaterialIcons name="local-fire-department" size={20} color="#FF9500" />
-                    <Text className="text-sm font-bold text-text-light dark:text-white">
+                    <Text className="text-sm font-bold text-text-light dark:text-text-dark">
                         {streakCount ?? 0}
                     </Text>
                 </Pressable>
 
-                <Text className="text-base font-semibold text-text-light dark:text-white">
+                <Text className="text-base font-semibold text-text-light dark:text-text-dark">
                     {title ?? ''}
                 </Text>
 

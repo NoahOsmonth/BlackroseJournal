@@ -23,7 +23,9 @@ describe('tab bottom spacing', () => {
     });
 
     it('keeps the Memory graph stage above the absolute bottom nav', () => {
-        expect(sourceFor('components/memory-graph/MemoryGraphScreen.tsx'))
-            .toContain('className="mb-32 flex-1');
+        const src = sourceFor('components/memory-graph/MemoryGraphScreen.tsx');
+        // Stage clears the absolute nav when it is shown, and reclaims the
+        // space as graph area when it is not.
+        expect(src).toContain("showBottomNav ? 'mb-32' : 'mb-0'");
     });
 });

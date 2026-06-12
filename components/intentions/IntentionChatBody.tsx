@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-    ActivityIndicator,
     NativeScrollEvent,
     NativeSyntheticEvent,
     Pressable,
@@ -10,11 +9,12 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 
-import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useThemeSettings } from '@/hooks/useThemeSettings';
 import type { Message } from '@/services/ai/ai';
 import type { StreamingMessage } from '@/features/chat';
 import { InlineTypingInput, InlineTypingInputRef } from '@/components/InlineTypingInput';
+import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { IntentionChatMessage } from './IntentionChatMessage';
 
 interface IntentionChatBodyProps {
@@ -57,8 +57,11 @@ export function IntentionChatBody({
     onContentSizeChange,
 }: IntentionChatBodyProps) {
     const colorScheme = useColorScheme();
+    const { colorTheme } = useThemeSettings();
     const isDark = colorScheme === 'dark';
-    const settingsIconColor = isDark ? Colors.dark.tabIconDefault : Colors.light.tabIconDefault;
+    const colors = colorTheme.colors;
+    const settingsIconColor = isDark ? colors.secondaryTextDark : colors.secondaryTextLight;
+    const streamingTextColor = isDark ? colors.chatAiTextDark : colors.chatAiTextLight;
 
     return (
         <ScrollView
@@ -92,18 +95,21 @@ export function IntentionChatBody({
                     />
                 ))}
 
-                {streamingMessage && (
-                    <Text className="text-[17px] leading-relaxed text-accent-blue dark:text-ai-text">
+                {streamingMessage && streamingMessage.content.length > 0 && (
+                    <Text
+                        className="text-[17px] leading-relaxed text-accent-blue dark:text-ai-text"
+                        style={{ color: streamingTextColor }}
+                    >
                         {streamingMessage.content}
                     </Text>
                 )}
 
-                {isLoading && !streamingMessage && (
-                    <View className="flex-row items-center gap-2 py-1" accessibilityLabel="Rosebud is thinking">
-                        <ActivityIndicator size="small" color={settingsIconColor} />
-                        <Text className="text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
-                            Thinking...
-                        </Text>
+                {/* The streaming placeholder is created with empty content before
+                    the first token arrives, so gate on content rather than on the
+                    message's existence — otherwise this never shows. */}
+                {isLoading && !streamingMessage?.content && (
+                    <View className="py-1" accessibilityLabel="Rosebud is thinking">
+                        <TypingIndicator />
                     </View>
                 )}
             </View>

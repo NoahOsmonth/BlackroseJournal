@@ -40,12 +40,13 @@ describe('localBackup', () => {
         mockStore.set('@ai_response_feedback', '{"feedback-1":{"value":"up"}}');
         mockStore.set('@rosebud_local_memory', '{"memory-1":{"title":"Rest"}}');
         mockStore.set('@blackrose_custom_ai_provider', '{"enabled":true}');
+        mockStore.set('@blackrose_color_theme', '{"schemaVersion":1}');
 
         const backup = await createLocalBackup('Friday backup');
         const backups = await listLocalBackups();
 
         expect(backup.name).toBe('Friday backup');
-        expect(backup.itemCount).toBe(5);
+        expect(backup.itemCount).toBe(6);
         expect(backups).toEqual([backup]);
     });
 

@@ -20,7 +20,7 @@ export default function SavedInsightsScreen() {
                     <Pressable onPress={goBack} className="p-2 -ml-2">
                         <MaterialIcons name="arrow-back" size={24} color={iconColor} />
                     </Pressable>
-                    <Text className="text-lg font-semibold text-text-light dark:text-white">Saved insights</Text>
+                    <Text className="text-lg font-semibold text-text-light dark:text-text-dark">Saved insights</Text>
                     <View className="w-10" />
                 </View>
 
@@ -34,7 +34,7 @@ export default function SavedInsightsScreen() {
                                 <Text className="text-sm text-text-secondary-light dark:text-text-secondary-dark mb-2">
                                     {insight.sourceDate ?? 'Saved'}
                                 </Text>
-                                <Text className="text-base font-medium text-text-light dark:text-white">
+                                <Text className="text-base font-medium text-text-light dark:text-text-dark">
                                     {insight.question}
                                 </Text>
                                 <Pressable

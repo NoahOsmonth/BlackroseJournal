@@ -16,6 +16,7 @@ const mockFetchDirectChatCompletion = jest.mocked(fetchDirectChatCompletion);
 const atom: MemoryGraphAtom = {
     id: 'atom-1',
     entryId: 'entry-1',
+    source: 'journal',
     title: 'Career pressure',
     content: 'The user wants recovery after career pressure.',
     layer: 'profile',
@@ -44,7 +45,10 @@ describe('memoryInsightService', () => {
         expect(mockFetchDirectChatCompletion).toHaveBeenCalledWith({
             model: 'agent-default',
             messages: expect.arrayContaining([
-                expect.objectContaining({ role: 'system' }),
+                expect.objectContaining({
+                    role: 'system',
+                    content: expect.stringContaining('Max 50 words'),
+                }),
                 expect.objectContaining({
                     role: 'user',
                     content: expect.stringContaining('Career pressure'),

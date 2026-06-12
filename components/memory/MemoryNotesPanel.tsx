@@ -69,7 +69,7 @@ export function MemoryNotesPanel({
                 </View>
 
                 <Text className="text-sm leading-5 text-text-light dark:text-text-dark">
-                    {generatedNote || 'No stable local memory pattern yet.'}
+                    {generatedNote || "Rosebud hasn't noticed a stable pattern yet — keep journaling and I'll learn more about you."}
                 </Text>
                 <Text className="mt-2 text-xs text-text-secondary-light dark:text-text-secondary-dark">
                     {sourceText}

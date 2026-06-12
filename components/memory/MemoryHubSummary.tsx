@@ -82,7 +82,7 @@ export function MemoryHubSummary({
                     </View>
                 ) : (
                     <Text className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                        Themes appear after completed journal entries create local memory.
+                        Themes appear after completed journal entries and intention check-ins create local memory.
                     </Text>
                 )}
             </View>

@@ -7,6 +7,7 @@ import {
 import type {
     Intention,
     IntentionArea,
+    IntentionCheckIn,
     IntentionCheckInType,
 } from './intentionsStorage.types';
 import type { Message } from '@/services/ai/chatTypes';
@@ -86,6 +87,8 @@ interface FinishChatResult {
     resolvedIntention: Intention | null;
     finalMessages: Message[];
     summary: string;
+    /** The completed check-in record, when one was created or updated (null in refine mode). */
+    checkIn: IntentionCheckIn | null;
 }
 
 export async function finishIntentionChat({
@@ -113,10 +116,11 @@ export async function finishIntentionChat({
         });
     }
 
+    let checkIn: IntentionCheckIn | null = null;
     if (isRefineMode && intentionId) {
         resolvedIntention = await updateIntention(intentionId, { description: summary });
     } else if (draftCheckInId) {
-        await updateCheckIn(draftCheckInId, {
+        checkIn = await updateCheckIn(draftCheckInId, {
             messages: finalMessages,
             status: 'completed',
             summary,
@@ -124,7 +128,7 @@ export async function finishIntentionChat({
             personaId,
         });
     } else {
-        await createCheckIn({
+        checkIn = await createCheckIn({
             intentionId: resolvedIntention?.id,
             type: checkInType,
             title: checkInTitle,
@@ -136,5 +140,5 @@ export async function finishIntentionChat({
         });
     }
 
-    return { resolvedIntention, finalMessages, summary };
+    return { resolvedIntention, finalMessages, summary, checkIn };
 }

@@ -41,9 +41,33 @@ describe("tailwind.config.js", () => {
         });
     });
 
-    it("all color values are valid hex strings", () => {
+    const variableBackedTokens = [
+        "primary",
+        "primary-dark",
+        "text-light",
+        "text-dark",
+        "text-main-light",
+        "text-main-dark",
+        "user-text",
+        "user-text-dark",
+        "accent-blue",
+        "ai-text",
+        "text-primary-light",
+        "text-primary-dark",
+        "text-secondary-light",
+        "text-secondary-dark",
+        "subtext-light",
+        "subtext-dark",
+    ];
+
+    it("all color values are valid hex strings or runtime color variables", () => {
         Object.entries(colors).forEach(([key, value]) => {
-            expect(value).toMatch(/^#[0-9A-Fa-f]{6}$/);
+            const isVariableBacked = variableBackedTokens.includes(key);
+            if (isVariableBacked) {
+                expect(value).toMatch(/^rgb\(var\(--color-[a-z-]+\) \/ <alpha-value>\)$/);
+            } else {
+                expect(value).toMatch(/^#[0-9A-Fa-f]{6}$/);
+            }
         });
     });
 
@@ -58,12 +82,12 @@ describe("tailwind.config.js", () => {
     });
 
     it("ai text matches the intention chat reference cyan", () => {
-        expect(colors["ai-text"]).toBe("#38BDF8");
+        expect(colors["ai-text"]).toBe("rgb(var(--color-ai-text) / <alpha-value>)");
     });
 
     it("user text uses a warm darker tone distinct from AI text", () => {
-        expect(colors["user-text"]).toBe("#7C2D12");
-        expect(colors["user-text-dark"]).toBe("#FDBA74");
+        expect(colors["user-text"]).toBe("rgb(var(--color-user-text) / <alpha-value>)");
+        expect(colors["user-text-dark"]).toBe("rgb(var(--color-user-text-dark) / <alpha-value>)");
         expect(colors["user-text"]).not.toBe(colors["ai-text"]);
     });
 });

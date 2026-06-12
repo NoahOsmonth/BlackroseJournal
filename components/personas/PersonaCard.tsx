@@ -52,10 +52,10 @@ export function PersonaCard({ persona, isActive, onSelect, onOpenSettings }: Per
                     <Image source={avatarSource} style={{ width: 88, height: 88, borderRadius: 44 }} />
                 )}
             </View>
-            <Text className="text-[20px] font-bold text-text-light dark:text-white mb-1 tracking-tight">
+            <Text className="text-[20px] font-bold text-text-light dark:text-text-dark mb-1 tracking-tight">
                 {persona.name}
             </Text>
-            <Text className="text-[15px] text-text-secondary-light dark:text-gray-400 font-medium mb-auto">
+            <Text className="text-[15px] text-text-secondary-light dark:text-text-secondary-dark font-medium mb-auto">
                 {persona.tagline}
             </Text>
             <Pressable
@@ -68,12 +68,12 @@ export function PersonaCard({ persona, isActive, onSelect, onOpenSettings }: Per
                         <View className="bg-green-500 rounded-full p-0.5 items-center justify-center">
                             <MaterialIcons name="check" size={14} color={checkIconColor} />
                         </View>
-                        <Text className="text-[15px] font-semibold text-text-light dark:text-white">
+                        <Text className="text-[15px] font-semibold text-text-light dark:text-text-dark">
                             Active
                         </Text>
                     </View>
                 ) : (
-                    <Text className="text-[15px] font-semibold text-text-light dark:text-white">
+                    <Text className="text-[15px] font-semibold text-text-light dark:text-text-dark">
                         Set active
                     </Text>
                 )}

@@ -93,7 +93,7 @@ export default function IntentionDetailScreen() {
                     <Pressable onPress={handleBack} className="p-2" accessibilityLabel="Back">
                         <MaterialIcons name="arrow-back" size={24} color={iconColor} />
                     </Pressable>
-                    <Text className="text-lg font-bold text-text-light dark:text-white">Intention</Text>
+                    <Text className="text-lg font-bold text-text-light dark:text-text-dark">Intention</Text>
                     <Pressable
                         className="p-2"
                         accessibilityLabel="More options"
@@ -114,10 +114,10 @@ export default function IntentionDetailScreen() {
                             </View>
                         </View>
                         <View className="p-6">
-                            <Text className="text-xl font-bold mb-3 text-text-light dark:text-white">
+                            <Text className="text-xl font-bold mb-3 text-text-light dark:text-text-dark">
                                 {intention.title}
                             </Text>
-                            <Text className="text-sm text-text-secondary-light dark:text-gray-300 leading-relaxed mb-4">
+                            <Text className="text-sm text-text-secondary-light dark:text-text-secondary-dark leading-relaxed mb-4">
                                 {intention.description}
                             </Text>
                             <View className="flex-row justify-end">
@@ -147,11 +147,11 @@ export default function IntentionDetailScreen() {
                                 </View>
                                 <View className="flex-row items-start gap-3 mb-2">
                                     <MaterialIcons name="adjust" size={20} color="#EF4444" />
-                                    <Text className="font-semibold text-text-light dark:text-white text-sm leading-tight">
+                                    <Text className="font-semibold text-text-light dark:text-text-dark text-sm leading-tight">
                                         {latestCheckIn.title}
                                     </Text>
                                 </View>
-                                <Text className="text-sm text-text-secondary-light dark:text-gray-300 leading-snug mb-4">
+                                <Text className="text-sm text-text-secondary-light dark:text-text-secondary-dark leading-snug mb-4">
                                     {latestCheckIn.summary}
                                 </Text>
                                 <View className="flex-row items-center gap-1.5 text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark">
@@ -192,7 +192,7 @@ export default function IntentionDetailScreen() {
                                 }}
                                 className="py-3"
                             >
-                                <Text className="text-base text-text-light dark:text-white">
+                                <Text className="text-base text-text-light dark:text-text-dark">
                                     Refine with Rosebud
                                 </Text>
                             </Pressable>
@@ -208,12 +208,12 @@ export default function IntentionDetailScreen() {
                                 }}
                                 className="py-3"
                             >
-                                <Text className="text-base text-text-light dark:text-white">
+                                <Text className="text-base text-text-light dark:text-text-dark">
                                     Advanced direct edit
                                 </Text>
                             </Pressable>
                             <Pressable onPress={handleArchive} className="py-3">
-                                <Text className="text-base text-text-light dark:text-white">Archive</Text>
+                                <Text className="text-base text-text-light dark:text-text-dark">Archive</Text>
                             </Pressable>
                             <Pressable onPress={handleDelete} className="py-3">
                                 <Text className="text-base text-red-500">Delete</Text>

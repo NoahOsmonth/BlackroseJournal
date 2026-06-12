@@ -17,7 +17,7 @@ function CompassBadge() {
                     <View className="absolute top-2 w-2 h-8 bg-red-400 rounded-t-full rotate-45" />
                     <View className="absolute bottom-2 w-2 h-8 bg-slate-300 rounded-b-full rotate-45" />
                     <View className="w-2 h-2 bg-white rounded-full border border-slate-200" />
-                    <Text className="absolute top-1 text-[8px] font-bold text-slate-400">N</Text>
+                    <Text className="absolute top-1 text-[8px] font-bold text-text-secondary-light dark:text-text-secondary-dark">N</Text>
                 </View>
             </View>
             <Sparkle size={18} color="#FCD34D" weight="fill" style={{ position: 'absolute', top: 0, right: 6 }} />
@@ -54,7 +54,7 @@ export default function IntentionSelectScreen() {
 
                 <View className="items-center mb-8 text-center px-4">
                     <CompassBadge />
-                    <Text className="mt-6 text-[19px] leading-relaxed font-medium text-text-light dark:text-white">
+                    <Text className="mt-6 text-[19px] leading-relaxed font-medium text-text-light dark:text-text-dark">
                         What&apos;s one area of life that&apos;s calling for your attention right now?
                     </Text>
                 </View>

@@ -24,7 +24,7 @@ export function IntentionAreaButton({ area, onPress }: IntentionAreaButtonProps)
                 <View className="w-8 items-center justify-center">
                     {Icon ? <Icon size={28} color={color} weight="fill" /> : null}
                 </View>
-                <Text className="text-[17px] font-medium text-text-light dark:text-gray-200">
+                <Text className="text-[17px] font-medium text-text-light dark:text-text-dark">
                     {config?.label ?? area}
                 </Text>
             </View>

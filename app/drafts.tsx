@@ -131,7 +131,7 @@ export default function DraftsScreen() {
                         <Pressable onPress={() => router.back()} className="p-2 -ml-2">
                             <MaterialIcons name="arrow-back" size={28} color={iconColor} />
                         </Pressable>
-                        <Text className="text-2xl font-bold ml-2 text-text-light dark:text-white">Drafts</Text>
+                        <Text className="text-2xl font-bold ml-2 text-text-light dark:text-text-dark">Drafts</Text>
                     </View>
                     <Pressable
                         className="p-2 -mr-2"
@@ -161,7 +161,7 @@ export default function DraftsScreen() {
                                                 Autosaved
                                             </Text>
                                             <Text
-                                                className="text-[16px] leading-snug font-medium text-text-light dark:text-white"
+                                                className="text-[16px] leading-snug font-medium text-text-light dark:text-text-dark"
                                                 numberOfLines={2}
                                             >
                                                 {sessionTitle(session)}
@@ -203,7 +203,7 @@ export default function DraftsScreen() {
                                         {item.label}
                                     </Text>
                                     <Text
-                                        className="text-[17px] leading-snug font-medium text-text-light dark:text-white"
+                                        className="text-[17px] leading-snug font-medium text-text-light dark:text-text-dark"
                                         numberOfLines={2}
                                     >
                                         {item.title}
@@ -219,7 +219,7 @@ export default function DraftsScreen() {
                                             <MaterialIcons name="delete" size={20} color="#9CA3AF" />
                                         </Pressable>
                                         <Pressable onPress={() => handleRestore(item)} accessibilityLabel="Restore draft">
-                                            <Text className="text-[15px] font-bold text-text-light dark:text-white">
+                                            <Text className="text-[15px] font-bold text-text-light dark:text-text-dark">
                                                 Restore
                                             </Text>
                                         </Pressable>

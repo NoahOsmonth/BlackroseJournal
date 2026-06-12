@@ -117,7 +117,7 @@ export function HistoryEntryCard({ item, onPress }: HistoryEntryCardProps) {
                     <View className="pt-0.5">
                         <MaterialIcons name={icon.name} size={22} color={resolveToneColor(icon.tone, isDark)} />
                     </View>
-                    <Text className="text-base font-bold tracking-tight text-text-light dark:text-white leading-snug flex-1">
+                    <Text className="text-base font-bold tracking-tight text-text-light dark:text-text-dark leading-snug flex-1">
                         {item.title}
                     </Text>
                 </View>

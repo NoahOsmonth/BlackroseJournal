@@ -1,6 +1,14 @@
 import { fetchDirectChatCompletion } from '@/services/ai/directTransport';
 
-export type TimeRange = 'all-time' | 'this-year' | 'this-month' | 'this-week';
+export type TimeRange = 'all-entries' | 'all-time' | 'this-year' | 'this-month' | 'this-week';
+
+export const TIME_RANGE_LABELS: Record<TimeRange, string> = {
+    'all-entries': 'All entries',
+    'all-time': 'All-time',
+    'this-year': 'This year',
+    'this-month': 'This month',
+    'this-week': 'This week',
+};
 
 export interface AskRosebudEntryContext {
     title?: string;

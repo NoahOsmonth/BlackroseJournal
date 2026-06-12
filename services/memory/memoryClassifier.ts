@@ -42,6 +42,7 @@ function fallbackAtom(entry: JournalEntry): MemoryGraphAtom {
     return {
         id: `atom_${entry.id}`,
         entryId: entry.id,
+        source: 'journal',
         title: entry.title || 'Fallback Node',
         content: entry.content,
         layer: 'note',
@@ -56,6 +57,7 @@ function buildAtom(entry: JournalEntry, result: ClassificationResult): MemoryGra
     return {
         id: `atom_${entry.id}`,
         entryId: entry.id,
+        source: 'journal',
         title: entry.title || `Memory ${entry.createdAt}`,
         content: entry.content,
         layer: normalizeLayer(result.layer),

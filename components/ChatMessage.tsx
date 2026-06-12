@@ -1,9 +1,10 @@
 import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { getMarkdownStyles } from '@/constants/markdownStyles';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useThemeSettings } from '@/hooks/useThemeSettings';
 import { MaterialIcons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, Text, TextStyle, View } from 'react-native';
 import Markdown from 'react-native-marked';
 import Animated, {
   FadeIn,
@@ -37,6 +38,13 @@ export function ChatMessage({
   const [displayedText, setDisplayedText] = useState('');
   const [showReasoning, setShowReasoning] = useState(false);
   const colorScheme = useColorScheme();
+  const { colorTheme } = useThemeSettings();
+  const isDark = colorScheme === 'dark';
+  const colors = colorTheme.colors;
+  const aiTextColor = isDark ? colors.chatAiTextDark : colors.chatAiTextLight;
+  const userTextColor = isDark ? colors.chatUserTextDark : colors.chatUserTextLight;
+  const accentColor = isDark ? colors.accentDark : colors.accentLight;
+  const secondaryTextColor = isDark ? colors.secondaryTextDark : colors.secondaryTextLight;
 
   useEffect(() => {
     setDisplayedText(text);
@@ -55,7 +63,12 @@ export function ChatMessage({
     isAi && reasoning && reasoning.trim().length > 0 && !inlineStreamingReasoning
   );
   const canToggleReasoning = hasReasoning;
-  const markdownStyles = getMarkdownStyles(colorScheme === 'dark', { fontWeight: '600' });
+  const markdownStyles = getMarkdownStyles(isDark, {
+    fontWeight: '600',
+    color: aiTextColor,
+    headingColor: aiTextColor,
+    linkColor: accentColor,
+  });
   const markdownListProps = {
     scrollEnabled: false,
     style: { backgroundColor: 'transparent' },
@@ -64,6 +77,9 @@ export function ChatMessage({
   const messageTextClassName = isAi
     ? 'text-[15px] leading-[22px] font-semibold text-text-light dark:text-text-dark'
     : 'text-[15px] leading-[22px] font-bold text-user-text dark:text-user-text-dark';
+  const messageTextStyle: TextStyle = {
+    color: isAi ? aiTextColor : userTextColor,
+  };
 
   const renderFormattedText = (
     value: string,
@@ -77,7 +93,7 @@ export function ChatMessage({
         flatListProps={markdownListProps}
       />
     ) : (
-      <Text className={className}>
+      <Text className={className} style={messageTextStyle}>
         {value}
       </Text>
     )
@@ -103,7 +119,10 @@ export function ChatMessage({
                 <Text className="text-[11px] font-semibold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide mb-1">
                   AI reasoning (live)
                 </Text>
-                <Text className="text-[14px] leading-[22px] italic text-slate-600 dark:text-slate-300">
+                <Text
+                  className="text-[14px] leading-[22px] italic text-text-secondary-light dark:text-text-secondary-dark"
+                  style={{ color: secondaryTextColor }}
+                >
                   {reasoning}
                 </Text>
               </View>
@@ -112,7 +131,7 @@ export function ChatMessage({
             )}
           </View>
         ) : isAi && isStreaming ? (
-          <Text className={messageTextClassName}>
+          <Text className={messageTextClassName} style={messageTextStyle}>
             {displayedText}
           </Text>
         ) : isAi ? (
@@ -120,6 +139,7 @@ export function ChatMessage({
         ) : (
           <Text
             className={messageTextClassName}
+            style={messageTextStyle}
           >
             {displayedText}
           </Text>
@@ -131,9 +151,12 @@ export function ChatMessage({
             <MaterialIcons
               name={showReasoning ? "expand-less" : "psychology"}
               size={16}
-              color={colorScheme === 'dark' ? '#93c5fd' : '#1e40af'}
+              color={accentColor}
             />
-            <Text className="ml-1.5 text-xs text-blue-600 dark:text-blue-300 font-medium">
+            <Text
+              className="ml-1.5 text-xs text-accent-blue dark:text-ai-text font-medium"
+              style={{ color: aiTextColor }}
+            >
               {showReasoning ? 'Hide reasoning' : 'View AI reasoning'}
               {isStreaming && ' (thinking...)'}
             </Text>
@@ -153,13 +176,19 @@ export function ChatMessage({
               <MaterialIcons
                 name="psychology"
                 size={14}
-                color={colorScheme === 'dark' ? '#94a3b8' : '#64748b'}
+                color={secondaryTextColor}
               />
-              <Text className="ml-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+              <Text
+                className="ml-1.5 text-xs font-semibold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide"
+                style={{ color: secondaryTextColor }}
+              >
                 AI Reasoning
               </Text>
             </View>
-            <Text className="text-[14px] leading-[22px] italic text-slate-600 dark:text-slate-300">
+            <Text
+              className="text-[14px] leading-[22px] italic text-text-secondary-light dark:text-text-secondary-dark"
+              style={{ color: secondaryTextColor }}
+            >
               {reasoning}
             </Text>
           </View>

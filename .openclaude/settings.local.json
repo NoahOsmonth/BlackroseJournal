@@ -6,7 +6,8 @@
       "Bash(npm run:*)",
       "Bash(git stash:*)",
       "Bash(grep -n generateEntryTitle services/ai/*.ts)",
-      "Bash(ls services/ai/index*)"
+      "Bash(ls services/ai/index*)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }

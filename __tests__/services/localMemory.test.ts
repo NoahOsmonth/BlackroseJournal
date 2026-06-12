@@ -18,6 +18,7 @@ import {
     deleteMemoryAtom,
     saveGeneratedMemoryNote,
     saveManualMemoryNote,
+    saveIntentionCheckInMemories,
     saveJournalEntryMemories,
     setMemoryStorageAdapter,
 } from '../../services/memory/localMemory';
@@ -25,6 +26,7 @@ import type {
     JournalEntry,
     StorageAdapter,
 } from '../../services/journal/journalStorage.types';
+import type { IntentionCheckIn } from '../../services/intentions/intentionsStorage.types';
 
 function createMemoryAdapter(): StorageAdapter {
     const store = new Map<string, string>();
@@ -62,6 +64,28 @@ function buildEntry(status: JournalEntry['status'] = 'completed'): JournalEntry 
             topics: ['Career', 'Rest'],
             generatedAt: 1_800_100,
         },
+    };
+}
+
+function buildCheckIn(
+    type: IntentionCheckIn['type'] = 'morning',
+    status: IntentionCheckIn['status'] = 'completed'
+): IntentionCheckIn {
+    return {
+        id: 'checkin-1',
+        type,
+        title: 'Start the day with focus',
+        summary: 'I want to stay focused and avoid distractions today.',
+        mood: 'Reflective',
+        status,
+        createdAt: 1_800_000,
+        updatedAt: 1_800_000,
+        messages: [{
+            id: 'message-1',
+            role: 'user',
+            content: 'I want to stay focused and avoid distractions today.',
+            timestamp: 1_800_000,
+        }],
     };
 }
 
@@ -113,14 +137,17 @@ describe('localMemory', () => {
         await expect(listMemoryAtoms()).resolves.toEqual([]);
     });
 
-    it('generates a suggested settings note from non-note memory atoms', async () => {
+    it('generates a warm therapist-voice suggested note from non-note memory atoms', async () => {
         await saveJournalEntryMemories(buildEntry());
 
         const suggestion = generateMemoryNoteSuggestion(await listMemoryAtoms());
 
-        expect(suggestion).toContain('Remember for Rosebud chats');
+        expect(suggestion).toContain('You seem to be someone who is navigating a lot right now');
+        expect(suggestion).toContain('Rosebud notices you often return to themes of');
+        expect(suggestion).toContain('It may help to remember that');
         expect(suggestion).toContain('balancing ambition with recovery');
-        expect(suggestion).toContain('Themes:');
+        expect(suggestion).toContain('career');
+        expect(suggestion).not.toContain('Remember for Rosebud chats');
     });
 
     it('saves generated settings notes as system note atoms', async () => {
@@ -129,5 +156,36 @@ describe('localMemory', () => {
         expect(note.layer).toBe('note');
         expect(note.source).toBe('system');
         expect(note.salience).toBeGreaterThan(0.7);
+    });
+
+    it('turns completed intention check-ins into source:intention memories', async () => {
+        await saveIntentionCheckInMemories(buildCheckIn());
+
+        const atoms = await listMemoryAtoms();
+        const sources = atoms.map((atom) => atom.source);
+        const layers = atoms.map((atom) => atom.layer);
+
+        expect(sources).toEqual(['intention', 'intention']);
+        expect(layers).toEqual(expect.arrayContaining(['episodic', 'profile']));
+        expect(atoms.some((atom) => atom.title === 'Morning intention: Start the day with focus'))
+            .toBe(true);
+        expect(atoms.some((atom) => atom.layer === 'profile' && atom.content.includes('pattern')))
+            .toBe(true);
+    });
+
+    it('does not save unfinished intention check-ins as long-term memory', async () => {
+        await saveIntentionCheckInMemories(buildCheckIn('evening', 'draft'));
+
+        await expect(listMemoryAtoms()).resolves.toEqual([]);
+    });
+
+    it('includes intention memories in local memory context', async () => {
+        await saveIntentionCheckInMemories(buildCheckIn('intention'));
+
+        const context = await buildLocalMemoryContext({ query: 'focused distractions', limit: 3 });
+
+        expect(context).toContain('## Local Memory Capsule');
+        expect(context).toContain('focused');
+        expect(context).toContain('Intention:');
     });
 });

@@ -8,12 +8,31 @@ import {
 } from '../constants/intentionChat';
 import type { Message } from '../services/ai/ai';
 
+const mockColorTheme = {
+    colors: {
+        accentLight: '#AA5500',
+        accentDark: '#FFCC88',
+        appTextLight: '#111827',
+        appTextDark: '#F9FAFB',
+        secondaryTextLight: '#6B7280',
+        secondaryTextDark: '#9CA3AF',
+        chatUserTextLight: '#445566',
+        chatUserTextDark: '#DDEEFF',
+        chatAiTextLight: '#123ABC',
+        chatAiTextDark: '#89ABCD',
+    },
+};
+
 jest.mock('@expo/vector-icons', () => ({
     MaterialIcons: () => null,
 }));
 
-jest.mock('../hooks/use-color-scheme', () => ({
+jest.mock('@/hooks/use-color-scheme', () => ({
     useColorScheme: () => 'dark',
+}));
+
+jest.mock('@/hooks/useThemeSettings', () => ({
+    useThemeSettings: () => ({ colorTheme: mockColorTheme }),
 }));
 
 describe('IntentionChatMessage', () => {
@@ -40,6 +59,7 @@ describe('IntentionChatMessage', () => {
         expect(getByTestId('intention-chat-message-text').props.className).toContain(
             'max-w-[320px]'
         );
+        expect(getByTestId('intention-chat-message-text').props.style.color).toBe('#89ABCD');
     });
 
     it('renders user intention messages with warm user text colors', () => {
@@ -63,5 +83,6 @@ describe('IntentionChatMessage', () => {
         expect(getByTestId('intention-chat-message-text').props.className).toContain(
             'text-user-text dark:text-user-text-dark'
         );
+        expect(getByTestId('intention-chat-message-text').props.style.color).toBe('#DDEEFF');
     });
 });

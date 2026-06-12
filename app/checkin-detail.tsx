@@ -39,7 +39,7 @@ export default function CheckInDetailScreen() {
                     <Pressable onPress={goBack} className="p-2 -ml-2">
                         <MaterialIcons name="arrow-back" size={24} color={iconColor} />
                     </Pressable>
-                    <Text className="text-lg font-semibold text-text-light dark:text-white">
+                    <Text className="text-lg font-semibold text-text-light dark:text-text-dark">
                         Check-in
                     </Text>
                     <View className="w-10" />
@@ -79,11 +79,11 @@ export default function CheckInDetailScreen() {
                             </View>
                             <View className="flex-row items-start gap-3 mb-2">
                                 <MaterialIcons name="adjust" size={20} color="#EF4444" />
-                                <Text className="font-semibold text-text-light dark:text-white text-sm leading-tight">
+                                <Text className="font-semibold text-text-light dark:text-text-dark text-sm leading-tight">
                                     {checkIn.title}
                                 </Text>
                             </View>
-                            <Text className="text-sm text-text-secondary-light dark:text-gray-300 leading-snug mb-4">
+                            <Text className="text-sm text-text-secondary-light dark:text-text-secondary-dark leading-snug mb-4">
                                 {checkIn.summary}
                             </Text>
                             <View className="flex-row items-center gap-1.5 text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark">

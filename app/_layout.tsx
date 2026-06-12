@@ -14,6 +14,7 @@ import '../global.css';
 
 import { AppErrorBoundary } from '@/components/system/AppErrorBoundary';
 import { SupabaseStatusBanner } from '@/components/system/SupabaseStatusBanner';
+import { AppColorThemeProvider } from '@/components/theme/AppColorThemeProvider';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useThemeSettings } from '@/hooks/useThemeSettings';
 import { registerAllWorkers } from '@/services/workers';
@@ -89,31 +90,33 @@ export default function RootLayout() {
 
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>
-            <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-                <AppErrorBoundary>
-                    <SupabaseStatusBanner />
-                    <Stack screenOptions={{ headerShown: false }}>
-                        <Stack.Screen name="(tabs)" />
-                        <Stack.Screen name="chat" />
-                        <Stack.Screen name="drafts" />
-                        <Stack.Screen name="saved-insights" />
-                        <Stack.Screen name="goals" />
-                        <Stack.Screen name="entry-detail" />
-                        <Stack.Screen name="checkin-detail" />
-                        <Stack.Screen name="entry-reflection" />
-                        <Stack.Screen name="suggestions" />
-                        <Stack.Screen name="streak-view" />
-                        <Stack.Screen name="streak-haiku" options={{ presentation: 'modal' }} />
-                        <Stack.Screen name="ask-rosebud" />
-                        <Stack.Screen name="memory-graph" />
-                        <Stack.Screen name="happiness-recipe" />
-                        <Stack.Screen name="rewards" />
-                        <Stack.Screen name="persona/generate" />
-                        <Stack.Screen name="index" />
-                    </Stack>
-                    <StatusBar style="auto" />
-                </AppErrorBoundary>
-            </ThemeProvider>
+            <AppColorThemeProvider>
+                <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+                    <AppErrorBoundary>
+                        <SupabaseStatusBanner />
+                        <Stack screenOptions={{ headerShown: false }}>
+                            <Stack.Screen name="(tabs)" />
+                            <Stack.Screen name="chat" />
+                            <Stack.Screen name="drafts" />
+                            <Stack.Screen name="saved-insights" />
+                            <Stack.Screen name="goals" />
+                            <Stack.Screen name="entry-detail" />
+                            <Stack.Screen name="checkin-detail" />
+                            <Stack.Screen name="entry-reflection" />
+                            <Stack.Screen name="suggestions" />
+                            <Stack.Screen name="streak-view" />
+                            <Stack.Screen name="streak-haiku" options={{ presentation: 'modal' }} />
+                            <Stack.Screen name="ask-rosebud" />
+                            <Stack.Screen name="memory-graph" />
+                            <Stack.Screen name="happiness-recipe" />
+                            <Stack.Screen name="rewards" />
+                            <Stack.Screen name="persona/generate" />
+                            <Stack.Screen name="index" />
+                        </Stack>
+                        <StatusBar style="auto" />
+                    </AppErrorBoundary>
+                </ThemeProvider>
+            </AppColorThemeProvider>
         </GestureHandlerRootView>
     );
 }

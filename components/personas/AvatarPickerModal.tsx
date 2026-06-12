@@ -24,7 +24,7 @@ export function AvatarPickerModal({
                     <View className="items-center mb-4">
                         <View className="w-10 h-1 bg-divider-light dark:bg-divider-dark rounded-full" />
                     </View>
-                    <Text className="text-[17px] font-semibold text-text-light dark:text-white mb-4 text-center">
+                    <Text className="text-[17px] font-semibold text-text-light dark:text-text-dark mb-4 text-center">
                         Choose avatar
                     </Text>
                     <View className="flex-row flex-wrap gap-4 justify-center">

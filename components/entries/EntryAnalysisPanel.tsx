@@ -11,7 +11,7 @@ export function EntryAnalysisPanel({ analysis, isLoading = false }: EntryAnalysi
     if (isLoading && !analysis) {
         return (
             <View className="rounded-2xl bg-surface-light dark:bg-surface-dark p-5">
-                <Text className="text-sm font-semibold text-text-light dark:text-white">
+                <Text className="text-sm font-semibold text-text-light dark:text-text-dark">
                     Generating analysis...
                 </Text>
             </View>
@@ -31,7 +31,7 @@ export function EntryAnalysisPanel({ analysis, isLoading = false }: EntryAnalysi
                 <Text className="text-xs font-bold uppercase tracking-wide text-primary">
                     Insight
                 </Text>
-                <Text className="mt-1 text-base leading-6 text-text-light dark:text-white">
+                <Text className="mt-1 text-base leading-6 text-text-light dark:text-text-dark">
                     {analysis.insight}
                 </Text>
             </View>
@@ -40,7 +40,7 @@ export function EntryAnalysisPanel({ analysis, isLoading = false }: EntryAnalysi
                 <Text className="text-xs font-bold uppercase tracking-wide text-primary">
                     Quote
                 </Text>
-                <Text className="mt-1 text-base italic leading-6 text-text-light dark:text-white">
+                <Text className="mt-1 text-base italic leading-6 text-text-light dark:text-text-dark">
                     {quote}
                 </Text>
             </View>

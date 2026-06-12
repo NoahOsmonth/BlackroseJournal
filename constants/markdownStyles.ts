@@ -34,6 +34,8 @@ type MarkdownFontWeight = '400' | '500' | '600' | '700';
 interface MarkdownStyleOptions {
     fontWeight?: MarkdownFontWeight;
     color?: string;
+    headingColor?: string;
+    linkColor?: string;
     fontSize?: number;
     fontStyle?: 'normal' | 'italic';
 }
@@ -48,6 +50,8 @@ export function getMarkdownStyles(
     const palette = isDark ? colors.dark : colors.light;
     const bodyFontWeight = options.fontWeight ?? '400';
     const bodyColor = options.color ?? palette.text;
+    const headingColor = options.headingColor ?? palette.heading;
+    const linkColor = options.linkColor ?? palette.link;
     const bodyFontSize = options.fontSize ?? 15;
     const bodyFontStyle = options.fontStyle ?? 'normal';
 
@@ -63,7 +67,7 @@ export function getMarkdownStyles(
             paddingVertical: 4,
         },
         h1: {
-            color: palette.heading,
+            color: headingColor,
             fontSize: 28,
             fontWeight: '700',
             marginBottom: 12,
@@ -71,7 +75,7 @@ export function getMarkdownStyles(
             lineHeight: 34,
         },
         h2: {
-            color: palette.heading,
+            color: headingColor,
             fontSize: 24,
             fontWeight: '700',
             marginBottom: 10,
@@ -79,7 +83,7 @@ export function getMarkdownStyles(
             lineHeight: 30,
         },
         h3: {
-            color: palette.heading,
+            color: headingColor,
             fontSize: 20,
             fontWeight: '600',
             marginBottom: 8,
@@ -87,7 +91,7 @@ export function getMarkdownStyles(
             lineHeight: 26,
         },
         h4: {
-            color: palette.heading,
+            color: headingColor,
             fontSize: 18,
             fontWeight: '600',
             marginBottom: 6,
@@ -95,7 +99,7 @@ export function getMarkdownStyles(
             lineHeight: 24,
         },
         h5: {
-            color: palette.heading,
+            color: headingColor,
             fontSize: 16,
             fontWeight: '700',
             marginBottom: 4,
@@ -103,7 +107,7 @@ export function getMarkdownStyles(
             lineHeight: 22,
         },
         h6: {
-            color: palette.heading,
+            color: headingColor,
             fontSize: 14,
             fontWeight: '700',
             marginBottom: 4,
@@ -120,7 +124,7 @@ export function getMarkdownStyles(
             textDecorationLine: 'line-through',
         },
         link: {
-            color: palette.link,
+            color: linkColor,
             textDecorationLine: 'underline',
         },
         list: {

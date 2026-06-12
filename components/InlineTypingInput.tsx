@@ -1,6 +1,7 @@
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useThemeSettings } from '@/hooks/useThemeSettings';
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { NativeSyntheticEvent, Platform, TextInput, TextInputKeyPressEventData, View } from 'react-native';
+import { NativeSyntheticEvent, Platform, TextInput, TextInputKeyPressEventData, TextStyle, View } from 'react-native';
 import Animated, {
   FadeIn,
   useAnimatedStyle,
@@ -29,6 +30,12 @@ export const InlineTypingInput = forwardRef<InlineTypingInputRef, InlineTypingIn
     const [isFocused, setIsFocused] = useState(false);
     const inputRef = useRef<TextInput>(null);
     const colorScheme = useColorScheme();
+    const { colorTheme } = useThemeSettings();
+    const isDark = colorScheme === 'dark';
+    const colors = colorTheme.colors;
+    const inputTextColor = isDark ? colors.chatUserTextDark : colors.chatUserTextLight;
+    const placeholderColor = isDark ? colors.secondaryTextDark : colors.secondaryTextLight;
+    const cursorColor = isDark ? colors.accentDark : colors.accentLight;
 
     const cursorOpacity = useSharedValue(1);
 
@@ -94,7 +101,7 @@ export const InlineTypingInput = forwardRef<InlineTypingInputRef, InlineTypingIn
         <View className="flex-row items-center py-1">
           <TextInput
             ref={inputRef}
-            className="flex-1 text-[15px] leading-[22px] font-bold text-user-text dark:text-text-main-dark min-h-[22px]"
+            className="flex-1 text-[15px] leading-[22px] font-bold text-user-text dark:text-user-text-dark min-h-[22px]"
             value={text}
             onChangeText={updateText}
             onFocus={() => setIsFocused(true)}
@@ -102,7 +109,7 @@ export const InlineTypingInput = forwardRef<InlineTypingInputRef, InlineTypingIn
             onKeyPress={handleKeyPress}
             onSubmitEditing={handleSubmitEditing}
             placeholder={placeholder}
-            placeholderTextColor={colorScheme === 'dark' ? '#64748b' : '#94a3b8'}
+            placeholderTextColor={placeholderColor}
             multiline
             blurOnSubmit={false}
             editable={!disabled}
@@ -111,12 +118,13 @@ export const InlineTypingInput = forwardRef<InlineTypingInputRef, InlineTypingIn
               outlineStyle: 'none',
               borderWidth: 0,
               backgroundColor: 'transparent',
-            } as any}
+              color: inputTextColor,
+            } as TextStyle & { outlineStyle: 'none' }}
           />
           {isFocused && !text && (
             <Animated.View
-              style={cursorStyle}
-              className="w-0.5 h-5 bg-blue-500 dark:bg-blue-400 ml-0.5"
+              className="w-0.5 h-5 bg-primary dark:bg-primary-dark ml-0.5"
+              style={[cursorStyle, { backgroundColor: cursorColor }]}
             />
           )}
         </View>

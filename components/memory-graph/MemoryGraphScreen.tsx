@@ -37,56 +37,60 @@ export function MemoryGraphScreen({
 
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
-            <View className="flex-1 max-w-md mx-auto w-full">
+            <View className="w-full max-w-2xl self-center">
                 <MemoryGraphHeader
                     query={graph.searchQuery}
                     onQueryChange={graph.setSearchQuery}
                     onBack={onBack}
                 />
                 <MemoryGraphFilters activeLayers={graph.activeLayers} onToggle={graph.toggleLayer} />
+            </View>
 
-                <View testID="memory-graph-stage" className="mb-32 flex-1 bg-background-dark">
-                    <MemoryGraphWebView
-                        atoms={graph.atoms}
-                        connections={graph.connections}
-                        onSelectNode={graph.setSelectedNodeId}
-                    />
+            <View
+                testID="memory-graph-stage"
+                className={`${showBottomNav ? 'mb-32' : 'mb-0'} flex-1`}
+                style={{ backgroundColor: '#070B14' }}
+            >
+                <MemoryGraphWebView
+                    atoms={graph.atoms}
+                    connections={graph.connections}
+                    onSelectNode={graph.setSelectedNodeId}
+                />
 
-                    {graph.isLoading ? (
-                        <View className="absolute inset-0 items-center justify-center">
-                            <ActivityIndicator color={TintColors.light} />
-                        </View>
-                    ) : null}
-
-                    {!graph.isLoading && graph.atoms.length === 0 ? (
-                        <View className="absolute inset-0 items-center justify-center px-8">
-                            <EmptyState
-                                icon="hub"
-                                title="Your memory graph starts here"
-                                message="Finish journal entries and Rosebud will connect themes, moments, and profile notes."
-                            />
-                        </View>
-                    ) : null}
-                </View>
-
-                {graph.selectedAtom ? (
-                    <MemoryGraphSheet
-                        atom={graph.selectedAtom}
-                        insight={graph.insight}
-                        isLoading={graph.isSynthesizing}
-                        onClose={graph.closeSelectedAtom}
-                        onSynthesize={graph.synthesizeSelectedAtom}
-                    />
+                {graph.isLoading ? (
+                    <View className="absolute inset-0 items-center justify-center">
+                        <ActivityIndicator color={TintColors.light} />
+                    </View>
                 ) : null}
 
-                {showBottomNav ? (
-                    <BottomNav
-                        activeTab="explore"
-                        onTabPress={handleTabPress}
-                        onFabPress={() => router.push('/chat')}
-                    />
+                {!graph.isLoading && graph.atoms.length === 0 ? (
+                    <View className="absolute inset-0 items-center justify-center px-8">
+                        <EmptyState
+                            icon="hub"
+                            title="Your memory graph starts here"
+                            message="Finish journal entries and intention check-ins, and Rosebud will connect themes, moments, and profile notes."
+                        />
+                    </View>
                 ) : null}
             </View>
+
+            {graph.selectedAtom ? (
+                <MemoryGraphSheet
+                    atom={graph.selectedAtom}
+                    insight={graph.insight}
+                    isLoading={graph.isSynthesizing}
+                    onClose={graph.closeSelectedAtom}
+                    onSynthesize={graph.synthesizeSelectedAtom}
+                />
+            ) : null}
+
+            {showBottomNav ? (
+                <BottomNav
+                    activeTab="explore"
+                    onTabPress={handleTabPress}
+                    onFabPress={() => router.push('/chat')}
+                />
+            ) : null}
         </SafeAreaView>
     );
 }

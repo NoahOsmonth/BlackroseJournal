@@ -35,7 +35,7 @@ export default function StreakViewScreen() {
                     <Pressable onPress={goBack} className="p-2 -ml-2" accessibilityLabel="Back">
                         <MaterialIcons name="arrow-back" size={24} color={iconColor} />
                     </Pressable>
-                    <Text className="text-lg font-semibold text-text-light dark:text-white">Streak</Text>
+                    <Text className="text-lg font-semibold text-text-light dark:text-text-dark">Streak</Text>
                     <Pressable
                         onPress={() => router.push('/rewards')}
                         className="px-3 py-1 rounded-full bg-surface-light dark:bg-surface-dark"
@@ -58,7 +58,7 @@ export default function StreakViewScreen() {
                                     <Text className="text-xs uppercase tracking-wide text-text-secondary-light dark:text-text-secondary-dark">
                                         Current streak
                                     </Text>
-                                    <Text className="text-3xl font-bold text-text-light dark:text-white">
+                                    <Text className="text-3xl font-bold text-text-light dark:text-text-dark">
                                         {currentStreak}
                                     </Text>
                                 </View>
@@ -67,7 +67,7 @@ export default function StreakViewScreen() {
                                 <Text className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
                                     Longest
                                 </Text>
-                                <Text className="text-xl font-semibold text-text-light dark:text-white">
+                                <Text className="text-xl font-semibold text-text-light dark:text-text-dark">
                                     {longestStreak}
                                 </Text>
                             </View>
@@ -80,7 +80,7 @@ export default function StreakViewScreen() {
                     </View>
 
                     <View className="mt-8">
-                        <Text className="text-lg font-semibold text-text-light dark:text-white mb-4">
+                        <Text className="text-lg font-semibold text-text-light dark:text-text-dark mb-4">
                             {monthLabel}
                         </Text>
                         <View className="flex-row flex-wrap">
@@ -103,7 +103,7 @@ export default function StreakViewScreen() {
                                                 className={`text-sm ${
                                                     day.hasEntry
                                                         ? 'text-white font-bold'
-                                                        : 'text-text-light dark:text-white'
+                                                        : 'text-text-light dark:text-text-dark'
                                                 }`}
                                             >
                                                 {day.date.getDate()}

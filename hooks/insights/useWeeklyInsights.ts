@@ -109,10 +109,13 @@ export function useWeeklyInsights() {
             dailyWords[dayIndex] += words;
         });
 
+        const maxWords = Math.max(...dailyWords, 0);
+
         return {
             entriesCount: weeklyEntries.length,
             totalWords,
             dailyWords,
+            maxWords,
         };
     })();
 

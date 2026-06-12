@@ -3,9 +3,27 @@ import { render } from '@testing-library/react-native';
 import { ChatMessage } from '../components/ChatMessage';
 
 const mockMarkdownRender = jest.fn();
+const mockColorTheme = {
+    colors: {
+        accentLight: '#AA5500',
+        accentDark: '#FFCC88',
+        appTextLight: '#111827',
+        appTextDark: '#F9FAFB',
+        secondaryTextLight: '#6B7280',
+        secondaryTextDark: '#9CA3AF',
+        chatUserTextLight: '#445566',
+        chatUserTextDark: '#DDEEFF',
+        chatAiTextLight: '#123ABC',
+        chatAiTextDark: '#89ABCD',
+    },
+};
 
 jest.mock('@/hooks/use-color-scheme', () => ({
     useColorScheme: () => 'light',
+}));
+
+jest.mock('@/hooks/useThemeSettings', () => ({
+    useThemeSettings: () => ({ colorTheme: mockColorTheme }),
 }));
 
 jest.mock('@/components/ui/TypingIndicator', () => {
@@ -50,6 +68,7 @@ describe('ChatMessage streaming visibility', () => {
         expect(getByText('mine').props.className).toContain(
             'text-user-text dark:text-user-text-dark'
         );
+        expect(getByText('mine').props.style.color).toBe('#445566');
     });
 
     it('shows typing indicator before streamed chunks arrive', () => {
@@ -89,6 +108,7 @@ describe('ChatMessage streaming visibility', () => {
         );
 
         expect(getByText('Plain answer.')).toBeTruthy();
+        expect(getByText('Plain answer.').props.style.color).toBe('#123ABC');
         expect(queryByTestId('markdown')).toBeNull();
         expect(mockMarkdownRender).not.toHaveBeenCalled();
     });

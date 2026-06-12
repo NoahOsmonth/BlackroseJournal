@@ -8,7 +8,7 @@ export type LocalMemoryLayer =
     | 'profile'
     | 'note';
 
-export type LocalMemorySource = 'journal' | 'feedback' | 'manual' | 'system';
+export type LocalMemorySource = 'journal' | 'intention' | 'feedback' | 'manual' | 'system';
 
 export interface LocalMemoryAtom {
     id: string;

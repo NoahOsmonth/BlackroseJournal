@@ -54,7 +54,7 @@ export function IntentionForm({
                 >
                     <MaterialIcons name="arrow-back" size={24} color={iconColor} />
                 </Pressable>
-                <Text className="text-[17px] font-semibold text-text-light dark:text-white">
+                <Text className="text-[17px] font-semibold text-text-light dark:text-text-dark">
                     {title}
                 </Text>
                 <Pressable
@@ -86,7 +86,7 @@ export function IntentionForm({
                             onChangeText={(text) => updateValues({ ...values, title: text })}
                             placeholder="Intention title"
                             placeholderTextColor="#9CA3AF"
-                            className="px-4 py-3 text-[17px] text-text-light dark:text-white"
+                            className="px-4 py-3 text-[17px] text-text-light dark:text-text-dark"
                             maxLength={80}
                         />
                     </View>
@@ -96,7 +96,7 @@ export function IntentionForm({
                             onChangeText={(text) => updateValues({ ...values, description: text })}
                             placeholder="Describe why this intention matters..."
                             placeholderTextColor="#9CA3AF"
-                            className="text-[17px] text-text-light dark:text-white h-32"
+                            className="text-[17px] text-text-light dark:text-text-dark h-32"
                             multiline
                             maxLength={280}
                         />

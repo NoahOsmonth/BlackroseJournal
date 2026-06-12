@@ -26,7 +26,7 @@ export function IntentionCard({ intention, onPress }: IntentionCardProps) {
             >
                 {Icon ? <Icon size={18} color={iconColor} weight="fill" /> : null}
             </View>
-            <Text className="font-medium text-sm leading-tight text-text-light dark:text-white" numberOfLines={2}>
+            <Text className="font-medium text-sm leading-tight text-text-light dark:text-text-dark" numberOfLines={2}>
                 {intention.title}
             </Text>
         </Pressable>

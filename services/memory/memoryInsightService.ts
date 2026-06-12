@@ -17,7 +17,7 @@ export async function synthesizeMemoryInsight(atom: MemoryGraphAtom): Promise<st
         messages: [
             {
                 role: 'system',
-                content: 'Generate a concise synthesis insight from this memory atom.',
+                content: 'Generate a concise synthesis insight from this memory atom. Max 50 words.',
             },
             {
                 role: 'user',

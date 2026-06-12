@@ -44,3 +44,10 @@ export function filterAtomsByLayer(
 ): MemoryGraphAtom[] {
     return atoms.filter((atom) => activeLayers.has(atom.layer));
 }
+
+export function truncateToWordCount(text: string, maxWords: number): string {
+    const trimmed = text.trim();
+    const words = trimmed.split(/\s+/).filter(Boolean);
+    if (words.length <= maxWords) return trimmed;
+    return `${words.slice(0, maxWords).join(' ')}...`;
+}

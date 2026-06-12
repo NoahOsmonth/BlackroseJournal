@@ -28,6 +28,7 @@ import {
 import { useGoals } from '@/hooks/goals/useGoals';
 import { useIntentions } from '@/hooks/intentions/useIntentions';
 import { useIntentionCheckIns } from '@/hooks/intentions/useIntentionCheckIns';
+import { listCheckInDrafts } from '@/services/intentions/intentionsStorage';
 import { useEntryInsightQuestion } from '@/hooks/insights/useEntryInsightQuestion';
 import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
 import { useHeaderActions } from '@/hooks/navigation/useHeaderActions';
@@ -109,12 +110,33 @@ export default function TodayScreen() {
         }
     };
 
+    // Re-open today's unfinished check-in draft (saved when the chat was
+    // closed mid-conversation) instead of always starting a fresh session.
+    const openDailyCheckIn = async (type: 'morning' | 'evening') => {
+        const todayKey = getLocalDateKey(new Date());
+        const draftsList = await listCheckInDrafts();
+        const draft = draftsList.find((item) => item.type === type
+            && getLocalDateKey(new Date(item.updatedAt)) === todayKey);
+        if (draft) {
+            router.push({
+                pathname: '/intentions/chat',
+                params: {
+                    draftId: draft.id,
+                    type,
+                    ...(draft.intentionId ? { intentionId: draft.intentionId } : {}),
+                },
+            });
+            return;
+        }
+        router.push({ pathname: '/intentions/chat', params: { type } });
+    };
+
     const handleMorningPress = () => {
-        router.push({ pathname: '/intentions/chat', params: { type: 'morning' } });
+        void openDailyCheckIn('morning');
     };
 
     const handleEveningPress = () => {
-        router.push({ pathname: '/intentions/chat', params: { type: 'evening' } });
+        void openDailyCheckIn('evening');
     };
 
     const handleAddIntention = () => {
@@ -277,16 +299,16 @@ export default function TodayScreen() {
                                 More options
                             </Text>
                             <Pressable onPress={handleShare} className="py-3">
-                                <Text className="text-base text-text-light dark:text-white">Share</Text>
+                                <Text className="text-base text-text-light dark:text-text-dark">Share</Text>
                             </Pressable>
                             <Pressable onPress={handleCopy} className="py-3">
-                                <Text className="text-base text-text-light dark:text-white">Copy</Text>
+                                <Text className="text-base text-text-light dark:text-text-dark">Copy</Text>
                             </Pressable>
                             <Pressable onPress={handleHide} className="py-3">
-                                <Text className="text-base text-text-light dark:text-white">Hide for today</Text>
+                                <Text className="text-base text-text-light dark:text-text-dark">Hide for today</Text>
                             </Pressable>
                             <Pressable onPress={handleShowSavedInsights} className="py-3">
-                                <Text className="text-base text-text-light dark:text-white">Saved insights</Text>
+                                <Text className="text-base text-text-light dark:text-text-dark">Saved insights</Text>
                             </Pressable>
                             <Pressable onPress={() => setMoreVisible(false)} className="py-3">
                                 <Text className="text-base text-text-secondary-light dark:text-text-secondary-dark">Cancel</Text>

@@ -29,6 +29,7 @@ function toGraphAtom(atom: StoredMemoryAtom): MemoryGraphAtom {
     return {
         id: atom.id,
         entryId: atom.sourceId ?? atom.id,
+        source: atom.source,
         title: atom.title,
         content: atom.content,
         layer: atom.layer,

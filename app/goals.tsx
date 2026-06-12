@@ -33,7 +33,7 @@ export default function GoalsScreen() {
                     <Pressable onPress={goBack} className="p-2 -ml-2">
                         <MaterialIcons name="arrow-back" size={24} color={iconColor} />
                     </Pressable>
-                    <Text className="text-lg font-semibold text-text-light dark:text-white">Goals & Habits</Text>
+                    <Text className="text-lg font-semibold text-text-light dark:text-text-dark">Goals & Habits</Text>
                     <Pressable onPress={() => setShowAdd(true)}>
                         <MaterialIcons name="add" size={24} color={iconColor} />
                     </Pressable>
@@ -52,7 +52,7 @@ export default function GoalsScreen() {
                                         onPress={() => toggle(goal.id)}
                                         className="bg-surface-light dark:bg-surface-dark rounded-2xl p-4 flex-row items-center justify-between"
                                     >
-                                        <Text className="text-base text-text-light dark:text-white">
+                                        <Text className="text-base text-text-light dark:text-text-dark">
                                             {goal.title}
                                         </Text>
                                         <MaterialIcons
@@ -83,7 +83,7 @@ export default function GoalsScreen() {
                                             onPress={() => toggle(habit.id, dateKey)}
                                             className="bg-surface-light dark:bg-surface-dark rounded-2xl p-4 flex-row items-center justify-between"
                                         >
-                                            <Text className="text-base text-text-light dark:text-white">
+                                            <Text className="text-base text-text-light dark:text-text-dark">
                                                 {habit.title}
                                             </Text>
                                             <MaterialIcons

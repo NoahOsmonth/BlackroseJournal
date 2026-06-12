@@ -35,7 +35,7 @@ export function PersonaGenerateInput({
                 <Pressable onPress={onBack} className="p-2 -ml-2" accessibilityLabel="Back">
                     <MaterialIcons name="arrow-back" size={24} color={iconColor} />
                 </Pressable>
-                <Text className="ml-2 text-[20px] font-semibold text-text-light dark:text-white">
+                <Text className="ml-2 text-[20px] font-semibold text-text-light dark:text-text-dark">
                     Generate with AI
                 </Text>
             </View>
@@ -45,7 +45,7 @@ export function PersonaGenerateInput({
                 contentContainerStyle={{ paddingTop: 24, paddingBottom: 32 }}
                 keyboardShouldPersistTaps="handled"
             >
-                <Text className="text-[22px] font-semibold text-text-light dark:text-white mb-2">
+                <Text className="text-[22px] font-semibold text-text-light dark:text-text-dark mb-2">
                     Describe the guide you want
                 </Text>
                 <Text className="text-[15px] leading-[1.4] text-text-secondary-light dark:text-text-secondary-dark mb-6">
@@ -58,7 +58,7 @@ export function PersonaGenerateInput({
                         onChangeText={setDescription}
                         placeholder="e.g. a calm stoic mentor who asks short questions"
                         placeholderTextColor="#9CA3AF"
-                        className="text-[17px] text-text-light dark:text-white h-full"
+                        className="text-[17px] text-text-light dark:text-text-dark h-full"
                         multiline
                         maxLength={500}
                         editable={!isGenerating}

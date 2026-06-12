@@ -31,6 +31,7 @@ import {
     withPendingInput,
 } from '@/services/intentions/intentionChatCompletion';
 import { generateEntryTitle } from '@/services/ai';
+import { saveIntentionCheckInMemories } from '@/services/memory/localMemory';
 import { getLocalDateKey } from '@/utils/date';
 import { IntentionChatHeader } from '@/components/intentions/IntentionChatHeader';
 import { IntentionChatFooter } from '@/components/intentions/IntentionChatFooter';
@@ -303,7 +304,7 @@ export default function IntentionChatScreen() {
                 }
             }
 
-            const { resolvedIntention } = await finishIntentionChat({
+            const { resolvedIntention, checkIn } = await finishIntentionChat({
                 messages,
                 inputValue,
                 draftCheckInId,
@@ -315,6 +316,14 @@ export default function IntentionChatScreen() {
                 isRefineMode,
                 title: generatedTitle,
             });
+
+            if (checkIn) {
+                try {
+                    await saveIntentionCheckInMemories(checkIn);
+                } catch (error) {
+                    console.error('Failed to save check-in memories:', error);
+                }
+            }
 
             if (resolvedIntention && checkInType === 'intention') {
                 await markIntentionGoalComplete(

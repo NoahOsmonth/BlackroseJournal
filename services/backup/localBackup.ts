@@ -17,6 +17,7 @@ export const LOCAL_BACKUP_DATA_KEYS = [
     '@blackrose_custom_ai_provider',
     'user-theme-preference',
     'user-emoji-preference',
+    '@blackrose_color_theme',
 ] as const;
 
 export type LocalBackupDataKey = typeof LOCAL_BACKUP_DATA_KEYS[number];

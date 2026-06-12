@@ -1,6 +1,8 @@
 # Progress Tracker
 
 ## Status
+- [x] **FEAT-MEMORY-001**: Merge completed intention check-ins into memory graph
+- [x] **FEAT-COLORSTUDIO-001**: Color picker + auto-derive dark/light variants
 - [x] **FEAT-INSIGHTS-001**: AI Service for Insights
 - [x] **FEAT-INSIGHTS-002**: Insights Page UI
 - [x] **FEAT-INSIGHTS-003**: Emoji Settings
@@ -9,6 +11,117 @@
 - [x] **TOOL-CODEX-001**: Codex CLI with OMO Light Edition
 
 ## Updates
+- **2026-06-13**: Daily Activity max-word accuracy fix (Wave 2):
+  - Computed `maxWords` inside `hooks/insights/useWeeklyInsights.ts` as
+    `Math.max(...dailyWords, 0)` after the final daily aggregation, and exposed it in
+    `weeklyStats`.
+  - Removed the duplicate local calculation `const maxWords = Math.max(...dailyWords, 1)`
+    from `app/(tabs)/insights.tsx`; `WritingStatsCard` now receives `maxWords` from the hook.
+  - Updated the `useWeeklyInsights` mock in `__tests__/screens/AskRosebudReachable.test.tsx`
+    to include the new `maxWords` field.
+  - Added `__tests__/hooks/useWeeklyInsights.test.tsx` with fixtures asserting `maxWords`
+    matches the peak daily count for normal, zero-entry, and equal-peak weeks.
+  - Added `__tests__/screens/InsightsScreen.test.tsx` asserting the "Max: 1247 words" label
+    renders from the hook-provided value.
+  - Verified:
+    - `npm test -- --testPathPattern="useWeeklyInsights|InsightsScreen|AskRosebudReachable"` — target suites pass.
+    - `npx tsc --noEmit` — passed.
+    - `npm run lint` — 0 errors (2 pre-existing warnings unrelated to this change).
+    - `npm run check:design` — passed (0 errors).
+- **2026-06-13**: Final guard-gate verification (Wave 6):
+  - Ran the full verification pipeline after all Waves 1–5 completed.
+  - Results:
+    - `npx tsc --noEmit` — passed.
+    - `npm run lint` — 0 errors (2 pre-existing warnings in unrelated files).
+    - `npm test -- --runInBand` — 114 suites passed, 3 skipped; 427 tests passed, 8 skipped.
+    - `npm run check:design` — 0 errors (2 pre-existing approaching-limit warnings in
+      `app/intentions/chat.tsx` and `components/settings/ColorPickerModal.tsx`).
+  - No failures introduced by Waves 1–5; all new and existing tests green.
+- **2026-06-13**: Ask Rosebud time-range label fix (Wave 1):
+  - Centralized `TimeRange` union and `TIME_RANGE_LABELS` in `services/ask-rosebud/askRosebud.ts`,
+    adding the new `'all-entries'` key labeled `"All entries"`.
+  - Removed duplicate `TIME_RANGE_LABELS` definitions from `app/ask-rosebud.tsx` and
+    `components/today/AskRosebudSection.tsx`; both now import from the service.
+  - Changed the Ask Rosebud screen's default time range from `'all-time'` to `'all-entries'`
+    and made `cycleTimeRange()` start at `"All entries"`.
+  - Filtering treats `'all-entries'` as no time filter, matching the previous blank-slot behavior.
+  - Added `__tests__/screens/AskRosebudFilter.test.tsx` asserting the default label is
+    `"All entries"` and that pressing the filter cycles through all five labels.
+  - Verified:
+    - `npm test -- --testPathPattern="AskRosebud"` — all AskRosebud suites pass.
+    - `npx tsc --noEmit` — passed.
+    - `npm run lint` — 0 errors (2 pre-existing warnings unrelated to this change).
+    - `npm run check:design` — passed (0 errors).
+- **2026-06-12**: Color Studio picker + auto-derive:
+  - Added a new `ColorPickerModal` (`components/settings/ColorPickerModal.tsx`) with hue and tone
+    sliders, a hex input, a 16-swatch quick-pick palette, a live source-vs-partner preview, and
+    a "Sync partner" switch that auto-derives the dark/light counterpart from the picked color.
+  - Added `services/theme/colorDerivation.ts` for the HSL math: `hexToHsl`, `hslToHex`,
+    `derivePartnerHex(source, sourceIsLight)`, and `softenNeutralPartner` (so near-greys don't
+    collapse to a stark white-on-white when the auto-derive target lands near the extremes).
+  - Tapping any swatch in the Color Studio now opens the picker; the corresponding dark/light
+    partner is recomputed in real time as the user moves the sliders or types a hex value.
+  - Replaced the per-slot Light/Dark TextInput fields in
+    `components/settings/ColorThemeSettingsSection.tsx` with tappable swatches (with a small
+    ✨ "auto" badge on the partner when the live value matches the auto-derivation). Removed
+    all the overlapping `TextInput` rows — the new layout is one row per slot with two
+    well-separated swatches, no field stacking.
+  - Added 4 more preset palettes: **Sunset** (warm oranges/reds), **Lavender** (purples/indigos),
+    **Mint** (teals/cyans), and **Mocha** (browns/ambers). The grid is now 2×4, all 8 presets
+    fit without scrolling.
+  - Added `applyColorThemeEdit(edit)` to `useThemeSettings` (and exposed `setColorThemeColor`
+    is preserved for legacy callers). The new path writes source + synced partner to storage
+    in one AsyncStorage round-trip; the partner is preserved when sync is off.
+  - Tests added/updated:
+    - `__tests__/constants/colorTheme.test.ts` — covers HSL math, derivation, neutral softening,
+      the 8 new presets, and the `getColorThemeSlotPartner` / `isColorThemeLightSlot` helpers.
+    - `__tests__/components/ColorPickerModal.test.tsx` — open/close, sync-partner toggle,
+      invalid hex rejection, source/partner preview rendering.
+    - `__tests__/components/ColorThemeSettingsSection.test.tsx` — 8-palette grid, swatch
+      tappability, auto-badge when the partner matches the derivation, customized preview.
+    - `__tests__/useThemeSettings.test.ts` — `applyColorThemeEdit` writes source + partner
+      when sync is on, preserves the partner when sync is off, and rejects malformed hex.
+  - Verified:
+    - `npm test` — 110 suites passed, 3 skipped; 411 tests passed, 8 skipped
+      (33 new tests added).
+    - `npx tsc --noEmit` — passed.
+    - `npm run check:design` — passed (0 errors). New files all under 500 lines:
+      `ColorPickerModal` 446, `ColorThemeSettingsSection` 286, `theme.ts` 412.
+    - `npm run lint` — 0 new errors (existing pre-existing errors in
+      `claude-bug-bounty/` are unrelated to this change).
+- **2026-06-12**: Intention check-ins feed the memory graph:
+  - Completed morning intention, evening reflection, and set-intention check-ins now save
+    memory atoms via `services/memory/localMemory.ts` -> `saveIntentionCheckInMemories`,
+    called from `app/intentions/chat.tsx` after `finishIntentionChat` returns a completed
+    check-in. Draft/incomplete check-ins are still excluded from long-term memory.
+  - `buildIntentionCheckInAtoms` produces an `episodic` atom (the check-in content) and a
+    `profile` atom (a pattern note), both with `source: 'intention'` so they are visually
+    distinguishable from journal-derived atoms.
+  - Added `source` to the `MemoryGraphAtom` display model
+    (`services/memory/memoryGraph.types.ts`) and mapped it through `useMemoryGraph`. The
+    `MemoryGraphSheet` now shows a small source badge (Journal / Intention / Note / etc.)
+    next to the layer badge.
+  - Updated stale empty-state copy in `MemoryGraphScreen` and `MemoryHubSummary` to mention
+    intention check-ins alongside journal entries.
+  - Backfilled `source: 'journal'` in `services/memory/memoryClassifier.ts` so the legacy
+    AI classifier path stays type-compatible with the new required field.
+  - Tests added/updated:
+    - `__tests__/services/localMemory.test.ts` — completed check-in -> episodic + profile
+      atoms with `source: 'intention'`; draft check-ins ignored; intention atoms included
+      in `buildLocalMemoryContext`.
+    - `__tests__/hooks/useMemoryGraph.test.tsx` — intention source atoms map through to
+      the graph display model.
+    - `__tests__/services/memory/memoryGraphUtils.test.ts`,
+      `__tests__/components/MemoryGraphComponents.test.tsx`,
+      `__tests__/services/memory/memoryInsightService.test.ts` — added required `source`
+      field to test fixtures.
+  - Verified:
+    - `npm test` — 110 suites passed, 3 skipped; 415 tests passed, 8 skipped.
+    - `npx tsc --noEmit` — passed.
+    - `npm run check:design` — passed (0 errors).
+    - `npm run lint` — 0 new errors (pre-existing warnings/errors in `claude-bug-bounty/`,
+      `__tests__/components/ColorThemeSettingsSection.test.tsx`, and
+      `__tests__/constants/colorTheme.test.ts` are unrelated to this change).
 - **2026-06-10**: WS7 — navigation fallback standardization:
   - Added `hooks/navigation/useNavBack.ts`, which uses `router.back()` only when a back stack exists and
     otherwise falls back with `router.replace(...)` to a sensible tab route.
@@ -1393,3 +1506,96 @@
       `InlineTypingInput` + "Go deeper" footer — this needs a real RN runtime. The data
       layer and the new components are all verified through rendering components
       headlessly (e.g. `IntentionChatFooter` + `IntentionChatBody` tests).
+
+
+- **2026-06-12**: Customizable app color settings:
+  - Added a variable-backed color theme system for app font colors, muted font colors, accent
+    colors, and journal/intention chat user + Rosebud text colors.
+  - Added `Color Studio` in Settings with four presets, live preview, reset, and editable light/dark
+    hex fields for Accent, App font, Muted font, Chat - you, and Chat - Rosebud.
+  - Added persisted `@blackrose_color_theme` storage with a schema-versioned envelope, safe JSON
+    parsing fallback, and local-backup inclusion.
+  - Applied the color theme through a root `AppColorThemeProvider` using NativeWind runtime
+    variables; converted common app body/header dark text classes from fixed white/gray values to
+    variable-backed tokens.
+  - Chat verification:
+    - `ChatMessage`, `IntentionChatMessage`, `IntentionChatBody`, and `InlineTypingInput` now use
+      custom chat and muted colors at runtime.
+    - Markdown chat rendering receives the customized AI body, heading, and accent/link colors.
+  - Tests added/updated:
+    - `__tests__/components/ColorThemeSettingsSection.test.tsx`
+    - `__tests__/constants/colorTheme.test.ts`
+    - `__tests__/services/theme/colorThemeStorage.test.ts`
+    - Updated theme hook, chat renderer, backup, and Tailwind-token tests.
+  - Live UI smoke:
+    - Started Expo web at `http://localhost:19006`.
+    - Playwright rendered `/settings`, confirmed `Color Studio` appears, selected the Ocean preset,
+      and verified preview AI text changed from `rgb(56, 189, 248)` to `rgb(125, 211, 252)`.
+    - Playwright typed custom hex `#ABCDEF` into the dark Chat - Rosebud field and verified preview
+      AI text changed to `rgb(171, 205, 239)`.
+    - Playwright typed custom hex `#ABCDEF` into the dark App font field and verified the live
+      `Settings` title changed from `rgb(249, 250, 251)` to `rgb(171, 205, 239)`.
+    - Screenshots saved under `tmp/color-studio-settings.png`, `tmp/color-studio-ocean.png`, and
+      `tmp/color-studio-custom-hex.png`.
+  - Final gates:
+    - `npx tsc --noEmit` — 0 errors.
+    - `npm run lint` — 0 errors.
+    - `npm run check:design` — passed with the existing `app/intentions/chat.tsx` 462-line warning,
+      no errors.
+    - Focused theme/UI tests — 9 suites, 34 tests passed.
+    - Full suite via `npx jest --runInBand --forceExit` — **108 of 111 suites passed**, 3 skipped;
+      **371 tests passed**, 8 skipped, 0 failed.
+
+
+- **2026-06-12**: Android Expo Go boot fix — "Something went wrong" redbox when scanning the QR code.
+  - Root cause: `hooks/theme/useThemeSettings.ts` destructured `setColorScheme` from
+    `nativewind`'s `useColorScheme()` unguarded. On Android, nativewind's `setColorScheme` calls
+    `react-native-css-interop`'s `StyleSheet.getFlag('darkMode')`, which throws when the
+    cssInterop `darkMode` flag isn't initialized at first render. The throw was caught in
+    `applyTheme`'s try/catch, but a re-entrancy in the load effect surfaced during
+    `AppColorThemeProvider`'s first mount and tripped Expo Go's redbox.
+  - `hooks/theme/useThemeSettings.ts`: wrap the `useColorScheme()` call in try/catch, stash the
+    resolved setter in a `useRef`, and fall back to a no-op when the API is missing or throws.
+    Ref keeps the reference stable so `applyTheme`'s `useCallback` doesn't churn deps.
+  - `components/theme/AppColorThemeProvider.tsx`: wrap the `vars(colorThemeToNativeWindVars(...))`
+    call in try/catch and fall back to a plain `{}` style if `vars()` throws. Logs the warning in
+    `__DEV__` only so prod stays silent.
+  - `__tests__/useThemeSettings.test.ts`: two new guard tests cover the malformed-API and throwing
+    `useColorScheme` paths so this class of bug can't ship again silently.
+  - Verification:
+    - `npx tsc --noEmit` — 0 errors.
+    - `npx eslint hooks/ components/ app/ __tests__/` — 0 issues.
+    - `npm run check:design` — 0 errors, 1 pre-existing warning.
+    - `npm test` — 108/111 suites, **373 tests passed** (8 skipped, 0 failed).
+    - `npx expo export --platform android` — 13MB Hermes bundle, 0 errors.
+    - Dev bundle (`http://localhost:8086`) — Android bundle 22.7MB / 5143 modules, 200 OK.
+    - Web dev server (`http://localhost:8088`) — Playwright load: 0 page errors, 0 request
+      failures, Today screen renders.
+  - **Could not verify on a real Android device from this terminal** (no `adb` / `emulator`).
+  The defensive fix targets the most likely redbox trigger identified by code review + bundle
+  inspection; please rescan the QR on your device and tell me if the redbox is gone.
+
+- **2026-06-12 (later)**: Second Android boot crash sealed — `hooks/theme/use-color-scheme.ts` was the
+  other unguarded `useNativeWindColorScheme()` call site, hit by `app/_layout.tsx:38` during the root
+  layout render. The throw happened before `<AppErrorBoundary>` mounted, so Expo Go's redbox was the
+  only thing the user saw.
+  - `hooks/theme/use-color-scheme.ts`: wrap the nativewind call in try/catch, type-guard the
+    returned value, fall back to `'dark'` (the app's default). All 50+ `useColorScheme()` callers
+    in `app/` and `components/` are now protected without per-file changes.
+  - `__tests__/use-color-scheme.test.ts` (new): 5 guard tests covering the happy path, null
+    system mode, throwing nativewind (the Android race), malformed return object, and non-string
+    colorScheme.
+  - Verification:
+    - `npx tsc --noEmit` — 0 errors.
+    - `npx eslint hooks/ components/ app/ __tests__/` — 0 issues.
+    - `npm run check:design` — 0 errors, 1 pre-existing warning.
+    - `npm test` — **378 tests passed** (was 373; +5 from new guard tests), 0 failed.
+    - `npx expo export --platform android` — 13MB Hermes bundle, 0 errors.
+    - Dev bundle (`http://localhost:8089`) — Android 22.7MB / 5143 modules, 200 OK.
+    - Web dev server (`http://localhost:8090`) — Playwright load: 0 page errors, 0 request
+      failures, Today screen renders.
+  - **Still need a real device** to confirm the redbox is gone. This is now the second unguarded
+    nativewind call site fixed; if the redbox persists, the next most likely trigger is the
+    `expo-task-manager` / `expo-background-fetch` `defineTask` call at module load in
+    `services/workers/taskRegistry.ts:18` (we already have a try/catch around the registration
+    effect, but the defineTask itself runs at import time and is unguarded).

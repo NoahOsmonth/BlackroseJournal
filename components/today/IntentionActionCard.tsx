@@ -28,7 +28,7 @@ export function IntentionActionCard({
             <View className="mb-4">
                 {icon}
             </View>
-            <Text className="text-[15px] font-semibold mb-0.5 leading-tight text-text-light dark:text-white">
+            <Text className="text-[15px] font-semibold mb-0.5 leading-tight text-text-light dark:text-text-dark">
                 {title}
             </Text>
             {isCompleted ? (

@@ -145,6 +145,37 @@ describe('insights — direct local NanoGPT', () => {
         expect(result.weeklySummary).toBe('No entries to analyze.');
     });
 
+    it('generateWeeklyInsights prompt requires nuanced emotions, consistent emoji, and calibrated scores', async () => {
+        mockFetchDirect.mockResolvedValue(
+            mockResponse(200, {
+                emotionalLandscape: [
+                    { emotion: 'overwhelmed', score: 8, emoji: '😰' },
+                    { emotion: 'content', score: 4, emoji: '😌' },
+                ],
+                keyThemes: ['boundaries'],
+                castOfCharacters: [],
+                weeklySummary: 'A tense but quiet week.',
+            })
+        );
+
+        const result = await generateWeeklyInsights([
+            { messages: [{ content: 'Work is piling up, but the evening felt calm.' }] },
+        ]);
+
+        const [payload] = mockFetchDirect.mock.calls[0];
+        const systemPrompt = payload.messages[0]?.content;
+        expect(systemPrompt).toContain('nuanced emotion words');
+        expect(systemPrompt).toContain('consistent');
+        expect(systemPrompt).toContain('justified by evidence');
+        expect(systemPrompt).toMatch(/1 \(.*?fleeting.*?\).*10 \(.*?central.*?\)/s);
+
+        expect(result.emotionalLandscape).toEqual([
+            { emotion: 'overwhelmed', score: 8, emoji: '😰' },
+            { emotion: 'content', score: 4, emoji: '😌' },
+        ]);
+        expect(result.emotionalLandscape.every((e) => e.score >= 1 && e.score <= 10)).toBe(true);
+    });
+
     it('generateEntryTitle parses and trims generated title JSON', async () => {
         mockFetchDirect.mockResolvedValue(mockResponse(200, { title: '"Quiet Morning"' }));
 

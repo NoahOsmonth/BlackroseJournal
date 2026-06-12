@@ -169,6 +169,18 @@ describe('ExploreScreen memory hub', () => {
         expect(screen.getByText('Theme: Sleep')).toBeTruthy();
     });
 
+    it('renders a warm fallback when no generated note is available', () => {
+        mockMemoryState = {
+            ...mockMemoryState,
+            atoms,
+            generatedNote: '',
+        };
+
+        render(<ExploreScreen />);
+
+        expect(screen.getByText("Rosebud hasn't noticed a stable pattern yet — keep journaling and I'll learn more about you.")).toBeTruthy();
+    });
+
     it('renders an empty state with an entry action', () => {
         mockMemoryState = {
             ...mockMemoryState,

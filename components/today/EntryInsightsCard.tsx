@@ -21,7 +21,7 @@ export function EntryInsightsCard({
                 Based on your entries
             </Text>
             <View className="bg-surface-light dark:bg-surface-dark rounded-[24px] p-6 shadow-soft border border-gray-100 dark:border-white/5">
-                <Text className="text-[16px] leading-relaxed text-center font-medium mb-6 text-text-light dark:text-gray-200">
+                <Text className="text-[16px] leading-relaxed text-center font-medium mb-6 text-text-light dark:text-text-dark">
                     {question}
                 </Text>
                 <View className="flex-row items-center justify-center gap-10">

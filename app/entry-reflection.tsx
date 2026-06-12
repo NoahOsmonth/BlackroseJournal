@@ -226,7 +226,7 @@ export default function EntryReflectionScreen() {
                         className={`py-4 rounded-2xl items-center justify-center ${isLoading || !!error || !data ? 'bg-slate-200 dark:bg-slate-800' : 'bg-primary'
                             }`}
                     >
-                        <Text className={`text-[15px] font-bold ${isLoading || !!error || !data ? 'text-slate-500 dark:text-slate-400' : 'text-white'
+                        <Text className={`text-[15px] font-bold ${isLoading || !!error || !data ? 'text-text-secondary-light dark:text-text-secondary-dark' : 'text-white'
                             }`}>
                             Continue
                         </Text>

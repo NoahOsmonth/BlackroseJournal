@@ -66,7 +66,10 @@ Analyze the user's weekly entries and return valid JSON with this EXACT structur
   "weeklySummary": "string"
 }
 Rules:
-- emotionalLandscape: Top 4-6 emotions. Score is intensity (1-10). Emoji should match the emotion.
+- emotionalLandscape: Top 4-6 emotions.
+  - Prefer specific, nuanced emotion words (e.g., "content", "grieving", "overwhelmed", "hopeful") over generic labels like "happy", "sad", or "stressed" when the journal text supports them.
+  - Map each emotion to an emoji that semantically matches it and keep that emoji consistent for repeated emotions across weeks.
+  - Score intensity from 1 (fleeting mention) to 10 (central, repeated theme). Each score must be justified by evidence in the journal text.
 - keyThemes: Top 3 recurring topics (e.g., "Career", "Health").
 - castOfCharacters: List of people mentioned (names or roles).
 - weeklySummary: A concise 2-sentence summary of the week's vibe.`;

@@ -2,9 +2,9 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 
-import { ChatColors } from '@/constants/theme';
 import { resolveIntentionChatContent } from '@/constants/intentionChat';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useThemeSettings } from '@/hooks/useThemeSettings';
 import type { Message } from '@/services/ai/ai';
 
 interface IntentionChatMessageProps {
@@ -25,11 +25,16 @@ export function IntentionChatMessage({
     onThumb,
 }: IntentionChatMessageProps) {
     const colorScheme = useColorScheme();
+    const { colorTheme } = useThemeSettings();
     const isDark = colorScheme === 'dark';
-    const actionIconColor = isDark ? ChatColors.accentDark : ChatColors.accentLight;
-    const activeActionIconColor = isDark ? ChatColors.activeDark : ChatColors.accentLight;
+    const colors = colorTheme.colors;
+    const actionIconColor = isDark ? colors.chatAiTextDark : colors.chatAiTextLight;
+    const activeActionIconColor = isDark ? colors.accentDark : colors.accentLight;
     const isAssistant = message.role === 'assistant';
     const displayContent = resolveIntentionChatContent(message.content);
+    const messageTextColor = isAssistant
+        ? actionIconColor
+        : isDark ? colors.chatUserTextDark : colors.chatUserTextLight;
 
     return (
         <View className="gap-2">
@@ -39,6 +44,7 @@ export function IntentionChatMessage({
                     ? 'text-accent-blue dark:text-ai-text'
                     : 'text-user-text dark:text-user-text-dark'
                     }`}
+                style={{ color: messageTextColor }}
             >
                 {displayContent}
             </Text>

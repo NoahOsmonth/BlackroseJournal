@@ -134,7 +134,7 @@ export default function SuggestionsScreen() {
                                                     }`}
                                             >
                                                 <Text className={`text-sm font-bold ${alreadyAdded
-                                                    ? 'text-slate-500 dark:text-slate-400'
+                                                    ? 'text-text-secondary-light dark:text-text-secondary-dark'
                                                     : 'text-white'
                                                     }`}>
                                                     {alreadyAdded ? 'Added' : isAdding ? 'Adding…' : 'Add to list'}

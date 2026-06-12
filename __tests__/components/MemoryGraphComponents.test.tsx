@@ -24,6 +24,7 @@ jest.mock('@expo/vector-icons', () => ({
 const atom: MemoryGraphAtom = {
     id: 'atom-1',
     entryId: 'entry-1',
+    source: 'journal',
     title: 'Career pressure',
     content: 'The user wants recovery after career pressure.',
     layer: 'episodic',
@@ -88,5 +89,25 @@ describe('MemoryGraph components', () => {
         expect(screen.getByText('A useful connection.')).toBeTruthy();
         expect(onSynthesize).toHaveBeenCalledTimes(1);
         expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('truncates an insight longer than 50 words to 50 words', () => {
+        const longInsight = Array.from({ length: 100 }, (_, i) => `word${i + 1}`).join(' ');
+
+        render(
+            <MemoryGraphSheet
+                atom={atom}
+                insight={longInsight}
+                isLoading={false}
+                onClose={jest.fn()}
+                onSynthesize={jest.fn()}
+            />
+        );
+
+        const insightText = screen.getByText(/word1 /).props.children;
+        const wordCount = (String(insightText).match(/\b\w+\b/g) ?? []).length;
+
+        expect(wordCount).toBeLessThanOrEqual(50);
+        expect(String(insightText)).toMatch(/\.\.\.$/);
     });
 });

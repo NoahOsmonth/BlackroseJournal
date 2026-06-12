@@ -84,7 +84,7 @@ export default function PersonaAdvancedScreen() {
                 <Pressable onPress={handleBack} className="p-2 -ml-2">
                     <MaterialIcons name="arrow-back" size={24} color={iconColor} />
                 </Pressable>
-                <Text className="ml-2 text-[20px] font-semibold text-text-light dark:text-white">Advanced</Text>
+                <Text className="ml-2 text-[20px] font-semibold text-text-light dark:text-text-dark">Advanced</Text>
             </View>
 
             <View className="flex-1 max-w-md mx-auto px-4 py-6">
@@ -100,7 +100,7 @@ export default function PersonaAdvancedScreen() {
                     >
                         <View className="flex-row items-center gap-3">
                             <MaterialIcons name="auto-awesome" size={26} color="#60A5FA" />
-                            <Text className="text-[17px] font-medium text-text-light dark:text-white">AI Model</Text>
+                            <Text className="text-[17px] font-medium text-text-light dark:text-text-dark">AI Model</Text>
                         </View>
                         <View className="flex-row items-center gap-1">
                             <Text className="text-[17px] text-text-secondary-light dark:text-text-secondary-dark">
@@ -116,7 +116,7 @@ export default function PersonaAdvancedScreen() {
                         <View className="flex-row items-center justify-between mb-4">
                             <View className="flex-row items-center gap-3">
                                 <MaterialIcons name="psychology" size={26} color="#34D399" />
-                                <Text className="text-[17px] font-medium text-text-light dark:text-white">Imagination</Text>
+                                <Text className="text-[17px] font-medium text-text-light dark:text-text-dark">Imagination</Text>
                             </View>
                             <Text className="text-[17px] text-text-secondary-light dark:text-text-secondary-dark">
                                 {getImaginationLabel(imagination)}

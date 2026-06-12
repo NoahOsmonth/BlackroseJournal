@@ -40,7 +40,7 @@ export function PersonaSettingsSheet({
                         <View className="w-10 h-1 bg-divider-light dark:bg-divider-dark rounded-full" />
                     </View>
                     <View className="items-center mb-5">
-                        <Text className="text-[17px] font-semibold text-text-light dark:text-white">
+                        <Text className="text-[17px] font-semibold text-text-light dark:text-text-dark">
                             Persona settings
                         </Text>
                         <Text className="text-xs text-text-secondary-light dark:text-text-secondary-dark mt-1">
@@ -58,7 +58,7 @@ export function PersonaSettingsSheet({
                                 size={20}
                                 color={iconSecondaryColor}
                             />
-                            <Text className="text-base text-text-light dark:text-white">Edit persona</Text>
+                            <Text className="text-base text-text-light dark:text-text-dark">Edit persona</Text>
                         </Pressable>
                         <Pressable
                             onPress={() => onAdvanced(persona)}
@@ -70,7 +70,7 @@ export function PersonaSettingsSheet({
                                 size={20}
                                 color={iconSecondaryColor}
                             />
-                            <Text className="text-base text-text-light dark:text-white">Advanced settings</Text>
+                            <Text className="text-base text-text-light dark:text-text-dark">Advanced settings</Text>
                         </Pressable>
                         <Pressable
                             onPress={() => onDelete(persona)}

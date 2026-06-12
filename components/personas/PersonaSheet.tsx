@@ -63,7 +63,7 @@ export function PersonaSheet({
                     </View>
                     <View className="flex-row items-center justify-between px-6 py-3">
                         <View className="w-6" />
-                        <Text className="text-lg font-semibold text-text-light dark:text-white">
+                        <Text className="text-lg font-semibold text-text-light dark:text-text-dark">
                             Choose persona
                         </Text>
                         <Pressable

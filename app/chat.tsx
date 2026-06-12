@@ -330,10 +330,10 @@ export default function ChatScreen() {
                         {isLoading && !streamingMessage && (
                             <View className="flex-row items-center gap-2 ml-4">
                                 <TypingIndicator
-                                    colorClassName="text-slate-500 dark:text-slate-400"
+                                    colorClassName="text-text-secondary-light dark:text-text-secondary-dark"
                                     sizeClassName="text-sm"
                                 />
-                                <Text className="text-slate-500 dark:text-slate-400 text-sm">AI is thinking</Text>
+                                <Text className="text-text-secondary-light dark:text-text-secondary-dark text-sm">AI is thinking</Text>
                             </View>
                         )}
 

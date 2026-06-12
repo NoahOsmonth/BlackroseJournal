@@ -71,7 +71,7 @@ export function PersonaForm({
                 >
                     <MaterialIcons name="arrow-back" size={24} color={iconColor} />
                 </Pressable>
-                <Text className="text-[17px] font-semibold text-text-light dark:text-white">{title}</Text>
+                <Text className="text-[17px] font-semibold text-text-light dark:text-text-dark">{title}</Text>
                 <Pressable
                     onPress={() => canSubmit && onSubmit(values)}
                     disabled={!canSubmit}
@@ -113,7 +113,7 @@ export function PersonaForm({
                             onChangeText={(text) => updateValues((prev) => ({ ...prev, name: text }))}
                             placeholder="Name"
                             placeholderTextColor="#9CA3AF"
-                            className="px-4 py-3 text-[17px] text-text-light dark:text-white"
+                            className="px-4 py-3 text-[17px] text-text-light dark:text-text-dark"
                         />
                     </View>
                     <View className="border-b border-divider-light dark:border-divider-dark">
@@ -122,7 +122,7 @@ export function PersonaForm({
                             onChangeText={(text) => updateValues((prev) => ({ ...prev, tagline: text }))}
                             placeholder="Tagline"
                             placeholderTextColor="#9CA3AF"
-                            className="px-4 py-3 text-[17px] text-text-light dark:text-white"
+                            className="px-4 py-3 text-[17px] text-text-light dark:text-text-dark"
                         />
                     </View>
                     <Pressable
@@ -131,7 +131,7 @@ export function PersonaForm({
                     >
                         <View className="flex-row items-center gap-3">
                             <MaterialIcons name="volume-up" size={20} color="#9CA3AF" />
-                            <Text className="text-[17px] text-text-light dark:text-white">Voice</Text>
+                            <Text className="text-[17px] text-text-light dark:text-text-dark">Voice</Text>
                         </View>
                         <View className="flex-row items-center gap-1">
                             <Text className="text-[17px] text-text-secondary-light dark:text-text-secondary-dark">
@@ -152,7 +152,7 @@ export function PersonaForm({
                             onChangeText={(text) => updateValues((prev) => ({ ...prev, prompt: text }))}
                             placeholder="Describe your desired personality and response style..."
                             placeholderTextColor="#9CA3AF"
-                            className="text-[17px] text-text-light dark:text-white h-full"
+                            className="text-[17px] text-text-light dark:text-text-dark h-full"
                             multiline
                             maxLength={2000}
                         />
@@ -173,7 +173,7 @@ export function PersonaForm({
                             onPress={onAdvanced}
                             className="flex-row items-center justify-between px-4 py-3"
                         >
-                            <Text className="text-[17px] text-text-light dark:text-white">Advanced</Text>
+                            <Text className="text-[17px] text-text-light dark:text-text-dark">Advanced</Text>
                             <MaterialIcons name="chevron-right" size={20} color="#9CA3AF" />
                         </Pressable>
                     </View>

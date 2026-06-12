@@ -8,7 +8,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAskRosebud } from '@/hooks/useAskRosebud';
 import { useJournalEntries } from '@/hooks/useJournalEntries';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { TimeRange } from '@/services/ask-rosebud/askRosebud';
+import { TimeRange, TIME_RANGE_LABELS } from '@/services/ask-rosebud/askRosebud';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
@@ -20,13 +20,6 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-const TIME_RANGE_LABELS: Record<TimeRange, string> = {
-    'all-time': 'All-time',
-    'this-year': 'This year',
-    'this-month': 'This month',
-    'this-week': 'This week',
-};
 
 const SUGGESTED_QUESTIONS = [
     'What patterns do you see in my mood?',
@@ -44,7 +37,7 @@ export default function AskRosebudScreen() {
     const { completed } = useJournalEntries();
     const { messages, isLoading, errorMessage, sendQuestion } = useAskRosebud();
 
-    const [timeRange, setTimeRange] = useState<TimeRange>('all-time');
+    const [timeRange, setTimeRange] = useState<TimeRange>('all-entries');
     const [inputText, setInputText] = useState('');
 
     // Filter entries by time range
@@ -65,6 +58,7 @@ export default function AskRosebudScreen() {
                 case 'this-year': {
                     return entryDate.getFullYear() === now.getFullYear();
                 }
+                case 'all-entries':
                 default:
                     return true;
             }
@@ -79,7 +73,7 @@ export default function AskRosebudScreen() {
     }, [filteredEntries, isLoading, sendQuestion, timeRange]);
 
     const cycleTimeRange = () => {
-        const ranges: TimeRange[] = ['all-time', 'this-year', 'this-month', 'this-week'];
+        const ranges: TimeRange[] = ['all-entries', 'all-time', 'this-year', 'this-month', 'this-week'];
         const currentIndex = ranges.indexOf(timeRange);
         setTimeRange(ranges[(currentIndex + 1) % ranges.length]);
     };

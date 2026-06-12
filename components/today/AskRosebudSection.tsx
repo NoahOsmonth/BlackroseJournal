@@ -5,24 +5,19 @@
  */
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import {
+    TimeRange,
+    TIME_RANGE_LABELS,
+} from '@/services/ask-rosebud/askRosebud';
 import { MaterialIcons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, Text } from 'react-native';
-
-export type TimeRange = 'all-time' | 'this-year' | 'this-month' | 'this-week';
 
 interface AskRosebudSectionProps {
     selectedTimeRange: TimeRange;
     onTimeRangePress: () => void;
     onSectionPress: () => void;
 }
-
-const TIME_RANGE_LABELS: Record<TimeRange, string> = {
-    'all-time': 'All-time',
-    'this-year': 'This year',
-    'this-month': 'This month',
-    'this-week': 'This week',
-};
 
 export function AskRosebudSection({
     selectedTimeRange,

@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Message } from '@/services/ai';
 import type { JournalEntry } from '@/services/journal/journalStorage.types';
+import type { IntentionCheckIn } from '@/services/intentions/intentionsStorage.types';
 import type {
     LocalMemoryAtom,
     LocalMemoryAtomInput,
@@ -310,10 +311,16 @@ export function generateMemoryNoteSuggestion(
     const candidates = topAtoms(atoms);
     if (candidates.length === 0) return undefined;
 
-    const focus = candidates.map((atom) => trimText(atom.content, 140)).join(' ');
     const themes = collectThemes(candidates);
-    const themeText = themes.length > 0 ? ` Themes: ${themes.join(', ')}.` : '';
-    return trimText(`Remember for Rosebud chats: ${focus}${themeText}`, 600);
+    const themePhrase = themes.length > 0
+        ? `themes of ${themes.join(', ')}`
+        : 'threads that matter to you';
+    const observation = candidates.map((atom) => trimText(atom.content, 180)).join(' ');
+
+    return trimText(
+        `You seem to be someone who is navigating a lot right now. Rosebud notices you often return to ${themePhrase}. It may help to remember that ${observation}`,
+        600,
+    );
 }
 
 function buildJournalAtoms(entry: JournalEntry): LocalMemoryAtomInput[] {
@@ -359,12 +366,7 @@ function buildJournalAtoms(entry: JournalEntry): LocalMemoryAtomInput[] {
     ];
 }
 
-export async function saveJournalEntryMemories(entry: JournalEntry): Promise<LocalMemoryAtom[]> {
-    if (entry.status !== 'completed') {
-        return [];
-    }
-
-    const atoms = buildJournalAtoms(entry);
+async function saveAtomBatch(atoms: readonly LocalMemoryAtomInput[]): Promise<LocalMemoryAtom[]> {
     const saved = await withMemoryLock(async () => {
         const map = await loadMemoryMap();
         const merged = atoms.map((input) => {
@@ -378,6 +380,66 @@ export async function saveJournalEntryMemories(entry: JournalEntry): Promise<Loc
     });
     notifyMemoryChanged();
     return saved;
+}
+
+export async function saveJournalEntryMemories(entry: JournalEntry): Promise<LocalMemoryAtom[]> {
+    if (entry.status !== 'completed') {
+        return [];
+    }
+    return saveAtomBatch(buildJournalAtoms(entry));
+}
+
+const CHECK_IN_TYPE_LABELS: Record<IntentionCheckIn['type'], string> = {
+    morning: 'Morning intention',
+    evening: 'Evening reflection',
+    intention: 'Intention',
+};
+
+function buildIntentionCheckInAtoms(checkIn: IntentionCheckIn): LocalMemoryAtomInput[] {
+    const userText = extractUserText(checkIn.messages ?? []);
+    const content = userText || checkIn.summary;
+    const typeLabel = CHECK_IN_TYPE_LABELS[checkIn.type];
+    const tags = extractTags(`${checkIn.title} ${content}`, [checkIn.type, 'intention']);
+    const insight = trimText(content, 180);
+
+    return [
+        {
+            layer: 'episodic',
+            source: 'intention',
+            sourceId: checkIn.id,
+            title: `${typeLabel}: ${checkIn.title}`,
+            content: trimText(content, 420),
+            tags,
+            salience: 0.74,
+            confidence: 0.86,
+            createdAt: checkIn.createdAt,
+        },
+        {
+            layer: 'profile',
+            source: 'intention',
+            sourceId: `${checkIn.id}:profile`,
+            title: 'About the user',
+            content: `Recent ${typeLabel.toLowerCase()} pattern: ${insight}`,
+            tags,
+            salience: 0.66,
+            confidence: 0.72,
+            createdAt: checkIn.createdAt,
+        },
+    ];
+}
+
+/**
+ * Intention check-ins (morning intention, evening reflection, set-intention)
+ * feed the same memory store as journal entries — same layers, same eviction,
+ * same graph — distinguished only by `source: 'intention'`.
+ */
+export async function saveIntentionCheckInMemories(
+    checkIn: IntentionCheckIn
+): Promise<LocalMemoryAtom[]> {
+    if (checkIn.status !== 'completed') {
+        return [];
+    }
+    return saveAtomBatch(buildIntentionCheckInAtoms(checkIn));
 }
 
 function recencyScore(atom: LocalMemoryAtom, now: number): number {
