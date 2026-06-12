@@ -7,6 +7,9 @@
     "userInterfaceStyle": "automatic",
     "jsEngine": "hermes",
     "newArchEnabled": false,
+    "updates": {
+      "checkAutomatically": "NEVER"
+    },
     "platforms": [
       "ios",
       "android",
