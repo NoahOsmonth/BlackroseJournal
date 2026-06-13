@@ -4,7 +4,7 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, Share, Text, View } from 'react-native';
+import { ScrollView, Share, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
@@ -17,6 +17,7 @@ import { GoalQuickAddModal } from '@/components/goals/GoalQuickAddModal';
 import {
     EntryInsightsCard,
     GoalsSection,
+    InsightMoreOptionsModal,
     IntentionActionCard,
     MyIntentionsSection,
     PersonalizeButton,
@@ -185,6 +186,10 @@ export default function TodayScreen() {
         setMoreVisible(false);
     };
 
+    const handleInsightPress = () => {
+        router.push({ pathname: '/chat', params: { topic: question } });
+    };
+
     return (
         <ScreenContainer edges="top">
                 <AppHeader
@@ -196,7 +201,7 @@ export default function TodayScreen() {
                 />
 
                 <ScrollView
-                    className="flex-1 px-5"
+                    className="flex-1 px-4"
                     contentContainerStyle={{ paddingBottom: navAwareBottomPadding(insets.bottom) }}
                     showsVerticalScrollIndicator={false}
                 >
@@ -268,6 +273,7 @@ export default function TodayScreen() {
                                         onRefresh={refresh}
                                         onBookmark={handleBookmark}
                                         onMore={() => setMoreVisible(true)}
+                                        onPress={handleInsightPress}
                                     />
                                 </View>
                             ) : null}
@@ -289,33 +295,14 @@ export default function TodayScreen() {
                     onSubmit={handleAddGoalSubmit}
                 />
 
-                {moreVisible && (
-                    <View className="absolute inset-0 bg-black/40 justify-end">
-                        <View
-                            className="bg-surface-light dark:bg-surface-dark rounded-t-3xl p-6"
-                            style={{ paddingBottom: insets.bottom + 24 }}
-                        >
-                            <Text className="text-sm font-semibold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide mb-4">
-                                More options
-                            </Text>
-                            <Pressable onPress={handleShare} className="py-3">
-                                <Text className="text-base text-text-light dark:text-text-dark">Share</Text>
-                            </Pressable>
-                            <Pressable onPress={handleCopy} className="py-3">
-                                <Text className="text-base text-text-light dark:text-text-dark">Copy</Text>
-                            </Pressable>
-                            <Pressable onPress={handleHide} className="py-3">
-                                <Text className="text-base text-text-light dark:text-text-dark">Hide for today</Text>
-                            </Pressable>
-                            <Pressable onPress={handleShowSavedInsights} className="py-3">
-                                <Text className="text-base text-text-light dark:text-text-dark">Saved insights</Text>
-                            </Pressable>
-                            <Pressable onPress={() => setMoreVisible(false)} className="py-3">
-                                <Text className="text-base text-text-secondary-light dark:text-text-secondary-dark">Cancel</Text>
-                            </Pressable>
-                        </View>
-                    </View>
-                )}
+                <InsightMoreOptionsModal
+                    visible={moreVisible}
+                    onClose={() => setMoreVisible(false)}
+                    onShare={handleShare}
+                    onCopy={handleCopy}
+                    onHide={handleHide}
+                    onShowSavedInsights={handleShowSavedInsights}
+                />
         </ScreenContainer>
     );
 }

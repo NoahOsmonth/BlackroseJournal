@@ -5,6 +5,7 @@
 
 export { EntryInsightsCard } from './EntryInsightsCard';
 export { GoalsSection } from './GoalsSection';
+export { InsightMoreOptionsModal } from './InsightMoreOptionsModal';
 export { IntentionActionCard } from './IntentionActionCard';
 export { MyIntentionsSection } from './MyIntentionsSection';
 export { PersonalizeButton } from './PersonalizeButton';
