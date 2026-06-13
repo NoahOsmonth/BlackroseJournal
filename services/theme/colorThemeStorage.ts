@@ -24,6 +24,8 @@ const COLOR_THEME_SLOTS: readonly ColorThemeSlot[] = [
   'chatUserTextDark',
   'chatAiTextLight',
   'chatAiTextDark',
+  'appBackgroundLight',
+  'appBackgroundDark',
 ];
 
 interface ColorThemeEnvelope {

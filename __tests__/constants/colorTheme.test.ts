@@ -156,11 +156,12 @@ describe('color theme presets', () => {
     });
 
     it('every preset has valid 6-digit hex colors for every slot', () => {
-        const slots: Array<keyof typeof DEFAULT_COLOR_THEME.colors> = [
+        const slots: (keyof typeof DEFAULT_COLOR_THEME.colors)[] = [
             'accentLight', 'accentDark', 'appTextLight', 'appTextDark',
             'secondaryTextLight', 'secondaryTextDark',
             'chatUserTextLight', 'chatUserTextDark',
             'chatAiTextLight', 'chatAiTextDark',
+            'appBackgroundLight', 'appBackgroundDark',
         ];
         for (const preset of COLOR_THEME_PRESETS) {
             for (const slot of slots) {

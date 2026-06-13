@@ -1,4 +1,7 @@
+import fs from "fs";
 import path from "path";
+
+import { AppBackgroundColors } from "../constants/theme";
 
 describe("tailwind.config.js", () => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -44,6 +47,8 @@ describe("tailwind.config.js", () => {
     const variableBackedTokens = [
         "primary",
         "primary-dark",
+        "background-light",
+        "background-dark",
         "text-light",
         "text-dark",
         "text-main-light",
@@ -71,9 +76,16 @@ describe("tailwind.config.js", () => {
         });
     });
 
-    it("light/dark background matches theme.ts", () => {
-        expect(colors["background-light"]).toBe("#F2F2F7");
-        expect(colors["background-dark"]).toBe("#000000");
+    it("light/dark background uses runtime variables mapped to theme.ts hex values", () => {
+        expect(colors["background-light"]).toBe("rgb(var(--color-background-light) / <alpha-value>)");
+        expect(colors["background-dark"]).toBe("rgb(var(--color-background-dark) / <alpha-value>)");
+
+        const css = fs.readFileSync(path.join(process.cwd(), "global.css"), "utf8");
+        expect(css).toContain("--color-background-light: 242 242 247;");
+        expect(css).toContain("--color-background-dark: 10 10 10;");
+
+        expect(AppBackgroundColors.light).toBe("#F2F2F7");
+        expect(AppBackgroundColors.dark).toBe("#0A0A0A");
     });
 
     it("light/dark surface matches theme.ts", () => {

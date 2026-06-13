@@ -14,8 +14,8 @@ module.exports = {
         extend: {
             colors: {
                 // Backgrounds
-                'background-light': '#F2F2F7',
-                'background-dark': '#000000',
+                'background-light': colorVar('background-light'),
+                'background-dark': colorVar('background-dark'),
                 // Surfaces (cards, modals, nav)
                 'surface-light': '#FFFFFF',
                 'surface-dark': '#1C1C1E',

@@ -40,6 +40,7 @@ const COLOR_ROWS: readonly ColorFieldPair[] = [
     { label: 'Muted font', lightSlot: 'secondaryTextLight', darkSlot: 'secondaryTextDark' },
     { label: 'Chat — you', lightSlot: 'chatUserTextLight', darkSlot: 'chatUserTextDark' },
     { label: 'Chat — Rosebud', lightSlot: 'chatAiTextLight', darkSlot: 'chatAiTextDark' },
+    { label: 'Background', lightSlot: 'appBackgroundLight', darkSlot: 'appBackgroundDark' },
 ];
 
 /**

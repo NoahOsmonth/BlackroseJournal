@@ -62,7 +62,9 @@ export type ColorThemeSlot =
   | 'chatUserTextLight'
   | 'chatUserTextDark'
   | 'chatAiTextLight'
-  | 'chatAiTextDark';
+  | 'chatAiTextDark'
+  | 'appBackgroundLight'
+  | 'appBackgroundDark';
 
 export type ColorThemeColors = Record<ColorThemeSlot, string>;
 
@@ -76,6 +78,11 @@ export interface ColorThemePreset extends ColorTheme {
   readonly name: string;
 }
 
+export const AppBackgroundColors = {
+  light: '#F2F2F7',
+  dark: '#0A0A0A',
+} as const;
+
 export const DEFAULT_COLOR_THEME_COLORS: ColorThemeColors = {
   accentLight: '#FF9F0A',
   accentDark: '#FFB340',
@@ -87,6 +94,8 @@ export const DEFAULT_COLOR_THEME_COLORS: ColorThemeColors = {
   chatUserTextDark: '#FDBA74',
   chatAiTextLight: '#3B82F6',
   chatAiTextDark: '#38BDF8',
+  appBackgroundLight: AppBackgroundColors.light,
+  appBackgroundDark: AppBackgroundColors.dark,
 } as const;
 
 export const COLOR_THEME_PRESETS: readonly ColorThemePreset[] = [
@@ -109,6 +118,8 @@ export const COLOR_THEME_PRESETS: readonly ColorThemePreset[] = [
       chatUserTextDark: '#A5F3FC',
       chatAiTextLight: '#2563EB',
       chatAiTextDark: '#7DD3FC',
+      appBackgroundLight: AppBackgroundColors.light,
+      appBackgroundDark: AppBackgroundColors.dark,
     },
   },
   {
@@ -125,6 +136,8 @@ export const COLOR_THEME_PRESETS: readonly ColorThemePreset[] = [
       chatUserTextDark: '#FDE68A',
       chatAiTextLight: '#047857',
       chatAiTextDark: '#6EE7B7',
+      appBackgroundLight: AppBackgroundColors.light,
+      appBackgroundDark: AppBackgroundColors.dark,
     },
   },
   {
@@ -141,6 +154,8 @@ export const COLOR_THEME_PRESETS: readonly ColorThemePreset[] = [
       chatUserTextDark: '#FDBA74',
       chatAiTextLight: '#7C3AED',
       chatAiTextDark: '#C4B5FD',
+      appBackgroundLight: AppBackgroundColors.light,
+      appBackgroundDark: AppBackgroundColors.dark,
     },
   },
   {
@@ -157,6 +172,8 @@ export const COLOR_THEME_PRESETS: readonly ColorThemePreset[] = [
       chatUserTextDark: '#FFEDD5',
       chatAiTextLight: '#DC2626',
       chatAiTextDark: '#FCA5A5',
+      appBackgroundLight: AppBackgroundColors.light,
+      appBackgroundDark: AppBackgroundColors.dark,
     },
   },
   {
@@ -173,6 +190,8 @@ export const COLOR_THEME_PRESETS: readonly ColorThemePreset[] = [
       chatUserTextDark: '#C7D2FE',
       chatAiTextLight: '#9333EA',
       chatAiTextDark: '#E9D5FF',
+      appBackgroundLight: AppBackgroundColors.light,
+      appBackgroundDark: AppBackgroundColors.dark,
     },
   },
   {
@@ -189,6 +208,8 @@ export const COLOR_THEME_PRESETS: readonly ColorThemePreset[] = [
       chatUserTextDark: '#CCFBF1',
       chatAiTextLight: '#0891B2',
       chatAiTextDark: '#A5F3FC',
+      appBackgroundLight: AppBackgroundColors.light,
+      appBackgroundDark: AppBackgroundColors.dark,
     },
   },
   {
@@ -205,6 +226,8 @@ export const COLOR_THEME_PRESETS: readonly ColorThemePreset[] = [
       chatUserTextDark: '#FEF3C7',
       chatAiTextLight: '#A16207',
       chatAiTextDark: '#FDE68A',
+      appBackgroundLight: AppBackgroundColors.light,
+      appBackgroundDark: AppBackgroundColors.dark,
     },
   },
 ] as const;
@@ -324,6 +347,8 @@ export function colorThemeToNativeWindVars(themeValue: ColorTheme): Record<strin
     '--color-user-text-dark': hexToRgbTriplet(colors.chatUserTextDark),
     '--color-accent-blue': hexToRgbTriplet(colors.chatAiTextLight),
     '--color-ai-text': hexToRgbTriplet(colors.chatAiTextDark),
+    '--color-background-light': hexToRgbTriplet(colors.appBackgroundLight),
+    '--color-background-dark': hexToRgbTriplet(colors.appBackgroundDark),
   };
 }
 
@@ -353,7 +378,7 @@ export const MemoryLayerColors = {
 export const Colors = {
   light: {
     text: '#111827',
-    background: '#F2F2F7',
+    background: AppBackgroundColors.light,
     surface: '#FFFFFF',
     tint: TintColors.light,
     icon: '#6B7280',
@@ -364,7 +389,7 @@ export const Colors = {
   },
   dark: {
     text: '#F9FAFB',
-    background: '#000000',
+    background: AppBackgroundColors.dark,
     surface: '#1C1C1E',
     tint: TintColors.dark,
     icon: '#98989D',

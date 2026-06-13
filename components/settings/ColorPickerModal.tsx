@@ -159,6 +159,8 @@ const SLOT_LABELS: Record<ColorThemeSlot, string> = {
     chatUserTextDark: 'Chat — you · Dark',
     chatAiTextLight: 'Chat — Rosebud · Light',
     chatAiTextDark: 'Chat — Rosebud · Dark',
+    appBackgroundLight: 'Background · Light',
+    appBackgroundDark: 'Background · Dark',
 };
 
 export function ColorPickerModal({

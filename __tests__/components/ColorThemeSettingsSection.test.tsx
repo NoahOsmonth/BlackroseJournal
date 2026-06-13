@@ -3,6 +3,7 @@ import { fireEvent, render } from '@testing-library/react-native';
 
 import { ColorThemeSettingsSection } from '../../components/settings/ColorThemeSettingsSection';
 import { DEFAULT_COLOR_THEME } from '../../constants/theme';
+import { derivePartnerHex } from '../../services/theme/colorDerivation';
 
 jest.mock('@expo/vector-icons', () => ({
     MaterialIcons: () => null,
@@ -42,6 +43,8 @@ describe('ColorThemeSettingsSection', () => {
         expect(getByLabelText('Edit Muted font Light color')).toBeTruthy();
         expect(getByLabelText('Edit Chat — you Light color')).toBeTruthy();
         expect(getByLabelText('Edit Chat — Rosebud Dark color')).toBeTruthy();
+        expect(getByLabelText('Edit Background Light color')).toBeTruthy();
+        expect(getByLabelText('Edit Background Dark color')).toBeTruthy();
     });
 
     it('wires preset, reset, and swatch-tap callbacks to the host', () => {
@@ -102,7 +105,6 @@ describe('ColorThemeSettingsSection', () => {
         // Construct a theme where accentDark is exactly what
         // derivePartnerHex(accentLight, true) would return. The badge is
         // only displayed when the live partner value matches the auto-derivation.
-        const { derivePartnerHex } = require('../../services/theme/colorDerivation');
         const accentLight = '#0EA5E9';
         const accentDark = derivePartnerHex(accentLight, true);
         const customTheme = {

@@ -20,5 +20,7 @@
     --color-user-text-dark: 253 186 116;
     --color-accent-blue: 59 130 246;
     --color-ai-text: 56 189 248;
+    --color-background-light: 242 242 247;
+    --color-background-dark: 10 10 10;
   }
 }
