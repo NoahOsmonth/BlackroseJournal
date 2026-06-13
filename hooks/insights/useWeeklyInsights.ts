@@ -1,4 +1,6 @@
+import { useIntentionCheckIns } from '@/hooks/intentions/useIntentionCheckIns';
 import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
+import { Message } from '@/services/ai/ai';
 import { generateWeeklyInsights } from '@/services/ai/insights';
 import type { WeeklyInsightsResult } from '@/services/ai/insightsTypes';
 import {
@@ -8,14 +10,29 @@ import {
 } from '@/services/insights/weeklyInsightsStorage';
 import { useCallback, useEffect, useState } from 'react';
 
+interface WeeklyInsightItem {
+    createdAt: number;
+    messages: Message[];
+}
+
+function toWeeklyInsightItem<T extends { createdAt: number; messages?: Message[] | null }>(
+    item: T
+): WeeklyInsightItem {
+    return {
+        createdAt: item.createdAt,
+        messages: item.messages ?? [],
+    };
+}
+
 export function useWeeklyInsights() {
-    const { completed, isLoading: isEntriesLoading } = useJournalEntries();
+    const { completed: journalEntries, isLoading: isEntriesLoading } = useJournalEntries();
+    const { completed: checkIns, isLoading: isCheckInsLoading } = useIntentionCheckIns();
     const [insights, setInsights] = useState<WeeklyInsightsResult | null>(null);
     const [isAiLoading, setIsAiLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // Filter entries for the current week (Sun-Sat)
-    const getWeeklyEntries = useCallback(() => {
+    // Filter entries and check-ins for the current week (Sun-Sat)
+    const getWeeklyItems = useCallback(() => {
         const now = new Date();
         const day = now.getDay(); // 0 is Sunday
         const startOfWeek = new Date(now);
@@ -26,20 +43,25 @@ export function useWeeklyInsights() {
         endOfWeek.setDate(startOfWeek.getDate() + 6);
         endOfWeek.setHours(23, 59, 59, 999);
 
-        return completed.filter(entry => {
-            const entryDate = new Date(entry.createdAt);
-            return entryDate >= startOfWeek && entryDate <= endOfWeek;
+        const allItems = [
+            ...journalEntries.map(toWeeklyInsightItem),
+            ...checkIns.map(toWeeklyInsightItem),
+        ];
+
+        return allItems.filter(item => {
+            const itemDate = new Date(item.createdAt);
+            return itemDate >= startOfWeek && itemDate <= endOfWeek;
         });
-    }, [completed]);
+    }, [journalEntries, checkIns]);
 
     const fetchInsights = useCallback(async (forceRefresh = false) => {
-        if (isEntriesLoading) return;
+        if (isEntriesLoading || isCheckInsLoading) return;
 
-        const weeklyEntries = getWeeklyEntries();
+        const weeklyItems = getWeeklyItems();
         const weekKey = getCurrentWeekKey();
 
         // Check for no entries case first
-        if (weeklyEntries.length === 0) {
+        if (weeklyItems.length === 0) {
             setInsights({
                 emotionalLandscape: [],
                 keyThemes: [],
@@ -53,8 +75,8 @@ export function useWeeklyInsights() {
         if (!forceRefresh) {
             try {
                 const cached = await loadCachedInsights(weekKey);
-                if (cached && cached.entryCount === weeklyEntries.length) {
-                    // Cache is valid for this week with same entry count
+                if (cached && cached.entryCount === weeklyItems.length) {
+                    // Cache is valid for this week with same item count
                     setInsights(cached.insights);
                     return;
                 }
@@ -67,14 +89,14 @@ export function useWeeklyInsights() {
         setIsAiLoading(true);
         setError(null);
         try {
-            const result = await generateWeeklyInsights(weeklyEntries.map(e => ({
-                messages: e.messages.map(m => ({ content: m.content }))
+            const result = await generateWeeklyInsights(weeklyItems.map(item => ({
+                messages: item.messages.map(m => ({ content: m.content }))
             })));
             setInsights(result);
 
             // Cache the results for this week
             try {
-                await saveCachedInsights(weekKey, result, weeklyEntries.length);
+                await saveCachedInsights(weekKey, result, weeklyItems.length);
             } catch (cacheError) {
                 console.warn('Failed to cache insights:', cacheError);
             }
@@ -83,27 +105,27 @@ export function useWeeklyInsights() {
         } finally {
             setIsAiLoading(false);
         }
-    }, [getWeeklyEntries, isEntriesLoading]);
+    }, [getWeeklyItems, isEntriesLoading, isCheckInsLoading]);
 
-    // Refetch when entries change
+    // Refetch when entries or check-ins change
     useEffect(() => {
         fetchInsights();
     }, [fetchInsights]);
 
     // Calculate local stats (not dependent on AI)
     const weeklyStats = (() => {
-        const weeklyEntries = getWeeklyEntries();
-        const totalWords = weeklyEntries.reduce((sum, entry) => {
-            return sum + entry.messages
+        const weeklyItems = getWeeklyItems();
+        const totalWords = weeklyItems.reduce((sum, item) => {
+            return sum + item.messages
                 .filter(m => m.role === 'user')
                 .reduce((acc, m) => acc + m.content.split(/\s+/).filter(Boolean).length, 0);
         }, 0);
 
         // Daily distribution (Sun-Sat)
         const dailyWords = [0, 0, 0, 0, 0, 0, 0];
-        weeklyEntries.forEach(entry => {
-            const dayIndex = new Date(entry.createdAt).getDay();
-            const words = entry.messages
+        weeklyItems.forEach(item => {
+            const dayIndex = new Date(item.createdAt).getDay();
+            const words = item.messages
                 .filter(m => m.role === 'user')
                 .reduce((acc, m) => acc + m.content.split(/\s+/).filter(Boolean).length, 0);
             dailyWords[dayIndex] += words;
@@ -112,7 +134,7 @@ export function useWeeklyInsights() {
         const maxWords = Math.max(...dailyWords, 0);
 
         return {
-            entriesCount: weeklyEntries.length,
+            entriesCount: weeklyItems.length,
             totalWords,
             dailyWords,
             maxWords,
@@ -140,7 +162,7 @@ export function useWeeklyInsights() {
         insights,
         weeklyStats,
         weekDateRange,
-        isLoading: isEntriesLoading || isAiLoading,
+        isLoading: isEntriesLoading || isCheckInsLoading || isAiLoading,
         error,
         refresh: fetchInsights,
         forceRefresh,

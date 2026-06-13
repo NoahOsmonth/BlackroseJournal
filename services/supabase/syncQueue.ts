@@ -147,6 +147,14 @@ async function applyTask(client: SupabaseClient, task: SyncTask): Promise<boolea
     return true;
 }
 
+export async function removeSyncTasksForTable(table: string): Promise<void> {
+    const queue = await loadQueue();
+    const next = queue.filter((task) => task.table !== table);
+    if (next.length !== queue.length) {
+        await saveQueue(next);
+    }
+}
+
 export async function flushSyncQueue(): Promise<void> {
     if (!isRemoteDataSyncEnabled()) {
         return;

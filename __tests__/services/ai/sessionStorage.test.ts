@@ -4,6 +4,7 @@ import {
     getSession,
     loadSessions,
     pruneStaleSessions,
+    removeJournalChatSessions,
     removeSession,
     resetChatSessionStorageAdapter,
     saveSession,
@@ -206,5 +207,29 @@ describe('sessionStorage', () => {
         const session = await getSession('mixed');
         expect(session?.messages).toHaveLength(1);
         expect(session?.messages[0].content).toBe('good');
+    });
+
+    it('removeJournalChatSessions clears freeform and continue sessions only', async () => {
+        const now = Date.now();
+        await saveSession(makeSession({
+            conversationId: 'journal_freeform', mode: 'freeform', updatedAt: now - 2000, createdAt: now - 2000,
+        }));
+        await saveSession(makeSession({
+            conversationId: 'journal_continue', mode: 'continue', updatedAt: now - 1500, createdAt: now - 1500,
+        }));
+        await saveSession(makeSession({
+            conversationId: 'intention_morning', mode: 'morning', updatedAt: now - 1000, createdAt: now - 1000,
+        }));
+        await saveSession(makeSession({
+            conversationId: 'intention_checkin', mode: 'intention', updatedAt: now - 500, createdAt: now - 500,
+        }));
+
+        await removeJournalChatSessions();
+
+        const remaining = await loadSessions();
+        expect(remaining.map((s) => s.conversationId)).toEqual([
+            'intention_checkin',
+            'intention_morning',
+        ]);
     });
 });

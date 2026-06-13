@@ -254,6 +254,23 @@ export async function clearMemoryAtoms(): Promise<void> {
     notifyMemoryChanged();
 }
 
+export async function deleteMemoryAtomsBySource(source: string): Promise<void> {
+    await withMemoryLock(async () => {
+        const map = await loadMemoryMap();
+        let changed = false;
+        Object.keys(map).forEach((id) => {
+            if (map[id].source === source) {
+                delete map[id];
+                changed = true;
+            }
+        });
+        if (changed) {
+            await saveMemoryMap(map);
+        }
+    });
+    notifyMemoryChanged();
+}
+
 export async function deleteMemoryAtom(id: string): Promise<boolean> {
     const deleted = await withMemoryLock(async () => {
         const map = await loadMemoryMap();

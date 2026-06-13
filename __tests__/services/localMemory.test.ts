@@ -12,6 +12,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 import {
     buildLocalMemoryContext,
     clearMemoryAtoms,
+    deleteMemoryAtomsBySource,
     generateMemoryNoteSuggestion,
     listMemoryAtoms,
     resetMemoryStorageAdapter,
@@ -187,5 +188,18 @@ describe('localMemory', () => {
         expect(context).toContain('## Local Memory Capsule');
         expect(context).toContain('focused');
         expect(context).toContain('Intention:');
+    });
+
+    it('deleteMemoryAtomsBySource removes only atoms from the given source', async () => {
+        await saveJournalEntryMemories(buildEntry());
+        await saveIntentionCheckInMemories(buildCheckIn());
+        await saveManualMemoryNote('Keep evenings gentle.');
+
+        await deleteMemoryAtomsBySource('journal');
+
+        const atoms = await listMemoryAtoms();
+        expect(atoms.some((atom) => atom.source === 'journal')).toBe(false);
+        expect(atoms.some((atom) => atom.source === 'intention')).toBe(true);
+        expect(atoms.some((atom) => atom.source === 'manual')).toBe(true);
     });
 });

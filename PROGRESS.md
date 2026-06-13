@@ -11,6 +11,54 @@
 - [x] **TOOL-CODEX-001**: Codex CLI with OMO Light Edition
 
 ## Updates
+- **2026-06-13**: Fixed "Clear Journal Entries" to actually delete journal history and related derived data:
+  - Root cause: `services/journal/journalStorage.ts` `clearAllEntries()` only removed the local
+    `@journal_entries` key and queued remote deletes; it did not delete remote rows, clear the
+    sync queue, or remove journal-derived memory, chat sessions, insights, and saved insights.
+  - `services/journal/journalRemote.ts`: added `deleteRemoteJournalEntries(entryIds)` for a batch
+    remote delete before local cleanup.
+  - `services/journal/journalStorage.ts`: `clearAllEntries()` now deletes remote rows, queues
+    fallback deletes, removes pending `journal_entries` sync-queue tasks, resets sync flags, and
+    clears the local store.
+  - `services/memory/localMemory.ts`: added `deleteMemoryAtomsBySource(source)` to remove journal
+    atoms while preserving manual notes and intention atoms.
+  - `services/ai/sessionStorage.ts`: added `removeJournalChatSessions()` to drop `freeform` and
+    `continue` autosave sessions while preserving intention/morning/evening sessions.
+  - `services/supabase/syncQueue.ts`: added `removeSyncTasksForTable(table)` to prevent stale
+    upserts from resurrecting deleted entries.
+  - `hooks/journal/useClearJournalHistory.ts`: new hook that orchestrates clearing entries,
+    journal-derived memories, journal chat sessions, weekly insights cache, and saved insights.
+  - `hooks/journal/useJournalExport.ts`: new hook wrapper for JSON export so `settings.tsx` no
+    longer imports journal services directly.
+  - `app/(tabs)/settings.tsx`: now uses `useClearJournalHistory` and `useJournalExport`, shows a
+    disabling busy state during clear, and updates the success message.
+  - `components/settings/DataManagementSection.tsx`: added `isClearingJournalEntries` prop to
+    disable the clear row while the operation is in progress.
+  - Added tests in `__tests__/services/journalStorage.test.ts`,
+    `__tests__/services/localMemory.test.ts`, `__tests__/services/ai/sessionStorage.test.ts`, and
+    `__tests__/syncQueue-local-only.test.ts` for the new behavior.
+  - Verified:
+    - `npm test -- --testPathPattern="journalStorage|sessionStorage|localMemory|
+      syncQueue-local-only"` — target suites pass.
+    - `npx tsc --noEmit` — passed.
+    - `npm run lint` — no new errors (pre-existing errors in
+      `.agents/skills/expo-cicd-workflows/scripts/validate.js` and unrelated test files).
+    - `npm run check:design` — passed (pre-existing approaching-limit warnings only).
+- **2026-06-13**: Insights weekly stats now include completed intention check-ins:
+  - `hooks/insights/useWeeklyInsights.ts` now consumes both `useJournalEntries().completed` and
+    `useIntentionCheckIns().completed`, normalizes them to a shared `{ createdAt, messages }` shape,
+    and includes check-ins in `entriesCount`, `totalWords`, `dailyWords`, `maxWords`, the empty-state
+    check, and the AI `generateWeeklyInsights` payload.
+  - `services/insights/weeklyInsightsStorage.ts` `entryCount` field now represents the combined
+    journal + check-in count for cache invalidation; no field rename or schema change.
+  - Added tests in `__tests__/hooks/useWeeklyInsights.test.tsx` for combined counting,
+    check-ins-only behavior, journal-only regression, and check-ins with optional `messages`.
+  - Verified:
+    - `npm test -- --testPathPattern="useWeeklyInsights"` — 8 tests pass.
+    - `npm test` — 114 suites passed, 432 tests passed, 8 skipped.
+    - `npx tsc --noEmit` — passed.
+    - `npm run lint` — 0 errors (2 pre-existing warnings unrelated to this change).
+    - `npm run check:design` — passed (0 errors).
 - **2026-06-13**: Daily Activity max-word accuracy fix (Wave 2):
   - Computed `maxWords` inside `hooks/insights/useWeeklyInsights.ts` as
     `Math.max(...dailyWords, 0)` after the final daily aggregation, and exposed it in

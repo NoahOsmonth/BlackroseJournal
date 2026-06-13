@@ -11,8 +11,11 @@ import {
     JournalEntryUpdateInput,
     StorageAdapter,
 } from './journalStorage.types';
+import { removeSyncTasksForTable } from '@/services/supabase/syncQueue';
 import {
+    deleteRemoteJournalEntries,
     fetchRemoteJournalEntries,
+    JOURNAL_TABLE,
     mergeEntries,
     pushJournalEntries,
     queueJournalEntryDelete,
@@ -212,19 +215,36 @@ export async function listCompleted(): Promise<JournalEntry[]> {
     return listEntries('completed');
 }
 
-/**
- * Clear all entries (useful for testing)
- */
 export async function clearAllEntries(): Promise<void> {
     const entries = await getAllEntriesMap();
-    await Promise.all(Object.keys(entries).map(async (entryId) => {
+    const entryIds = Object.keys(entries);
+
+    if (entryIds.length > 0) {
+        try {
+            await deleteRemoteJournalEntries(entryIds);
+        } catch (error) {
+            console.warn('Failed to delete remote journal entries:', error);
+        }
+    }
+
+    await Promise.all(entryIds.map(async (entryId) => {
         try {
             await queueJournalEntryDelete(entryId);
         } catch (error) {
             console.warn('Failed to queue journal entry delete:', error);
         }
     }));
+
     await storageAdapter.removeItem(STORAGE_KEY);
+
+    try {
+        await removeSyncTasksForTable(JOURNAL_TABLE);
+    } catch (error) {
+        console.warn('Failed to remove pending journal sync tasks:', error);
+    }
+
+    hasPulledRemote = false;
+    hasPushedLocal = false;
 }
 
 /**

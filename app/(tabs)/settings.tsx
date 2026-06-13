@@ -25,7 +25,8 @@ import { useGenerationSettings } from '@/hooks/settings/useGenerationSettings';
 import { useTabNavigation } from '@/hooks/navigation/useTabNavigation';
 import { useThemeSettings } from '@/hooks/useThemeSettings';
 import { signOut } from '@/services/auth/authService';
-import { clearAllEntries, getAllEntriesForExport } from '@/services/journalStorage';
+import { useClearJournalHistory } from '@/hooks/journal/useClearJournalHistory';
+import { useJournalExport } from '@/hooks/journal/useJournalExport';
 
 export default function SettingsScreen() {
     const router = useRouter();
@@ -46,6 +47,8 @@ export default function SettingsScreen() {
     const customAi = useCustomAiModels();
     const generation = useGenerationSettings();
     const { goToTab } = useTabNavigation();
+    const { exportAsJson } = useJournalExport();
+    const { clearAll: clearJournalHistory, isClearing: isClearingJournalHistory } = useClearJournalHistory();
     const [isSigningOut, setIsSigningOut] = useState(false);
 
     const handleTabPress = (tab: 'today' | 'explore' | 'entries' | 'settings' | 'insights') => {
@@ -56,7 +59,7 @@ export default function SettingsScreen() {
 
     const handleExportJournalJson = async () => {
         try {
-            const data = await getAllEntriesForExport();
+            const data = await exportAsJson();
             await Share.share({ message: data, title: 'Journal Export' });
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Failed to export data.';
@@ -119,8 +122,8 @@ export default function SettingsScreen() {
                     style: 'destructive',
                     onPress: async () => {
                         try {
-                            await clearAllEntries();
-                            Alert.alert('Success', 'All journal entries have been deleted.');
+                            await clearJournalHistory();
+                            Alert.alert('Success', 'All journal entries and related data have been deleted.');
                         } catch (error) {
                             const message = error instanceof Error
                                 ? error.message
@@ -177,6 +180,7 @@ export default function SettingsScreen() {
                     <DataManagementSection
                         latestBackup={latestBackup}
                         isBusy={isBusy}
+                        isClearingJournalEntries={isClearingJournalHistory}
                         onCreateBackup={handleCreateBackup}
                         onRestoreLatestBackup={handleRestoreLatestBackup}
                         onExportJournalJson={handleExportJournalJson}

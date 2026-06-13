@@ -10,6 +10,8 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 }));
 
 jest.mock('../../services/journal/journalRemote', () => ({
+    JOURNAL_TABLE: 'journal_entries',
+    deleteRemoteJournalEntries: jest.fn(() => Promise.resolve(true)),
     fetchRemoteJournalEntries: jest.fn(() => Promise.resolve(null)),
     mergeEntries: jest.fn((local: object) => local),
     pushJournalEntries: jest.fn(() => Promise.resolve(false)),
@@ -17,13 +19,21 @@ jest.mock('../../services/journal/journalRemote', () => ({
     queueJournalEntryUpsert: jest.fn(() => Promise.resolve()),
 }));
 
+jest.mock('../../services/supabase/syncQueue', () => ({
+    removeSyncTasksForTable: jest.fn(() => Promise.resolve()),
+}));
+
 import {
+    clearAllEntries,
     createEntry,
     getEntry,
+    listEntries,
     resetStorageAdapter,
     setStorageAdapter,
 } from '../../services/journal/journalStorage';
 import type { StorageAdapter } from '../../services/journal/journalStorage.types';
+import { deleteRemoteJournalEntries } from '../../services/journal/journalRemote';
+import { removeSyncTasksForTable } from '../../services/supabase/syncQueue';
 
 function createMemoryAdapter(): StorageAdapter {
     const store = new Map<string, string>();
@@ -73,5 +83,26 @@ describe('journalStorage analysis', () => {
 
         expect(saved?.analysis?.insight).toBe('You are asking for more space.');
         expect(saved?.analysis?.topics).toEqual(['Morning', 'Rest']);
+    });
+
+    it('clearAllEntries removes local entries, deletes remote rows, and clears pending sync tasks', async () => {
+        const entryA = await createEntry({
+            title: 'A',
+            status: 'completed',
+            messages: [{ id: 'm1', role: 'user', content: 'a', timestamp: 1 }],
+        });
+        const entryB = await createEntry({
+            title: 'B',
+            status: 'completed',
+            messages: [{ id: 'm2', role: 'user', content: 'b', timestamp: 2 }],
+        });
+
+        await clearAllEntries();
+
+        await expect(listEntries()).resolves.toEqual([]);
+        expect(deleteRemoteJournalEntries).toHaveBeenCalledWith(
+            expect.arrayContaining([entryA.id, entryB.id])
+        );
+        expect(removeSyncTasksForTable).toHaveBeenCalledWith('journal_entries');
     });
 });

@@ -4,7 +4,7 @@ import { enqueueSyncTask } from '@/services/supabase/syncQueue';
 import { logSupabaseError } from '@/services/supabase/supabaseErrors';
 import { EntryStatus, JournalEntry } from './journalStorage.types';
 
-const JOURNAL_TABLE = 'journal_entries';
+export const JOURNAL_TABLE = 'journal_entries';
 
 interface JournalEntryRecord {
     id: string;
@@ -152,6 +152,29 @@ export async function pushJournalEntries(entries: JournalEntry[]): Promise<boole
 
     if (error) {
         logSupabaseError('Failed to push journal entries', JOURNAL_TABLE, error.message);
+        return false;
+    }
+
+    return true;
+}
+
+export async function deleteRemoteJournalEntries(entryIds: string[]): Promise<boolean> {
+    if (entryIds.length === 0) {
+        return true;
+    }
+
+    const client = await ensureSupabaseSession();
+    if (!client) {
+        return false;
+    }
+
+    const { error } = await client
+        .from(JOURNAL_TABLE)
+        .delete()
+        .in('id', entryIds);
+
+    if (error) {
+        logSupabaseError('Failed to delete remote journal entries', JOURNAL_TABLE, error.message);
         return false;
     }
 

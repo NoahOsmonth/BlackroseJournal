@@ -11,6 +11,7 @@ type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 interface DataManagementSectionProps {
     readonly latestBackup: LocalBackupManifest | null;
     readonly isBusy: boolean;
+    readonly isClearingJournalEntries?: boolean;
     readonly onCreateBackup: () => void;
     readonly onRestoreLatestBackup: () => void;
     readonly onExportJournalJson: () => void;
@@ -75,6 +76,7 @@ function SettingsRow({
 export function DataManagementSection({
     latestBackup,
     isBusy,
+    isClearingJournalEntries = false,
     onCreateBackup,
     onRestoreLatestBackup,
     onExportJournalJson,
@@ -117,7 +119,7 @@ export function DataManagementSection({
                 iconName="trash-outline"
                 iconColor={dangerIconColor}
                 destructive
-                disabled={isBusy}
+                disabled={isBusy || isClearingJournalEntries}
                 showBorder={false}
                 onPress={onClearJournalEntries}
             />
