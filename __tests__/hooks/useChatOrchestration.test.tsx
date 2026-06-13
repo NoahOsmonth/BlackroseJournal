@@ -25,7 +25,37 @@ jest.mock('../../hooks/settings/useGenerationSettings', () => ({
     }),
 }));
 
-import { useChatOrchestration } from '../../features/chat';
+jest.mock('../../services/ai', () => {
+    const setSystemPrompt = jest.fn();
+    const sendInitialMessage = jest.fn();
+    const sendInitialPrompt = jest.fn();
+    const sendMessage = jest.fn();
+    const setMessages = jest.fn();
+    const setConversationId = jest.fn();
+    const setGenerationSettings = jest.fn();
+    const clearMessages = jest.fn();
+
+    const useChat = jest.fn(() => ({
+        setSystemPrompt,
+        sendInitialMessage,
+        sendInitialPrompt,
+        sendMessage,
+        setMessages,
+        setConversationId,
+        setGenerationSettings,
+        clearMessages,
+    }));
+    (useChat as jest.Mock & { __mockSetSystemPrompt: jest.Mock }).__mockSetSystemPrompt = setSystemPrompt;
+
+    return {
+        __esModule: true,
+        useChat,
+    };
+});
+
+import { FLOWS, useChatOrchestration } from '../../features/chat';
+import { THERAPIST_SYSTEM_PROMPT } from '../../constants/aiPrompts';
+import { useChat } from '../../services/ai';
 import type { InlineTypingInputRef } from '../../components/InlineTypingInput';
 
 type HookResult = ReturnType<typeof useChatOrchestration>;
@@ -59,9 +89,28 @@ function Harness({ expose, scrollToEnd }: {
     return null;
 }
 
+function InitialPromptHarness({
+    initialPrompt,
+}: {
+    initialPrompt: { systemPrompt: string; triggerText: string };
+}) {
+    const scrollViewRef = useRef<ScrollView | null>(null);
+    const inputRef = useRef<InlineTypingInputRef | null>(null);
+
+    useChatOrchestration({
+        scrollViewRef,
+        inputRef,
+        initialPrompt,
+        flow: FLOWS.freeform,
+    });
+
+    return null;
+}
+
 describe('useChatOrchestration scroll behavior', () => {
     beforeEach(() => {
         jest.useFakeTimers();
+        jest.clearAllMocks();
     });
 
     afterEach(() => {
@@ -88,5 +137,31 @@ describe('useChatOrchestration scroll behavior', () => {
         });
 
         expect(scrollToEnd).toHaveBeenCalledWith({ animated: true });
+    });
+});
+
+describe('useChatOrchestration initialPrompt + flow', () => {
+    const setSystemPrompt = (useChat as jest.Mock & { __mockSetSystemPrompt: jest.Mock })
+        .__mockSetSystemPrompt;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+    });
+
+    it('prepends the topic instruction to the freeform flow system prompt', () => {
+        const topic = 'Burnout at work';
+        const initialPrompt = {
+            systemPrompt: `The user tapped an insight about this topic. Begin by gently exploring it with them, building on their journal entries.\n\nTopic: ${topic}`,
+            triggerText: topic,
+        };
+
+        render(<InitialPromptHarness initialPrompt={initialPrompt} />);
+
+        expect(setSystemPrompt).toHaveBeenCalledWith(
+            expect.stringContaining(initialPrompt.systemPrompt)
+        );
+        expect(setSystemPrompt).toHaveBeenCalledWith(
+            expect.stringContaining(THERAPIST_SYSTEM_PROMPT)
+        );
     });
 });

@@ -172,13 +172,16 @@ export function useChatOrchestration({
     }, [conversationId, setConversationId]);
 
     // Derive the effective system prompt: a flow descriptor takes precedence,
-    // falling back to the string `systemPrompt` option for incremental migration.
+    // falling back to the string `systemPrompt` option for incremental migrations.
     const resolvedSystemPrompt = useMemo(() => {
-        if (flow) {
-            return flow.buildSystemPrompt(flowContext ?? {});
+        const base = flow
+            ? flow.buildSystemPrompt(flowContext ?? {})
+            : systemPrompt;
+        if (!initialPrompt?.systemPrompt || !base) {
+            return base ?? initialPrompt?.systemPrompt;
         }
-        return systemPrompt;
-    }, [flow, flowContext, systemPrompt]);
+        return `${initialPrompt.systemPrompt}\n\n${base}`;
+    }, [flow, flowContext, systemPrompt, initialPrompt]);
 
     // Effective initial prompt: when a flow is active and the caller opted into
     // an opener (via `initialPrompt`), the flow drives the system prompt and —
