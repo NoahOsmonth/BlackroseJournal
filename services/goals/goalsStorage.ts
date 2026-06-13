@@ -31,6 +31,26 @@ async function saveGoalsMap(map: Record<string, GoalItem>): Promise<void> {
     await AsyncStorage.setItem(GOALS_KEY, JSON.stringify(map));
 }
 
+type GoalsChangeListener = () => void;
+const goalsChangeListeners = new Set<GoalsChangeListener>();
+
+export function subscribeGoalsChanges(listener: GoalsChangeListener): () => void {
+    goalsChangeListeners.add(listener);
+    return () => {
+        goalsChangeListeners.delete(listener);
+    };
+}
+
+export function notifyGoalsChanges(): void {
+    goalsChangeListeners.forEach((listener) => {
+        try {
+            listener();
+        } catch {
+            // A broken listener must never break a write.
+        }
+    });
+}
+
 async function syncFromRemoteIfNeeded(): Promise<void> {
     if (syncPromise) {
         return syncPromise;
@@ -104,6 +124,7 @@ export async function createGoal(input: GoalCreateInput): Promise<GoalItem> {
         console.warn('Failed to queue goal sync:', error);
     }
 
+    notifyGoalsChanges();
     return goal;
 }
 
@@ -133,6 +154,7 @@ export async function updateGoal(
         console.warn('Failed to queue goal sync:', error);
     }
 
+    notifyGoalsChanges();
     return updated;
 }
 
@@ -151,6 +173,7 @@ export async function deleteGoal(id: string): Promise<boolean> {
         console.warn('Failed to queue goal delete:', error);
     }
 
+    notifyGoalsChanges();
     return true;
 }
 
@@ -204,6 +227,7 @@ export async function markIntentionGoalComplete(
         console.warn('Failed to queue goal sync:', error);
     }
 
+    notifyGoalsChanges();
     return goal;
 }
 
@@ -221,4 +245,5 @@ export async function clearAllGoals(): Promise<void> {
     const map = await loadGoalsMap();
     await Promise.all(Object.keys(map).map(async (id) => queueGoalDelete(id)));
     await AsyncStorage.removeItem(GOALS_KEY);
+    notifyGoalsChanges();
 }
