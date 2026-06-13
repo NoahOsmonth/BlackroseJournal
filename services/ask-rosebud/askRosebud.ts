@@ -1,4 +1,6 @@
 import { fetchDirectChatCompletion } from '@/services/ai/directTransport';
+import { listGoals } from '@/services/goals/goalsStorage';
+import { buildGoalsContext } from '@/services/goals/goalsPrompt';
 
 export type TimeRange = 'all-entries' | 'all-time' | 'this-year' | 'this-month' | 'this-week';
 
@@ -49,23 +51,42 @@ function formatEntries(entries: AskRosebudEntryContext[]): string {
         .join('\n\n---\n\n');
 }
 
+async function loadGoalsContext(): Promise<string | undefined> {
+    try {
+        const goals = await listGoals();
+        return buildGoalsContext(goals);
+    } catch (error) {
+        console.warn('Failed to load goals context for Ask Rosebud:', error);
+        return undefined;
+    }
+}
+
 export async function askRosebud(
     question: string,
     timeRange: TimeRange,
     entries: AskRosebudEntryContext[] = []
 ): Promise<string> {
+    const goalsContext = await loadGoalsContext();
+
+    const contextParts: string[] = [
+        `Time range: ${timeRange}`,
+        `Question: ${question}`,
+    ];
+
+    if (goalsContext) {
+        contextParts.push(goalsContext);
+    }
+
+    contextParts.push('Local journal context:');
+    contextParts.push(formatEntries(entries));
+
     const response = await fetchDirectChatCompletion({
         model: 'agent-default',
         messages: [
             { role: 'system', content: ASK_ROSEBUD_SYSTEM_PROMPT },
             {
                 role: 'user',
-                content: [
-                    `Time range: ${timeRange}`,
-                    `Question: ${question}`,
-                    'Local journal context:',
-                    formatEntries(entries),
-                ].join('\n'),
+                content: contextParts.join('\n'),
             },
         ],
         temperature: 0.7,

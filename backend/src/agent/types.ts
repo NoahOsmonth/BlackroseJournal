@@ -24,4 +24,6 @@ export interface ChatCompletionResult {
 export interface AskRosebudRequest {
   question: string;
   timeRange: 'all-time' | 'this-year' | 'this-month' | 'this-week';
+  /** Optional formatted goals/habits block provided by the client. */
+  goalsContext?: string;
 }

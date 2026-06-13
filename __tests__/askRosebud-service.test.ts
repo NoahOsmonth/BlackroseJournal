@@ -1,5 +1,6 @@
 import { askRosebud } from '../services/ask-rosebud/askRosebud';
 import { fetchDirectChatCompletion } from '../services/ai/directTransport';
+import { listGoals } from '../services/goals/goalsStorage';
 
 jest.mock('../services/ai/directConfig', () => ({
     getDirectConfig: () => ({
@@ -14,9 +15,14 @@ jest.mock('../services/ai/directTransport', () => ({
     fetchDirectChatCompletion: jest.fn(),
 }));
 
+jest.mock('../services/goals/goalsStorage', () => ({
+    listGoals: jest.fn(),
+}));
+
 const mockFetchDirect = fetchDirectChatCompletion as jest.MockedFunction<
     typeof fetchDirectChatCompletion
 >;
+const mockListGoals = listGoals as jest.MockedFunction<typeof listGoals>;
 
 describe('askRosebud service', () => {
     afterEach(() => {
@@ -24,6 +30,7 @@ describe('askRosebud service', () => {
     });
 
     it('posts directly to NanoGPT without memory namespace', async () => {
+        mockListGoals.mockResolvedValue([]);
         mockFetchDirect.mockResolvedValue(
             new Response(JSON.stringify({
                 choices: [{ message: { content: 'ok' } }],
