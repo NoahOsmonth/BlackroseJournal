@@ -3,8 +3,9 @@ import { useCallback, useState } from 'react';
 import { clearCachedInsights } from '@/services/insights/weeklyInsightsStorage';
 import { clearSavedInsights } from '@/services/saved-insights/savedInsightsStorage';
 import { deleteMemoryAtomsBySource } from '@/services/memory/localMemory';
-import { removeJournalChatSessions } from '@/services/ai/sessionStorage';
+import { removeAllChatSessions } from '@/services/ai/sessionStorage';
 import { clearAllEntries } from '@/services/journal/journalStorage';
+import { clearAllCheckIns } from '@/services/intentions/intentionsStorage';
 
 interface UseClearJournalHistoryReturn {
     clearAll: () => Promise<void>;
@@ -18,8 +19,10 @@ export function useClearJournalHistory(): UseClearJournalHistoryReturn {
         setIsClearing(true);
         try {
             await clearAllEntries();
+            await clearAllCheckIns();
             await deleteMemoryAtomsBySource('journal');
-            await removeJournalChatSessions();
+            await deleteMemoryAtomsBySource('intention');
+            await removeAllChatSessions();
             await clearCachedInsights();
             await clearSavedInsights();
         } finally {

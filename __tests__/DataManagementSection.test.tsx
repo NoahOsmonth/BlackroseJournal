@@ -16,7 +16,7 @@ describe('DataManagementSection', () => {
                 onCreateBackup={jest.fn()}
                 onRestoreLatestBackup={jest.fn()}
                 onExportJournalJson={jest.fn()}
-                onClearJournalEntries={jest.fn()}
+                onClearHistory={jest.fn()}
             />
         );
 
@@ -35,7 +35,7 @@ describe('DataManagementSection', () => {
                 onCreateBackup={onCreateBackup}
                 onRestoreLatestBackup={onRestoreLatestBackup}
                 onExportJournalJson={jest.fn()}
-                onClearJournalEntries={jest.fn()}
+                onClearHistory={jest.fn()}
             />
         );
 

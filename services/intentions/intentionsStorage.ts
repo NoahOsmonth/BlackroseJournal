@@ -24,6 +24,7 @@ import {
     queueIntentionDelete,
     queueIntentionUpsert,
 } from './intentionsRemote';
+import { saveIntentionCheckInMemories } from '../memory/localMemory';
 
 const INTENTIONS_KEY = '@intentions';
 const CHECKINS_KEY = '@intention_checkins';
@@ -266,6 +267,14 @@ export async function createCheckIn(
         console.warn('Failed to queue check-in sync:', error);
     }
 
+    if (checkIn.status === 'completed') {
+        try {
+            await saveIntentionCheckInMemories(checkIn);
+        } catch (error) {
+            console.warn('Failed to save check-in memories:', error);
+        }
+    }
+
     return checkIn;
 }
 
@@ -294,6 +303,14 @@ export async function updateCheckIn(
         await queueCheckInUpsert(updated);
     } catch (error) {
         console.warn('Failed to queue check-in sync:', error);
+    }
+
+    if (updated.status === 'completed') {
+        try {
+            await saveIntentionCheckInMemories(updated);
+        } catch (error) {
+            console.warn('Failed to save check-in memories:', error);
+        }
     }
 
     return updated;

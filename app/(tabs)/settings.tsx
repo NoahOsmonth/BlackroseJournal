@@ -111,10 +111,10 @@ export default function SettingsScreen() {
         );
     };
 
-    const handleClearJournalEntries = () => {
+    const handleClearHistory = () => {
         Alert.alert(
-            'Clear Journal Entries',
-            'Delete all journal entries from this device? This action cannot be undone.',
+            'Clear History & Memories',
+            'Delete all journal entries, intention check-ins, chat sessions, insights, and saved AI memories from this device? This action cannot be undone.',
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
@@ -123,11 +123,11 @@ export default function SettingsScreen() {
                     onPress: async () => {
                         try {
                             await clearJournalHistory();
-                            Alert.alert('Success', 'All journal entries and related data have been deleted.');
+                            Alert.alert('Success', 'All history and related memories have been deleted.');
                         } catch (error) {
                             const message = error instanceof Error
                                 ? error.message
-                                : 'Failed to clear journal entries.';
+                                : 'Failed to clear history and memories.';
                             Alert.alert('Error', message);
                         }
                     },
@@ -180,11 +180,11 @@ export default function SettingsScreen() {
                     <DataManagementSection
                         latestBackup={latestBackup}
                         isBusy={isBusy}
-                        isClearingJournalEntries={isClearingJournalHistory}
+                        isClearingHistory={isClearingJournalHistory}
                         onCreateBackup={handleCreateBackup}
                         onRestoreLatestBackup={handleRestoreLatestBackup}
                         onExportJournalJson={handleExportJournalJson}
-                        onClearJournalEntries={handleClearJournalEntries}
+                        onClearHistory={handleClearHistory}
                     />
                     <MemorySettingsSection
                         atoms={memory.atoms}

@@ -193,6 +193,12 @@ export async function removeJournalChatSessions(): Promise<void> {
     await writeSessions(next);
 }
 
+export async function removeAllChatSessions(): Promise<void> {
+    const sessions = await loadSessions();
+    if (sessions.length === 0) return;
+    await writeSessions([]);
+}
+
 function isActive(session: ChatSession, now: number): boolean {
     return session.messages.length > 0 && now - session.updatedAt <= MAX_AGE_MS;
 }

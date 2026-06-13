@@ -11,11 +11,11 @@ type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 interface DataManagementSectionProps {
     readonly latestBackup: LocalBackupManifest | null;
     readonly isBusy: boolean;
-    readonly isClearingJournalEntries?: boolean;
+    readonly isClearingHistory?: boolean;
     readonly onCreateBackup: () => void;
     readonly onRestoreLatestBackup: () => void;
     readonly onExportJournalJson: () => void;
-    readonly onClearJournalEntries: () => void;
+    readonly onClearHistory: () => void;
 }
 
 interface SettingsRowProps {
@@ -76,11 +76,11 @@ function SettingsRow({
 export function DataManagementSection({
     latestBackup,
     isBusy,
-    isClearingJournalEntries = false,
+    isClearingHistory = false,
     onCreateBackup,
     onRestoreLatestBackup,
     onExportJournalJson,
-    onClearJournalEntries,
+    onClearHistory,
 }: DataManagementSectionProps) {
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
@@ -115,13 +115,14 @@ export function DataManagementSection({
                 onPress={onExportJournalJson}
             />
             <SettingsRow
-                label="Clear Journal Entries"
+                label="Clear History & Memories"
+                detail="Removes journal entries, intentions, chat sessions, insights, and saved AI memories."
                 iconName="trash-outline"
                 iconColor={dangerIconColor}
                 destructive
-                disabled={isBusy || isClearingJournalEntries}
+                disabled={isBusy || isClearingHistory}
                 showBorder={false}
-                onPress={onClearJournalEntries}
+                onPress={onClearHistory}
             />
         </SettingsSection>
     );

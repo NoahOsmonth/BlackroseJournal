@@ -11,6 +11,56 @@
 - [x] **TOOL-CODEX-001**: Codex CLI with OMO Light Edition
 
 ## Updates
+- **2026-06-13**: Unified journal/intentions memory architecture + fixed "Clear History" scope:
+  - Root cause: intentions lived in a separate storage silo (`@intention_checkins`) and the clear flow
+    only wiped journal entries + journal memories. Morning/evening/intention check-ins were not deleted,
+    and their memory atoms were sometimes not created because the save call lived in `app/intentions/chat.tsx`
+    and was bypassed in some completion paths.
+  - Moved intention memory creation into `services/intentions/intentionsStorage.ts`: `createCheckIn` and
+    `updateCheckIn` now call `saveIntentionCheckInMemories()` whenever the status is `completed`. Draft
+    check-ins are still excluded from memory.
+  - Removed the now-redundant `saveIntentionCheckInMemories` call from `app/intentions/chat.tsx`.
+  - `services/ai/sessionStorage.ts`: added `removeAllChatSessions()` to clear every autosave session.
+  - `hooks/journal/useClearJournalHistory.ts`: now orchestrates clearing journal entries, intention
+    check-ins, journal memory atoms, intention memory atoms, all chat sessions, cached insights, and saved
+    insights.
+  - `app/(tabs)/settings.tsx`: renamed the action to "Clear History & Memories", updated the destructive
+    confirmation copy, and wired the new handler.
+  - `components/settings/DataManagementSection.tsx`: renamed props (`isClearingHistory`, `onClearHistory`)
+    and added a detail row explaining the full scope.
+  - Tests added/updated:
+    - `__tests__/services/intentions/intentionsStorage.test.ts` — new; completed check-ins save memory
+      atoms, drafts don't, draft→completed update saves atoms, clearAllCheckIns works.
+    - `__tests__/hooks/useClearJournalHistory.test.ts` — new; clearAll empties all relevant stores.
+    - `__tests__/DataManagementSection.test.tsx` — updated props for the renamed row.
+  - Browser smoke test:
+    - Added `scripts/browser-smoke-test.mjs` (Playwright) against the running Expo web app on
+      `http://localhost:8082`.
+    - Confirmed app loads, seeded journal entry + morning intention + memory atom render on Today,
+      Entries (History), and Memory (Explore) screens.
+    - Confirmed the Settings "Clear History & Memories" row is present and enabled.
+    - Note: pressing the RN web "Clear History & Memories" button in headless Playwright does not
+      reliably trigger react-native-web's press responder, so the actual destructive clear is covered by
+      unit tests rather than the browser smoke test.
+  - Mobile verification:
+    - Rebuilt release APK with the unified architecture changes (lean `arm64-v8a`, ~47 MB;
+      also tested an all-ABIs x86_64 build on the emulator).
+    - Verified the new symbols are baked into the Hermes bundle:
+      `Clear History & Memories`, `useClearJournalHistory`, `deleteMemoryAtomsBySource`,
+      `removeAllChatSessions`.
+    - Installed the APK on the `test_avd` x86_64 Android emulator and launched successfully
+      (`Displayed com.blackrosejournal/.MainActivity +788ms`, PID stable, no `FATAL EXCEPTION`).
+    - Confirmed Today, Memory, and History tabs render without crashing; Memory empty-state shows the
+      updated copy about completed entries and intention check-ins.
+    - Note: adb `input tap` cannot reach the header settings icon because React Native does not expose
+      it as an accessibility-clickable node in the UIAutomator tree, so the in-app clear press was not
+      exercised on the emulator. The clear code path remains covered by unit tests.
+  - Verified:
+    - `npm test` — 116 suites passed, 3 skipped; 441 tests passed, 8 skipped.
+    - `npx tsc --noEmit` — passed.
+    - `npm run lint` — no new errors (pre-existing errors in
+      `.agents/skills/expo-cicd-workflows/scripts/validate.js` and unrelated test files).
+    - `npm run check:design` — passed (pre-existing approaching-limit warnings only).
 - **2026-06-13**: Fixed "Clear Journal Entries" to actually delete journal history and related derived data:
   - Root cause: `services/journal/journalStorage.ts` `clearAllEntries()` only removed the local
     `@journal_entries` key and queued remote deletes; it did not delete remote rows, clear the
