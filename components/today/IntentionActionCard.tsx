@@ -22,7 +22,7 @@ export function IntentionActionCard({
     return (
         <Pressable
             onPress={onPress}
-            className="bg-surface-light dark:bg-surface-dark rounded-[20px] p-5 flex flex-col items-center text-center shadow-soft border border-gray-100 dark:border-white/5"
+            className="bg-surface-light dark:bg-surface-dark rounded-[20px] p-6 min-h-[140px] flex flex-col items-center text-center shadow-soft border border-gray-100 dark:border-white/5"
             accessibilityLabel={accessibility}
         >
             <View className="mb-4">
