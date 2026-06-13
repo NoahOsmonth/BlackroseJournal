@@ -30,6 +30,7 @@ export function composeSystemPrompt(base: string, ctx: ChatFlowContext): string 
     return [
         base,
         ctx.localMemoryContext,
+        ctx.goalsContext,
         ctx.activePersona?.prompt
             ? `## Persona Guidance\n${ctx.activePersona.prompt}`
             : undefined,
@@ -44,7 +45,7 @@ function buildIntentionFlowPrompt(
     type: IntentionCheckInType,
     ctx: ChatFlowContext
 ): string {
-    return buildIntentionSystemPrompt({
+    const base = buildIntentionSystemPrompt({
         type,
         areaLabel: ctx.areaLabel,
         intentionTitle: ctx.intentionTitle,
@@ -52,6 +53,7 @@ function buildIntentionFlowPrompt(
         memorySummary: ctx.memorySummary,
         feedbackGuidance: ctx.feedbackGuidance,
     });
+    return ctx.goalsContext ? `${base}\n\n${ctx.goalsContext}` : base;
 }
 
 const freeform: ChatFlow = {
@@ -100,12 +102,15 @@ const intention: ChatFlow = {
 
 const intentionRefine: ChatFlow = {
     id: 'intentionRefine',
-    buildSystemPrompt: (ctx) => buildIntentionRefineSystemPrompt({
-        intentionTitle: ctx.intentionTitle,
-        personaPrompt: ctx.activePersona?.prompt,
-        memorySummary: ctx.memorySummary,
-        feedbackGuidance: ctx.feedbackGuidance,
-    }),
+    buildSystemPrompt: (ctx) => {
+        const base = buildIntentionRefineSystemPrompt({
+            intentionTitle: ctx.intentionTitle,
+            personaPrompt: ctx.activePersona?.prompt,
+            memorySummary: ctx.memorySummary,
+            feedbackGuidance: ctx.feedbackGuidance,
+        });
+        return ctx.goalsContext ? `${base}\n\n${ctx.goalsContext}` : base;
+    },
     openingMessage: (ctx) =>
         `I see you're working on "${ctx.intentionTitle ?? 'this intention'}." What would you like to adjust or build on?`,
 };

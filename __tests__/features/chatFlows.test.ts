@@ -27,7 +27,7 @@ const persona: Persona = {
 
 describe('chat flows — freeform / continue', () => {
     const legacyFreeform = (ctx: ChatFlowContext) =>
-        [THERAPIST_SYSTEM_PROMPT, ctx.localMemoryContext, ctx.feedbackGuidance]
+        [THERAPIST_SYSTEM_PROMPT, ctx.localMemoryContext, ctx.goalsContext, ctx.feedbackGuidance]
             .filter(Boolean)
             .join('\n\n');
 
@@ -68,15 +68,40 @@ describe('chat flows — freeform / continue', () => {
 });
 
 describe('composeSystemPrompt', () => {
-    it('joins base + memory + persona + feedback with double newlines, dropping empties', () => {
+    it('joins base + memory + goals + persona + feedback with double newlines, dropping empties', () => {
+        const goalsContext = "## User's Current Goals and Habits\n- Walk daily (Goal)";
         const out = composeSystemPrompt('BASE', {
             localMemoryContext: 'MEM',
+            goalsContext,
             activePersona: persona,
             feedbackGuidance: 'FB',
         });
         expect(out).toBe(
-            ['BASE', 'MEM', `## Persona Guidance\n${persona.prompt}`, 'FB'].join('\n\n')
+            ['BASE', 'MEM', goalsContext, `## Persona Guidance\n${persona.prompt}`, 'FB'].join('\n\n')
         );
+    });
+
+    it('places goalsContext between localMemoryContext and the persona block', () => {
+        const goalsContext = "## User's Current Goals and Habits\n- Read more (Goal)";
+        const out = composeSystemPrompt('BASE', {
+            localMemoryContext: 'MEM',
+            goalsContext,
+            activePersona: persona,
+            feedbackGuidance: 'FB',
+        });
+        const memoryIndex = out.indexOf('MEM');
+        const goalsIndex = out.indexOf(goalsContext);
+        const personaIndex = out.indexOf('## Persona Guidance');
+        expect(memoryIndex).toBeLessThan(goalsIndex);
+        expect(goalsIndex).toBeLessThan(personaIndex);
+    });
+
+    it('omits goalsContext when none is provided', () => {
+        const out = composeSystemPrompt('BASE', {
+            localMemoryContext: 'MEM',
+            activePersona: persona,
+        });
+        expect(out).not.toContain("User's Current Goals and Habits");
     });
 });
 
@@ -149,6 +174,26 @@ describe('chat flows — intention family', () => {
         expect(out).toBe(legacy('morning', withPersona));
 
         expect(FLOWS.morning.buildSystemPrompt(baseCtx)).not.toContain('## Persona Guidance');
+    });
+
+    it('appends goalsContext to intention prompts when provided', () => {
+        const goalsContext = "## User's Current Goals and Habits\n- Walk daily (Goal)";
+        const ctx = { ...baseCtx, goalsContext };
+        const morningOut = FLOWS.morning.buildSystemPrompt(ctx);
+        const eveningOut = FLOWS.evening.buildSystemPrompt(ctx);
+        const intentionOut = FLOWS.intention.buildSystemPrompt(ctx);
+        const refineOut = FLOWS.intentionRefine.buildSystemPrompt(ctx);
+
+        expect(morningOut).toContain(goalsContext);
+        expect(eveningOut).toContain(goalsContext);
+        expect(intentionOut).toContain(goalsContext);
+        expect(refineOut).toContain(goalsContext);
+    });
+
+    it('does not alter intention prompts when goalsContext is absent', () => {
+        expect(FLOWS.morning.buildSystemPrompt(baseCtx)).toBe(legacy('morning', baseCtx));
+        expect(FLOWS.evening.buildSystemPrompt(baseCtx)).toBe(legacy('evening', baseCtx));
+        expect(FLOWS.intention.buildSystemPrompt(baseCtx)).toBe(legacy('intention', baseCtx));
     });
 });
 

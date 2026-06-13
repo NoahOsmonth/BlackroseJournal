@@ -11,6 +11,7 @@
 
 import { PromptPeriod } from '@/constants/dailyPrompts';
 import { useAiFeedback } from '@/hooks/feedback/useAiFeedback';
+import { useGoalsContext } from '@/hooks/goals/useGoalsContext';
 import { useLocalMemoryContext } from '@/hooks/memory/useLocalMemoryContext';
 import { usePersonas } from '@/hooks/personas/usePersonas';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -38,6 +39,7 @@ type ChatParams = {
     promptPeriod?: string;
     entryId?: string;
     resume?: string;
+    topic?: string;
 };
 
 export default function ChatScreen() {
@@ -61,6 +63,7 @@ export default function ChatScreen() {
     const promptPeriod = Array.isArray(params.promptPeriod)
         ? params.promptPeriod[0]
         : params.promptPeriod;
+    const topicParam = Array.isArray(params.topic) ? params.topic[0] : params.topic;
     const resolvedMode: ChatMode = modeParam === 'dailyCheckIn' || modeParam === 'continue'
         ? modeParam
         : 'freeform';
@@ -78,10 +81,11 @@ export default function ChatScreen() {
     const { context: localMemoryContext } = useLocalMemoryContext({
         query: continuedEntry?.title,
     });
+    const { goalsContext } = useGoalsContext();
     const flow = resolvedMode === 'continue' ? FLOWS.continue : FLOWS.freeform;
     const flowContext = useMemo(
-        () => ({ activePersona, localMemoryContext, feedbackGuidance }),
-        [activePersona, localMemoryContext, feedbackGuidance]
+        () => ({ activePersona, localMemoryContext, goalsContext, feedbackGuidance }),
+        [activePersona, localMemoryContext, goalsContext, feedbackGuidance]
     );
 
     const persist = useMemo(
@@ -92,6 +96,14 @@ export default function ChatScreen() {
         }),
         [conversationId, resolvedMode, entryId]
     );
+
+    const initialPrompt = useMemo(() => {
+        if (!topicParam) return undefined;
+        return {
+            systemPrompt: `The user tapped an insight about this topic. Begin by gently exploring it with them, building on their journal entries.\n\nTopic: ${topicParam}`,
+            triggerText: topicParam,
+        };
+    }, [topicParam]);
 
     const {
         messages,
@@ -116,6 +128,7 @@ export default function ChatScreen() {
         flow,
         flowContext,
         persist,
+        initialPrompt,
     });
 
     // Flush the live conversation to the session store on blur/unmount, as a

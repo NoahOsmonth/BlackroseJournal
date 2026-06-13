@@ -37,6 +37,7 @@ import { IntentionChatFooter } from '@/components/intentions/IntentionChatFooter
 import { IntentionChatBody } from '@/components/intentions/IntentionChatBody';
 import { IntentionChatOverlays } from '@/components/intentions/IntentionChatOverlays';
 import { useAiFeedback } from '@/hooks/feedback/useAiFeedback';
+import { useGoalsContext } from '@/hooks/goals/useGoalsContext';
 import { useIntentionFeedbackModal } from '@/hooks/feedback/useIntentionFeedbackModal';
 import type { AiFeedbackValue } from '@/services/feedback/feedbackStorage';
 import { usePersonaSettingsActions } from '@/hooks/personas/usePersonaSettingsActions';
@@ -116,6 +117,8 @@ export default function IntentionChatScreen() {
         conversationId,
     });
 
+    const { goalsContext } = useGoalsContext({ intentionId });
+
     const feedback = useMemo<Record<string, AiFeedbackValue>>(() => Object.fromEntries(
         Object.entries(feedbackByMessageId).map(([id, record]) => [id, record.value])
     ) as Record<string, AiFeedbackValue>, [feedbackByMessageId]);
@@ -131,9 +134,10 @@ export default function IntentionChatScreen() {
             areaLabel: areaConfig?.label,
             intentionTitle: intention?.title,
             memorySummary,
+            goalsContext,
             feedbackGuidance,
         }),
-        [activePersona, areaConfig?.label, intention?.title, memorySummary, feedbackGuidance]
+        [activePersona, areaConfig?.label, intention?.title, memorySummary, goalsContext, feedbackGuidance]
     );
 
     const initialPrompt = useMemo(() => {
