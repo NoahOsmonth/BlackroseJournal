@@ -1,6 +1,7 @@
 # Progress Tracker
 
 ## Status
+- [x] **FEAT-GOALS-AI-001**: Make User Goals Visible to All AI Surfaces
 - [x] **FEAT-MEMORY-001**: Merge completed intention check-ins into memory graph
 - [x] **FEAT-COLORSTUDIO-001**: Color picker + auto-derive dark/light variants
 - [x] **FEAT-INSIGHTS-001**: AI Service for Insights
@@ -11,6 +12,75 @@
 - [x] **TOOL-CODEX-001**: Codex CLI with OMO Light Edition
 
 ## Updates
+- **2026-06-13**: FEAT-GOALS-AI-001 — Goals formatter, hook, and chat flow integration (Tasks 1–3):
+  - `features/chat/flows/types.ts` extended `ChatFlowContext` with optional `goalsContext?: string`.
+  - Created `services/goals/goalsPrompt.ts` exporting `buildGoalsContext`, `formatGoalItem`, and `formatHabitItem`. Produces a compact markdown block capped at ~1,500 characters / 10 goals / 10 habits, with a `### Today's focus` section, habit streaks, and a 7-day completion indicator.
+  - Created `hooks/goals/useGoalsContext.ts` returning `{ goalsContext, isLoading, refresh }`; computes context from `useGoals` and subscribes to storage change notifications.
+  - Added `subscribeGoalsChanges` / `notifyGoalsChanges` pub/sub to `services/goals/goalsStorage.ts` and call `notifyGoalsChanges()` after every mutating operation.
+  - `features/chat/flows/index.ts` `composeSystemPrompt` now weaves `goalsContext` between `localMemoryContext` and the persona block; intention-family flows append `goalsContext` when provided.
+  - `app/chat.tsx` passes `goalsContext` into its `flowContext`.
+  - `app/intentions/chat.tsx` passes `goalsContext` (with `intentionId` priority) into its `flowContext`.
+  - Added tests: `__tests__/services/goals/goalsPrompt.test.ts` (11 tests), `__tests__/hooks/useGoalsContext.test.ts` (5 tests), and updated `__tests__/features/chatFlows.test.ts` with goals-context assertions.
+  - Verified:
+    - `npm test -- --runInBand` — 124 suites passed, 3 skipped; 483 tests passed, 8 skipped.
+    - `npx tsc --noEmit` — passed.
+    - `npm run check:design` — passed (2 pre-existing approaching-limit warnings only).
+    - `npm run lint` — only pre-existing errors in `.agents/skills/expo-cicd-workflows/scripts/validate.js`.
+- **2026-06-13**: FEAT-GOALS-AI-001 — Ask Rosebud goals context (Task 4):
+  - `services/ask-rosebud/askRosebud.ts` now loads goals via `listGoals()` and prepends a formatted goals block (`buildGoalsContext`) before the journal context in the user message. Falls back gracefully if goal loading fails.
+  - `backend/src/agent/types.ts` extended `AskRosebudRequest` with optional `goalsContext?: string`.
+  - `backend/src/agent/askRosebudService.ts` includes `goalsContext` in the user message when provided; added optional `deps` parameter for testability.
+  - Added `__tests__/services/ask-rosebud/askRosebud.test.ts` covering goals-context inclusion, omission when no goals, and ordering before journal entries.
+  - Updated `__tests__/askRosebud-service.test.ts` to mock `listGoals` so existing assertions remain valid when no goals exist.
+  - Added `backend/src/__tests__/askRosebudService.test.ts` using Node's built-in test runner and a small `backend/scripts/run-tests.js` harness so `cd backend && npm test -- --testPathPattern="askRosebud"` works.
+  - Added a global AsyncStorage mock in `jest.setup.js` to prevent screen tests that import `app/ask-rosebud.tsx` from crashing now that Ask Rosebud pulls in goal storage.
+  - Excluded `backend/` from frontend Jest via `jest.config.js` `testPathIgnorePatterns` so Node-style backend tests are not picked up by jest-expo.
+  - Verified:
+    - `npm test -- --testPathPattern="askRosebud" --runInBand` — 122 suites passed, 3 skipped; 472 tests passed, 8 skipped.
+    - `cd backend && npm test -- --testPathPattern="askRosebud"` — 2 backend tests passed.
+    - `npm test -- --runInBand` — 124 suites passed, 3 skipped; 483 tests passed, 8 skipped.
+    - `npx tsc --noEmit` — passed.
+    - `cd backend && npx tsc --noEmit` — passed.
+    - `npm run check:design` — passed (2 pre-existing approaching-limit warnings only).
+    - `npm run lint` — only pre-existing errors in `.agents/skills/expo-cicd-workflows/scripts/validate.js`; no new task-caused lint errors.
+- **2026-06-13**: Hyperplan Task 6 — final verification gates for Today-tab UI polish (Tasks 1–5):
+  - Verified all five implementation tasks:
+    1. Theme tokens + Color Studio background row: default dark background changed from `#000000` to `#0A0A0A`, added a Background row to Color Studio, and made background tokens variable-driven.
+    2. Today gutter + action card sizing: `app/(tabs)/today.tsx` horizontal gutter tightened from `px-5` to `px-4`; `IntentionActionCard` uses `min-h-[140px]` and `p-6`.
+    3. Insight card press + icon isolation: `EntryInsightsCard` press wraps the question text, the icon row is a sibling, icons use a theme token (`text-icon`), and `today.tsx` routes to `/chat?topic=question`.
+    4. Chat topic seeding: `app/chat.tsx` reads the `topic` search param and `useChatOrchestration` prepends a topic instruction to the flow system prompt.
+    5. More-options modal: `InsightMoreOptionsModal` replaces the inline overlay in `today.tsx` with a fade `Modal`, full-screen backdrop `Pressable`, and bottom sheet using theme tokens.
+  - Tests added/updated:
+    - `__tests__/components/today/IntentionActionCard.test.tsx` updated for new sizing.
+    - `__tests__/components/today/EntryInsightsCard.test.tsx` updated for press behavior and icon isolation.
+    - `__tests__/components/today/InsightMoreOptionsModal.test.tsx` covering modal actions and dismissal.
+    - `__tests__/hooks/useChatOrchestration.test.tsx` updated for topic seeding.
+    - `__tests__/components/ColorThemeSettingsSection.test.tsx` updated for Background row.
+  - Fixed one task-caused lint warning: replaced `require()` with an ES import in `__tests__/components/ColorThemeSettingsSection.test.tsx`.
+  - Gate results:
+    - `npx tsc --noEmit` — passed (0 errors).
+    - `npm run lint` — 2 errors, 1 warning, all pre-existing in `.agents/skills/expo-cicd-workflows/scripts/validate.js` (ajv import resolution + yaml load warning); no new task-caused lint errors.
+    - `npm run check:design` — passed; 2 pre-existing approaching-limit warnings (`app/intentions/chat.tsx` 462 lines, `components/settings/ColorPickerModal.tsx` 458 lines).
+    - `npm test -- --testPathPattern="tailwind-config|dark-mode-contrast|colorTheme|colorThemeStorage|ColorThemeSettingsSection|IntentionActionCard|EntryInsightsCard|InsightMoreOptionsModal|TodayScreen|useChatOrchestration|chatFlows"` — 119 suites passed, 3 skipped; 458 tests passed, 8 skipped.
+    - `npm test` — 119 suites passed, 3 skipped; 458 tests passed, 8 skipped.
+- **2026-06-13**: Converted Today tab insight-card inline overlay to a dismissible Modal:
+  - Created `components/today/InsightMoreOptionsModal.tsx` with a `Modal` (fade, transparent),
+    full-screen backdrop `Pressable`, and a bottom sheet using theme tokens (`bg-surface-light`, etc.).
+  - Replaced the inline `moreVisible && (...)` overlay in `app/(tabs)/today.tsx` with the new
+    `<InsightMoreOptionsModal />`, passing `handleShare`, `handleCopy`, `handleHide`,
+    `handleShowSavedInsights`, and `onClose={() => setMoreVisible(false)}`.
+  - Exported the new component from `components/today/index.ts`.
+  - Added `__tests__/components/today/InsightMoreOptionsModal.test.tsx` covering Cancel/backdrop
+    dismissal and each action option invoking its handler plus closing the modal.
+  - Inner sheet stops touch propagation so taps on options don't dismiss the menu; uses `gap-1`
+    instead of `space-y-*`; no hardcoded hex colors.
+  - Verified:
+    - `npm test -- --testPathPattern="InsightMoreOptionsModal|TodayScreen"` — 119 suites passed,
+      3 skipped; 458 tests passed, 8 skipped.
+    - `npx tsc --noEmit` — passed.
+    - `npm run check:design` — passed (2 pre-existing approaching-limit warnings only).
+    - `npm run lint` — no new errors (pre-existing errors in
+      `.agents/skills/expo-cicd-workflows/scripts/validate.js` and unrelated test files).
 - **2026-06-13**: Unified journal/intentions memory architecture + fixed "Clear History" scope:
   - Root cause: intentions lived in a separate storage silo (`@intention_checkins`) and the clear flow
     only wiped journal entries + journal memories. Morning/evening/intention check-ins were not deleted,
