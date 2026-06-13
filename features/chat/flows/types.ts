@@ -35,6 +35,8 @@ export interface ChatFlowContext {
     activePersona?: Persona | null;
     /** The bounded "Local Memory Capsule" string. */
     localMemoryContext?: string;
+    /** The formatted active goals + habits block for AI context. */
+    goalsContext?: string;
     /** AI feedback guidance derived from prior thumbs. */
     feedbackGuidance?: string;
     /** Intention life area (e.g. 'wellbeing'). */
