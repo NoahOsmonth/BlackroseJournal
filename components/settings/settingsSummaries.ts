@@ -71,6 +71,9 @@ export function memorySummary(atomCount: number): string {
     return `${atomCount} memor${atomCount === 1 ? 'y' : 'ies'}`;
 }
 
+/** Re-export view helper so Settings can summarize without importing services. */
+export { identitySettingsSummary } from '@/services/memory/identityProfileView';
+
 export function accountSummary(email: string | null): string {
     if (!email) {
         return 'Signed out';

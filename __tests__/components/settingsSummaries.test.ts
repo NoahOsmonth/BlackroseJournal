@@ -6,6 +6,7 @@ import {
     customAiSummary,
     dataManagementSummary,
     generationSummary,
+    identitySettingsSummary,
     memorySummary,
 } from '@/components/settings/settingsSummaries';
 import { DEFAULT_COLOR_THEME } from '@/constants/theme';
@@ -38,6 +39,19 @@ describe('settingsSummaries', () => {
 
         expect(memorySummary(0)).toBe('No memories yet');
         expect(memorySummary(1)).toBe('1 memory');
+        expect(identitySettingsSummary(null)).toBe('Not set');
+        expect(identitySettingsSummary({
+            schemaVersion: 1,
+            preferredName: {
+                value: 'Ren',
+                confidence: 1,
+                source: 'manual',
+                updatedAt: 1,
+            },
+            keyPeople: [],
+            facts: [],
+            updatedAt: 1,
+        })).toBe('Ren');
         expect(memorySummary(12)).toBe('12 memories');
         expect(accountSummary(null)).toBe('Signed out');
         expect(accountSummary('me@example.com')).toBe('me@example.com');

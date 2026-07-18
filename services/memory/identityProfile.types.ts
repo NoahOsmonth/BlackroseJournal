@@ -67,6 +67,16 @@ export interface IdentityProfile {
 /** Scalar identity fields that support pendingCandidate contradictions. */
 export type IdentityScalarField = 'preferredName' | 'pronouns' | 'about';
 
+/**
+ * Ordered list of scalar fields for Settings UI iteration.
+ * Do not special-case a single "name" field in UI — walk this list (and grow it here).
+ */
+export const IDENTITY_SCALAR_FIELDS: readonly IdentityScalarField[] = [
+    'preferredName',
+    'pronouns',
+    'about',
+] as const;
+
 /** Delta produced by extraction or the update_identity tool. */
 export interface IdentityPatch {
     preferredName?: string;

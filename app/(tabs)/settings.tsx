@@ -15,6 +15,7 @@ import {
     CustomModelSettingsSection,
     DataManagementSection,
     GenerationSettingsSection,
+    IdentitySettingsSection,
     MemorySettingsSection,
     SettingsAccordionSection,
     aboutSummary,
@@ -24,10 +25,12 @@ import {
     customAiSummary,
     dataManagementSummary,
     generationSummary,
+    identitySettingsSummary,
     memorySummary,
 } from '@/components/settings';
 import { useAuthSession } from '@/hooks/auth/useAuthSession';
 import { useLocalBackups } from '@/hooks/backup/useLocalBackups';
+import { useIdentityProfile } from '@/hooks/memory/useIdentityProfile';
 import { useLocalMemories } from '@/hooks/memory/useLocalMemories';
 import { useCustomAiModels } from '@/hooks/settings/useCustomAiModels';
 import { useGenerationSettings } from '@/hooks/settings/useGenerationSettings';
@@ -59,6 +62,7 @@ export default function SettingsScreen() {
     const { user, isLoading: isAuthLoading } = useAuthSession();
     const { latestBackup, isBusy, createBackup, restoreBackup } = useLocalBackups();
     const memory = useLocalMemories();
+    const identity = useIdentityProfile();
     const customAi = useCustomAiModels();
     const generation = useGenerationSettings();
     const { goToTab } = useTabNavigation();
@@ -86,6 +90,7 @@ export default function SettingsScreen() {
         generation: generationSummary(generation.settings),
         customAi: customAiSummary(customAi.settings),
         data: dataManagementSummary(Boolean(latestBackup)),
+        identity: identitySettingsSummary(identity.profile),
         memory: memorySummary(memory.atoms.length),
         account: accountSummary(user?.email ?? null),
         about: aboutSummary(),
@@ -96,6 +101,7 @@ export default function SettingsScreen() {
         generation.settings,
         customAi.settings,
         latestBackup,
+        identity.profile,
         memory.atoms.length,
         user?.email,
     ]);
@@ -382,6 +388,25 @@ export default function SettingsScreen() {
                         onSeedDemoData={handleSeedDemoData}
                         onClearDemoData={handleClearDemoData}
                         onClearHistory={handleClearHistory}
+                        embedded
+                    />
+                </SettingsAccordionSection>
+
+                <SettingsAccordionSection
+                    id="identity"
+                    title="Identity"
+                    summary={summaries.identity}
+                    icon="badge"
+                    expanded={expandedIds.has('identity')}
+                    onToggle={toggleSection}
+                >
+                    <IdentitySettingsSection
+                        scalarRows={identity.scalarRows}
+                        pendingRows={identity.pendingRows}
+                        collectionRows={identity.collectionRows}
+                        isBusy={identity.isLoading || identity.isMutating}
+                        onConfirmPending={identity.confirmPending}
+                        onDismissPending={identity.dismissPending}
                         embedded
                     />
                 </SettingsAccordionSection>

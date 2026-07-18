@@ -12,6 +12,11 @@
 - [x] **TOOL-CODEX-001**: Codex CLI with OMO Light Edition
 
 ## Updates
+- **2026-07-18**: **PR7** — Settings Identity Confirm/Dismiss UI
+  - `IdentitySettingsSection` + `useIdentityProfile` + `identityProfileView` (generic scalar field iteration).
+  - Confirm → `confirmIdentityPendingField`; Dismiss → `dismissIdentityPendingField`; web `window.confirm` (T4 pattern).
+  - Playwright MCP: pending Mara→Ren card → Confirm → store Ren + no candidate; next chat system prompt includes `Preferred name: Ren`; Ana pending → Dismiss → Ren unchanged.
+  - Suite: **175 passed / 5 skipped suites, 747 passed / 19 skipped tests** (+2 suites / +7 tests vs 173/740; skips unchanged).
 - **2026-07-18**: **PR8-probe** — design LLM probe battery (no production feature changes)
   - Dev-only probes under `probes/` + `__tests__/probes/`; gated by `PROBE_LLM=1` (default skip).
   - Isolation guard: `app/`/`services/` must not import probes. `.probe-cache/` + `probes/artifacts/` gitignored.
