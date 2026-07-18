@@ -58,3 +58,7 @@ app-example
 
 # OMC agent tool state
 .omc/
+
+# Design probe caches / large vectors (never commit)
+.probe-cache/
+probes/artifacts/

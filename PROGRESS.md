@@ -12,6 +12,16 @@
 - [x] **TOOL-CODEX-001**: Codex CLI with OMO Light Edition
 
 ## Updates
+- **2026-07-18**: **PR8-probe** — design LLM probe battery (no production feature changes)
+  - Dev-only probes under `probes/` + `__tests__/probes/`; gated by `PROBE_LLM=1` (default skip).
+  - Isolation guard: `app/`/`services/` must not import probes. `.probe-cache/` + `probes/artifacts/` gitignored.
+  - **E1 tool-schema tax** (3-tool offer, `tool_choice:auto`): hy3 **+396** prompt tokens; nemotron free **+502**; openrouter/free noisy (−51, router swaps backends). Earlier `tool_choice:none` measured **delta 0** (host may omit schema when tools cannot be selected).
+  - **E2 tools**: All 4 models found semantic needle `zephyr-quill-8137` via search+get (HARD). **All failed list-only / “very first entry”** within 6 rounds — newest-first pagination @20 × 6 = 120 rows, never reaches entry 365. Best scorer: `nvidia/nemotron-3-ultra-550b-a55b:free`.
+  - **E3 embed rank** (`nvidia/llama-nemotron-embed-vl-1b-v2:free`, 365×2048): wall **~89s**, **0×429** this run; needle **top-1** on 11/11 expect-true queries; near-topic distractors rank needle top-5; off-topic needle ranks ~360+.
+  - **E4 triggers**: 46 phrasings; **FP=6** (first-turn `len≥12` enables tools on “how do I make pasta”, “Good morning”, etc.); **FN=0** under that rule. `detectHistoryIntent` alone still misses “have I mentioned…”, “remember that…”.
+  - **E5 capsule ~1.5k tok**: needle makes cut when global rank ≤~18 (all expect-true + near-topic); excluded on off-topic ranks — tools still required for list-only / unrelated queries.
+  - **Suite after PR8-probe** (default, no PROBE_LLM): **173 passed / 5 skipped suites, 740 passed / 19 skipped tests**, exit 0.
+  - **Skip delta vs baseline 4 suites / 13 tests skipped:** +1 suite +6 tests = `liveBattery.test.ts` (PROBE_LLM). Offline probe suites (fixture/isolation/E4) **run** and are not in the skip count.
 - **2026-07-18**: T6 eventDate extraction (absolute event day on digest + atom)
   - Optional `eventDate` (YYYY-MM-DD) on session digests + memory atoms; absent = null (no migration).
   - Extracted via existing `fetchDirectJsonCompletion`; relative weekdays normalized against write-day clock (`normalizeEventDate` / upcoming Friday).
