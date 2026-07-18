@@ -6,11 +6,14 @@
 import {
     MEMORY_CAPSULE_MAX_EST,
     MEMORY_DIGESTS_MAX_EST,
+    MEMORY_NON_IDENTITY_SUBCAPS_SUM,
     MEMORY_PROMPT_BUDGET,
     MEMORY_RECALL_MAX_EST,
     MEMORY_RECALL_MIN_SIM,
     applyMemoryPromptBudget,
     measureMemoryEstTokens,
+    trimDigestsOldestFirst,
+    trimRecallBySimilarity,
     truncateAtBoundary,
 } from '../../../services/ai/memoryPromptBudget';
 import { estimateTokensFromChars } from '../../../services/ai/promptBudget';
@@ -33,6 +36,37 @@ describe('PR8b-2 memoryPromptBudget constants', () => {
         expect(MEMORY_DIGESTS_MAX_EST).toBe(2_500);
         expect(MEMORY_RECALL_MAX_EST).toBe(1_500);
         expect(MEMORY_RECALL_MIN_SIM).toBe(0.28);
+        // Soft per-block sum equals hard budget; global trim yields room for identity.
+        expect(MEMORY_NON_IDENTITY_SUBCAPS_SUM).toBe(8_000);
+    });
+
+    it('identity template headroom: typical identity + max other blocks still ≤ budget after apply', () => {
+        // Real-shaped identity (name + pronouns + a few facts) — not unbounded freeform.
+        const typicalIdentity = [
+            '## Identity',
+            '- Preferred name: Ren',
+            '- Pronouns: they/them',
+            '- About: software engineer in Oslo',
+            '- Key people: Alex (partner), Sam (sibling)',
+            '- Facts: prefers short replies; night owl',
+            'Trust the live user message over stored identity when they conflict; never invent a name.',
+        ].join('\n');
+        const identityEst = estimateTokensFromChars(typicalIdentity.length);
+        expect(identityEst).toBeLessThan(500);
+
+        const pad = 'word '.repeat(3_000).trim();
+        const result = applyMemoryPromptBudget({
+            identity: typicalIdentity,
+            digests: `## Recent day digests\n- Written 2020-01-01: ${pad}\n- Written 2026-07-01: ${pad}`,
+            capsule: `## Local Memory Capsule\n${pad}`,
+            recall: `## Relevant past\n- Written 2021-01-01: ${pad}`,
+            goals: `## Goals\n${pad.slice(0, 2_000)}`,
+            persona: `## Persona Guidance\n${pad.slice(0, 2_000)}`,
+        });
+        expect(result.blocks.identity).toBe(typicalIdentity);
+        expect(result.totalEstTokens).toBeLessThanOrEqual(MEMORY_PROMPT_BUDGET);
+        // Identity kept; non-identity was trimmed to make room.
+        expect(result.totalEstTokens).toBeGreaterThan(identityEst);
     });
 });
 
@@ -158,5 +192,33 @@ describe('PR8b-2 applyMemoryPromptBudget', () => {
         const capped = applyMemoryPromptBudget(oversize, MEMORY_PROMPT_BUDGET);
         expect(capped.totalEstTokens).toBeLessThanOrEqual(MEMORY_PROMPT_BUDGET);
         expect(capped.blocks.identity).toContain('Ren');
+    });
+
+    it('trim step 2: digests drop oldest dateKey first', () => {
+        const pad = 'x'.repeat(2_000);
+        const digests = [
+            '## Recent day digests',
+            `- Written 2020-01-01: OLDEST ${pad}`,
+            `- Written 2026-07-01: NEWEST ${pad}`,
+            `- Written 2023-06-15: MID ${pad}`,
+        ].join('\n');
+        const out = trimDigestsOldestFirst(digests, 600) ?? '';
+        expect(out).not.toContain('OLDEST');
+        expect(out).toContain('NEWEST');
+    });
+
+    it('MIN_SIM filter excludes sub-0.28 recall before keep ranking', () => {
+        const recall = [
+            '## Relevant past',
+            '- Written 2026-07-01 sim=0.95: high keep',
+            '- Written 2026-06-01 sim=0.10: below floor DROP',
+            '- Written 2026-05-01 sim=0.27: just under DROP',
+            '- Written 2026-04-01 sim=0.28: at floor keep',
+        ].join('\n');
+        const out = trimRecallBySimilarity(recall, MEMORY_RECALL_MAX_EST, MEMORY_RECALL_MIN_SIM) ?? '';
+        expect(out).toContain('high keep');
+        expect(out).toContain('at floor keep');
+        expect(out).not.toContain('below floor DROP');
+        expect(out).not.toContain('just under DROP');
     });
 });

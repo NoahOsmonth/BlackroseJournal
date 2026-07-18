@@ -10,10 +10,17 @@ import { DAILY_PROMPTS } from '../../constants/dailyPrompts';
 import { FLOWS, composeSystemPrompt, flowForCheckInType } from '../../features/chat/flows';
 import type { ChatFlowContext } from '../../features/chat/flows/types';
 import { buildDailyCheckInSystemPrompt } from '../../services/ai/dailyCheckInPrompt';
+import {
+    MEMORY_PROMPT_BUDGET,
+    applyMemoryPromptBudget,
+    measureMemoryEstTokens,
+} from '../../services/ai/memoryPromptBudget';
+import { estimateTokensFromChars } from '../../services/ai/promptBudget';
 import { HISTORY_TOOLS_POLICY } from '../../services/ai/tools';
 import { buildIntentionSystemPrompt } from '../../services/intentions/intentionPrompts';
 import type { Persona } from '../../services/personas/personasStorage.types';
 import { buildClockContext } from '../../utils/date';
+import * as memoryPromptBudget from '../../services/ai/memoryPromptBudget';
 
 const FIXED_NOW = new Date(2026, 6, 13, 9, 0, 0).getTime();
 
@@ -91,6 +98,96 @@ describe('composeSystemPrompt', () => {
     it('can omit history tools policy', () => {
         const out = composeSystemPrompt('BASE', withClock({ omitHistoryToolsPolicy: true }));
         expect(out).not.toContain('## History tools');
+    });
+
+    it('PR8b-2 wiring: oversize memory through composeSystemPrompt is capped ≤ MEMORY_PROMPT_BUDGET', () => {
+        const pad = 'word '.repeat(4_000).trim();
+        const digests = [
+            '## Recent day digests',
+            ...Array.from({ length: 30 }, (_, i) =>
+                `- Written 2020-${String((i % 12) + 1).padStart(2, '0')}-01: day ${i} ${pad.slice(0, 400)}`
+            ),
+        ].join('\n');
+        const capsule = `## Local Memory Capsule\n${pad}`;
+        const recall = [
+            '## Relevant past context',
+            ...Array.from({ length: 20 }, (_, i) =>
+                `- Written 2021-01-${String((i % 28) + 1).padStart(2, '0')}: recall ${i} ${pad.slice(0, 300)}`
+            ),
+        ].join('\n');
+        const raw = {
+            identity: '## Identity\n- Preferred name: Ren',
+            digests,
+            capsule,
+            recall,
+            goals: `## Goals\n${pad.slice(0, 2_000)}`,
+            persona: `## Persona Guidance\n${pad.slice(0, 2_000)}`,
+        };
+        expect(measureMemoryEstTokens(raw)).toBeGreaterThan(MEMORY_PROMPT_BUDGET);
+
+        const out = composeSystemPrompt('BASE', withClock({
+            clockContext: '## Clock\nLocal date: 2026-07-18',
+            identityContext: raw.identity,
+            recentDaysContext: digests,
+            localMemoryContext: capsule,
+            retrievedHistoryContext: recall,
+            goalsContext: raw.goals,
+            activePersona: { ...persona, prompt: pad.slice(0, 2_000) },
+            omitHistoryToolsPolicy: true,
+        }));
+
+        // Reconstruct memory blocks from assembly markers and re-measure.
+        // Identity must survive; full pad must not (budget would keep it otherwise).
+        expect(out).toContain('Preferred name: Ren');
+        expect(out).toContain('BASE');
+        // Memory contribution: strip base + clock (and empty joiners).
+        const withoutStatic = out
+            .replace('BASE', '')
+            .replace('## Clock\nLocal date: 2026-07-18', '');
+        const memEst = estimateTokensFromChars(withoutStatic.length);
+        // Allow small overhead from joiners; still well under raw and at/near budget.
+        expect(memEst).toBeLessThanOrEqual(MEMORY_PROMPT_BUDGET + 200);
+        expect(memEst).toBeLessThan(measureMemoryEstTokens(raw));
+    });
+
+    it('PR8b-2 call-site sabotage: neuter applyMemoryPromptBudget → oversize leaks; restore caps', () => {
+        const pad = 'word '.repeat(3_000).trim();
+        const digests = `## Recent day digests\n- Written 2020-01-01: ${pad}\n- Written 2026-07-01: ${pad}`;
+        const capsule = `## Local Memory Capsule\n${pad}`;
+        const ctx = withClock({
+            clockContext: '## Clock\nx',
+            identityContext: '## Identity\n- Preferred name: Ren',
+            recentDaysContext: digests,
+            localMemoryContext: capsule,
+            omitHistoryToolsPolicy: true,
+        });
+
+        const spy = jest
+            .spyOn(memoryPromptBudget, 'applyMemoryPromptBudget')
+            .mockImplementation((blocks) => ({
+                blocks: { ...blocks },
+                totalEstTokens: measureMemoryEstTokens(blocks),
+                trimmed: false,
+            }));
+
+        try {
+            const redOut = composeSystemPrompt('BASE', ctx);
+            // Without budget, oversize pad material is retained.
+            expect(redOut.length).toBeGreaterThan(20_000);
+            expect(redOut.split('word ').length).toBeGreaterThan(2_000);
+        } finally {
+            spy.mockRestore();
+        }
+
+        const greenOut = composeSystemPrompt('BASE', ctx);
+        expect(greenOut).toContain('Preferred name: Ren');
+        // With real applyMemoryPromptBudget, assembly shrinks under cap pressure.
+        expect(greenOut.length).toBeLessThan(20_000);
+        expect(applyMemoryPromptBudget({
+            identity: ctx.identityContext,
+            digests: ctx.recentDaysContext,
+            capsule: ctx.localMemoryContext,
+        }).totalEstTokens).toBeLessThanOrEqual(MEMORY_PROMPT_BUDGET);
     });
 });
 

@@ -20,6 +20,20 @@ export const MEMORY_RECALL_MAX_EST = 1_500;
 /** goals + persona combined */
 export const MEMORY_META_MAX_EST = 1_500;
 
+/**
+ * Soft sum of non-identity sub-caps (capsule+digests+recall+meta) = 8000.
+ * These are per-block ceilings; the global MEMORY_PROMPT_BUDGET loop then
+ * trims non-identity blocks further so totalEst (including identity) ≤ 8000.
+ * Identity is sacred and never truncated. Typical identity templates are
+ * small (≪ 500 est); if identity alone exceeded the budget we still never
+ * truncate it — that is the one intentional exception to the hard ceiling.
+ */
+export const MEMORY_NON_IDENTITY_SUBCAPS_SUM =
+    MEMORY_CAPSULE_MAX_EST
+    + MEMORY_DIGESTS_MAX_EST
+    + MEMORY_RECALL_MAX_EST
+    + MEMORY_META_MAX_EST;
+
 /** Align with sessionRecall MIN_SIMILARITY. */
 export const MEMORY_RECALL_MIN_SIM = 0.28;
 

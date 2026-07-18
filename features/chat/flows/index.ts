@@ -8,7 +8,7 @@
 
 import { THERAPIST_SYSTEM_PROMPT } from '@/constants/aiPrompts';
 import { buildDailyCheckInSystemPrompt } from '@/services/ai/dailyCheckInPrompt';
-import { applyMemoryPromptBudget } from '@/services/ai/memoryPromptBudget';
+import * as memoryPromptBudget from '@/services/ai/memoryPromptBudget';
 import { HISTORY_TOOLS_POLICY } from '@/services/ai/tools';
 import {
     buildIntentionRefineSystemPrompt,
@@ -31,7 +31,7 @@ function budgetedMemory(ctx: ChatFlowContext) {
     const persona = ctx.activePersona?.prompt
         ? `## Persona Guidance\n${ctx.activePersona.prompt}`
         : undefined;
-    return applyMemoryPromptBudget({
+    return memoryPromptBudget.applyMemoryPromptBudget({
         identity: ctx.identityContext,
         digests: ctx.recentDaysContext,
         capsule: ctx.localMemoryContext,
