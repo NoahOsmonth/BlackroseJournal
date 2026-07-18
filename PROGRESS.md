@@ -12,6 +12,12 @@
 - [x] **TOOL-CODEX-001**: Codex CLI with OMO Light Edition
 
 ## Updates
+- **2026-07-18**: **PR8b-2** — memory caps hygiene
+  - `MEMORY_PROMPT_BUDGET=8000` at final assembly (`services/ai/memoryPromptBudget.ts` + `composeSystemPrompt` / intention weave).
+  - Sub-caps: identity sacred; capsule/digests 2500; recall 1500; goals+persona 1500; `MEMORY_RECALL_MIN_SIM=0.28`.
+  - Keep `AUGMENT_BLOB_MAX_EST_TOKENS=1500` (stricter wins on eager blob). Trim order: lowest-sim recall → oldest digests → capsule sentence boundary → meta.
+  - Property test: seeded RNG 20× up to ~1000 lines; sabotage red Expected ≤8000 Received 18778 → green.
+  - Suite: **180 passed / 6 skipped · 780 passed / 21 skipped** (vs PR8c 179/6 · 773/21; +1 suite memoryPromptBudget +7 tests).
 - **2026-07-18**: **PR8c** — tool-loop hardening (6 items)
   - `AGENT_TURN_TOKEN_BUDGET=12000` cumulative (real `prompt_tokens` or chars/4 est; log source per round) → stop tool rounds + final no-tools.
   - Identical tool name+args twice → no re-exec; inject `DUPLICATE_TOOL_CALL_NOTE` → final no-tools.

@@ -8,6 +8,7 @@
 
 import { THERAPIST_SYSTEM_PROMPT } from '@/constants/aiPrompts';
 import { buildDailyCheckInSystemPrompt } from '@/services/ai/dailyCheckInPrompt';
+import { applyMemoryPromptBudget } from '@/services/ai/memoryPromptBudget';
 import { HISTORY_TOOLS_POLICY } from '@/services/ai/tools';
 import {
     buildIntentionRefineSystemPrompt,
@@ -24,15 +25,33 @@ function resolveClockContext(ctx: ChatFlowContext): string {
 }
 
 /**
+ * PR8b-2: budget memory surfaces (identity sacred) before weave.
+ */
+function budgetedMemory(ctx: ChatFlowContext) {
+    const persona = ctx.activePersona?.prompt
+        ? `## Persona Guidance\n${ctx.activePersona.prompt}`
+        : undefined;
+    return applyMemoryPromptBudget({
+        identity: ctx.identityContext,
+        digests: ctx.recentDaysContext,
+        capsule: ctx.localMemoryContext,
+        recall: ctx.retrievedHistoryContext,
+        goals: ctx.goalsContext,
+        persona,
+    }).blocks;
+}
+
+/**
  * Shared time/history blocks used by freeform and intention-family flows.
  */
 export function composeHistoryContextBlocks(ctx: ChatFlowContext): string[] {
+    const mem = budgetedMemory(ctx);
     return [
         resolveClockContext(ctx),
         // Identity before digests/capsule so name never loses ranking slots.
-        ctx.identityContext,
-        ctx.recentDaysContext,
-        ctx.retrievedHistoryContext,
+        mem.identity,
+        mem.digests,
+        mem.recall,
         ctx.omitHistoryToolsPolicy ? undefined : HISTORY_TOOLS_POLICY,
     ].filter((block): block is string => Boolean(block));
 }
@@ -42,14 +61,13 @@ export function composeHistoryContextBlocks(ctx: ChatFlowContext): string[] {
  * into a base prompt.
  */
 export function composeSystemPrompt(base: string, ctx: ChatFlowContext): string {
+    const mem = budgetedMemory(ctx);
     return [
         base,
         ...composeHistoryContextBlocks(ctx),
-        ctx.localMemoryContext,
-        ctx.goalsContext,
-        ctx.activePersona?.prompt
-            ? `## Persona Guidance\n${ctx.activePersona.prompt}`
-            : undefined,
+        mem.capsule,
+        mem.goals,
+        mem.persona,
         ctx.feedbackGuidance,
     ]
         .filter(Boolean)
@@ -69,13 +87,13 @@ function buildIntentionFlowPrompt(
         memorySummary: ctx.memorySummary,
         feedbackGuidance: ctx.feedbackGuidance,
     });
+    const mem = budgetedMemory(ctx);
     const shared = composeHistoryContextBlocks(ctx);
-    const memory = ctx.localMemoryContext;
     return [
         base,
         ...shared,
-        memory,
-        ctx.goalsContext,
+        mem.capsule,
+        mem.goals,
     ]
         .filter(Boolean)
         .join('\n\n');
