@@ -1,4 +1,4 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+﻿# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
 # dependencies
 node_modules/
@@ -6,6 +6,7 @@ node_modules/
 # Expo
 .expo/
 dist/
+dist-prod/
 web-build/
 expo-env.d.ts
 
@@ -55,6 +56,14 @@ app-example
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+.playwright-mcp/
+
+# stray local QA screenshots (do not commit)
+/*.png
+tool-calling-qa.png
+tool-upgrade-qa.png
+pr7-*.png
+t3-pet-prompt.json
 
 # OMC agent tool state
 .omc/
