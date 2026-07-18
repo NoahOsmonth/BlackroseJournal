@@ -81,12 +81,43 @@ describe("dark mode contrast safety", () => {
             "HistoryEntryCard.tsx"
         );
         const content = fs.readFileSync(file, "utf-8");
-        expect(content).toContain("{mood.label}");
+        // Mood chip only renders when a real mood exists; text always has dark: pair.
+        expect(content).toContain("{moodLabel}");
         expect(content).toContain(
             "const SECONDARY_TEXT_CLASS = 'text-text-secondary-light dark:text-text-secondary-dark';"
         );
-        expect(content).toContain(
-            'className={`text-xs font-medium ${SECONDARY_TEXT_CLASS}`}'
+        expect(content).toMatch(
+            /className=\{`text-xs font-medium \$\{SECONDARY_TEXT_CLASS\}`\}/
+        );
+    });
+
+    it("Open the map card is not dark-only chrome", () => {
+        const file = path.join(
+            process.cwd(),
+            "components",
+            "memory",
+            "MemoryPortrait.tsx"
+        );
+        const content = fs.readFileSync(file, "utf-8");
+        expect(content).toContain("Open the map");
+        expect(content).toContain("bg-surface-light");
+        expect(content).toContain("text-text-light dark:text-white");
+        expect(content).not.toContain("bg-gray-950");
+    });
+
+    it("memory graph stage background adapts to color scheme", () => {
+        const file = path.join(
+            process.cwd(),
+            "components",
+            "memory-graph",
+            "MemoryGraphScreen.tsx"
+        );
+        const content = fs.readFileSync(file, "utf-8");
+        expect(content).toContain("stageBackground");
+        expect(content).toContain("colorScheme=");
+        expect(content).not.toMatch(
+            /style=\{\{\s*backgroundColor:\s*'#070B14'\s*\}\}/
         );
     });
 });
+

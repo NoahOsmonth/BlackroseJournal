@@ -11,9 +11,11 @@ interface AppHeaderProps {
     streakCount?: number;
     onLeftPress?: () => void;
     onRightPress?: () => void;
+    /** @deprecated History no longer shows a week range trophy header. */
     weekRange?: string;
     draftCount?: number;
     onDraftsPress?: () => void;
+    monthLabel?: string;
 }
 
 function TodayHeader({
@@ -22,6 +24,7 @@ function TodayHeader({
     onLeftPress,
     onRightPress,
 }: Pick<AppHeaderProps, 'title' | 'streakCount' | 'onLeftPress' | 'onRightPress'>) {
+    const isDark = useColorScheme() === 'dark';
     return (
         <View className="px-4 pt-2">
             <View className="flex-row items-center justify-between py-3">
@@ -33,7 +36,7 @@ function TodayHeader({
                     accessibilityState={{ disabled: !onLeftPress }}
                     hitSlop={8}
                 >
-                    <MaterialIcons name="local-fire-department" size={20} color="#FF9500" />
+                    <MaterialIcons name="local-fire-department" size={20} color={isDark ? '#FFB340' : '#FF9F0A'} />
                     <Text className="text-sm font-bold text-text-light dark:text-text-dark">
                         {streakCount ?? 0}
                     </Text>
@@ -54,7 +57,7 @@ function TodayHeader({
                     <MaterialIcons
                         name="settings"
                         size={20}
-                        color="#9CA3AF"
+                        color={isDark ? '#E5E5E7' : '#9CA3AF'}
                     />
                 </Pressable>
             </View>
@@ -63,42 +66,58 @@ function TodayHeader({
 }
 
 function HistoryHeader({
-    weekRange,
     draftCount,
     onDraftsPress,
-}: Pick<AppHeaderProps, 'weekRange' | 'draftCount' | 'onDraftsPress'>) {
+    monthLabel,
+}: Pick<AppHeaderProps, 'draftCount' | 'onDraftsPress' | 'monthLabel'>) {
     const isDark = useColorScheme() === 'dark';
-    const chevronColor = isDark ? '#F9FAFB' : '#111827';
+    const chevronColor = isDark ? '#9CA3AF' : '#6B7280';
     const activeDrafts = (draftCount ?? 0) > 0;
+    const draftsLabel = activeDrafts
+        ? `${draftCount} draft${draftCount === 1 ? '' : 's'}`
+        : 'Drafts';
 
     return (
-        <View className="px-6 pt-6 pb-3">
-            <View className="items-center gap-4">
-                <View className="items-center">
-                    <Text className="text-[10px] font-bold tracking-[0.2em] uppercase text-text-secondary-light dark:text-text-secondary-dark mb-1.5">
-                        This week
+        <View className="px-4 pt-4 pb-2">
+            <View className="flex-row items-start justify-between">
+                <View className="flex-1 pr-3">
+                    <Text
+                        className="text-3xl font-bold text-text-light dark:text-text-dark"
+                        style={{ fontFamily: 'PlayfairDisplayBold' }}
+                    >
+                        History
                     </Text>
-                    <Text className="text-xl font-bold tracking-tight text-text-main-light dark:text-text-main-dark">
-                        {weekRange}
-                    </Text>
+                    {monthLabel ? (
+                        <Text className="mt-1 text-sm text-text-secondary-light dark:text-text-secondary-dark">
+                            {monthLabel}
+                        </Text>
+                    ) : null}
                 </View>
 
                 <Pressable
                     onPress={onDraftsPress}
                     style={({ pressed }) => [
-                        { transform: [{ scale: pressed ? 0.96 : 1 }] }
+                        { transform: [{ scale: pressed ? 0.96 : 1 }] },
                     ]}
-                    className="flex-row items-center gap-2 bg-surface-light dark:bg-surface-dark border-[0.5px] border-divider-light dark:border-divider-dark px-4 py-1.5 rounded-full shadow-soft"
+                    className="mt-1 flex-row items-center gap-1.5 rounded-full border border-divider-light dark:border-divider-dark bg-surface-light dark:bg-surface-dark px-3 py-1.5"
                     accessibilityLabel="Open drafts"
                     accessibilityRole="button"
                     testID="drafts-button"
                 >
-                    <View className={`w-1.5 h-1.5 rounded-full ${activeDrafts ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-600'}`} />
-                    <Text 
+                    <View
+                        className={`h-1.5 w-1.5 rounded-full ${
+                            activeDrafts ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-600'
+                        }`}
+                    />
+                    <Text
                         numberOfLines={1}
-                        className="text-xs font-bold text-text-main-light dark:text-text-main-dark uppercase tracking-wider"
+                        className={`text-xs font-semibold ${
+                            activeDrafts
+                                ? 'text-text-light dark:text-text-dark'
+                                : 'text-text-secondary-light dark:text-text-secondary-dark'
+                        }`}
                     >
-                        {draftCount ?? 0} drafts
+                        {draftsLabel}
                     </Text>
                     <MaterialIcons name="chevron-right" size={14} color={chevronColor} />
                 </Pressable>
@@ -113,9 +132,9 @@ export function AppHeader({
     streakCount,
     onLeftPress,
     onRightPress,
-    weekRange,
     draftCount,
     onDraftsPress,
+    monthLabel,
 }: AppHeaderProps) {
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
@@ -131,9 +150,9 @@ export function AppHeader({
                 />
             ) : (
                 <HistoryHeader
-                    weekRange={weekRange}
                     draftCount={draftCount}
                     onDraftsPress={onDraftsPress}
+                    monthLabel={monthLabel}
                 />
             )}
         </View>

@@ -8,29 +8,34 @@
  */
 import { withRetry, type IsRetryable } from '../retry';
 import { redactSecrets } from '../redactSecrets';
+import { getProviderRequestCapabilities } from '../providerCapabilities';
 import type { ChatRequest, ChatResponse, ResolvedProfile } from '../provider';
 
 const TIMEOUT_MS = 60_000;
-const RETRY_STATUSES = new Set([429, 503]);
-const MAX_ATTEMPTS = 2;
+const MAX_ATTEMPTS = 3;
 const BASE_BACKOFF_MS = 200;
 
-export function isRetryable(err: unknown): boolean {
-    const e = err as { status?: number; name?: string };
-    if (e?.status !== undefined && RETRY_STATUSES.has(e.status)) {
-        return true;
-    }
-    if (e?.name === 'AbortError' || e?.name === 'TimeoutError') {
-        return true;
-    }
-    return false;
+function buildIsRetryable(retryableStatuses: ReadonlySet<number>): IsRetryable {
+    return (err: unknown): boolean => {
+        const e = err as { status?: number; name?: string };
+        if (e?.status !== undefined && retryableStatuses.has(e.status)) {
+            return true;
+        }
+        if (e?.name === 'AbortError' || e?.name === 'TimeoutError') {
+            return true;
+        }
+        return false;
+    };
 }
 
-function buildRequestBody(req: ChatRequest): Record<string, unknown> {
+function buildRequestBody(
+    req: ChatRequest,
+    capabilities: ReturnType<typeof getProviderRequestCapabilities>
+): Record<string, unknown> {
     const body: Record<string, unknown> = { messages: req.messages };
     if (req.temperature !== undefined) body.temperature = req.temperature;
     if (req.topP !== undefined) body.top_p = req.topP;
-    if (req.maxTokens !== undefined) body.max_tokens = req.maxTokens;
+    if (req.maxTokens !== undefined) body[capabilities.maxTokensField] = req.maxTokens;
     if (req.stream === true) body.stream = true;
     return body;
 }
@@ -94,7 +99,8 @@ async function performRequest(
     fetchFn: typeof fetch
 ): Promise<Response> {
     const url = `${profile.apiBaseUrl.replace(/\/+$/, '')}/chat/completions`;
-    const body = JSON.stringify({ model: profile.model, ...buildRequestBody(req) });
+    const capabilities = getProviderRequestCapabilities(profile.apiBaseUrl);
+    const body = JSON.stringify({ model: profile.model, ...buildRequestBody(req, capabilities) });
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${profile.apiKey}`,
@@ -103,6 +109,7 @@ async function performRequest(
         headers.Accept = 'text/event-stream';
     }
     const signal = combineSignals(req.signal, TIMEOUT_MS);
+    const isRetryable = buildIsRetryable(capabilities.retryableStatuses);
     return withRetry(
         () =>
             doFetch({ url, headers, body, signal }).then((res) => {
@@ -112,7 +119,7 @@ async function performRequest(
                 }
                 throw toUpstreamError(res);
             }),
-        isRetryable as IsRetryable,
+        isRetryable,
         { maxAttempts: MAX_ATTEMPTS, baseMs: BASE_BACKOFF_MS }
     ).catch((err: unknown) => {
         const e = err as { status?: number; message?: string };

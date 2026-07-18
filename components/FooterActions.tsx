@@ -35,7 +35,7 @@ export function FooterActions({
         >
           <View className="flex-row items-center justify-center gap-2">
             <MaterialIcons name="south" size={18} color="#FFFFFF" />
-            <Text className="font-bold text-[15px] text-surface-light">Go deeper</Text>
+            <Text className="font-bold text-[15px] text-white">Go deeper</Text>
           </View>
         </Pressable>
         <Pressable

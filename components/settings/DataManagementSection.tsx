@@ -15,7 +15,13 @@ interface DataManagementSectionProps {
     readonly onCreateBackup: () => void;
     readonly onRestoreLatestBackup: () => void;
     readonly onExportJournalJson: () => void;
+    /** Dev-only: omit or no-op in production builds. */
+    readonly onSeedDemoData?: () => void;
+    /** Dev-only: remove tracked seed IDs only. */
+    readonly onClearDemoData?: () => void;
+    readonly showDemoSeedControls?: boolean;
     readonly onClearHistory: () => void;
+    readonly embedded?: boolean;
 }
 
 interface SettingsRowProps {
@@ -80,16 +86,22 @@ export function DataManagementSection({
     onCreateBackup,
     onRestoreLatestBackup,
     onExportJournalJson,
+    onSeedDemoData,
+    onClearDemoData,
+    showDemoSeedControls = false,
     onClearHistory,
+    embedded = false,
 }: DataManagementSectionProps) {
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
     const iconColor = isDark ? '#F9FAFB' : '#111827';
     const dangerIconColor = isDark ? '#F87171' : '#DC2626';
     const latestLabel = latestBackup ? `Latest: ${latestBackup.name}` : 'No local backup yet';
+    const showSeed = showDemoSeedControls && typeof onSeedDemoData === 'function';
+    const showClearDemo = showDemoSeedControls && typeof onClearDemoData === 'function';
 
     return (
-        <SettingsSection title="Data Management">
+        <SettingsSection title="Data Management" embedded={embedded}>
             <SettingsRow
                 label="Create Local Backup"
                 detail="Saves journal, goals, intentions, insights, personas, and settings on this device."
@@ -114,6 +126,26 @@ export function DataManagementSection({
                 disabled={isBusy}
                 onPress={onExportJournalJson}
             />
+            {showSeed ? (
+                <SettingsRow
+                    label="Seed Demo Data"
+                    detail="Dev only. Adds sample journals/intentions without wiping real rows; replaces prior seed."
+                    iconName="sparkles-outline"
+                    iconColor={iconColor}
+                    disabled={isBusy}
+                    onPress={onSeedDemoData}
+                />
+            ) : null}
+            {showClearDemo ? (
+                <SettingsRow
+                    label="Clear demo data"
+                    detail="Dev only. Removes tracked seed IDs only — real user rows stay."
+                    iconName="brush-outline"
+                    iconColor={iconColor}
+                    disabled={isBusy}
+                    onPress={onClearDemoData}
+                />
+            ) : null}
             <SettingsRow
                 label="Clear History & Memories"
                 detail="Removes journal entries, intentions, chat sessions, insights, and saved AI memories."

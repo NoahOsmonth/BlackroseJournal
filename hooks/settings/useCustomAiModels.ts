@@ -8,7 +8,10 @@ import {
     loadCustomAiProviderSettings,
     normalizeFallbackContextWindow,
     normalizeOpenAiBaseUrl,
+    pickModelAfterFetch,
+    readEnvProviderSeed,
     saveCustomAiProviderSettings,
+    withSelectedModel,
 } from '@/services/ai/customModels';
 
 type StatusKind = 'idle' | 'success' | 'error';
@@ -38,6 +41,7 @@ export interface UseCustomAiModelsReturn {
     saveSettings: () => Promise<void>;
     selectModel: (modelId: string) => Promise<void>;
     setEnabled: (enabled: boolean) => Promise<void>;
+    setFreeOnly: (freeOnly: boolean) => Promise<void>;
 }
 
 const EMPTY_STATUS: StatusState = { kind: 'idle', message: '' };
@@ -80,8 +84,15 @@ export function useCustomAiModels(): UseCustomAiModelsReturn {
         loadCustomAiProviderSettings()
             .then((loaded) => {
                 if (!mounted) return;
+                // First-run / empty storage already includes env seed in defaults.
                 setSettings(loaded);
                 setDraft(toDraft(loaded));
+                if (loaded.freeOnly && loaded.selectedModelId === null && loaded.models.length > 0) {
+                    setStatus({
+                        kind: 'error',
+                        message: 'Previous model unavailable (not free). Choose a free model.',
+                    });
+                }
             })
             .catch((error) => setStatus({ kind: 'error', message: errorMessage(error) }))
             .finally(() => mounted && setIsLoading(false));
@@ -118,10 +129,14 @@ export function useCustomAiModels(): UseCustomAiModelsReturn {
                 baseUrl: draft.baseUrl,
                 apiKey: draft.apiKey,
                 fallbackContextWindow: fallback,
+                freeOnly: settings.freeOnly,
             });
-            const selectedModelId = result.models.some((model) => (
-                model.id === settings.selectedModelId
-            )) ? settings.selectedModelId : result.models[0]?.id ?? null;
+            const seed = readEnvProviderSeed();
+            const selectedModelId = pickModelAfterFetch(
+                result.models,
+                settings.selectedModelId,
+                seed.model
+            );
             await persist({
                 ...settings,
                 baseUrl: result.baseUrl,
@@ -132,7 +147,12 @@ export function useCustomAiModels(): UseCustomAiModelsReturn {
                 lastFetchedAt: result.fetchedAt,
                 lastFetchError: undefined,
             });
-            setStatus({ kind: 'success', message: `${result.models.length} models loaded.` });
+            setStatus({
+                kind: 'success',
+                message: settings.freeOnly
+                    ? `${result.models.length} free models loaded.`
+                    : `${result.models.length} models loaded.`,
+            });
         } catch (error) {
             const message = errorMessage(error);
             setSettings((current) => ({ ...current, lastFetchError: message }));
@@ -158,7 +178,7 @@ export function useCustomAiModels(): UseCustomAiModelsReturn {
                 fallbackContextWindow: fallback,
                 selectedModelId,
             });
-            setStatus({ kind: 'success', message: 'Custom model saved and enabled.' });
+            setStatus({ kind: 'success', message: 'AI model saved and enabled.' });
         } catch (error) {
             setStatus({ kind: 'error', message: errorMessage(error) });
         } finally {
@@ -167,14 +187,13 @@ export function useCustomAiModels(): UseCustomAiModelsReturn {
     }, [draft, persist, settings]);
 
     const selectModel = useCallback(async (modelId: string) => {
-        const selected = settings.models.some((model) => model.id === modelId);
-        if (!selected) {
-            setStatus({ kind: 'error', message: 'Selected model is not available.' });
-            return;
+        try {
+            const next = withSelectedModel(settings, modelId);
+            await persist(next);
+            setStatus({ kind: 'success', message: 'Model selected and enabled.' });
+        } catch (error) {
+            setStatus({ kind: 'error', message: errorMessage(error) });
         }
-
-        await persist({ ...settings, enabled: true, selectedModelId: modelId });
-        setStatus({ kind: 'success', message: 'Custom model selected and enabled.' });
     }, [persist, settings]);
 
     const setEnabled = useCallback(async (enabled: boolean) => {
@@ -183,6 +202,30 @@ export function useCustomAiModels(): UseCustomAiModelsReturn {
             return;
         }
         await persist({ ...settings, enabled, selectedModelId: selectedOrFirst(settings) });
+    }, [persist, settings]);
+
+    const setFreeOnly = useCallback(async (freeOnly: boolean) => {
+        const { filterFreeModels, isFreeModelId } = await import('@/utils/ai/modelDisplay');
+        let selectedModelId = settings.selectedModelId;
+        let models = settings.models;
+        if (freeOnly) {
+            models = filterFreeModels(settings.models);
+            if (selectedModelId && !isFreeModelId(selectedModelId)) {
+                selectedModelId = models[0]?.id ?? null;
+            } else if (selectedModelId && !models.some((m) => m.id === selectedModelId)) {
+                selectedModelId = models[0]?.id ?? null;
+            }
+        }
+        await persist({
+            ...settings,
+            freeOnly,
+            models,
+            selectedModelId,
+        });
+        setStatus({
+            kind: 'success',
+            message: freeOnly ? 'Free models only is on.' : 'All models allowed (paid may incur charges).',
+        });
     }, [persist, settings]);
 
     return {
@@ -199,6 +242,7 @@ export function useCustomAiModels(): UseCustomAiModelsReturn {
         saveSettings,
         selectModel,
         setEnabled,
+        setFreeOnly,
     };
 }
 

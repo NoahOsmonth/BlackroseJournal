@@ -102,6 +102,12 @@ export async function getGoal(id: string): Promise<GoalItem | null> {
 
 export async function createGoal(input: GoalCreateInput): Promise<GoalItem> {
     const now = Date.now();
+    const createdAt = typeof input.createdAt === 'number' && Number.isFinite(input.createdAt)
+        ? input.createdAt
+        : now;
+    const updatedAt = typeof input.updatedAt === 'number' && Number.isFinite(input.updatedAt)
+        ? input.updatedAt
+        : createdAt;
     const goal: GoalItem = {
         id: generateId(),
         title: input.title.trim(),
@@ -110,8 +116,8 @@ export async function createGoal(input: GoalCreateInput): Promise<GoalItem> {
         completed: input.type === 'goal' ? false : undefined,
         habitCompletions: input.type === 'habit' ? [] : undefined,
         intentionId: input.intentionId,
-        createdAt: now,
-        updatedAt: now,
+        createdAt,
+        updatedAt,
     };
 
     const map = await loadGoalsMap();

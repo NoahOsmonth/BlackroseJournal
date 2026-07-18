@@ -16,6 +16,31 @@ jest.mock('react-native-safe-area-context', () => ({
         const { View } = jest.requireActual('react-native');
         return <View>{children}</View>;
     },
+    useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
+
+jest.mock('@/hooks/settings/useChatModelPicker', () => ({
+    useChatModelPicker: () => ({
+        visible: false,
+        open: jest.fn(),
+        close: jest.fn(),
+        models: [],
+        recentModels: [],
+        selectedModelId: null,
+        freeOnly: true,
+        hostLabel: 'openrouter.ai',
+        hasApiKey: true,
+        isLoading: false,
+        isFetching: false,
+        error: null,
+        selectModel: jest.fn(),
+        refreshModels: jest.fn(),
+        openSettings: jest.fn(),
+    }),
+}));
+
+jest.mock('@/components/ai/ChatModelPickerSheet', () => ({
+    ChatModelPickerSheet: () => null,
 }));
 
 jest.mock('@/components/intentions/IntentionChatHeader', () => ({
@@ -68,6 +93,18 @@ jest.mock('@/hooks/feedback/useIntentionFeedbackModal', () => ({
 jest.mock('@/hooks/goals/useGoalsContext', () => ({
     useGoalsContext: ({ intentionId }: { intentionId?: string }) => ({
         goalsContext: `## User's Current Goals and Habits\n- Linked goal (intention ${intentionId})`,
+    }),
+}));
+
+jest.mock('@/hooks/intentions/useIntentionChatFlowContext', () => ({
+    useIntentionChatFlowContext: () => ({
+        flow: { id: 'intention', buildSystemPrompt: () => 'system prompt' },
+        flowContext: {
+            goalsContext: "## User's Current Goals and Habits\n- Linked goal (intention int-1)",
+        },
+        goalsContext: "## User's Current Goals and Habits\n- Linked goal (intention int-1)",
+        localMemoryContext: '## Memory',
+        recentDaysContext: undefined,
     }),
 }));
 

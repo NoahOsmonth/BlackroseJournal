@@ -2,6 +2,8 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 
+import { useColorScheme } from '@/hooks/use-color-scheme';
+
 interface IntentionActionCardProps {
     title: string;
     subtitle: string;
@@ -18,28 +20,37 @@ export function IntentionActionCard({
     isCompleted = false,
 }: IntentionActionCardProps) {
     const accessibility = title.replace('\n', ' ');
+    const isDark = useColorScheme() === 'dark';
+    const checkColor = isDark ? '#9CA3AF' : '#6B7280';
 
     return (
         <Pressable
             onPress={onPress}
-            className="bg-surface-light dark:bg-surface-dark rounded-[20px] p-6 min-h-[140px] flex flex-col items-center text-center shadow-soft border border-gray-100 dark:border-white/5"
+            className="bg-surface-light dark:bg-surface-dark rounded-[20px] p-5 min-h-[148px] flex-1 border border-gray-100 dark:border-white/5 shadow-soft justify-between items-center"
             accessibilityLabel={accessibility}
         >
-            <View className="mb-4">
-                {icon}
-            </View>
-            <Text className="text-[15px] font-semibold mb-0.5 leading-tight text-text-light dark:text-text-dark">
-                {title}
-            </Text>
-            {isCompleted ? (
-                <View className="mt-3 w-8 h-8 rounded-full bg-text-secondary-light/20 dark:bg-text-secondary-dark/30 items-center justify-center">
-                    <MaterialIcons name="check" size={18} color="#6B7280" />
-                </View>
-            ) : (
-                <Text className="text-[11px] text-text-secondary-light dark:text-text-secondary-dark font-medium">
-                    {subtitle}
+            <View className="items-center gap-3 w-full">
+                <View>{icon}</View>
+                <Text className="text-[15px] font-semibold leading-tight text-center text-text-light dark:text-text-dark">
+                    {title}
                 </Text>
-            )}
+            </View>
+
+            {/* Reserved footer slot — same height for completed vs pending */}
+            <View className="h-7 mt-3 items-center justify-center">
+                {isCompleted ? (
+                    <View className="flex-row items-center gap-1.5">
+                        <MaterialIcons name="check-circle" size={16} color={checkColor} />
+                        <Text className="text-[11px] font-medium text-text-secondary-light dark:text-text-secondary-dark">
+                            Done
+                        </Text>
+                    </View>
+                ) : (
+                    <Text className="text-[11px] text-text-secondary-light dark:text-text-secondary-dark font-medium">
+                        {subtitle}
+                    </Text>
+                )}
+            </View>
         </Pressable>
     );
 }

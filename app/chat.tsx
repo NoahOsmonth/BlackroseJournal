@@ -1,23 +1,17 @@
-/**
- * Chat Screen
- *
- * Main chat screen for journaling - thin route component that composes UI and invokes hooks.
- * All state orchestration is delegated to useChatOrchestration hook.
- *
- * Supports two modes:
- * - freeform: User-initiated chat (default)
- * - dailyCheckIn: Prompted check-in with AI greeting
- */
+/** Chat screen — freeform / dailyCheckIn; orchestration lives in useChatOrchestration. */
 
 import { PromptPeriod } from '@/constants/dailyPrompts';
 import { useAiFeedback } from '@/hooks/feedback/useAiFeedback';
 import { useGoalsContext } from '@/hooks/goals/useGoalsContext';
+import { useIdentityContext } from '@/hooks/memory/useIdentityContext';
 import { useLocalMemoryContext } from '@/hooks/memory/useLocalMemoryContext';
+import { useRecentDaysContext } from '@/hooks/memory/useRecentDaysContext';
 import { usePersonas } from '@/hooks/personas/usePersonas';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ChatModelPickerSheet } from '../components/ai/ChatModelPickerSheet';
 import { ChatMessage } from '../components/ChatMessage';
 import { FooterActions } from '../components/FooterActions';
 import { Header } from '../components/Header';
@@ -25,14 +19,13 @@ import { InlineTypingInput, InlineTypingInputRef } from '../components/InlineTyp
 import { ChatPersonaSheet } from '../components/personas/ChatPersonaSheet';
 import { TypingIndicator } from '../components/ui/TypingIndicator';
 import { ChatMode, FLOWS, useChatOrchestration, useChatSessionFlush, useResumeChatSession } from '../features/chat';
+import { useChatModelPicker } from '../hooks/settings/useChatModelPicker';
 import { generateTitle, hasContent, inferMoodEmoji } from '../hooks/useEntryUtils';
 import { useJournalEntries } from '../hooks/useJournalEntries';
 import { generateEntryAnalysis, generateEntryTitle } from '../services/ai';
-import type {
-    JournalEntry,
-    JournalEntryAnalysis,
-} from '../services/journal/journalStorage.types';
-import { saveJournalEntryMemories } from '../services/memory/localMemory';
+import type { JournalEntry, JournalEntryAnalysis } from '../services/journal/journalStorage.types';
+import { runJournalFinishSideEffects } from '../services/journal/journalFinishSideEffects';
+import { latestUserMemoryQuery, resolveMemoryCapsuleQuery } from '../utils/memoryCapsuleQuery';
 
 type ChatParams = {
     mode?: string;
@@ -54,6 +47,7 @@ export default function ChatScreen() {
     const [personaSheetOpen, setPersonaSheetOpen] = useState(false);
     const { create, update, getById } = useJournalEntries();
     const { personas, activePersona, setActive } = usePersonas();
+    const modelPicker = useChatModelPicker();
 
     const entryId = Array.isArray(params.entryId)
         ? params.entryId[0]
@@ -78,14 +72,40 @@ export default function ChatScreen() {
         personaId: activePersona?.id,
         conversationId,
     });
+    // Live user text ranks the episodic capsule; title is only a continue-mode fallback.
+    // Identity is injected separately and does not depend on this query.
+    const [latestUserText, setLatestUserText] = useState<string | undefined>();
+    const memoryCapsuleQuery = useMemo(
+        () => resolveMemoryCapsuleQuery({
+            latestUserText,
+            continuedTitle: continuedEntry?.title,
+        }),
+        [latestUserText, continuedEntry?.title],
+    );
     const { context: localMemoryContext } = useLocalMemoryContext({
-        query: continuedEntry?.title,
+        query: memoryCapsuleQuery,
     });
+    const { context: recentDaysContext } = useRecentDaysContext({ days: 3 });
+    const { context: identityContext } = useIdentityContext();
     const { goalsContext } = useGoalsContext();
     const flow = resolvedMode === 'continue' ? FLOWS.continue : FLOWS.freeform;
     const flowContext = useMemo(
-        () => ({ activePersona, localMemoryContext, goalsContext, feedbackGuidance }),
-        [activePersona, localMemoryContext, goalsContext, feedbackGuidance]
+        () => ({
+            activePersona,
+            identityContext,
+            localMemoryContext,
+            recentDaysContext,
+            goalsContext,
+            feedbackGuidance,
+        }),
+        [
+            activePersona,
+            identityContext,
+            localMemoryContext,
+            recentDaysContext,
+            goalsContext,
+            feedbackGuidance,
+        ]
     );
 
     const persist = useMemo(
@@ -130,6 +150,12 @@ export default function ChatScreen() {
         persist,
         initialPrompt,
     });
+
+    // After real user turns land, re-rank the capsule for the next model call.
+    useEffect(() => {
+        const next = latestUserMemoryQuery(messages);
+        setLatestUserText((prev) => (prev === next ? prev : next));
+    }, [messages]);
 
     // Flush the live conversation to the session store on blur/unmount, as a
     // backup to the debounced autosave inside the hook. finalize() suppresses
@@ -178,6 +204,7 @@ export default function ChatScreen() {
 
     const resetChatState = useCallback(() => {
         setInputValue('');
+        setLatestUserText(undefined);
         handleNewChat();
     }, [handleNewChat]);
 
@@ -268,7 +295,7 @@ export default function ChatScreen() {
             }
             const savedEntryId = savedEntry?.id ?? entryId;
             if (savedEntry) {
-                await saveJournalEntryMemories(savedEntry);
+                await runJournalFinishSideEffects(savedEntry);
             }
 
             // Completed work must not linger as an active session.
@@ -304,9 +331,23 @@ export default function ChatScreen() {
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top', 'bottom']}>
             <View className="flex-1 max-w-md mx-auto w-full bg-background-light dark:bg-background-dark">
                 <Header
-                    onClose={personaSheetOpen ? () => setPersonaSheetOpen(false) : handleClose}
+                    onClose={
+                        personaSheetOpen
+                            ? () => setPersonaSheetOpen(false)
+                            : modelPicker.visible
+                                ? modelPicker.close
+                                : handleClose
+                    }
                     personaName={activePersona?.name ?? 'Rosebud'}
-                    onPersonaPress={() => setPersonaSheetOpen(true)}
+                    onPersonaPress={() => {
+                        modelPicker.close();
+                        setPersonaSheetOpen(true);
+                    }}
+                    onModelPress={() => {
+                        setPersonaSheetOpen(false);
+                        modelPicker.open();
+                    }}
+                    modelPickerDisabled={isLoading}
                 />
 
                 <ScrollView
@@ -370,7 +411,7 @@ export default function ChatScreen() {
                                             accessibilityLabel="Retry AI request"
                                             className="px-3 py-1.5 rounded-full bg-primary"
                                         >
-                                            <Text className="text-surface-light text-xs font-semibold">Retry</Text>
+                                            <Text className="text-white text-xs font-semibold">Retry</Text>
                                         </Pressable>
                                     )}
                                     <Pressable
@@ -422,6 +463,23 @@ export default function ChatScreen() {
                     activePersona={activePersona}
                     onClose={() => setPersonaSheetOpen(false)}
                     onSelect={setActive}
+                />
+
+                <ChatModelPickerSheet
+                    visible={modelPicker.visible}
+                    models={modelPicker.models}
+                    recentModels={modelPicker.recentModels}
+                    selectedId={modelPicker.selectedModelId}
+                    freeOnly={modelPicker.freeOnly}
+                    hostLabel={modelPicker.hostLabel}
+                    hasApiKey={modelPicker.hasApiKey}
+                    isLoading={modelPicker.isLoading}
+                    isFetching={modelPicker.isFetching}
+                    error={modelPicker.error}
+                    onSelect={modelPicker.selectModel}
+                    onRefresh={modelPicker.refreshModels}
+                    onClose={modelPicker.close}
+                    onOpenSettings={modelPicker.openSettings}
                 />
             </View>
         </SafeAreaView>

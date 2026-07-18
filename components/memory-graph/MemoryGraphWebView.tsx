@@ -13,25 +13,34 @@ import type { WebViewMessageEvent } from 'react-native-webview';
 interface WebViewProps {
     atoms: MemoryGraphAtom[];
     connections: MemoryConnection[];
+    colorScheme?: 'light' | 'dark';
     onSelectNode: (id: string | null) => void;
 }
 
-const FALLBACK_HTML = '<html><body style="background:#000"></body></html>';
+const FALLBACK_HTML = '<html><body style="background:#F3F4F6"></body></html>';
 const MEMORY_GRAPH_BASE_URL = 'https://memory-graph.local';
 
 export function MemoryGraphWebView({
     atoms,
     connections,
+    colorScheme = 'dark',
     onSelectNode,
 }: WebViewProps) {
     const webViewRef = useRef<WebView>(null);
     const [engineHtml, setEngineHtml] = useState(FALLBACK_HTML);
     const [isLoaded, setIsLoaded] = useState(false);
 
+    const postToEngine = useCallback((payload: object) => {
+        webViewRef.current?.postMessage(JSON.stringify(payload));
+    }, []);
+
     const syncData = useCallback(() => {
-        const payload = JSON.stringify({ type: 'SYNC_DATA', atoms, connections });
-        webViewRef.current?.postMessage(payload);
-    }, [atoms, connections]);
+        postToEngine({ type: 'SYNC_DATA', atoms, connections });
+    }, [atoms, connections, postToEngine]);
+
+    const syncTheme = useCallback(() => {
+        postToEngine({ type: 'SET_THEME', theme: colorScheme });
+    }, [colorScheme, postToEngine]);
 
     useEffect(() => {
         let isMounted = true;
@@ -54,8 +63,10 @@ export function MemoryGraphWebView({
     }, []);
 
     useEffect(() => {
-        if (isLoaded) syncData();
-    }, [isLoaded, syncData]);
+        if (!isLoaded) return;
+        syncTheme();
+        syncData();
+    }, [isLoaded, syncData, syncTheme]);
 
     const handleMessage = (event: WebViewMessageEvent) => {
         try {

@@ -19,13 +19,13 @@ export const GENERATION_SETTINGS_KEY = '@blackrose_generation_settings';
 export const INSIGHTS_TEMPERATURE = 0.7;
 export const DEFAULT_GENERATION: GenerationSettings = {
     temperature: 1,
-    topP: 0.9,
+    topP: 0.95,
     maxTokens: 32_768,
 };
 
 export const GENERATION_PRESETS: GenerationPreset[] = [
     { id: 'consistent', label: 'Consistent', temperature: 0.3, topP: 0.75, maxTokens: 32_768 },
-    { id: 'balanced', label: 'Balanced', temperature: 1, topP: 0.9, maxTokens: 32_768 },
+    { id: 'balanced', label: 'Balanced', temperature: 1, topP: 0.95, maxTokens: 32_768 },
     { id: 'creative', label: 'Creative', temperature: 1.7, topP: 0.95, maxTokens: 32_768 },
 ];
 

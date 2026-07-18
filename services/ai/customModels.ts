@@ -1,3 +1,11 @@
+import {
+    filterFreeModels,
+    isFreeModelId,
+    OPENROUTER_DEFAULT_BASE_URL,
+    preferFreeModelId,
+    pushRecentModelId,
+} from '@/utils/ai/modelDisplay';
+
 export type ContextWindowSource = 'api' | 'known' | 'fallback';
 
 export interface CustomAiModel {
@@ -15,6 +23,8 @@ export interface CustomAiProviderSettings {
     readonly apiKey: string;
     readonly selectedModelId: string | null;
     readonly models: CustomAiModel[];
+    readonly freeOnly: boolean;
+    readonly recentModelIds: readonly string[];
     readonly fallbackContextWindow: number;
     readonly updatedAt: number;
     readonly lastFetchedAt?: number;
@@ -40,6 +50,7 @@ type ModelRecord = Record<string, unknown>;
 
 export const CUSTOM_AI_SETTINGS_KEY = '@blackrose_custom_ai_provider';
 export const DEFAULT_FALLBACK_CONTEXT_WINDOW = 128_000;
+export { OPENROUTER_DEFAULT_BASE_URL };
 
 const MAX_FALLBACK_CONTEXT_WINDOW = 2_000_000;
 const CONTEXT_KEYS = [
@@ -60,6 +71,8 @@ const NESTED_CONTEXT_PATHS = [
 ];
 const KNOWN_CONTEXT_WINDOWS: Record<string, number> = {
     'nvidia/nemotron-3-ultra-550b-a55b': 1_000_000,
+    'nvidia/nemotron-3-ultra-550b-a55b:free': 1_000_000,
+    'tencent/hy3:free': 262_000,
     'moonshotai/kimi-k2.5:thinking': 128_000,
     'moonshotai/kimi-k2.5': 128_000,
 };
@@ -77,6 +90,26 @@ const asyncStorageAdapter: StorageAdapter = {
 
 let storageAdapter: StorageAdapter = asyncStorageAdapter;
 
+const changeListeners = new Set<() => void>();
+
+function notifyCustomAiSettingsChanged(): void {
+    for (const listener of changeListeners) {
+        try {
+            listener();
+        } catch {
+            // ignore subscriber errors
+        }
+    }
+}
+
+/** Subscribe to custom AI provider setting mutations (select/save/fetch). */
+export function subscribeCustomAiSettingsChanges(listener: () => void): () => void {
+    changeListeners.add(listener);
+    return () => {
+        changeListeners.delete(listener);
+    };
+}
+
 export class CustomModelSettingsError extends Error {
     constructor(message: string) {
         super(message);
@@ -92,13 +125,27 @@ export function resetCustomModelStorageAdapter(): void {
     storageAdapter = asyncStorageAdapter;
 }
 
+/** Env-backed credentials for first-run bootstrap (Expo inlines EXPO_PUBLIC_*). */
+export function readEnvProviderSeed(): { baseUrl: string; apiKey: string; model?: string } {
+    const apiKey = (process.env.EXPO_PUBLIC_NANO_GPT_API_KEY ?? '').trim();
+    const baseUrl = (process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL ?? '').trim()
+        || OPENROUTER_DEFAULT_BASE_URL;
+    const model = (process.env.EXPO_PUBLIC_NANO_GPT_MODEL ?? '').trim() || undefined;
+    return { baseUrl, apiKey, model };
+}
+
 export function getDefaultCustomAiProviderSettings(): CustomAiProviderSettings {
+    const seed = readEnvProviderSeed();
+    const hasKey = Boolean(seed.apiKey) && seed.apiKey !== 'YOUR_NANO_GPT_API_KEY'
+        && seed.apiKey !== 'YOUR_OPENROUTER_API_KEY';
     return {
         enabled: false,
-        baseUrl: '',
-        apiKey: '',
+        baseUrl: seed.baseUrl || OPENROUTER_DEFAULT_BASE_URL,
+        apiKey: hasKey ? seed.apiKey : '',
         selectedModelId: null,
         models: [],
+        freeOnly: true,
+        recentModelIds: [],
         fallbackContextWindow: DEFAULT_FALLBACK_CONTEXT_WINDOW,
         updatedAt: 0,
     };
@@ -247,6 +294,26 @@ function sanitizeModels(value: unknown, fallback: number): CustomAiModel[] {
         .filter((item): item is CustomAiModel => item !== null);
 }
 
+function sanitizeRecentIds(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    return value
+        .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+        .slice(0, 3);
+}
+
+/**
+ * Apply free-only policy: clear invalid selection; never drop models from cache
+ * (UI filters). Selection must be free when freeOnly is on.
+ */
+export function applyFreeOnlyPolicy(settings: CustomAiProviderSettings): CustomAiProviderSettings {
+    if (!settings.freeOnly) return settings;
+    const selected = settings.selectedModelId;
+    if (selected && !isFreeModelId(selected)) {
+        return { ...settings, selectedModelId: null };
+    }
+    return settings;
+}
+
 function sanitizeSettings(value: unknown): CustomAiProviderSettings {
     const defaults = getDefaultCustomAiProviderSettings();
     if (!isRecord(value)) return defaults;
@@ -254,13 +321,19 @@ function sanitizeSettings(value: unknown): CustomAiProviderSettings {
     const selectedModelId = typeof value.selectedModelId === 'string'
         ? value.selectedModelId
         : null;
+    const freeOnly = value.freeOnly !== false;
+    const baseUrl = typeof value.baseUrl === 'string' && value.baseUrl.trim()
+        ? value.baseUrl
+        : defaults.baseUrl;
 
-    return {
+    const next: CustomAiProviderSettings = {
         enabled: value.enabled === true,
-        baseUrl: typeof value.baseUrl === 'string' ? value.baseUrl : '',
-        apiKey: typeof value.apiKey === 'string' ? value.apiKey : '',
+        baseUrl,
+        apiKey: typeof value.apiKey === 'string' ? value.apiKey : defaults.apiKey,
         selectedModelId,
         models: sanitizeModels(value.models, fallback),
+        freeOnly,
+        recentModelIds: sanitizeRecentIds(value.recentModelIds),
         fallbackContextWindow: fallback,
         updatedAt: toPositiveInteger(value.updatedAt) ?? defaults.updatedAt,
         lastFetchedAt: toPositiveInteger(value.lastFetchedAt),
@@ -268,6 +341,7 @@ function sanitizeSettings(value: unknown): CustomAiProviderSettings {
             ? value.lastFetchError
             : undefined,
     };
+    return applyFreeOnlyPolicy(next);
 }
 
 export async function loadCustomAiProviderSettings(): Promise<CustomAiProviderSettings> {
@@ -285,21 +359,33 @@ export async function saveCustomAiProviderSettings(
 ): Promise<CustomAiProviderSettings> {
     const normalized = sanitizeSettings({ ...settings, updatedAt: Date.now() });
     await storageAdapter.setItem(CUSTOM_AI_SETTINGS_KEY, JSON.stringify(normalized));
+    notifyCustomAiSettingsChanged();
     return normalized;
 }
 
 export async function clearCustomAiProviderSettings(): Promise<void> {
     await storageAdapter.removeItem(CUSTOM_AI_SETTINGS_KEY);
+    notifyCustomAiSettingsChanged();
+}
+
+export function assertModelAllowed(modelId: string, freeOnly: boolean): void {
+    if (freeOnly && !isFreeModelId(modelId)) {
+        throw new CustomModelSettingsError(
+            'Free models only. Paid model ids are blocked while Free only is on.'
+        );
+    }
 }
 
 export async function fetchOpenAiCompatibleModels(input: {
     readonly baseUrl: string;
     readonly apiKey: string;
     readonly fallbackContextWindow?: number;
+    readonly freeOnly?: boolean;
     readonly signal?: AbortSignal;
 }): Promise<{ readonly baseUrl: string; readonly models: CustomAiModel[]; readonly fetchedAt: number }> {
     const baseUrl = normalizeOpenAiBaseUrl(input.baseUrl);
     const apiKey = normalizeApiKey(input.apiKey);
+    const freeOnly = input.freeOnly !== false;
     const response = await fetch(`${baseUrl}/models`, {
         method: 'GET',
         headers: {
@@ -322,12 +408,47 @@ export async function fetchOpenAiCompatibleModels(input: {
     const json = await response.json().catch(() => {
         throw new CustomModelSettingsError('Model endpoint did not return valid JSON.');
     });
-    const models = parseOpenAiCompatibleModels(json, input.fallbackContextWindow);
+    let models = parseOpenAiCompatibleModels(json, input.fallbackContextWindow);
+    if (freeOnly) {
+        models = filterFreeModels(models);
+    }
     if (models.length === 0) {
-        throw new CustomModelSettingsError('No usable models were returned.');
+        throw new CustomModelSettingsError(
+            freeOnly
+                ? 'No free models were returned. Free mode only keeps ids with :free (or openrouter/free).'
+                : 'No usable models were returned.'
+        );
     }
 
     return { baseUrl, models, fetchedAt: Date.now() };
+}
+
+export function withSelectedModel(
+    settings: CustomAiProviderSettings,
+    modelId: string
+): CustomAiProviderSettings {
+    assertModelAllowed(modelId, settings.freeOnly);
+    const selected = settings.models.find((model) => model.id === modelId);
+    if (!selected) {
+        throw new CustomModelSettingsError('Selected model is not available.');
+    }
+    return {
+        ...settings,
+        enabled: true,
+        selectedModelId: modelId,
+        recentModelIds: pushRecentModelId(settings.recentModelIds, modelId),
+    };
+}
+
+export function pickModelAfterFetch(
+    models: readonly CustomAiModel[],
+    previousSelectedId: string | null,
+    preferredEnvModel?: string
+): string | null {
+    return preferFreeModelId(models, previousSelectedId)
+        ?? preferFreeModelId(models, preferredEnvModel)
+        ?? models[0]?.id
+        ?? null;
 }
 
 export async function getActiveCustomModelConfig(): Promise<ActiveCustomModelConfig | null> {
@@ -340,6 +461,7 @@ export async function getActiveCustomModelConfig(): Promise<ActiveCustomModelCon
     if (!selected) {
         throw new CustomModelSettingsError('Custom provider is enabled but no model is selected.');
     }
+    assertModelAllowed(selected.id, settings.freeOnly);
 
     return {
         apiBaseUrl,
@@ -350,3 +472,5 @@ export async function getActiveCustomModelConfig(): Promise<ActiveCustomModelCon
         contextWindowSource: selected.contextWindowSource,
     };
 }
+
+export { isFreeModelId, filterFreeModels };

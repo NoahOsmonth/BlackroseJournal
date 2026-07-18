@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -13,27 +13,30 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/journal';
-import { EmptyState } from '@/components/ui/EmptyState';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
-import { Colors } from '@/constants/theme';
 import { navAwareBottomPadding } from '@/constants/spacing';
 import { useLocalMemories } from '@/hooks/memory/useLocalMemories';
 import { useTabNavigation, type TabRoute } from '@/hooks/navigation/useTabNavigation';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { LocalMemoryAtom } from '@/services/memory/localMemory.types';
 import { MemoryAtomCard } from './MemoryAtomCard';
-import { MemoryHubSummary } from './MemoryHubSummary';
+import { MemoryEmpty } from './MemoryEmpty';
 import { MemoryNotesPanel } from './MemoryNotesPanel';
+import { MemoryPortrait } from './MemoryPortrait';
 import {
     filterMemoryAtoms,
     MEMORY_LAYER_LABELS,
     MEMORY_LAYER_ORDER,
+    memoryAtomRoute,
     topMemoryThemes,
     type MemoryLayerFilter,
 } from './memoryDisplay';
 
+/** How many atom rows to show before requiring “Show more”. */
+export const MEMORY_ATOMS_PAGE_SIZE = 8;
+
 const INPUT_CLASS = [
-    'rounded-lg border border-divider-light dark:border-divider-dark',
+    'rounded-xl border border-divider-light dark:border-divider-dark',
     'bg-surface-light dark:bg-surface-dark px-3 py-3',
     'text-text-light dark:text-text-dark',
 ].join(' ');
@@ -47,15 +50,24 @@ export function MemoryHubScreen() {
     const [activeLayer, setActiveLayer] = useState<MemoryLayerFilter>('all');
     const [query, setQuery] = useState('');
     const [noteText, setNoteText] = useState('');
+    const [notesOpen, setNotesOpen] = useState(false);
+    const [visibleCount, setVisibleCount] = useState(MEMORY_ATOMS_PAGE_SIZE);
+    const [menuOpen, setMenuOpen] = useState(false);
 
-    const iconColor = isDark ? Colors.dark.text : Colors.light.text;
-    const dangerColor = isDark ? '#F87171' : '#DC2626';
+    const iconMuted = isDark ? '#9CA3AF' : '#6B7280';
     const placeholderColor = isDark ? '#9CA3AF' : '#6B7280';
     const sourceThemes = useMemo(() => topMemoryThemes(memory.atoms, 4), [memory.atoms]);
     const filteredAtoms = useMemo(
         () => filterMemoryAtoms(memory.atoms, activeLayer, query),
         [activeLayer, memory.atoms, query]
     );
+
+    useEffect(() => {
+        setVisibleCount(MEMORY_ATOMS_PAGE_SIZE);
+    }, [activeLayer, query]);
+
+    const visibleAtoms = filteredAtoms.slice(0, visibleCount);
+    const remaining = Math.max(0, filteredAtoms.length - visibleAtoms.length);
 
     const handleTabPress = (tab: TabRoute) => {
         if (tab !== 'explore') {
@@ -71,6 +83,12 @@ export function MemoryHubScreen() {
         router.push(Object.keys(params).length > 0
             ? { pathname: '/memory-graph', params }
             : '/memory-graph');
+    };
+
+    const handleOpenAtom = (atom: LocalMemoryAtom) => {
+        const route = memoryAtomRoute(atom);
+        if (!route) return;
+        router.push(route);
     };
 
     const saveNote = async () => {
@@ -112,6 +130,7 @@ export function MemoryHubScreen() {
     };
 
     const clearAll = () => {
+        setMenuOpen(false);
         Alert.alert(
             'Clear local memory',
             'Delete all local AI memories from this device?',
@@ -135,70 +154,110 @@ export function MemoryHubScreen() {
     return (
         <ScreenContainer edges="top" className="relative">
             <ScrollView
-                className="flex-1 px-5 pt-6"
+                className="flex-1 px-4 pt-6"
                 contentContainerStyle={{ paddingBottom: navAwareBottomPadding(insets.bottom) }}
                 showsVerticalScrollIndicator={false}
             >
                 <View className="mb-6 flex-row items-start justify-between gap-4">
                     <View className="flex-1">
-                        <Text className="text-3xl font-serif font-bold text-text-light dark:text-text-dark">
+                        <Text
+                            className="text-3xl font-bold text-text-light dark:text-text-dark"
+                            style={{ fontFamily: 'PlayfairDisplayBold' }}
+                        >
                             Memory
                         </Text>
                         <Text className="mt-1 text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                            About me, notes, and journal context.
+                            What Rosebud holds for you
                         </Text>
                     </View>
-                    <Pressable
-                        onPress={clearAll}
-                        disabled={memory.isLoading || memory.atoms.length === 0}
-                        className={memory.isLoading || memory.atoms.length === 0 ? 'opacity-50' : ''}
-                        accessibilityRole="button"
-                        accessibilityState={{ disabled: memory.isLoading || memory.atoms.length === 0 }}
-                        accessibilityLabel="Clear local memory"
-                    >
-                        <MaterialIcons name="delete-sweep" size={24} color={dangerColor} />
-                    </Pressable>
+                    <View className="items-end">
+                        <Pressable
+                            onPress={() => setMenuOpen((open) => !open)}
+                            accessibilityRole="button"
+                            accessibilityLabel="Memory options"
+                            hitSlop={8}
+                            className="h-9 w-9 items-center justify-center rounded-full"
+                        >
+                            <MaterialIcons name="more-horiz" size={22} color={iconMuted} />
+                        </Pressable>
+                        {menuOpen ? (
+                            <Pressable
+                                onPress={clearAll}
+                                disabled={memory.isLoading || memory.atoms.length === 0}
+                                className={[
+                                    'mt-1 rounded-xl border border-divider-light dark:border-divider-dark',
+                                    'bg-surface-light dark:bg-surface-dark px-3 py-2',
+                                    memory.isLoading || memory.atoms.length === 0 ? 'opacity-50' : '',
+                                ].join(' ')}
+                                accessibilityRole="button"
+                                accessibilityLabel="Clear local memory"
+                            >
+                                <Text className="text-xs font-semibold text-red-600 dark:text-red-400">
+                                    Clear all
+                                </Text>
+                            </Pressable>
+                        ) : null}
+                    </View>
                 </View>
 
-                {memory.isLoading ? (
+                {memory.isLoading && memory.atoms.length === 0 ? (
                     <View className="py-12">
-                        <ActivityIndicator color={iconColor} />
+                        <ActivityIndicator color={iconMuted} />
                     </View>
                 ) : memory.atoms.length === 0 ? (
-                    <EmptyState
-                        title="Your memory grows as you journal"
-                        message="Rosebud builds private context from completed entries and saved notes."
-                        icon="hub"
-                        actionLabel="Write your first entry"
-                        onActionPress={() => router.push('/chat')}
-                    />
+                    <MemoryEmpty onWritePress={() => router.push('/chat')} />
                 ) : (
-                    <View className="gap-6">
-                        <MemoryHubSummary
+                    <View className="gap-7">
+                        <MemoryPortrait
                             atoms={memory.atoms}
                             onOpenGraph={handleOpenGraph}
                             onThemePress={(tag) => setQuery(tag)}
                         />
 
-                        <MemoryNotesPanel
-                            noteText={noteText}
-                            generatedNote={memory.generatedNote}
-                            sourceThemes={sourceThemes}
-                            isBusy={memory.isLoading}
-                            onNoteTextChange={setNoteText}
-                            onSaveNote={saveNote}
-                            onSaveGeneratedNote={saveGeneratedNote}
-                            onRefreshGeneratedNote={memory.refreshGeneratedNote}
-                        />
+                        <View className="gap-3">
+                            <Pressable
+                                onPress={() => setNotesOpen((open) => !open)}
+                                className="flex-row items-center justify-between px-0.5"
+                                accessibilityRole="button"
+                                accessibilityState={{ expanded: notesOpen }}
+                                accessibilityLabel="Notes"
+                            >
+                                <Text className="text-sm font-semibold text-text-light dark:text-text-dark">
+                                    Notes
+                                </Text>
+                                <MaterialIcons
+                                    name={notesOpen ? 'expand-less' : 'expand-more'}
+                                    size={22}
+                                    color={iconMuted}
+                                />
+                            </Pressable>
+                            {notesOpen ? (
+                                <MemoryNotesPanel
+                                    noteText={noteText}
+                                    generatedNote={memory.generatedNote}
+                                    sourceThemes={sourceThemes}
+                                    isBusy={false}
+                                    onNoteTextChange={setNoteText}
+                                    onSaveNote={saveNote}
+                                    onSaveGeneratedNote={saveGeneratedNote}
+                                    onRefreshGeneratedNote={memory.refreshGeneratedNote}
+                                />
+                            ) : null}
+                        </View>
 
                         <View className="gap-3">
-                            <Text className="text-xs font-bold uppercase text-text-secondary-light dark:text-text-secondary-dark">
-                                Memory atoms
-                            </Text>
+                            <View className="flex-row items-center justify-between px-0.5">
+                                <Text className="text-sm font-semibold text-text-light dark:text-text-dark">
+                                    Memories
+                                </Text>
+                                <Text className="text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark">
+                                    {filteredAtoms.length}
+                                </Text>
+                            </View>
                             <TextInput
                                 value={query}
                                 onChangeText={setQuery}
-                                placeholder="Search local memory"
+                                placeholder="Search memories"
                                 placeholderTextColor={placeholderColor}
                                 className={INPUT_CLASS}
                                 accessibilityLabel="Search local memory"
@@ -210,20 +269,34 @@ export function MemoryHubScreen() {
                             />
 
                             {filteredAtoms.length > 0 ? (
-                                filteredAtoms.map((atom) => (
-                                    <MemoryAtomCard
-                                        key={atom.id}
-                                        atom={atom}
-                                        onDelete={deleteAtom}
-                                        onTagPress={(tag) => setQuery(tag)}
-                                    />
-                                ))
+                                <View className="overflow-hidden rounded-2xl border border-divider-light dark:border-divider-dark bg-surface-light dark:bg-surface-dark">
+                                    {visibleAtoms.map((atom, index) => (
+                                        <MemoryAtomCard
+                                            key={atom.id}
+                                            atom={atom}
+                                            isLast={index === visibleAtoms.length - 1 && remaining === 0}
+                                            onDelete={deleteAtom}
+                                            onTagPress={(tag) => setQuery(tag)}
+                                            onOpen={handleOpenAtom}
+                                        />
+                                    ))}
+                                    {remaining > 0 ? (
+                                        <Pressable
+                                            onPress={() => setVisibleCount((count) => count + MEMORY_ATOMS_PAGE_SIZE)}
+                                            className="h-12 items-center justify-center border-t border-divider-light dark:border-divider-dark"
+                                            accessibilityRole="button"
+                                            accessibilityLabel={`Show ${remaining} more memories`}
+                                        >
+                                            <Text className="text-sm font-semibold text-text-light dark:text-text-dark">
+                                                Show more · {remaining} left
+                                            </Text>
+                                        </Pressable>
+                                    ) : null}
+                                </View>
                             ) : (
-                                <EmptyState
-                                    title="No matching memories"
-                                    message="Adjust the search or layer filter."
-                                    icon="search"
-                                />
+                                <Text className="px-1 py-6 text-sm text-text-secondary-light dark:text-text-secondary-dark">
+                                    No matching memories. Adjust search or layer filter.
+                                </Text>
                             )}
                         </View>
                     </View>
@@ -264,7 +337,7 @@ function LayerFilters({ activeLayer, atoms, onLayerPress }: LayerFiltersProps) {
                             className={[
                                 'h-9 justify-center rounded-full border px-4',
                                 active
-                                    ? 'border-primary bg-primary'
+                                    ? 'border-primary bg-primary dark:border-primary-dark dark:bg-primary-dark'
                                     : 'border-divider-light bg-surface-light dark:border-divider-dark dark:bg-surface-dark',
                             ].join(' ')}
                             accessibilityRole="button"
@@ -274,7 +347,7 @@ function LayerFilters({ activeLayer, atoms, onLayerPress }: LayerFiltersProps) {
                             <Text className={[
                                 'text-xs font-bold',
                                 active
-                                    ? 'text-text-light dark:text-text-light'
+                                    ? 'text-white dark:text-gray-900'
                                     : 'text-text-secondary-light dark:text-text-secondary-dark',
                             ].join(' ')}
                             >

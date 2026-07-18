@@ -10,6 +10,7 @@ interface MemorySettingsSectionProps {
     readonly atoms: LocalMemoryAtom[];
     readonly isBusy: boolean;
     readonly onOpenMemoryHub: () => void;
+    readonly embedded?: boolean;
 }
 
 const SECONDARY_TEXT_CLASS = 'text-subtext-light dark:text-subtext-dark';
@@ -40,11 +41,12 @@ export function MemorySettingsSection({
     atoms,
     isBusy,
     onOpenMemoryHub,
+    embedded = false,
 }: MemorySettingsSectionProps) {
     const buttonIconColor = Colors.light.text;
 
     return (
-        <SettingsSection title="Memory">
+        <SettingsSection title="Memory" embedded={embedded}>
             <View className="mb-4 flex-row">
                 <MemoryMetric label="Total" value={atoms.length} />
                 <MemoryMetric label="About user" value={countLayer(atoms, 'profile')} />

@@ -1,8 +1,8 @@
 /**
  * PR3 — withRetry contract tests.
  *
- * The retry helper backs the adapter's 429/503 retry policy. It must:
- *   - default to maxAttempts=2 (1 initial + 1 retry)
+ * The retry helper backs the adapter's transient HTTP retry policy. It must:
+ *   - default to maxAttempts=3 (1 initial + 2 retries)
  *   - back off baseMs * 4^attempt with ±20% jitter
  *   - skip retries when isRetryable returns false
  *   - surface the last error after exhausting attempts
@@ -62,11 +62,11 @@ describe('withRetry', () => {
 
     it('3. throws the last error after maxAttempts on a persistent retryable error', async () => {
         const fn = jest.fn().mockRejectedValue(retryableError(503));
-        const promise = withRetry(fn, isRetryable, { maxAttempts: 2, baseMs: 1 });
+        const promise = withRetry(fn, isRetryable, { maxAttempts: 3, baseMs: 1 });
         promise.catch(() => undefined);
         await jest.advanceTimersByTimeAsync(10_000);
         await expect(promise).rejects.toThrow('retryable');
-        expect(fn).toHaveBeenCalledTimes(2);
+        expect(fn).toHaveBeenCalledTimes(3);
     });
 
     it('4. non-retryable error propagates immediately without retry', async () => {

@@ -1,4 +1,7 @@
-import type { LocalMemorySource } from './localMemory.types';
+import type {
+    LocalMemoryRootSourceKind,
+    LocalMemorySource,
+} from './localMemory.types';
 
 export type MemoryLayer =
     | 'episodic'
@@ -21,8 +24,12 @@ export interface JournalEntry {
 // Never write a MemoryGraphAtom back to storage.
 export interface MemoryGraphAtom {
     id: string;
+    /** @deprecated Prefer rootSourceId — kept for older callers/tests. */
     entryId: string;
     source: LocalMemorySource;
+    sourceId?: string;
+    rootSourceId?: string;
+    rootSourceKind?: LocalMemoryRootSourceKind;
     title: string;
     content: string;
     layer: MemoryLayer;
@@ -42,4 +49,16 @@ export interface MemoryConnection {
 export interface MemoryGraphData {
     atoms: MemoryGraphAtom[];
     connections: MemoryConnection[];
+}
+
+export interface MemorySourcePreview {
+    kind: 'journal_entry' | 'intention_checkin';
+    id: string;
+    title: string;
+    emoji?: string;
+    dateLabel: string;
+    mood?: string;
+    snippet: string;
+    messageCount: number;
+    intentionTitle?: string;
 }

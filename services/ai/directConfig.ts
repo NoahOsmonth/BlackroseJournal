@@ -1,17 +1,18 @@
 /**
- * Direct-to-NanoGPT configuration.
+ * Direct OpenAI-compatible provider configuration.
  *
  * Reads the EXPO_PUBLIC_NANO_GPT_* env vars that the phone-side app needs
- * to talk to NanoGPT's OpenAI-compatible API without going through the
- * local Express backend.
+ * to talk to an OpenAI-compatible API without going through the local
+ * Express backend. Naming is legacy; recommended default is OpenRouter free.
  *
  * Env vars (all read at call time, not at module load):
  *   EXPO_PUBLIC_NANO_GPT_API_KEY       (required; stored locally for device builds)
- *   EXPO_PUBLIC_NANO_GPT_API_BASE_URL  (optional; defaults to https://nano-gpt.com/api/v1)
- *   EXPO_PUBLIC_NANO_GPT_MODEL         (optional; defaults to nvidia/nemotron-3-ultra-550b-a55b)
- *   EXPO_PUBLIC_NANO_GPT_FLASH_MODEL   (optional; defaults to nvidia/nemotron-3-ultra-550b-a55b)
+ *   EXPO_PUBLIC_NANO_GPT_API_BASE_URL  (optional; defaults to OpenRouter)
+ *   EXPO_PUBLIC_NANO_GPT_MODEL         (optional; defaults to tencent/hy3:free)
+ *   EXPO_PUBLIC_NANO_GPT_FLASH_MODEL   (optional; defaults to tencent/hy3:free)
  */
 
+import { OPENROUTER_DEFAULT_BASE_URL } from '@/utils/ai/modelDisplay';
 import { getActiveCustomModelConfig, type ContextWindowSource } from './customModels';
 
 export interface DirectConfig {
@@ -27,10 +28,13 @@ export interface ResolvedDirectConfig extends DirectConfig {
     contextWindowSource?: ContextWindowSource;
 }
 
-const DEFAULT_API_BASE_URL = 'https://nano-gpt.com/api/v1';
-const DEFAULT_MODEL = 'nvidia/nemotron-3-ultra-550b-a55b';
-const DEFAULT_FLASH_MODEL = 'nvidia/nemotron-3-ultra-550b-a55b';
-const PLACEHOLDER_API_KEY = 'YOUR_NANO_GPT_API_KEY';
+const DEFAULT_API_BASE_URL = OPENROUTER_DEFAULT_BASE_URL;
+const DEFAULT_MODEL = 'tencent/hy3:free';
+const DEFAULT_FLASH_MODEL = 'tencent/hy3:free';
+const PLACEHOLDER_KEYS = new Set([
+    'YOUR_NANO_GPT_API_KEY',
+    'YOUR_OPENROUTER_API_KEY',
+]);
 
 export class DirectConfigError extends Error {
     constructor(message: string) {
@@ -50,13 +54,13 @@ export function getDirectConfig(): DirectConfig {
 
     if (!apiKey) {
         throw new DirectConfigError(
-            'Missing EXPO_PUBLIC_NANO_GPT_API_KEY. Set it in .env to talk to NanoGPT directly.'
+            'Missing EXPO_PUBLIC_NANO_GPT_API_KEY. Set it in .env (OpenRouter free key recommended).'
         );
     }
-    if (apiKey === PLACEHOLDER_API_KEY) {
+    if (PLACEHOLDER_KEYS.has(apiKey)) {
         throw new DirectConfigError(
-            `EXPO_PUBLIC_NANO_GPT_API_KEY is the placeholder value "${PLACEHOLDER_API_KEY}". ` +
-            'Replace it with a real key.'
+            `EXPO_PUBLIC_NANO_GPT_API_KEY is still a placeholder ("${apiKey}"). ` +
+            'Replace it with a real OpenRouter or OpenAI-compatible key.'
         );
     }
 

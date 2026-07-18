@@ -14,8 +14,52 @@ jest.mock('../services/ai/directConfig', () => ({
         model: 'nvidia/nemotron-3-ultra-550b-a55b',
         flashModel: 'nvidia/nemotron-3-ultra-550b-a55b',
         source: 'env',
+        contextWindow: 32_768,
+        contextWindowSource: 'fallback',
     }),
 }));
+
+jest.mock('../services/ai/customModels', () => ({
+    ...jest.requireActual('../services/ai/customModels'),
+    getKnownContextWindow: () => 32_768,
+}));
+
+/** Install a constructable XHR mock on both `global` and `globalThis` (Jest/node parity). */
+function installXhrMock(MockCtor: new () => unknown): () => void {
+    const targets = [globalThis, global] as Record<string, unknown>[];
+    const previous = targets.map((target) => ({
+        target,
+        value: target.XMLHttpRequest,
+        descriptor: Object.getOwnPropertyDescriptor(target, 'XMLHttpRequest'),
+    }));
+    for (const target of targets) {
+        Object.defineProperty(target, 'XMLHttpRequest', {
+            configurable: true,
+            writable: true,
+            value: MockCtor,
+        });
+    }
+    return () => {
+        for (const entry of previous) {
+            if (entry.descriptor) {
+                Object.defineProperty(entry.target, 'XMLHttpRequest', entry.descriptor);
+            } else {
+                delete entry.target.XMLHttpRequest;
+                if (entry.value !== undefined) {
+                    entry.target.XMLHttpRequest = entry.value;
+                }
+            }
+        }
+    };
+}
+
+/** Drain microtasks until predicate is true (streamChat does several awaits before XHR). */
+async function flushUntil(predicate: () => boolean, maxTicks = 40): Promise<void> {
+    for (let i = 0; i < maxTicks; i += 1) {
+        if (predicate()) return;
+        await Promise.resolve();
+    }
+}
 
 describe('ai service fallback parsing', () => {
     const messages: Message[] = [
@@ -124,8 +168,7 @@ describe('ai service fallback parsing', () => {
             }
         }
 
-        const originalXhr = global.XMLHttpRequest;
-        (global as unknown as { XMLHttpRequest: typeof MockXmlHttpRequest }).XMLHttpRequest = MockXmlHttpRequest;
+        const restoreXhr = installXhrMock(MockXmlHttpRequest);
 
         fetchMock.mockResolvedValue(
             new Response('{}', {
@@ -139,12 +182,15 @@ describe('ai service fallback parsing', () => {
         const onError = jest.fn();
 
         try {
-            await streamChat(messages, onChunk, onComplete, onError);
+            await streamChat(messages, onChunk, onComplete, onError, { enableHistoryTools: false });
+            // onError never: genuine "no failure path" check (fail if any error callback).
             expect(onError).not.toHaveBeenCalled();
-            expect(onChunk).toHaveBeenCalled();
+            // Content, not mere call-presence — wrong SSE parse would break these.
+            expect(onChunk).toHaveBeenCalledWith('Hello ', 'step 1');
+            expect(onChunk).toHaveBeenCalledWith('there', undefined);
             expect(onComplete).toHaveBeenCalledWith('Hello there', 'step 1');
         } finally {
-            (global as unknown as { XMLHttpRequest: typeof originalXhr }).XMLHttpRequest = originalXhr;
+            restoreXhr();
         }
     });
 
@@ -177,8 +223,7 @@ describe('ai service fallback parsing', () => {
             }
         }
 
-        const originalXhr = global.XMLHttpRequest;
-        (global as unknown as { XMLHttpRequest: typeof MockXmlHttpRequest }).XMLHttpRequest = MockXmlHttpRequest;
+        const restoreXhr = installXhrMock(MockXmlHttpRequest);
         fetchMock.mockImplementation(() => new Promise<Response>(() => {
             // intentionally unresolved: proves we must not wait for fetch first
         }));
@@ -188,15 +233,17 @@ describe('ai service fallback parsing', () => {
         const onError = jest.fn();
 
         try {
-            void streamChat(messages, onChunk, onComplete, onError);
-            await Promise.resolve();
-            await Promise.resolve();
+            void streamChat(messages, onChunk, onComplete, onError, { enableHistoryTools: false });
+            // streamChat awaits context resolve + compact + prepareDirectChatRequest before XHR
+            await flushUntil(() => onComplete.mock.calls.length > 0);
 
             expect(onError).not.toHaveBeenCalled();
             expect(onChunk).toHaveBeenCalledWith('live ', undefined);
             expect(onComplete).toHaveBeenCalledWith('live ', '');
+            // Fetch must still be pending — XHR path is what completed the stream.
+            expect(fetchMock).not.toHaveBeenCalled();
         } finally {
-            (global as unknown as { XMLHttpRequest: typeof originalXhr }).XMLHttpRequest = originalXhr;
+            restoreXhr();
         }
     });
 
@@ -236,8 +283,7 @@ describe('ai service fallback parsing', () => {
             }
         }
 
-        const originalXhr = global.XMLHttpRequest;
-        (global as unknown as { XMLHttpRequest: typeof MockXmlHttpRequest }).XMLHttpRequest = MockXmlHttpRequest;
+        const restoreXhr = installXhrMock(MockXmlHttpRequest);
 
         fetchMock.mockResolvedValue(
             new Response('{}', {
@@ -251,20 +297,22 @@ describe('ai service fallback parsing', () => {
         const onError = jest.fn();
 
         try {
-            const pending = streamChat(messages, onChunk, onComplete, onError);
+            const pending = streamChat(messages, onChunk, onComplete, onError, {
+                enableHistoryTools: false,
+            });
 
-            await Promise.resolve();
-            await Promise.resolve();
+            await flushUntil(() => onChunk.mock.calls.length > 0);
             expect(onChunk).toHaveBeenCalledWith('Hello ', undefined);
 
             jest.advanceTimersByTime(10);
             await pending;
 
             expect(onError).not.toHaveBeenCalled();
-            expect(onChunk).toHaveBeenCalled();
+            expect(onChunk).toHaveBeenCalledWith('Hello ', undefined);
+            expect(onChunk).toHaveBeenCalledWith('world', undefined);
             expect(onComplete).toHaveBeenCalledWith('Hello world', '');
         } finally {
-            (global as unknown as { XMLHttpRequest: typeof originalXhr }).XMLHttpRequest = originalXhr;
+            restoreXhr();
         }
     });
 

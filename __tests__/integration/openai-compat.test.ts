@@ -1,6 +1,9 @@
 import http from 'http';
 import { AddressInfo } from 'net';
 
+// Skipped unless RUN_INTEGRATION_TESTS=1: spins a local fake upstream + full transport path.
+// Real reason: optional live-compat harness, not default unit gate. Offline unit tests cover payload shape.
+// TODO(follow-up): none required for Memory v2; keep opt-in.
 const describeMaybe = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
 
 interface CapturedRequest {

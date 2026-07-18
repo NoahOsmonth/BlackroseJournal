@@ -69,6 +69,9 @@ export interface IntentionCheckInCreateInput {
     personaId?: string;
     messages?: Message[];
     status: IntentionCheckInStatus;
+    /** Optional override (seed demo uses daysAgo offsets). Defaults to now. */
+    createdAt?: number;
+    updatedAt?: number;
 }
 
 export interface IntentionCheckInUpdateInput {

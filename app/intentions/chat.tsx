@@ -9,7 +9,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Speech from 'expo-speech';
 import * as Clipboard from 'expo-clipboard';
 
-import { useChatOrchestration, useChatSessionFlush, useResumeChatSession, flowForCheckInType } from '@/features/chat';
+import { useChatOrchestration, useChatSessionFlush, useResumeChatSession } from '@/features/chat';
 import {
     removeSession,
     type ChatSessionMode,
@@ -17,6 +17,7 @@ import {
 import { InlineTypingInputRef } from '@/components/InlineTypingInput';
 import { usePersonas } from '@/hooks/personas/usePersonas';
 import { useIntentionCheckIns } from '@/hooks/intentions/useIntentionCheckIns';
+import { useIntentionChatFlowContext } from '@/hooks/intentions/useIntentionChatFlowContext';
 import {
     getCheckIn,
     getIntention,
@@ -32,13 +33,14 @@ import {
 } from '@/services/intentions/intentionChatCompletion';
 import { generateEntryTitle } from '@/services/ai';
 import { getLocalDateKey } from '@/utils/date';
+import { ChatModelPickerSheet } from '@/components/ai/ChatModelPickerSheet';
 import { IntentionChatHeader } from '@/components/intentions/IntentionChatHeader';
 import { IntentionChatFooter } from '@/components/intentions/IntentionChatFooter';
 import { IntentionChatBody } from '@/components/intentions/IntentionChatBody';
 import { IntentionChatOverlays } from '@/components/intentions/IntentionChatOverlays';
 import { useAiFeedback } from '@/hooks/feedback/useAiFeedback';
-import { useGoalsContext } from '@/hooks/goals/useGoalsContext';
 import { useIntentionFeedbackModal } from '@/hooks/feedback/useIntentionFeedbackModal';
+import { useChatModelPicker } from '@/hooks/settings/useChatModelPicker';
 import type { AiFeedbackValue } from '@/services/feedback/feedbackStorage';
 import { usePersonaSettingsActions } from '@/hooks/personas/usePersonaSettingsActions';
 
@@ -62,6 +64,7 @@ export default function IntentionChatScreen() {
     const [draftCheckInId, setDraftCheckInId] = useState<string | null>(null);
     const [draftUpdatedAt, setDraftUpdatedAt] = useState<number | null>(null);
     const [personaSheetOpen, setPersonaSheetOpen] = useState(false);
+    const modelPicker = useChatModelPicker();
     const [isMuted, setIsMuted] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
@@ -117,28 +120,21 @@ export default function IntentionChatScreen() {
         conversationId,
     });
 
-    const { goalsContext } = useGoalsContext({ intentionId });
-
     const feedback = useMemo<Record<string, AiFeedbackValue>>(() => Object.fromEntries(
         Object.entries(feedbackByMessageId).map(([id, record]) => [id, record.value])
     ) as Record<string, AiFeedbackValue>, [feedbackByMessageId]);
 
     const isRefineMode = modeParam === 'refine';
-    const flow = useMemo(
-        () => (isRefineMode ? flowForCheckInType('intentionRefine') : flowForCheckInType(checkInType)),
-        [checkInType, isRefineMode]
-    );
-    const flowContext = useMemo(
-        () => ({
-            activePersona,
-            areaLabel: areaConfig?.label,
-            intentionTitle: intention?.title,
-            memorySummary,
-            goalsContext,
-            feedbackGuidance,
-        }),
-        [activePersona, areaConfig?.label, intention?.title, memorySummary, goalsContext, feedbackGuidance]
-    );
+    const { flow, flowContext } = useIntentionChatFlowContext({
+        activePersona,
+        areaLabel: areaConfig?.label,
+        intentionTitle: intention?.title,
+        intentionId,
+        memorySummary,
+        feedbackGuidance,
+        checkInType,
+        isRefineMode,
+    });
 
     const initialPrompt = useMemo(() => {
         if (resumeId || draftIdParam || draftCheckInId || isFeedbackLoading || isPersonasLoading) {
@@ -415,9 +411,23 @@ export default function IntentionChatScreen() {
             <View className="flex-1 max-w-md mx-auto w-full bg-background-light dark:bg-background-dark">
                 <IntentionChatHeader
                     personaName={activePersona?.name ?? 'Rosebud'}
-                    onOpenPersona={() => setPersonaSheetOpen(true)}
+                    onOpenPersona={() => {
+                        modelPicker.close();
+                        setPersonaSheetOpen(true);
+                    }}
                     onOpenDrafts={() => router.push('/drafts')}
-                    onClose={personaSheetOpen ? () => setPersonaSheetOpen(false) : handleClose}
+                    onClose={
+                        personaSheetOpen
+                            ? () => setPersonaSheetOpen(false)
+                            : modelPicker.visible
+                                ? modelPicker.close
+                                : handleClose
+                    }
+                    onOpenModelPicker={() => {
+                        setPersonaSheetOpen(false);
+                        modelPicker.open();
+                    }}
+                    modelPickerDisabled={isLoading}
                 />
 
                 <IntentionChatBody
@@ -458,6 +468,23 @@ export default function IntentionChatScreen() {
                     setActive={setActive}
                     personaSettings={personaSettings}
                     feedbackModalProps={feedbackModalProps}
+                />
+
+                <ChatModelPickerSheet
+                    visible={modelPicker.visible}
+                    models={modelPicker.models}
+                    recentModels={modelPicker.recentModels}
+                    selectedId={modelPicker.selectedModelId}
+                    freeOnly={modelPicker.freeOnly}
+                    hostLabel={modelPicker.hostLabel}
+                    hasApiKey={modelPicker.hasApiKey}
+                    isLoading={modelPicker.isLoading}
+                    isFetching={modelPicker.isFetching}
+                    error={modelPicker.error}
+                    onSelect={modelPicker.selectModel}
+                    onRefresh={modelPicker.refreshModels}
+                    onClose={modelPicker.close}
+                    onOpenSettings={modelPicker.openSettings}
                 />
             </View>
         </SafeAreaView>

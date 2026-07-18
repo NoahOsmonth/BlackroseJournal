@@ -26,6 +26,7 @@ interface ColorThemeSettingsSectionProps {
         readonly syncPartner: boolean;
     }) => Promise<boolean>;
     readonly onReset: () => void;
+    readonly embedded?: boolean;
 }
 
 interface ColorFieldPair {
@@ -68,6 +69,7 @@ export function ColorThemeSettingsSection({
     onPresetChange,
     onPickerConfirm,
     onReset,
+    embedded = false,
 }: ColorThemeSettingsSectionProps) {
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
@@ -163,7 +165,7 @@ export function ColorThemeSettingsSection({
     };
 
     return (
-        <SettingsSection title="Color Studio">
+        <SettingsSection title="Color Studio" embedded={embedded}>
             {/* Palette grid: 2 columns × 4 rows. Tighter wrap so 8 presets fit
                 without scrolling horizontally. */}
             <View className="flex-row flex-wrap gap-2">

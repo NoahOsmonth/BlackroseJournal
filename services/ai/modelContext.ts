@@ -154,9 +154,11 @@ export function formatModelName(model: string): string {
     const leaf = model.split('/').pop() ?? model;
     return leaf
         .replace(/:thinking$/i, '')
+        .replace(/:free$/i, '')
         .replace(/[-_]+/g, ' ')
         .replace(/\bkimi\b/i, 'Kimi')
-        .replace(/\bk2\.5\b/i, 'K2.5');
+        .replace(/\bk2\.5\b/i, 'K2.5')
+        .trim();
 }
 
 export function formatModelContextLabel(info: ModelContextInfo): string {

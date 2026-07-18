@@ -50,6 +50,11 @@ import { useClearJournalHistory } from '../../hooks/journal/useClearJournalHisto
 import { createEntry, listEntries } from '../../services/journal/journalStorage';
 import { createCheckIn, listCheckIns } from '../../services/intentions/intentionsStorage';
 import { listMemoryAtoms } from '../../services/memory/localMemory';
+import {
+    applyIdentityPatch,
+    getIdentityProfile,
+    profileHasIdentity,
+} from '../../services/memory/identityProfile';
 import { loadSessions } from '../../services/ai/sessionStorage';
 import {
     loadCachedInsights,
@@ -95,6 +100,8 @@ describe('useClearJournalHistory', () => {
             1
         );
         await createSavedInsight({ question: 'Q?', sourceDate: '2026-01-01' });
+        await applyIdentityPatch({ preferredName: 'Sigurd', source: 'manual' });
+        expect(profileHasIdentity(await getIdentityProfile())).toBe(true);
 
         const { result } = renderHook(() => useClearJournalHistory());
 
@@ -107,6 +114,7 @@ describe('useClearJournalHistory', () => {
         expect(await listEntries()).toEqual([]);
         expect(await listCheckIns()).toEqual([]);
         expect(await listMemoryAtoms()).toEqual([]);
+        expect(profileHasIdentity(await getIdentityProfile())).toBe(false);
         expect(await loadSessions()).toEqual([]);
         expect(await loadCachedInsights('2026-W01')).toBeNull();
         expect(await listSavedInsights()).toEqual([]);

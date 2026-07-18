@@ -14,6 +14,13 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
             mockStore.delete(key);
             return Promise.resolve();
         }),
+        multiGet: jest.fn(async (keys: string[]) =>
+            keys.map((k) => [k, mockStore.get(k) ?? null] as [string, string | null]),
+        ),
+        multiRemove: jest.fn(async (keys: string[]) => {
+            keys.forEach((k) => mockStore.delete(k));
+        }),
+        getAllKeys: jest.fn(async () => Array.from(mockStore.keys())),
     },
 }));
 
@@ -22,15 +29,39 @@ import {
     listLocalBackups,
     restoreLocalBackup,
 } from '../services/backup/localBackup';
+import {
+    resetSessionDigestStorageAdapter,
+    setSessionDigestStorageAdapter,
+} from '../services/memory/sessionDigestStorage';
+
+function sessionDigestAdapter() {
+    return {
+        getItem: async (key: string) => mockStore.get(key) ?? null,
+        setItem: async (key: string, value: string) => {
+            mockStore.set(key, value);
+        },
+        removeItem: async (key: string) => {
+            mockStore.delete(key);
+        },
+        multiGet: async (keys: readonly string[]) =>
+            keys.map((k) => [k, mockStore.get(k) ?? null] as [string, string | null]),
+        multiRemove: async (keys: readonly string[]) => {
+            keys.forEach((k) => mockStore.delete(k));
+        },
+        getAllKeys: async () => Array.from(mockStore.keys()),
+    };
+}
 
 describe('localBackup', () => {
     beforeEach(() => {
         mockStore.clear();
+        setSessionDigestStorageAdapter(sessionDigestAdapter());
         jest.useFakeTimers();
         jest.setSystemTime(new Date('2026-02-06T12:00:00Z'));
     });
 
     afterEach(() => {
+        resetSessionDigestStorageAdapter();
         jest.useRealTimers();
     });
 

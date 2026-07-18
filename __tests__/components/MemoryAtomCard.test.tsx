@@ -47,8 +47,8 @@ describe('MemoryAtomCard', () => {
         fireEvent.press(screen.getByLabelText('Delete memory About the user'));
 
         expect(screen.getByText('About the user')).toBeTruthy();
-        expect(screen.getByText('salience 82%')).toBeTruthy();
-        expect(screen.getByText('confidence 76%')).toBeTruthy();
+        expect(screen.getByText('Recent journal pattern: quieter evenings help.')).toBeTruthy();
+        expect(screen.queryByText(/salience/i)).toBeNull();
         expect(onTagPress).toHaveBeenCalledWith('rest');
         expect(onDelete).toHaveBeenCalledWith(atom);
     });

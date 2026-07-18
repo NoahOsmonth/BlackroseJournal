@@ -25,6 +25,9 @@ const atom: MemoryGraphAtom = {
     id: 'atom-1',
     entryId: 'entry-1',
     source: 'journal',
+    sourceId: 'entry-1',
+    rootSourceId: 'entry-1',
+    rootSourceKind: 'journal_entry',
     title: 'Career pressure',
     content: 'The user wants recovery after career pressure.',
     layer: 'episodic',
@@ -45,9 +48,9 @@ describe('MemoryGraph components', () => {
             />
         );
 
-        fireEvent.press(screen.getByLabelText('Toggle profile memories'));
+        fireEvent.press(screen.getByLabelText('Toggle About me memories'));
 
-        expect(screen.getByText('episodic')).toBeTruthy();
+        expect(screen.getByText('Episodes')).toBeTruthy();
         expect(onToggle).toHaveBeenCalledWith('profile');
     });
 
@@ -60,47 +63,73 @@ describe('MemoryGraph components', () => {
         );
 
         expect(screen.getByTestId('memory-layer-filters').props.contentContainerStyle)
-            .toMatchObject({ minHeight: 60, paddingVertical: 10 });
+            .toMatchObject({ minHeight: 64, paddingVertical: 12 });
         expect(screen.getByTestId('memory-layer-filter-episodic').props.className)
-            .toContain('min-h-9');
-        expect(screen.getByText('episodic').props.style).toMatchObject({ lineHeight: 16 });
-        expect(screen.getByText('semantic').props.numberOfLines).toBe(1);
-        expect(screen.getByText('profile').props.numberOfLines).toBe(1);
+            .toContain('min-h-10');
+        expect(screen.getByText('Episodes').props.style).toMatchObject({ lineHeight: 16 });
+        expect(screen.getByText('Themes').props.numberOfLines).toBe(1);
+        expect(screen.getByText('About me').props.numberOfLines).toBe(1);
     });
 
-    it('renders selected atom details and synthesis action', () => {
+    it('renders selected atom with local insight, source open, and deepen action', () => {
         const onClose = jest.fn();
-        const onSynthesize = jest.fn();
+        const onDeepen = jest.fn();
+        const onOpenSource = jest.fn();
 
         render(
             <MemoryGraphSheet
                 atom={atom}
-                insight="A useful connection."
-                isLoading={false}
+                localInsight="That walk after work still softens the career pressure you carry."
+                remoteInsight="A useful connection."
+                isDeepening={false}
+                sourcePreview={{
+                    kind: 'journal_entry',
+                    id: 'entry-1',
+                    title: 'Career pressure day',
+                    emoji: '💼',
+                    dateLabel: 'Jan 1, 2026',
+                    mood: 'Tense',
+                    snippet: 'Long week at work.',
+                    messageCount: 2,
+                }}
+                isSourceLoading={false}
+                sourceMissing={false}
+                relatedAtoms={[]}
                 onClose={onClose}
-                onSynthesize={onSynthesize}
+                onDeepen={onDeepen}
+                onOpenSource={onOpenSource}
             />
         );
 
-        fireEvent.press(screen.getByLabelText('Synthesize memory insight'));
+        fireEvent.press(screen.getByLabelText('Open conversation'));
+        fireEvent.press(screen.getByLabelText('Deepen with AI'));
         fireEvent.press(screen.getByLabelText('Close memory detail'));
 
         expect(screen.getByText('Career pressure')).toBeTruthy();
+        expect(screen.getByText(/still softens the career pressure/)).toBeTruthy();
         expect(screen.getByText('A useful connection.')).toBeTruthy();
-        expect(onSynthesize).toHaveBeenCalledTimes(1);
+        expect(screen.getByText('Career pressure day')).toBeTruthy();
+        expect(onOpenSource).toHaveBeenCalledTimes(1);
+        expect(onDeepen).toHaveBeenCalledTimes(1);
         expect(onClose).toHaveBeenCalledTimes(1);
     });
 
-    it('truncates an insight longer than 50 words to 50 words', () => {
+    it('truncates a remote insight longer than 50 words to 50 words', () => {
         const longInsight = Array.from({ length: 100 }, (_, i) => `word${i + 1}`).join(' ');
 
         render(
             <MemoryGraphSheet
                 atom={atom}
-                insight={longInsight}
-                isLoading={false}
+                localInsight={null}
+                remoteInsight={longInsight}
+                isDeepening={false}
+                sourcePreview={null}
+                isSourceLoading={false}
+                sourceMissing={false}
+                relatedAtoms={[]}
                 onClose={jest.fn()}
-                onSynthesize={jest.fn()}
+                onDeepen={jest.fn()}
+                onOpenSource={jest.fn()}
             />
         );
 

@@ -1,15 +1,16 @@
-import React, { useCallback, useState } from 'react';
-import { LayoutChangeEvent, Pressable, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Pressable, Text, View } from 'react-native';
 
 import type { UseGenerationSettingsReturn } from '@/hooks/settings/useGenerationSettings';
 import {
     GENERATION_PRESETS,
-    GenerationSettings,
+    type GenerationSettings,
 } from '@/services/ai/generationSettings';
 import {
     formatContextWindow,
     formatModelName,
 } from '@/services/ai/modelContext';
+import { RangeSlider } from '@/components/ui/RangeSlider';
 import { SettingsSection } from './SettingsSection';
 
 interface SliderRowProps {
@@ -19,17 +20,15 @@ interface SliderRowProps {
     min: number;
     max: number;
     step: number;
-    displayValue: string;
+    formatDisplay: (value: number) => string;
     onChange: (value: number) => void;
 }
 
-type GenerationSettingsSectionProps = UseGenerationSettingsReturn;
+type GenerationSettingsSectionProps = UseGenerationSettingsReturn & {
+    readonly embedded?: boolean;
+};
 
 const SECONDARY_TEXT = 'text-text-secondary-light dark:text-text-secondary-dark';
-
-function roundToStep(value: number, step: number): number {
-    return Math.round(value / step) * step;
-}
 
 function SliderRow({
     label,
@@ -38,53 +37,41 @@ function SliderRow({
     min,
     max,
     step,
-    displayValue,
+    formatDisplay,
     onChange,
 }: SliderRowProps) {
-    const [width, setWidth] = useState(0);
-    const percent = ((value - min) / (max - min)) * 100;
-    const handleLayout = (event: LayoutChangeEvent) => {
-        setWidth(event.nativeEvent.layout.width);
-    };
-    const handleMove = useCallback((locationX: number) => {
-        if (!width) return;
-        const ratio = Math.min(Math.max(locationX / width, 0), 1);
-        onChange(roundToStep(min + ratio * (max - min), step));
-    }, [max, min, onChange, step, width]);
+    const [liveValue, setLiveValue] = useState(value);
+
+    useEffect(() => {
+        setLiveValue(value);
+    }, [value]);
 
     return (
         <View className="mb-5">
-            <View className="flex-row items-center justify-between mb-1">
+            <View className="mb-1 flex-row items-baseline justify-between gap-3">
                 <Text className="text-sm font-semibold text-text-light dark:text-text-dark">
                     {label}
                 </Text>
-                <Text className={`text-sm font-semibold ${SECONDARY_TEXT}`}>
-                    {displayValue}
+                {/* Tabular readout — instrument dial, not a floating hero number */}
+                <Text
+                    className="text-sm font-semibold tabular-nums tracking-wide text-text-light dark:text-text-dark"
+                    style={{ fontVariant: ['tabular-nums'] }}
+                >
+                    {formatDisplay(liveValue)}
                 </Text>
             </View>
-            <Text className={`text-xs mb-3 ${SECONDARY_TEXT}`}>
+            <Text className={`mb-3 text-xs ${SECONDARY_TEXT}`}>
                 {description}
             </Text>
-            <View
-                className="relative h-7 justify-center"
-                onLayout={handleLayout}
-                onStartShouldSetResponder={() => true}
-                onResponderGrant={(event) => handleMove(event.nativeEvent.locationX)}
-                onResponderMove={(event) => handleMove(event.nativeEvent.locationX)}
-                accessibilityRole="adjustable"
+            <RangeSlider
+                value={value}
+                min={min}
+                max={max}
+                step={step}
+                onSliding={setLiveValue}
+                onChange={onChange}
                 accessibilityLabel={label}
-            >
-                <View className="h-[5px] rounded-full bg-divider-light dark:bg-divider-dark">
-                    <View
-                        className="h-[5px] rounded-full bg-primary"
-                        style={{ width: `${percent}%` }}
-                    />
-                </View>
-                <View
-                    className="absolute top-1/2 h-[22px] w-[22px] -translate-y-1/2 rounded-full border-2 border-surface-light bg-primary dark:border-surface-dark"
-                    style={{ left: `${percent}%`, marginLeft: -11 }}
-                />
-            </View>
+            />
         </View>
     );
 }
@@ -127,13 +114,13 @@ function ContextReadout({ props }: { props: GenerationSettingsSectionProps }) {
 }
 
 export function GenerationSettingsSection(props: GenerationSettingsSectionProps) {
-    const { settings, update, reset, isLoading } = props;
+    const { settings, update, reset, isLoading, embedded = false } = props;
     const apply = (partial: Partial<GenerationSettings>) => {
         void update(partial);
     };
 
     return (
-        <SettingsSection title="Generation">
+        <SettingsSection title="Generation" embedded={embedded}>
             <ContextReadout props={props} />
             <Text className={`mb-3 text-xs ${SECONDARY_TEXT}`}>
                 Defaults apply to journal chats. Active persona imagination can override temperature.
@@ -145,7 +132,7 @@ export function GenerationSettingsSection(props: GenerationSettingsSectionProps)
                 min={0}
                 max={2}
                 step={0.1}
-                displayValue={settings.temperature.toFixed(1)}
+                formatDisplay={(v) => v.toFixed(1)}
                 onChange={(temperature) => apply({ temperature })}
             />
             <SliderRow
@@ -155,7 +142,7 @@ export function GenerationSettingsSection(props: GenerationSettingsSectionProps)
                 min={0}
                 max={1}
                 step={0.05}
-                displayValue={settings.topP.toFixed(2)}
+                formatDisplay={(v) => v.toFixed(2)}
                 onChange={(topP) => apply({ topP })}
             />
             <View className="mb-5 flex-row flex-wrap gap-2">

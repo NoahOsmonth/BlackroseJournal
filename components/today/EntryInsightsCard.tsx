@@ -25,7 +25,7 @@ export function EntryInsightsCard({
             <Text className="text-[13px] font-semibold text-text-secondary-light dark:text-text-secondary-dark text-center">
                 Based on your entries
             </Text>
-            <View className="bg-surface-light dark:bg-surface-dark rounded-[24px] p-6 shadow-soft border border-gray-100 dark:border-white/5 gap-6">
+            <View className="bg-surface-light dark:bg-surface-dark rounded-[20px] p-5 shadow-soft border border-gray-100 dark:border-white/5 gap-4">
                 <Pressable
                     onPress={onPress}
                     disabled={!onPress}
@@ -33,12 +33,15 @@ export function EntryInsightsCard({
                     accessibilityLabel="Open insight conversation"
                     className="active:opacity-80"
                 >
-                    <Text className="text-[16px] leading-relaxed text-center font-medium text-text-light dark:text-text-dark">
+                    <Text
+                        className="text-[16px] leading-relaxed text-center font-medium text-text-light dark:text-text-dark"
+                        numberOfLines={6}
+                    >
                         {question}
                     </Text>
                 </Pressable>
 
-                <View className="flex-row items-center justify-center gap-10">
+                <View className="flex-row items-center justify-center gap-8">
                     <Pressable
                         onPress={(e) => { e.stopPropagation(); onRefresh(); }}
                         hitSlop={8}

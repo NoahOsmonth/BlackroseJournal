@@ -16,7 +16,8 @@ export default function StreakViewScreen() {
     const goBack = useNavBack('/(tabs)/today');
     const { dayKeys, currentStreak, longestStreak, totalDays } = useStreakStats();
     const colorScheme = useColorScheme();
-    const iconColor = colorScheme === 'dark' ? '#F9FAFB' : '#111827';
+    const isDark = colorScheme === 'dark';
+    const iconColor = isDark ? '#F9FAFB' : '#111827';
 
     const today = useMemo(() => new Date(), []);
     const monthLabel = useMemo(
@@ -52,7 +53,7 @@ export default function StreakViewScreen() {
                         <View className="flex-row items-center justify-between">
                             <View className="flex-row items-center gap-3">
                                 <View className="w-10 h-10 rounded-full bg-primary/10 items-center justify-center">
-                                    <MaterialIcons name="local-fire-department" size={24} color="#FF9500" />
+                                    <MaterialIcons name="local-fire-department" size={24} color={isDark ? '#FFB340' : '#FF9F0A'} />
                                 </View>
                                 <View>
                                     <Text className="text-xs uppercase tracking-wide text-text-secondary-light dark:text-text-secondary-dark">

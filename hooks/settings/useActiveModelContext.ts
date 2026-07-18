@@ -3,6 +3,7 @@ import {
     detectActiveModelContextWindow,
     type ModelContextInfo,
 } from '@/services/ai/modelContext';
+import { subscribeCustomAiSettingsChanges } from '@/services/ai/customModels';
 
 export interface UseActiveModelContextReturn {
     context: ModelContextInfo | null;
@@ -40,6 +41,12 @@ export function useActiveModelContext(): UseActiveModelContextReturn {
         return () => {
             mounted = false;
         };
+    }, [load]);
+
+    useEffect(() => {
+        return subscribeCustomAiSettingsChanges(() => {
+            void load(true);
+        });
     }, [load]);
 
     const refresh = useCallback(() => load(true), [load]);

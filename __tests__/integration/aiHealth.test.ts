@@ -3,6 +3,9 @@ import { AddressInfo } from 'net';
 import { registerHealthRoutes } from '../../backend/src/routes/healthRoutes';
 import { getAiConfig, loadConfig } from '../../backend/src/config/ai';
 
+// Skipped unless RUN_INTEGRATION_TESTS=1: boots backend express health routes against a test server.
+// Real reason: optional backend integration; root unit suite stays free of backend node_modules quirks.
+// TODO(follow-up): none for on-device identity; re-enable when backend CI job is split.
 const describeMaybe = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
 
 interface TestResponse {

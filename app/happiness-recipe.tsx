@@ -289,7 +289,7 @@ export default function HappinessRecipeScreen() {
                             <MaterialIcons
                                 name="favorite-border"
                                 size={48}
-                                color={isDark ? '#666' : '#999'}
+                                color={isDark ? '#98989D' : '#6B7280'}
                             />
                             <Text className="text-lg text-text-secondary-light dark:text-text-secondary-dark mt-4">
                                 No items yet

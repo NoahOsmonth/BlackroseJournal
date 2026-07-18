@@ -12,6 +12,7 @@ interface AppearanceSettingsSectionProps {
     readonly emojiStyle: EmojiStylePreference;
     readonly onThemeChange: (theme: ThemePreference) => void;
     readonly onEmojiStyleChange: (style: EmojiStylePreference) => void;
+    readonly embedded?: boolean;
 }
 
 interface OptionButtonProps<TValue extends string> {
@@ -57,9 +58,10 @@ export function AppearanceSettingsSection({
     emojiStyle,
     onThemeChange,
     onEmojiStyleChange,
+    embedded = false,
 }: AppearanceSettingsSectionProps) {
     return (
-        <SettingsSection title="Appearance">
+        <SettingsSection title="Appearance" embedded={embedded}>
             <Text className="text-sm text-text-light dark:text-text-dark mb-2 font-medium">
                 Theme
             </Text>

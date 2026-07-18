@@ -9,12 +9,16 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: #070B14;
+      background: #06080F;
       overscroll-behavior: none;
-      font-family: -apple-system, BlinkMacSystemFont, "Plus Jakarta Sans", sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Plus Jakarta Sans", "Segoe UI", sans-serif;
       -webkit-user-select: none;
       user-select: none;
       -webkit-tap-highlight-color: transparent;
+    }
+
+    body.theme-light {
+      background: #EEF1F8;
     }
 
     canvas {
@@ -27,35 +31,47 @@
     .controls {
       position: fixed;
       right: 14px;
-      bottom: 18px;
+      bottom: 20px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 10px;
       z-index: 2;
     }
 
     .controls button {
-      width: 42px;
-      height: 42px;
-      border-radius: 21px;
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      background: rgba(17, 24, 39, 0.72);
-      -webkit-backdrop-filter: blur(10px);
-      backdrop-filter: blur(10px);
-      color: #E5E7EB;
-      font-size: 19px;
+      width: 44px;
+      height: 44px;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(12, 16, 28, 0.55);
+      -webkit-backdrop-filter: blur(16px) saturate(140%);
+      backdrop-filter: blur(16px) saturate(140%);
+      color: rgba(248, 250, 252, 0.92);
+      font-size: 20px;
       line-height: 1;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 0;
       cursor: pointer;
-      transition: transform 0.12s ease, background 0.12s ease;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+      transition: transform 0.14s ease, background 0.14s ease, border-color 0.14s ease;
     }
 
     .controls button:active {
       transform: scale(0.92);
-      background: rgba(31, 41, 55, 0.9);
+      background: rgba(24, 32, 52, 0.72);
+    }
+
+    body.theme-light .controls button {
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      background: rgba(255, 255, 255, 0.78);
+      color: #1E293B;
+      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.1);
+    }
+
+    body.theme-light .controls button:active {
+      background: rgba(248, 250, 252, 0.95);
     }
   </style>
 </head>
@@ -69,67 +85,141 @@
   <script>
     'use strict';
 
+    /**
+     * Memory Graph engine — Constellation Night Sky
+     * Host bridge: SYNC_DATA | SET_THEME  →  NODE_SELECTED | ENGINE_ERROR
+     */
+
     const canvas = document.getElementById('graphCanvas');
     const ctx = canvas.getContext('2d');
 
+    // Aurora constellation palette (cohesive, not rainbow-slop)
     const LAYER_COLORS = {
-      episodic: '#A370F7',
-      semantic: '#38BDF8',
-      profile: '#FB7185',
-      procedural: '#34D399',
-      note: '#FBBF24',
-      working: '#F472B6',
+      episodic: '#C4A1FF',
+      semantic: '#7DD3FC',
+      profile: '#FDA4AF',
+      procedural: '#6EE7B7',
+      note: '#FCD34D',
+      working: '#F0ABFC',
     };
-    const FALLBACK_COLOR = '#9CA3AF';
+    const FALLBACK_COLOR = '#94A3B8';
 
-    // -- physics tuning -------------------------------------------------
-    const REPULSION = 1500;
-    const REPULSION_CUTOFF = 340;
-    const SPRING = 0.028;
-    const CENTER_GRAVITY = 0.012;
-    const CLUSTER_GRAVITY = 0.024;
-    const FRICTION = 0.8;
-    const COLLISION_PADDING = 16;
+    const BLOOM_MS = 420;
+    const EXIT_MS = 380;
+    const ENTRY_MS = 560;
+    const CLUSTER_ZOOM = 0.72;
+    const LABEL_ZOOM = 0.95;
+    const MIN_HIT_SCREEN = 22;
 
-    const MIN_SCALE = 0.22;
-    const MAX_SCALE = 3;
-    const TAP_SLOP = 9;
-    const TAP_MS = 350;
+    const THEMES = {
+      dark: {
+        pageBg: '#06080F',
+        deep: '#03050A',
+        nebula: [
+          { c: '100,80,180', a: 0.14 },
+          { c: '40,90,160', a: 0.1 },
+          { c: '160,70,120', a: 0.08 },
+        ],
+        vignetteOuter: 'rgba(0,0,0,0.55)',
+        star: '226,232,240',
+        dust: '148,163,184',
+        showStars: true,
+        nodeCore: '#0B1020',
+        nodeRim: 'rgba(255,255,255,0.14)',
+        focusRing: 'rgba(255,248,240,0.92)',
+        focusRingOuter: 'rgba(255,248,240,0.28)',
+        labelPill: 'rgba(8,12,22,0.82)',
+        labelText: 'rgba(248,250,252,0.96)',
+        clusterFill: 'rgba(12,18,32,0.72)',
+        clusterText: 'rgba(248,250,252,0.95)',
+        edgeMid: '#64748B',
+        mark: 'rgba(255,255,255,0.88)',
+        controlHint: 'rgba(255,255,255,0.06)',
+      },
+      light: {
+        pageBg: '#EEF1F8',
+        deep: '#E2E8F4',
+        nebula: [
+          { c: '180,160,230', a: 0.18 },
+          { c: '140,190,230', a: 0.14 },
+          { c: '240,170,190', a: 0.12 },
+        ],
+        vignetteOuter: 'rgba(15,23,42,0.1)',
+        star: '100,116,139',
+        dust: '148,163,184',
+        showStars: false,
+        nodeCore: '#FFFFFF',
+        nodeRim: 'rgba(15,23,42,0.12)',
+        focusRing: 'rgba(15,23,42,0.88)',
+        focusRingOuter: 'rgba(15,23,42,0.22)',
+        labelPill: 'rgba(255,255,255,0.94)',
+        labelText: 'rgba(15,23,42,0.92)',
+        clusterFill: 'rgba(255,255,255,0.88)',
+        clusterText: 'rgba(15,23,42,0.92)',
+        edgeMid: '#94A3B8',
+        mark: 'rgba(15,23,42,0.72)',
+        controlHint: 'rgba(15,23,42,0.05)',
+      },
+    };
+
+    // Physics — constellation field (orbital layer anchors + soft springs)
+    const REPULSION = 2200;
+    const REPULSION_CUTOFF = 380;
+    const SPRING = 0.022;
+    const CENTER_GRAVITY = 0.008;
+    const CLUSTER_GRAVITY = 0.03;
+    const FRICTION = 0.82;
+    const COLLISION_PADDING = 22;
+
+    const MIN_SCALE = 0.18;
+    const MAX_SCALE = 3.2;
+    const TAP_SLOP = 10;
+    const TAP_MS = 380;
     const DOUBLE_TAP_MS = 300;
 
     let width = 0;
     let height = 0;
     let pixelRatio = 1;
+    let themeName = 'dark';
+    let palette = THEMES.dark;
 
     let nodes = [];
+    let exiting = [];
     let links = [];
     let nodeById = new Map();
     let neighborIds = new Set();
     let layerAnchors = new Map();
+    let visualClusters = [];
 
     let alpha = 0;
     let selectedId = null;
     let hoveredId = null;
+    let expandedClusterId = null;
     let hasSyncedOnce = false;
     let userHasInteracted = false;
 
-    // camera maps world -> screen: s = w * scale + offset
     const camera = { x: 0, y: 0, scale: 1 };
-    let cameraGoal = null; // { x, y, scale }
+    let cameraGoal = null;
 
     let bgGradient = null;
     let vignette = null;
     const stars = [];
+    const dust = [];
+    let nebulaSeeds = [];
 
     // -- helpers --------------------------------------------------------
-    function clamp(value, lo, hi) {
-      return Math.min(hi, Math.max(lo, value));
-    }
-
+    function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
     function seeded(i) {
       const x = Math.sin(i * 127.1 + 311.7) * 43758.5453;
       return x - Math.floor(x);
     }
+    function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+    function easeOutBack(t) {
+      const c = 1.70158;
+      const t1 = t - 1;
+      return 1 + c * t1 * t1 * t1 + t1 * t1;
+    }
+    function lerp(a, b, t) { return a + (b - a) * t; }
 
     const rgbCache = new Map();
     function hexToRgb(hex) {
@@ -144,27 +234,42 @@
       }
       return rgb;
     }
-
     function rgba(hex, a) {
       const c = hexToRgb(hex);
       return 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + a + ')';
     }
-
     function lighten(hex, amount) {
       const c = hexToRgb(hex);
-      const r = Math.round(c.r + (255 - c.r) * amount);
-      const g = Math.round(c.g + (255 - c.g) * amount);
-      const b = Math.round(c.b + (255 - c.b) * amount);
-      return 'rgb(' + r + ',' + g + ',' + b + ')';
+      return 'rgb(' +
+        Math.round(c.r + (255 - c.r) * amount) + ',' +
+        Math.round(c.g + (255 - c.g) * amount) + ',' +
+        Math.round(c.b + (255 - c.b) * amount) + ')';
     }
-
     function nodeColor(node) {
       return LAYER_COLORS[node.layer] || FALLBACK_COLOR;
     }
-
-    function easeOutCubic(t) {
-      return 1 - Math.pow(1 - t, 3);
+    function recencyScore(createdAt, nowMs) {
+      if (!createdAt) return 0.35;
+      const ageDays = Math.max(0, (nowMs - Date.parse(createdAt)) / 86400000);
+      if (Number.isNaN(ageDays)) return 0.35;
+      if (ageDays < 1) return 1;
+      if (ageDays < 7) return 0.85;
+      if (ageDays < 30) return 0.55;
+      if (ageDays < 90) return 0.35;
+      return 0.2;
     }
+    function nodeRadius(salience, degree) {
+      const s = clamp(salience || 3, 1, 10);
+      const d = clamp(degree || 0, 0, 12);
+      // Thumb-friendly base — larger than classic force-graph dots
+      return clamp(14 + s * 1.35 + Math.sqrt(d) * 2.4, 14, 30);
+    }
+    function hitRadius(node) {
+      const screenR = node.r * camera.scale;
+      const boost = Math.max(0, MIN_HIT_SCREEN - screenR) / camera.scale;
+      return node.r + boost + 6 / camera.scale;
+    }
+    function screenLine(px) { return px / camera.scale; }
 
     // -- host bridge ----------------------------------------------------
     function postToHost(payload) {
@@ -178,9 +283,24 @@
       }
     }
 
+    function applyTheme(nextTheme) {
+      const name = nextTheme === 'light' ? 'light' : 'dark';
+      if (name === themeName && bgGradient) return;
+      themeName = name;
+      palette = THEMES[name];
+      document.body.classList.toggle('theme-light', name === 'light');
+      document.body.style.background = palette.pageBg;
+      if (width > 0 && height > 0) rebuildBackdrop();
+    }
+
     function ingestPayload(raw) {
       try {
-        const payload = JSON.parse(raw);
+        const payload = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (!payload || typeof payload !== 'object') return;
+        if (payload.type === 'SET_THEME') {
+          applyTheme(payload.theme);
+          return;
+        }
         if (payload.type === 'SYNC_DATA') {
           syncGraph(payload.atoms || [], payload.connections || []);
         }
@@ -192,57 +312,90 @@
     // -- graph construction ----------------------------------------------
     function rebuildLayerAnchors() {
       const layers = [];
-      nodes.forEach((node) => {
-        if (!layers.includes(node.layer)) layers.push(node.layer);
+      nodes.forEach((n) => {
+        if (!layers.includes(n.layer)) layers.push(n.layer);
       });
       layers.sort();
       layerAnchors = new Map();
-      const radius = layers.length > 1 ? 200 + nodes.length * 2.2 : 0;
+      // Constellation sectors — elliptical field, not a tight circle soup
+      const baseR = layers.length > 1 ? 170 + nodes.length * 3.2 : 0;
       layers.forEach((layer, index) => {
         const angle = (Math.PI * 2 * index) / layers.length - Math.PI / 2;
+        const wobble = 0.82 + seeded(index * 11) * 0.36;
         layerAnchors.set(layer, {
-          x: Math.cos(angle) * radius,
-          y: Math.sin(angle) * radius,
+          x: Math.cos(angle) * baseR * wobble * 1.15,
+          y: Math.sin(angle) * baseR * wobble * 0.88,
         });
+      });
+      // Soft nebula seeds follow anchors
+      nebulaSeeds = layers.map((layer, i) => {
+        const a = layerAnchors.get(layer);
+        return {
+          x: a.x, y: a.y,
+          color: LAYER_COLORS[layer] || FALLBACK_COLOR,
+          r: 90 + seeded(i * 5) * 70,
+          phase: seeded(i * 9) * Math.PI * 2,
+        };
       });
     }
 
     function syncGraph(newAtoms, newConnections) {
       const previous = nodeById;
       const now = performance.now();
-      nodeById = new Map();
+      const nextIds = new Set(newAtoms.map((a) => a.id));
 
+      // Fade-out removed nodes instead of hard cut
+      previous.forEach((node, id) => {
+        if (!nextIds.has(id) && !node.exiting) {
+          node.exiting = true;
+          node.exitAt = now;
+          exiting.push(node);
+        }
+      });
+      exiting = exiting.filter((n) => !nextIds.has(n.id) && now - n.exitAt < EXIT_MS);
+
+      nodeById = new Map();
       nodes = newAtoms.map((atom, index) => {
         const kept = previous.get(atom.id);
-        const node = kept || {
+        const node = kept && !kept.exiting ? kept : {
           x: 0, y: 0, vx: 0, vy: 0,
           fixed: false,
-          bornAt: now + Math.min(index * 14, 700),
+          bornAt: now + Math.min(index * 22, 900),
           focusAlpha: 1,
+          breathPhase: seeded(index * 3) * Math.PI * 2,
+          selectedAt: 0,
+          exiting: false,
+          exitAt: 0,
         };
+        node.exiting = false;
         node.id = atom.id;
         node.title = atom.title || '';
         node.layer = atom.layer;
         node.salience = atom.salience || 3;
-        node.r = 9 + node.salience * 1.5;
+        node.createdAt = atom.createdAt || null;
         node.degree = 0;
+        node.r = nodeRadius(node.salience, 0);
+        if (!previous.has(atom.id) || (kept && kept.exiting)) {
+          node.bornAt = now + Math.min(index * 22, 900);
+          node.focusAlpha = 1;
+        }
         nodeById.set(node.id, node);
         return node;
       });
 
       rebuildLayerAnchors();
 
-      // seed fresh nodes near their layer cluster with a phyllotaxis spread
+      // Seed new stars near their sector with golden-angle spiral
       const clusterCounts = new Map();
       nodes.forEach((node, index) => {
         const count = (clusterCounts.get(node.layer) || 0) + 1;
         clusterCounts.set(node.layer, count);
-        if (previous.has(node.id)) return;
+        if (previous.has(node.id) && !previous.get(node.id).exiting) return;
         const anchor = layerAnchors.get(node.layer) || { x: 0, y: 0 };
-        const spread = 30 * Math.sqrt(count);
-        const angle = count * 2.39996 + seeded(index) * 0.8;
+        const spread = 36 * Math.sqrt(count);
+        const angle = count * 2.39996 + seeded(index) * 0.9;
         node.x = anchor.x + Math.cos(angle) * spread;
-        node.y = anchor.y + Math.sin(angle) * spread;
+        node.y = anchor.y + Math.sin(angle) * spread * 0.92;
       });
 
       links = [];
@@ -257,25 +410,27 @@
           b: b,
           strength: clamp(connection.strength || 0.3, 0.05, 1),
           glow: 0,
+          phase: seeded(a.id.length + b.id.length) * Math.PI * 2,
         });
       });
 
-      if (selectedId && !nodeById.has(selectedId)) {
-        selectedId = null;
-      }
-      refreshNeighbors();
+      nodes.forEach((node) => {
+        node.r = nodeRadius(node.salience, node.degree);
+        node.recency = recencyScore(node.createdAt, Date.now());
+      });
 
-      alpha = hasSyncedOnce ? 0.6 : 1;
+      if (selectedId && !nodeById.has(selectedId)) selectedId = null;
+      refreshNeighbors();
+      alpha = hasSyncedOnce ? 0.55 : 1;
 
       if (!hasSyncedOnce && nodes.length > 0) {
         hasSyncedOnce = true;
-        // settle the layout before the first frame, then ease into the fit
-        for (let i = 0; i < 120; i++) stepPhysics();
+        for (let i = 0; i < 140; i++) stepPhysics();
         fitToView(false);
         const goal = { x: camera.x, y: camera.y, scale: camera.scale };
-        camera.scale = goal.scale * 0.82;
-        camera.x = width / 2 - (width / 2 - goal.x) * 0.82;
-        camera.y = height / 2 - (height / 2 - goal.y) * 0.82;
+        camera.scale = goal.scale * 0.78;
+        camera.x = width / 2 - (width / 2 - goal.x) * 0.78;
+        camera.y = height / 2 - (height / 2 - goal.y) * 0.78;
         cameraGoal = goal;
       }
     }
@@ -302,7 +457,11 @@
           let dy = a.y - b.y;
           let d2 = dx * dx + dy * dy;
           if (d2 > cutoff2) continue;
-          if (d2 < 1) { dx = seeded(i + j) - 0.5; dy = seeded(j - i) - 0.5; d2 = 1; }
+          if (d2 < 1) {
+            dx = seeded(i + j) - 0.5;
+            dy = seeded(j - i) - 0.5;
+            d2 = 1;
+          }
           const d = Math.sqrt(d2);
           const force = (REPULSION * alpha) / d2;
           const fx = (dx / d) * force;
@@ -316,8 +475,9 @@
         const dx = link.b.x - link.a.x;
         const dy = link.b.y - link.a.y;
         const d = Math.max(1, Math.hypot(dx, dy));
-        const rest = clamp(link.a.r + link.b.r + 110 - link.strength * 60, 46, 190);
-        const force = (d - rest) * SPRING * (0.4 + link.strength * 0.6) * alpha;
+        // Longer arcs for constellation feel
+        const rest = clamp(link.a.r + link.b.r + 130 - link.strength * 70, 56, 220);
+        const force = (d - rest) * SPRING * (0.35 + link.strength * 0.65) * alpha;
         const fx = (dx / d) * force;
         const fy = (dy / d) * force;
         link.a.vx += fx; link.a.vy += fy;
@@ -336,11 +496,10 @@
         if (node.fixed) { node.vx = 0; node.vy = 0; return; }
         node.vx *= FRICTION;
         node.vy *= FRICTION;
-        node.x += clamp(node.vx, -40, 40);
-        node.y += clamp(node.vy, -40, 40);
+        node.x += clamp(node.vx, -42, 42);
+        node.y += clamp(node.vy, -42, 42);
       });
 
-      // resolve overlaps so labels and small nodes stay readable
       for (let i = 0; i < n; i++) {
         const a = nodes[i];
         for (let j = i + 1; j < n; j++) {
@@ -359,6 +518,65 @@
       }
     }
 
+    // -- clusters (dense constellation collapse at low zoom) ------------
+    function rebuildVisualClusters() {
+      visualClusters = [];
+      if (camera.scale >= CLUSTER_ZOOM || nodes.length < 8) return;
+
+      const cell = 90 / Math.max(0.35, camera.scale);
+      const grid = new Map();
+      nodes.forEach((node) => {
+        const gx = Math.floor(node.x / cell);
+        const gy = Math.floor(node.y / cell);
+        const key = gx + ':' + gy;
+        if (!grid.has(key)) grid.set(key, []);
+        grid.get(key).push(node);
+      });
+
+      const claimed = new Set();
+      grid.forEach((bucket) => {
+        if (bucket.length < 3) return;
+        // Merge nearby cells loosely
+        const group = bucket.filter((n) => !claimed.has(n.id));
+        if (group.length < 3) return;
+        group.forEach((n) => claimed.add(n.id));
+
+        let sx = 0, sy = 0, maxSal = 0;
+        const layers = new Map();
+        group.forEach((n) => {
+          sx += n.x; sy += n.y;
+          maxSal = Math.max(maxSal, n.salience);
+          layers.set(n.layer, (layers.get(n.layer) || 0) + 1);
+        });
+        let topLayer = group[0].layer;
+        let topCount = 0;
+        layers.forEach((c, l) => { if (c > topCount) { topCount = c; topLayer = l; } });
+
+        visualClusters.push({
+          id: 'c:' + group.map((n) => n.id).sort().join('|').slice(0, 48),
+          x: sx / group.length,
+          y: sy / group.length,
+          r: clamp(22 + group.length * 2.2, 24, 48),
+          count: group.length,
+          members: group,
+          layer: topLayer,
+          salience: maxSal,
+          layers: layers,
+        });
+      });
+    }
+
+    function isNodeCollapsed(node) {
+      // Always keep focus context visible (selection + neighbors)
+      if (node.id === selectedId || neighborIds.has(node.id)) return false;
+      if (expandedClusterId) {
+        const cluster = visualClusters.find((c) => c.id === expandedClusterId);
+        if (cluster && cluster.members.some((m) => m.id === node.id)) return false;
+      }
+      if (camera.scale >= CLUSTER_ZOOM) return false;
+      return visualClusters.some((c) => c.members.some((m) => m.id === node.id));
+    }
+
     // -- camera -----------------------------------------------------------
     function fitToView(animate) {
       if (nodes.length === 0) return;
@@ -369,10 +587,10 @@
         maxX = Math.max(maxX, node.x + node.r);
         maxY = Math.max(maxY, node.y + node.r);
       });
-      const pad = 64;
-      const boxW = Math.max(120, maxX - minX + pad * 2);
-      const boxH = Math.max(120, maxY - minY + pad * 2 + 30);
-      const scale = clamp(Math.min(width / boxW, height / boxH), MIN_SCALE, 1.4);
+      const pad = 72;
+      const boxW = Math.max(140, maxX - minX + pad * 2);
+      const boxH = Math.max(140, maxY - minY + pad * 2 + 36);
+      const scale = clamp(Math.min(width / boxW, height / boxH), MIN_SCALE, 1.35);
       const cx = (minX + maxX) / 2;
       const cy = (minY + maxY) / 2;
       const goal = {
@@ -380,19 +598,40 @@
         y: height / 2 - cy * scale,
         scale: scale,
       };
-      if (animate) {
-        cameraGoal = goal;
-      } else {
+      if (animate) cameraGoal = goal;
+      else {
         camera.x = goal.x; camera.y = goal.y; camera.scale = goal.scale;
         cameraGoal = null;
       }
     }
 
     function focusOnNode(node) {
-      const scale = camera.scale < 0.85 ? 1.05 : camera.scale;
+      const scale = Math.max(camera.scale, 1.15);
       cameraGoal = {
         x: width / 2 - node.x * scale,
-        y: height * 0.34 - node.y * scale,
+        y: height * 0.32 - node.y * scale,
+        scale: scale,
+      };
+    }
+
+    function focusOnCluster(cluster) {
+      expandedClusterId = cluster.id;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      cluster.members.forEach((n) => {
+        minX = Math.min(minX, n.x - n.r);
+        minY = Math.min(minY, n.y - n.r);
+        maxX = Math.max(maxX, n.x + n.r);
+        maxY = Math.max(maxY, n.y + n.r);
+      });
+      const pad = 48;
+      const boxW = Math.max(100, maxX - minX + pad * 2);
+      const boxH = Math.max(100, maxY - minY + pad * 2);
+      const scale = clamp(Math.min(width / boxW, height / boxH), 0.9, 2.2);
+      const cx = (minX + maxX) / 2;
+      const cy = (minY + maxY) / 2;
+      cameraGoal = {
+        x: width / 2 - cx * scale,
+        y: height / 2 - cy * scale,
         scale: scale,
       };
     }
@@ -404,16 +643,17 @@
       camera.x = screenX - (screenX - camera.x) * ratio;
       camera.y = screenY - (screenY - camera.y) * ratio;
       camera.scale = next;
+      if (camera.scale >= CLUSTER_ZOOM) expandedClusterId = null;
     }
 
     function tickCamera() {
       if (!cameraGoal) return;
-      camera.x += (cameraGoal.x - camera.x) * 0.16;
-      camera.y += (cameraGoal.y - camera.y) * 0.16;
-      camera.scale += (cameraGoal.scale - camera.scale) * 0.16;
+      camera.x += (cameraGoal.x - camera.x) * 0.14;
+      camera.y += (cameraGoal.y - camera.y) * 0.14;
+      camera.scale += (cameraGoal.scale - camera.scale) * 0.14;
       if (
-        Math.abs(cameraGoal.x - camera.x) < 0.4 &&
-        Math.abs(cameraGoal.y - camera.y) < 0.4 &&
+        Math.abs(cameraGoal.x - camera.x) < 0.35 &&
+        Math.abs(cameraGoal.y - camera.y) < 0.35 &&
         Math.abs(cameraGoal.scale - camera.scale) < 0.002
       ) {
         camera.x = cameraGoal.x;
@@ -430,64 +670,118 @@
       };
     }
 
-    // -- rendering ----------------------------------------------------------
+    // -- rendering --------------------------------------------------------
     function rebuildBackdrop() {
       bgGradient = ctx.createRadialGradient(
-        width / 2, height * 0.38, 0,
-        width / 2, height * 0.38, Math.max(width, height) * 0.85
+        width * 0.5, height * 0.42, 0,
+        width * 0.5, height * 0.5, Math.max(width, height) * 0.92
       );
-      bgGradient.addColorStop(0, '#101A2E');
-      bgGradient.addColorStop(0.55, '#0A101F');
-      bgGradient.addColorStop(1, '#05070D');
+      bgGradient.addColorStop(0, palette.pageBg);
+      bgGradient.addColorStop(0.55, palette.pageBg);
+      bgGradient.addColorStop(1, palette.deep);
 
       vignette = ctx.createRadialGradient(
-        width / 2, height / 2, Math.min(width, height) * 0.42,
-        width / 2, height / 2, Math.max(width, height) * 0.78
+        width / 2, height / 2, Math.min(width, height) * 0.38,
+        width / 2, height / 2, Math.max(width, height) * 0.82
       );
       vignette.addColorStop(0, 'rgba(0,0,0,0)');
-      vignette.addColorStop(1, 'rgba(0,0,0,0.45)');
+      vignette.addColorStop(1, palette.vignetteOuter);
 
       stars.length = 0;
-      const count = Math.round((width * height) / 14000);
-      for (let i = 0; i < count; i++) {
-        stars.push({
-          x: seeded(i * 3 + 1) * width,
-          y: seeded(i * 3 + 2) * height,
-          r: 0.4 + seeded(i * 3 + 3) * 1.1,
-          phase: seeded(i * 7) * Math.PI * 2,
-        });
+      dust.length = 0;
+      if (palette.showStars) {
+        const starCount = Math.round((width * height) / 11000);
+        for (let i = 0; i < starCount; i++) {
+          stars.push({
+            x: seeded(i * 3 + 1) * width,
+            y: seeded(i * 3 + 2) * height,
+            r: 0.35 + seeded(i * 3 + 3) * 1.35,
+            phase: seeded(i * 7) * Math.PI * 2,
+            depth: 0.02 + seeded(i * 13) * 0.08,
+          });
+        }
+        const dustCount = Math.round((width * height) / 22000);
+        for (let i = 0; i < dustCount; i++) {
+          dust.push({
+            x: seeded(i * 5 + 21) * width,
+            y: seeded(i * 5 + 22) * height,
+            r: 8 + seeded(i * 5 + 23) * 22,
+            phase: seeded(i * 17) * Math.PI * 2,
+            depth: 0.01 + seeded(i * 19) * 0.04,
+          });
+        }
       }
     }
 
     function drawBackdrop(now) {
-      ctx.fillStyle = bgGradient;
+      ctx.fillStyle = bgGradient || palette.pageBg;
       ctx.fillRect(0, 0, width, height);
 
-      const driftX = camera.x * 0.04;
-      const driftY = camera.y * 0.04;
-      stars.forEach((star, i) => {
-        const sx = ((star.x + driftX) % width + width) % width;
-        const sy = ((star.y + driftY) % height + height) % height;
-        const twinkle = 0.22 + Math.sin(now * 0.0011 + star.phase) * 0.14;
+      // Soft ambient nebula washes (screen-space, slow breathe)
+      palette.nebula.forEach((blob, i) => {
+        const px = width * (0.25 + i * 0.28) + Math.sin(now * 0.00008 + i) * 18;
+        const py = height * (0.3 + (i % 2) * 0.25) + Math.cos(now * 0.0001 + i) * 14;
+        const gr = ctx.createRadialGradient(px, py, 0, px, py, Math.max(width, height) * 0.42);
+        gr.addColorStop(0, 'rgba(' + blob.c + ',' + blob.a + ')');
+        gr.addColorStop(1, 'rgba(' + blob.c + ',0)');
+        ctx.fillStyle = gr;
+        ctx.fillRect(0, 0, width, height);
+      });
+
+      if (palette.showStars) {
+        dust.forEach((d) => {
+          const sx = ((d.x + camera.x * d.depth) % width + width) % width;
+          const sy = ((d.y + camera.y * d.depth) % height + height) % height;
+          const pulse = 0.04 + Math.sin(now * 0.0004 + d.phase) * 0.02;
+          const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, d.r);
+          g.addColorStop(0, 'rgba(' + palette.dust + ',' + pulse.toFixed(3) + ')');
+          g.addColorStop(1, 'rgba(' + palette.dust + ',0)');
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(sx, sy, d.r, 0, Math.PI * 2);
+          ctx.fill();
+        });
+
+        stars.forEach((star) => {
+          const sx = ((star.x + camera.x * star.depth) % width + width) % width;
+          const sy = ((star.y + camera.y * star.depth) % height + height) % height;
+          const twinkle = 0.14 + Math.sin(now * 0.0012 + star.phase) * 0.1;
+          ctx.beginPath();
+          ctx.arc(sx, sy, star.r, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(' + palette.star + ',' + twinkle.toFixed(3) + ')';
+          ctx.fill();
+        });
+      }
+    }
+
+    function drawWorldNebulae(now) {
+      nebulaSeeds.forEach((seed) => {
+        const pulse = 0.85 + Math.sin(now * 0.00035 + seed.phase) * 0.15;
+        const r = seed.r * pulse;
+        const g = ctx.createRadialGradient(seed.x, seed.y, 0, seed.x, seed.y, r);
+        g.addColorStop(0, rgba(seed.color, themeName === 'dark' ? 0.1 : 0.12));
+        g.addColorStop(0.55, rgba(seed.color, themeName === 'dark' ? 0.04 : 0.05));
+        g.addColorStop(1, rgba(seed.color, 0));
+        ctx.fillStyle = g;
         ctx.beginPath();
-        ctx.arc(sx, sy, star.r, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(226,232,240,' + twinkle.toFixed(3) + ')';
+        ctx.arc(seed.x, seed.y, r, 0, Math.PI * 2);
         ctx.fill();
       });
     }
 
     function edgeAlphaTarget(link) {
-      const base = 0.16 + link.strength * 0.3;
+      const base = 0.1 + link.strength * 0.28;
       if (!selectedId) return base;
       if (link.a.id === selectedId || link.b.id === selectedId) {
-        return Math.min(0.95, base + 0.5);
+        return Math.min(0.85, base + 0.45);
       }
-      return 0.04;
+      return 0.035;
     }
 
-    function drawLinks() {
+    function drawLinks(now) {
       links.forEach((link) => {
-        link.glow += (edgeAlphaTarget(link) - link.glow) * 0.12;
+        if (isNodeCollapsed(link.a) || isNodeCollapsed(link.b)) return;
+        link.glow += (edgeAlphaTarget(link) - link.glow) * 0.1;
         if (link.glow < 0.015) return;
 
         const ax = link.a.x, ay = link.a.y;
@@ -496,145 +790,426 @@
         const d = Math.hypot(dx, dy);
         if (d < 1) return;
 
-        // gentle perpendicular bow so dense regions stay legible
-        const mx = (ax + bx) / 2 - (dy / d) * d * 0.08;
-        const my = (ay + by) / 2 + (dx / d) * d * 0.08;
+        // Organic bow — stronger links curve less (tighter bonds)
+        const bow = (0.14 - link.strength * 0.06) * (1 + Math.sin(now * 0.0003 + link.phase) * 0.04);
+        const mx = (ax + bx) / 2 - (dy / d) * d * bow;
+        const my = (ay + by) / 2 + (dx / d) * d * bow;
+        const g = link.glow;
+        const ca = nodeColor(link.a);
+        const cb = nodeColor(link.b);
 
+        // Soft outer trail
+        ctx.beginPath();
+        ctx.moveTo(ax, ay);
+        ctx.quadraticCurveTo(mx, my, bx, by);
+        ctx.strokeStyle = rgba(palette.edgeMid, g * 0.22);
+        ctx.lineWidth = (1.8 + link.strength * 2.2) / Math.sqrt(camera.scale);
+        ctx.lineCap = 'round';
+        ctx.stroke();
+
+        // Gradient core
         const gradient = ctx.createLinearGradient(ax, ay, bx, by);
-        gradient.addColorStop(0, rgba(nodeColor(link.a), link.glow));
-        gradient.addColorStop(1, rgba(nodeColor(link.b), link.glow));
-
+        gradient.addColorStop(0, rgba(ca, g * 0.95));
+        gradient.addColorStop(0.5, rgba(palette.edgeMid, g * 0.45));
+        gradient.addColorStop(1, rgba(cb, g * 0.95));
         ctx.beginPath();
         ctx.moveTo(ax, ay);
         ctx.quadraticCurveTo(mx, my, bx, by);
         ctx.strokeStyle = gradient;
-        ctx.lineWidth = (0.8 + link.strength * 2.2) / Math.sqrt(camera.scale);
-        ctx.lineCap = 'round';
+        ctx.lineWidth = (0.7 + link.strength * 1.6) / Math.sqrt(camera.scale);
         ctx.stroke();
       });
     }
 
     function nodeEntryScale(node, now) {
-      const t = clamp((now - node.bornAt) / 480, 0, 1);
-      return easeOutCubic(t);
+      const t = clamp((now - node.bornAt) / ENTRY_MS, 0, 1);
+      return easeOutBack(Math.min(1, t));
+    }
+
+    function nodeExitAlpha(node, now) {
+      if (!node.exiting) return 1;
+      return 1 - clamp((now - node.exitAt) / EXIT_MS, 0, 1);
     }
 
     function nodeFocusTarget(node) {
       if (!selectedId) return 1;
       if (node.id === selectedId || neighborIds.has(node.id)) return 1;
-      return 0.13;
+      return 0.18;
     }
 
-    function drawNode(node, now) {
-      node.focusAlpha += (nodeFocusTarget(node) - node.focusAlpha) * 0.12;
-      const entry = nodeEntryScale(node, now);
-      if (entry <= 0.01) return;
+    function nodeInView(node, pad) {
+      const sx = node.x * camera.scale + camera.x;
+      const sy = node.y * camera.scale + camera.y;
+      const r = node.r * camera.scale + pad;
+      return sx + r > 0 && sx - r < width && sy + r > 0 && sy - r < height;
+    }
 
-      const color = nodeColor(node);
-      const r = node.r * entry * (node.id === hoveredId ? 1.12 : 1);
-      const a = node.focusAlpha;
-      const isSelected = node.id === selectedId;
+    /** Intentional category marks — solid filled glyphs, legible at small sizes */
+    function drawNodeMark(layer, x, y, kr, a) {
+      const s = Math.max(1.4, kr * 0.42);
+      ctx.globalAlpha = a * 0.92;
+      ctx.fillStyle = palette.mark;
+      ctx.strokeStyle = palette.mark;
+      ctx.lineWidth = screenLine(1.15);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
 
-      // halo
-      const halo = ctx.createRadialGradient(node.x, node.y, r * 0.4, node.x, node.y, r * 2.6);
-      halo.addColorStop(0, rgba(color, 0.34 * a));
-      halo.addColorStop(1, rgba(color, 0));
-      ctx.beginPath();
-      ctx.arc(node.x, node.y, r * 2.6, 0, Math.PI * 2);
-      ctx.fillStyle = halo;
-      ctx.fill();
-
-      // body with a soft top-light
-      const body = ctx.createRadialGradient(
-        node.x - r * 0.35, node.y - r * 0.4, r * 0.1,
-        node.x, node.y, r
-      );
-      body.addColorStop(0, lighten(color, 0.45));
-      body.addColorStop(0.55, color);
-      body.addColorStop(1, rgba(color, 0.85));
-      ctx.globalAlpha = a;
-      ctx.beginPath();
-      ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
-      ctx.fillStyle = body;
-      ctx.fill();
-
-      ctx.lineWidth = 1 / camera.scale;
-      ctx.strokeStyle = 'rgba(255,255,255,' + (0.22 * a).toFixed(3) + ')';
-      ctx.stroke();
+      if (layer === 'episodic') {
+        // 4-point spark (a moment of light)
+        ctx.beginPath();
+        for (let i = 0; i < 4; i++) {
+          const ang = -Math.PI / 2 + i * Math.PI / 2;
+          const ox = Math.cos(ang) * s;
+          const oy = Math.sin(ang) * s;
+          if (i === 0) ctx.moveTo(x + ox, y + oy);
+          else ctx.lineTo(x + ox, y + oy);
+          const mid = ang + Math.PI / 4;
+          ctx.lineTo(x + Math.cos(mid) * s * 0.28, y + Math.sin(mid) * s * 0.28);
+        }
+        ctx.closePath();
+        ctx.fill();
+      } else if (layer === 'semantic') {
+        // Hexagon (themes / structure)
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const ang = -Math.PI / 2 + i * Math.PI / 3;
+          const px = x + Math.cos(ang) * s * 0.85;
+          const py = y + Math.sin(ang) * s * 0.85;
+          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.stroke();
+      } else if (layer === 'profile') {
+        // Soft person dot + arc
+        ctx.beginPath();
+        ctx.arc(x, y - s * 0.28, s * 0.32, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(x, y + s * 0.55, s * 0.55, Math.PI * 1.15, Math.PI * 1.85);
+        ctx.stroke();
+      } else if (layer === 'procedural') {
+        // Loop / habit path
+        ctx.beginPath();
+        ctx.arc(x, y, s * 0.7, -0.4, Math.PI * 1.4);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x + s * 0.55, y - s * 0.15);
+        ctx.lineTo(x + s * 0.85, y);
+        ctx.lineTo(x + s * 0.55, y + s * 0.15);
+        ctx.stroke();
+      } else if (layer === 'note') {
+        // Filled diamond
+        ctx.beginPath();
+        ctx.moveTo(x, y - s);
+        ctx.lineTo(x + s * 0.72, y);
+        ctx.lineTo(x, y + s);
+        ctx.lineTo(x - s * 0.72, y);
+        ctx.closePath();
+        ctx.fill();
+      } else if (layer === 'working') {
+        // Pulse ring + core
+        ctx.beginPath();
+        ctx.arc(x, y, s * 0.28, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(x, y, s * 0.75, 0, Math.PI * 2);
+        ctx.stroke();
+      }
       ctx.globalAlpha = 1;
+    }
 
-      if (isSelected) {
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, r + 3 / camera.scale, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(249,250,251,0.9)';
-        ctx.lineWidth = 2 / camera.scale;
-        ctx.stroke();
+    function drawSelectionRings(node, r, color, now) {
+      const outer = r + screenLine(7);
+      const inner = r + screenLine(3.2);
 
-        // expanding ripple
-        const p = (now % 1700) / 1700;
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, r * (1.15 + p * 1.1), 0, Math.PI * 2);
-        ctx.strokeStyle = rgba(color, (1 - p) * 0.45);
-        ctx.lineWidth = 1.6 / camera.scale;
-        ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, outer, 0, Math.PI * 2);
+      ctx.strokeStyle = palette.focusRingOuter;
+      ctx.lineWidth = screenLine(1.2);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, inner, 0, Math.PI * 2);
+      ctx.strokeStyle = palette.focusRing;
+      ctx.lineWidth = screenLine(1.8);
+      ctx.stroke();
+
+      if (node.selectedAt > 0) {
+        const p = clamp((now - node.selectedAt) / BLOOM_MS, 0, 1);
+        if (p < 1) {
+          const bloomR = r * (1.2 + easeOutCubic(p) * 0.85);
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, bloomR, 0, Math.PI * 2);
+          ctx.strokeStyle = rgba(color, (1 - p) * 0.55);
+          ctx.lineWidth = screenLine(2);
+          ctx.stroke();
+        }
       }
     }
 
+    function drawStarNode(node, now, exitAlpha) {
+      node.focusAlpha += (nodeFocusTarget(node) - node.focusAlpha) * 0.1;
+      const entry = nodeEntryScale(node, now);
+      if (entry <= 0.02) return;
+      if (node.focusAlpha < 0.025) return;
+      if (!nodeInView(node, 56)) return;
+
+      const color = nodeColor(node);
+      const isSelected = node.id === selectedId;
+      const isHovered = node.id === hoveredId;
+      const isRecent = (node.recency || 0) > 0.8;
+      const breath = 1 + Math.sin(now * 0.0018 + node.breathPhase) * (isRecent ? 0.045 : 0.02);
+      const hoverScale = isHovered ? 1.06 : 1;
+      const r = node.r * entry * hoverScale * breath;
+      const a = node.focusAlpha * exitAlpha;
+      const kr = r * (0.38 + clamp((node.salience || 3) / 10, 0.1, 1) * 0.28);
+      const glowBoost = 0.5 + (node.recency || 0.3) * 0.5;
+
+      // Outer atmospheric bloom
+      const glowR = r * (isSelected ? 2.6 : 2.0) * glowBoost;
+      const halo = ctx.createRadialGradient(node.x, node.y, r * 0.2, node.x, node.y, glowR);
+      halo.addColorStop(0, rgba(color, (isSelected ? 0.38 : 0.18) * a * glowBoost));
+      halo.addColorStop(0.45, rgba(color, (isSelected ? 0.14 : 0.07) * a));
+      halo.addColorStop(1, rgba(color, 0));
+      ctx.globalAlpha = a;
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, glowR, 0, Math.PI * 2);
+      ctx.fillStyle = halo;
+      ctx.fill();
+
+      // Glass shell
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = palette.nodeCore;
+      ctx.fill();
+      ctx.lineWidth = screenLine(1);
+      ctx.strokeStyle = palette.nodeRim;
+      ctx.stroke();
+
+      // Luminous core gradient
+      const core = ctx.createRadialGradient(
+        node.x - kr * 0.25, node.y - kr * 0.3, 0,
+        node.x, node.y, kr
+      );
+      core.addColorStop(0, lighten(color, isSelected || isHovered ? 0.35 : 0.18));
+      core.addColorStop(0.65, color);
+      core.addColorStop(1, rgba(color, 0.85));
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, kr, 0, Math.PI * 2);
+      ctx.fillStyle = core;
+      ctx.fill();
+
+      // Specular
+      ctx.beginPath();
+      ctx.arc(node.x - kr * 0.28, node.y - kr * 0.32, Math.max(1, kr * 0.26), 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,' + (isSelected ? 0.45 : 0.28) + ')';
+      ctx.fill();
+
+      // Category rim
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
+      ctx.strokeStyle = rgba(color, (isSelected || isHovered ? 0.95 : 0.65) * a);
+      ctx.lineWidth = screenLine(isSelected ? 2 : 1.35);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+
+      if (r * camera.scale >= 9) {
+        drawNodeMark(node.layer, node.x, node.y, kr, a);
+      }
+
+      if (isSelected) drawSelectionRings(node, r, color, now);
+    }
+
+    function drawCluster(cluster, now) {
+      if (expandedClusterId === cluster.id) return;
+      if (selectedId && cluster.members.some((m) => m.id === selectedId)) return;
+
+      const color = LAYER_COLORS[cluster.layer] || FALLBACK_COLOR;
+      const breath = 1 + Math.sin(now * 0.0012 + cluster.x * 0.01) * 0.03;
+      const r = cluster.r * breath;
+
+      const halo = ctx.createRadialGradient(cluster.x, cluster.y, r * 0.2, cluster.x, cluster.y, r * 2.1);
+      halo.addColorStop(0, rgba(color, 0.28));
+      halo.addColorStop(1, rgba(color, 0));
+      ctx.beginPath();
+      ctx.arc(cluster.x, cluster.y, r * 2.1, 0, Math.PI * 2);
+      ctx.fillStyle = halo;
+      ctx.fill();
+
+      // Multi-layer ring segments
+      const layers = Array.from(cluster.layers.keys());
+      ctx.beginPath();
+      ctx.arc(cluster.x, cluster.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = palette.clusterFill;
+      ctx.fill();
+      ctx.lineWidth = screenLine(2);
+      ctx.strokeStyle = rgba(color, 0.75);
+      ctx.stroke();
+
+      if (layers.length > 1) {
+        let start = -Math.PI / 2;
+        const total = cluster.count;
+        layers.forEach((layer) => {
+          const frac = (cluster.layers.get(layer) || 1) / total;
+          const end = start + frac * Math.PI * 2;
+          ctx.beginPath();
+          ctx.arc(cluster.x, cluster.y, r * 0.78, start, end);
+          ctx.strokeStyle = rgba(LAYER_COLORS[layer] || FALLBACK_COLOR, 0.9);
+          ctx.lineWidth = screenLine(3.5);
+          ctx.lineCap = 'round';
+          ctx.stroke();
+          start = end;
+        });
+      } else {
+        ctx.beginPath();
+        ctx.arc(cluster.x, cluster.y, r * 0.42, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+      }
+
+      // Count badge (drawn in screen space later with labels helper)
+      cluster._drawLabel = true;
+    }
+
+    function roundedPill(x, y, w, h, rad) {
+      const r = Math.min(rad, h / 2, w / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
+
     function drawLabels(now) {
-      const zoomFade = clamp((camera.scale - 0.42) / 0.28, 0, 1);
+      const zoomFade = clamp((camera.scale - LABEL_ZOOM) / 0.35, 0, 1);
       ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      ctx.font = '600 11px -apple-system, BlinkMacSystemFont, sans-serif';
+      ctx.textBaseline = 'middle';
+      ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+
+      // Collision grid for labels (screen space)
+      const occupied = [];
+      function collides(px, py, tw, th) {
+        for (let i = 0; i < occupied.length; i++) {
+          const o = occupied[i];
+          if (px < o.x + o.w && px + tw > o.x && py < o.y + o.h && py + th > o.y) return true;
+        }
+        return false;
+      }
+
+      // Cluster count labels
+      visualClusters.forEach((cluster) => {
+        if (expandedClusterId === cluster.id) return;
+        if (!cluster._drawLabel) return;
+        const sx = cluster.x * camera.scale + camera.x;
+        const sy = cluster.y * camera.scale + camera.y;
+        const label = String(cluster.count);
+        const metrics = ctx.measureText(label);
+        const tw = metrics.width + 14;
+        const th = 20;
+        const px = sx - tw / 2;
+        const py = sy - th / 2;
+        ctx.globalAlpha = 0.95;
+        roundedPill(px, py, tw, th, 10);
+        ctx.fillStyle = palette.labelPill;
+        ctx.fill();
+        ctx.fillStyle = palette.clusterText;
+        ctx.fillText(label, sx, sy);
+        ctx.globalAlpha = 1;
+        occupied.push({ x: px, y: py, w: tw, h: th });
+      });
 
       nodes.forEach((node) => {
+        if (isNodeCollapsed(node)) return;
         const entry = nodeEntryScale(node, now);
-        const focused = selectedId &&
-          (node.id === selectedId || neighborIds.has(node.id));
-        let labelAlpha = Math.max(zoomFade, focused ? 1 : 0) *
-          node.focusAlpha * entry;
-        if (node.r * camera.scale < 3.5 && !focused) labelAlpha = 0;
-        if (labelAlpha < 0.04) return;
+        const focused = selectedId && (node.id === selectedId || neighborIds.has(node.id));
+        // Labels: selection/neighbors always; otherwise only past zoom + no collision
+        let labelAlpha = 0;
+        if (focused) labelAlpha = node.focusAlpha * entry;
+        else if (zoomFade > 0.05) labelAlpha = zoomFade * node.focusAlpha * entry * 0.92;
+        if (node.r * camera.scale < 8 && !focused) labelAlpha = 0;
+        if (labelAlpha < 0.05) return;
+        if (!nodeInView(node, 90)) return;
 
         const sx = node.x * camera.scale + camera.x;
-        const sy = node.y * camera.scale + camera.y + node.r * camera.scale + 7;
+        const sy = node.y * camera.scale + camera.y + node.r * camera.scale + 16;
         let title = node.title;
         if (title.length > 22) title = title.slice(0, 21) + '…';
 
-        ctx.shadowColor = 'rgba(0,0,0,0.85)';
-        ctx.shadowBlur = 5;
-        ctx.fillStyle = 'rgba(229,231,235,' + labelAlpha.toFixed(3) + ')';
-        ctx.fillText(title, sx, sy);
-        ctx.shadowBlur = 0;
+        const metrics = ctx.measureText(title);
+        const padX = 8;
+        const tw = metrics.width + padX * 2;
+        const th = 20;
+        const px = sx - tw / 2;
+        const py = sy - th / 2;
+
+        if (!focused && collides(px - 2, py - 2, tw + 4, th + 4)) return;
+        occupied.push({ x: px, y: py, w: tw, h: th });
+
+        ctx.globalAlpha = labelAlpha;
+        roundedPill(px, py, tw, th, 10);
+        ctx.fillStyle = palette.labelPill;
+        ctx.fill();
+        // Soft accent tick
+        ctx.beginPath();
+        ctx.arc(px + 8, sy, 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = nodeColor(node);
+        ctx.fill();
+        ctx.fillStyle = palette.labelText;
+        ctx.fillText(title, sx + 4, sy);
+        ctx.globalAlpha = 1;
       });
     }
 
     function render(now) {
       drawBackdrop(now);
+      rebuildVisualClusters();
+
       ctx.save();
       ctx.translate(camera.x, camera.y);
       ctx.scale(camera.scale, camera.scale);
-      drawLinks();
-      nodes.forEach((node) => drawNode(node, now));
+      drawWorldNebulae(now);
+      drawLinks(now);
+
+      // Clusters first (behind expanded members)
+      visualClusters.forEach((c) => drawCluster(c, now));
+
+      nodes.forEach((node) => {
+        if (isNodeCollapsed(node)) return;
+        drawStarNode(node, now, 1);
+      });
+
+      // Exiting ghosts
+      exiting.forEach((node) => {
+        const ea = nodeExitAlpha(node, now);
+        if (ea <= 0.02) return;
+        drawStarNode(node, now, ea);
+      });
+      exiting = exiting.filter((n) => now - n.exitAt < EXIT_MS);
+
       ctx.restore();
       drawLabels(now);
-      ctx.fillStyle = vignette;
-      ctx.fillRect(0, 0, width, height);
+      if (vignette) {
+        ctx.fillStyle = vignette;
+        ctx.fillRect(0, 0, width, height);
+      }
     }
 
     function tick(now) {
       if (alpha > 0.012 || draggedNode) {
         stepPhysics();
-        alpha *= draggedNode ? 1 : 0.986;
+        alpha *= draggedNode ? 1 : 0.988;
       }
       tickCamera();
       render(now);
       requestAnimationFrame(tick);
     }
 
-    // -- input ----------------------------------------------------------------
+    // -- input ------------------------------------------------------------
     const pointers = new Map();
     let draggedNode = null;
-    let gesture = null; // 'pan' | 'node' | 'pinch'
+    let gesture = null;
     let downAt = 0;
     let downX = 0;
     let downY = 0;
@@ -644,20 +1219,36 @@
     let lastTapY = 0;
     let pinchStart = null;
 
+    function findClusterHit(point) {
+      for (let i = visualClusters.length - 1; i >= 0; i--) {
+        const c = visualClusters[i];
+        if (expandedClusterId === c.id) continue;
+        const d = Math.hypot(c.x - point.x, c.y - point.y);
+        if (d <= c.r + 12 / camera.scale) return c;
+      }
+      return null;
+    }
+
     function findHit(point) {
-      const slop = 10 / camera.scale;
+      const cluster = findClusterHit(point);
+      if (cluster) return { type: 'cluster', cluster: cluster };
+
       for (let i = nodes.length - 1; i >= 0; i--) {
         const node = nodes[i];
+        if (isNodeCollapsed(node)) continue;
         const d = Math.hypot(node.x - point.x, node.y - point.y);
-        if (d <= node.r + slop) return node;
+        if (d <= hitRadius(node)) return { type: 'node', node: node };
       }
       return null;
     }
 
     function selectNode(node) {
       selectedId = node ? node.id : null;
+      if (node) {
+        node.selectedAt = performance.now();
+        focusOnNode(node);
+      }
       refreshNeighbors();
-      if (node) focusOnNode(node);
       postToHost({ type: 'NODE_SELECTED', id: selectedId });
     }
 
@@ -692,13 +1283,13 @@
       moved = 0;
 
       const hit = findHit(toWorld(event.clientX, event.clientY));
-      if (hit) {
+      if (hit && hit.type === 'node') {
         gesture = 'node';
-        draggedNode = hit;
-        hit.fixed = true;
-        alpha = Math.max(alpha, 0.3);
+        draggedNode = hit.node;
+        hit.node.fixed = true;
+        alpha = Math.max(alpha, 0.28);
       } else {
-        gesture = 'pan';
+        gesture = hit && hit.type === 'cluster' ? 'cluster' : 'pan';
       }
     });
 
@@ -707,10 +1298,10 @@
       if (!previous) {
         if (event.pointerType === 'mouse') {
           const hit = findHit(toWorld(event.clientX, event.clientY));
-          const nextHover = hit ? hit.id : null;
+          const nextHover = hit && hit.type === 'node' ? hit.node.id : null;
           if (nextHover !== hoveredId) {
             hoveredId = nextHover;
-            canvas.style.cursor = hoveredId ? 'pointer' : 'default';
+            canvas.style.cursor = hit ? 'pointer' : 'default';
           }
         }
         return;
@@ -734,6 +1325,7 @@
         camera.scale = nextScale;
         camera.x = midX - (pinchStart.midX - pinchStart.camX) * ratio;
         camera.y = midY - (pinchStart.midY - pinchStart.camY) * ratio;
+        if (camera.scale >= CLUSTER_ZOOM) expandedClusterId = null;
         return;
       }
 
@@ -741,11 +1333,11 @@
         const point = toWorld(event.clientX, event.clientY);
         draggedNode.x = point.x;
         draggedNode.y = point.y;
-        alpha = Math.max(alpha, 0.25);
+        alpha = Math.max(alpha, 0.22);
         return;
       }
 
-      if (gesture === 'pan') {
+      if (gesture === 'pan' || gesture === 'cluster') {
         camera.x += dx;
         camera.y += dy;
       }
@@ -755,7 +1347,6 @@
       pointers.delete(event.pointerId);
 
       if (pointers.size === 1 && gesture === 'pinch') {
-        // hand off from pinch to pan with the remaining finger
         gesture = 'pan';
         pinchStart = null;
         return;
@@ -763,6 +1354,7 @@
       if (pointers.size > 0) return;
 
       const wasNode = gesture === 'node';
+      const wasCluster = gesture === 'cluster';
       gesture = null;
       pinchStart = null;
       if (draggedNode) {
@@ -783,13 +1375,23 @@
 
       if (isDoubleTap) {
         lastTapAt = 0;
+        expandedClusterId = null;
         fitToView(true);
         return;
       }
 
-      if (wasNode) {
-        const hit = findHit(toWorld(event.clientX, event.clientY));
-        selectNode(hit);
+      const hit = findHit(toWorld(event.clientX, event.clientY));
+      if (wasCluster || (hit && hit.type === 'cluster')) {
+        const cluster = hit && hit.type === 'cluster' ? hit.cluster : findClusterHit(toWorld(event.clientX, event.clientY));
+        if (cluster) {
+          focusOnCluster(cluster);
+          return;
+        }
+      }
+
+      if (wasNode || (hit && hit.type === 'node')) {
+        const node = hit && hit.type === 'node' ? hit.node : null;
+        selectNode(node);
       } else {
         selectNode(null);
       }
@@ -816,10 +1418,10 @@
     });
     document.getElementById('zoomFit').addEventListener('click', () => {
       userHasInteracted = true;
+      expandedClusterId = null;
       fitToView(true);
     });
 
-    // -- boot ---------------------------------------------------------------
     function resizeCanvas() {
       pixelRatio = window.devicePixelRatio || 1;
       width = window.innerWidth;

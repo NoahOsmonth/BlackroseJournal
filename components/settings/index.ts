@@ -6,4 +6,6 @@ export { CustomModelSettingsSection } from './CustomModelSettingsSection';
 export { DataManagementSection } from './DataManagementSection';
 export { GenerationSettingsSection } from './GenerationSettingsSection';
 export { MemorySettingsSection } from './MemorySettingsSection';
+export { SettingsAccordionSection } from './SettingsAccordionSection';
 export { SettingsSection } from './SettingsSection';
+export * from './settingsSummaries';

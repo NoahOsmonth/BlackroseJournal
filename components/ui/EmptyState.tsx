@@ -47,7 +47,7 @@ export function EmptyState({
                     accessibilityRole="button"
                     accessibilityLabel={actionLabel}
                 >
-                    <Text className="text-xs font-bold text-surface-light dark:text-surface-light">
+                    <Text className="text-xs font-bold text-white">
                         {actionLabel}
                     </Text>
                 </Pressable>

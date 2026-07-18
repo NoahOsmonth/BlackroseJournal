@@ -72,7 +72,7 @@ export function EntryActionModal({
                         <MaterialIcons
                             name="chevron-right"
                             size={24}
-                            color={isDark ? '#666' : '#999'}
+                            color={isDark ? '#9CA3AF' : '#6B7280'}
                         />
                     </Pressable>
 
@@ -98,7 +98,7 @@ export function EntryActionModal({
                         <MaterialIcons
                             name="chevron-right"
                             size={24}
-                            color={isDark ? '#666' : '#999'}
+                            color={isDark ? '#9CA3AF' : '#6B7280'}
                         />
                     </Pressable>
 

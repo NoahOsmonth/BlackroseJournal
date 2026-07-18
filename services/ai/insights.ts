@@ -1,4 +1,7 @@
-import { fetchDirectChatCompletion } from '@/services/ai/directTransport';
+import {
+    extractFirstJsonObject,
+    fetchDirectJsonCompletion,
+} from '@/services/ai/jsonCompletion';
 import {
     EntryAnalysisResult,
     EntryReflectionResult,
@@ -92,24 +95,6 @@ Rules:
 interface InsightsChatPayload {
     messages: { role: 'system' | 'user' | 'assistant'; content: string }[];
     temperature: number;
-    response_format: { type: 'json_object' };
-}
-
-interface OpenAIChatResponse {
-    choices?: { message?: { content?: string } }[];
-}
-
-function extractFirstJsonObject(text: string): string | null {
-    const start = text.indexOf('{');
-    if (start === -1) return null;
-    let depth = 0;
-    for (let i = start; i < text.length; i += 1) {
-        const ch = text[i];
-        if (ch === '{') depth += 1;
-        if (ch === '}') depth -= 1;
-        if (depth === 0) return text.slice(start, i + 1);
-    }
-    return null;
 }
 
 function parseJsonShape<T>(raw: string): T | null {
@@ -131,18 +116,14 @@ function normalizeTopics(value: unknown): string[] {
 }
 
 async function postInsights<TRes>(payload: InsightsChatPayload): Promise<TRes> {
-    const response = await fetchDirectChatCompletion({
-        model: 'agent-default',
-        messages: payload.messages,
-        temperature: payload.temperature,
-        response_format: payload.response_format,
-    }, { modelPurpose: 'flash' });
-    if (!response.ok) {
-        const preview = await response.text().catch(() => '');
-        throw new Error(`Insights request failed (status ${response.status}). ${preview.slice(0, 200)}`);
-    }
-    const json = (await response.json()) as OpenAIChatResponse;
-    const content = json.choices?.[0]?.message?.content ?? '';
+    const { content } = await fetchDirectJsonCompletion(
+        {
+            model: 'agent-default',
+            messages: payload.messages,
+            temperature: payload.temperature,
+        },
+        { modelPurpose: 'flash' },
+    );
     const parsed = parseJsonShape<TRes>(content);
     if (parsed === null) {
         throw new Error('Insights response was not valid JSON.');
@@ -158,7 +139,6 @@ export async function generateEntryReflection(input: { entryText: string }): Pro
                 { role: 'user', content: `Entry:\n${input.entryText}` },
             ],
             temperature: INSIGHTS_TEMPERATURE,
-            response_format: { type: 'json_object' },
         });
         const suggestions = Array.isArray(data.suggestions)
             ? data.suggestions
@@ -187,7 +167,6 @@ export async function generateEntryAnalysis(input: { entryText: string }): Promi
                 { role: 'user', content: `Entry:\n${input.entryText}` },
             ],
             temperature: INSIGHTS_TEMPERATURE,
-            response_format: { type: 'json_object' },
         });
         const topics = normalizeTopics(data.topics);
         const insight = typeof data.insight === 'string' ? data.insight.trim() : '';
@@ -223,7 +202,6 @@ export async function generateWeeklyInsights(entries: WeeklyInsightsEntry[]): Pr
                 { role: 'user', content: `Entries:\n${combinedText}` },
             ],
             temperature: INSIGHTS_TEMPERATURE,
-            response_format: { type: 'json_object' },
         });
         return {
             emotionalLandscape: Array.isArray(data.emotionalLandscape) ? data.emotionalLandscape : [],
@@ -252,7 +230,6 @@ export async function generateEntryTitle(input: { entryText: string }): Promise<
                 { role: 'user', content: `Entry:\n${input.entryText}` },
             ],
             temperature: INSIGHTS_TEMPERATURE,
-            response_format: { type: 'json_object' },
         });
         const cleaned = typeof data.title === 'string' ? data.title.trim().replace(/^["']|["']$/g, '') : '';
         return cleaned || 'Untitled Entry';
@@ -272,7 +249,6 @@ export async function generateStreakHaiku(input: { entryText: string; streakCoun
                 },
             ],
             temperature: INSIGHTS_TEMPERATURE,
-            response_format: { type: 'json_object' },
         });
         const lines = Array.isArray(data.lines) ? data.lines : [];
         const clean = lines

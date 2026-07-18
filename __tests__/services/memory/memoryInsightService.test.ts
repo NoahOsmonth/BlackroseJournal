@@ -31,30 +31,41 @@ describe('memoryInsightService', () => {
         jest.clearAllMocks();
     });
 
-    it('requests a synthesis insight for a graph atom', async () => {
+    it('requests a glance synthesis without meta template language', async () => {
         mockFetchDirectChatCompletion.mockResolvedValue({
             ok: true,
             json: async () => ({
-                choices: [{ message: { content: 'A concise connection.' } }],
+                choices: [{ message: { content: 'Career still hums under the rest you crave.' } }],
             }),
         } as Response);
 
-        const result = await synthesizeMemoryInsight(atom);
-
-        expect(result).toBe('A concise connection.');
-        expect(mockFetchDirectChatCompletion).toHaveBeenCalledWith({
-            model: 'agent-default',
-            messages: expect.arrayContaining([
-                expect.objectContaining({
-                    role: 'system',
-                    content: expect.stringContaining('Max 50 words'),
-                }),
-                expect.objectContaining({
-                    role: 'user',
-                    content: expect.stringContaining('Career pressure'),
-                }),
-            ]),
+        const result = await synthesizeMemoryInsight(atom, {
+            mode: 'glance',
+            relatedTitles: ['Slow mornings'],
         });
+
+        expect(result).toBe('Career still hums under the rest you crave.');
+        expect(mockFetchDirectChatCompletion).toHaveBeenCalledWith(
+            expect.objectContaining({
+                model: 'agent-default',
+                messages: expect.arrayContaining([
+                    expect.objectContaining({
+                        role: 'system',
+                        content: expect.stringContaining('At a glance'),
+                    }),
+                    expect.objectContaining({
+                        role: 'user',
+                        content: expect.stringContaining('Career pressure'),
+                    }),
+                ]),
+            }),
+            expect.objectContaining({ modelPurpose: 'flash' })
+        );
+        const system = (mockFetchDirectChatCompletion.mock.calls[0][0] as {
+            messages: { content: string }[];
+        }).messages[0].content;
+        expect(system.toLowerCase()).toContain('never use meta');
+        expect(system).toMatch(/Do not start with "This is"/i);
     });
 
     it('throws when the direct AI response is not usable', async () => {

@@ -18,6 +18,8 @@ import { AppColorThemeProvider } from '@/components/theme/AppColorThemeProvider'
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useThemeSettings } from '@/hooks/useThemeSettings';
 import { registerAllWorkers } from '@/services/workers';
+import { seedDemoDataIfFirstLaunch } from '@/services/seed/seedDemoData';
+import { scheduleMemoryRollupsOnAppOpen } from '@/services/memory/memoryRollupBuild';
 
 // Font imports
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
@@ -70,6 +72,15 @@ export default function RootLayout() {
         }
 
         registerAllWorkers().catch((err) => console.warn('[workers] Registration failed:', err));
+
+        // Seed a coherent demo dataset on the user's first launch so the app is
+        // not empty on a fresh `npm run dev`. Safe to call repeatedly.
+        seedDemoDataIfFirstLaunch().catch((err) =>
+            console.warn('[seed] First-launch demo seeding failed:', err)
+        );
+
+        // Memory v3 Phase 4: lazy week/month/year rollups (not a background timer).
+        scheduleMemoryRollupsOnAppOpen();
 
         // Fallback timeout to prevent infinite loading
         const timeout = setTimeout(markReady, 3000);

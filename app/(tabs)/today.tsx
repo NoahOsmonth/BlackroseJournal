@@ -1,11 +1,12 @@
 /**
  * Today Screen
- * Matches updated example design for Today + My Intentions + Goals.
+ * Daily home: week strip, morning/evening rituals, intentions, goals, insight.
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { ScrollView, Share, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 
@@ -20,7 +21,7 @@ import {
     InsightMoreOptionsModal,
     IntentionActionCard,
     MyIntentionsSection,
-    PersonalizeButton,
+    buildGoalListItems,
 } from '@/components/today';
 import {
     EveningReflectionIcon,
@@ -40,20 +41,28 @@ import { WeekdaySelector } from '@/components/today/WeekdaySelector';
 import { getLocalDateKey } from '@/utils/date';
 import { calculateStreakStats } from '@/utils/streakStats';
 import { SpatialView } from '@/components/ui/SpatialView';
-import { StaggerEntrance } from '@/components/ui/StaggerEntrance';
 
 export default function TodayScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { weekDays, selectedDay, selectDay, monthLabel, shortDateLabel } = useSelectedDay();
-    const { completed: entries } = useJournalEntries();
-    const { completed: checkIns } = useIntentionCheckIns();
-    const { activeIntentions } = useIntentions();
-    const { goals } = useGoals();
+    const { completed: entries, refresh: refreshEntries } = useJournalEntries();
+    const { completed: checkIns, refresh: refreshCheckIns } = useIntentionCheckIns();
+    const { activeIntentions, refresh: refreshIntentions } = useIntentions();
+    const { goals, toggle: toggleGoal, refresh: refreshGoals } = useGoals();
     const { question, refresh, sourceDate } = useEntryInsightQuestion(entries);
     const { add: saveInsight } = useSavedInsights();
     const { openStreakView, openSettings } = useHeaderActions();
     const { goToTab } = useTabNavigation();
+
+    const refreshAll = useCallback(() => {
+        void refreshEntries();
+        void refreshCheckIns();
+        void refreshIntentions();
+        void refreshGoals();
+    }, [refreshEntries, refreshCheckIns, refreshIntentions, refreshGoals]);
+
+    useFocusEffect(refreshAll);
 
     const [showAddGoal, setShowAddGoal] = useState(false);
     const [moreVisible, setMoreVisible] = useState(false);
@@ -100,10 +109,10 @@ export default function TodayScreen() {
         [goals]
     );
 
-    const completedGoals = goalsForDate.filter((goal) => goal.completed).length;
-    const completedHabits = habits.filter((habit) => (habit.habitCompletions ?? []).includes(dateKey)).length;
-    const totalGoals = goalsForDate.length + habits.length;
-    const completedCount = completedGoals + completedHabits;
+    const goalListItems = useMemo(
+        () => buildGoalListItems(goalsForDate, habits, dateKey),
+        [goalsForDate, habits, dateKey]
+    );
 
     const handleTabPress = (tab: 'today' | 'explore' | 'entries' | 'settings' | 'insights') => {
         if (tab !== 'today') {
@@ -111,8 +120,6 @@ export default function TodayScreen() {
         }
     };
 
-    // Re-open today's unfinished check-in draft (saved when the chat was
-    // closed mid-conversation) instead of always starting a fresh session.
     const openDailyCheckIn = async (type: 'morning' | 'evening') => {
         const todayKey = getLocalDateKey(new Date());
         const draftsList = await listCheckInDrafts();
@@ -160,6 +167,11 @@ export default function TodayScreen() {
         setShowAddGoal(false);
         const { createGoal } = await import('@/services/goals/goalsStorage');
         await createGoal({ title, type, dateKey: type === 'goal' ? dateKey : undefined });
+        await refreshGoals();
+    };
+
+    const handleToggleGoal = (id: string) => {
+        void toggleGoal(id, dateKey);
     };
 
     const handleBookmark = async () => {
@@ -192,20 +204,21 @@ export default function TodayScreen() {
 
     return (
         <ScreenContainer edges="top">
-                <AppHeader
-                    variant="today"
-                    title={monthLabel}
-                    streakCount={streakCount}
-                    onLeftPress={openStreakView}
-                    onRightPress={openSettings}
-                />
+            <AppHeader
+                variant="today"
+                title={monthLabel}
+                streakCount={streakCount}
+                onLeftPress={openStreakView}
+                onRightPress={openSettings}
+            />
 
-                <ScrollView
-                    className="flex-1 px-4"
-                    contentContainerStyle={{ paddingBottom: navAwareBottomPadding(insets.bottom) }}
-                    showsVerticalScrollIndicator={false}
-                >
-                    <SpatialView visible={true}>
+            <ScrollView
+                className="flex-1 px-4"
+                contentContainerStyle={{ paddingBottom: navAwareBottomPadding(insets.bottom) }}
+                showsVerticalScrollIndicator={false}
+            >
+                <SpatialView visible={true}>
+                    <View className="gap-6">
                         <WeekdaySelector
                             weekDays={weekDays}
                             selectedDayIndex={selectedDay.dayIndex}
@@ -213,96 +226,75 @@ export default function TodayScreen() {
                             completedDayIndices={completedDayIndices}
                         />
 
-                        <View className="items-center justify-center mt-6">
+                        <View className="items-center justify-center">
                             <Text className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide">
                                 Today {shortDateLabel}
                             </Text>
                         </View>
 
-                        <StaggerEntrance
-                            columns={2}
-                            staggerType="diagonal"
-                            className="mt-6 justify-between w-full"
-                        >
-                            <View className="w-full">
-                                <IntentionActionCard
-                                    title={'Morning\nIntention'}
-                                    subtitle="Start your day"
-                                    icon={<MorningIntentionIcon />}
-                                    onPress={handleMorningPress}
-                                    isCompleted={morningCompleted}
-                                />
-                            </View>
-                            <View className="w-full">
-                                <IntentionActionCard
-                                    title={'Evening\nReflection'}
-                                    subtitle="Reflect & unwind"
-                                    icon={<EveningReflectionIcon />}
-                                    onPress={handleEveningPress}
-                                    isCompleted={eveningCompleted}
-                                />
-                            </View>
-                        </StaggerEntrance>
+                        <View className="flex-row gap-4">
+                            <IntentionActionCard
+                                title={'Morning\nIntention'}
+                                subtitle="Start your day"
+                                icon={<MorningIntentionIcon />}
+                                onPress={handleMorningPress}
+                                isCompleted={morningCompleted}
+                            />
+                            <IntentionActionCard
+                                title={'Evening\nReflection'}
+                                subtitle="Reflect & unwind"
+                                icon={<EveningReflectionIcon />}
+                                onPress={handleEveningPress}
+                                isCompleted={eveningCompleted}
+                            />
+                        </View>
 
-                        <StaggerEntrance
-                            columns={1}
-                            staggerType="linear"
-                            className="mt-8"
-                        >
-                            <View className="w-full mb-8">
-                                <MyIntentionsSection
-                                    intentions={activeIntentions}
-                                    onAdd={handleAddIntention}
-                                    onSelect={(intention) => handleSelectIntention(intention.id)}
-                                />
-                            </View>
+                        <MyIntentionsSection
+                            intentions={activeIntentions}
+                            onAdd={handleAddIntention}
+                            onSelect={(intention) => handleSelectIntention(intention.id)}
+                        />
 
-                            <View className="w-full mb-8">
-                                <GoalsSection
-                                    completedCount={completedCount}
-                                    totalCount={totalGoals}
-                                    onAddGoal={handleAddGoal}
-                                    onManage={handleManageGoals}
-                                />
-                            </View>
+                        <GoalsSection
+                            items={goalListItems}
+                            onAddGoal={handleAddGoal}
+                            onManage={handleManageGoals}
+                            onToggle={handleToggleGoal}
+                        />
 
-                            {!isInsightHidden ? (
-                                <View className="w-full mb-8">
-                                    <EntryInsightsCard
-                                        question={question}
-                                        onRefresh={refresh}
-                                        onBookmark={handleBookmark}
-                                        onMore={() => setMoreVisible(true)}
-                                        onPress={handleInsightPress}
-                                    />
-                                </View>
-                            ) : null}
+                        {!isInsightHidden ? (
+                            <EntryInsightsCard
+                                question={question}
+                                onRefresh={refresh}
+                                onBookmark={handleBookmark}
+                                onMore={() => setMoreVisible(true)}
+                                onPress={handleInsightPress}
+                            />
+                        ) : null}
+                    </View>
+                </SpatialView>
+            </ScrollView>
 
-                            <PersonalizeButton onPress={openSettings} />
-                        </StaggerEntrance>
-                    </SpatialView>
-                </ScrollView>
+            <BottomNav
+                activeTab="today"
+                onTabPress={handleTabPress}
+                onFabPress={() => router.push('/chat')}
+            />
 
-                <BottomNav
-                    activeTab="today"
-                    onTabPress={handleTabPress}
-                    onFabPress={() => router.push('/chat')}
-                />
+            <GoalQuickAddModal
+                visible={showAddGoal}
+                onClose={() => setShowAddGoal(false)}
+                onSubmit={handleAddGoalSubmit}
+            />
 
-                <GoalQuickAddModal
-                    visible={showAddGoal}
-                    onClose={() => setShowAddGoal(false)}
-                    onSubmit={handleAddGoalSubmit}
-                />
-
-                <InsightMoreOptionsModal
-                    visible={moreVisible}
-                    onClose={() => setMoreVisible(false)}
-                    onShare={handleShare}
-                    onCopy={handleCopy}
-                    onHide={handleHide}
-                    onShowSavedInsights={handleShowSavedInsights}
-                />
+            <InsightMoreOptionsModal
+                visible={moreVisible}
+                onClose={() => setMoreVisible(false)}
+                onShare={handleShare}
+                onCopy={handleCopy}
+                onHide={handleHide}
+                onShowSavedInsights={handleShowSavedInsights}
+            />
         </ScreenContainer>
     );
 }

@@ -24,7 +24,10 @@ import {
     queueIntentionDelete,
     queueIntentionUpsert,
 } from './intentionsRemote';
+import { upsertCheckInDayDigest } from '../memory/dayDigestStorage';
+import { extractIdentityFromSessionTranscript } from '../memory/identityExtraction';
 import { saveIntentionCheckInMemories } from '../memory/localMemory';
+import { buildAndSaveSessionDigest } from '../memory/sessionDigestBuild';
 
 const INTENTIONS_KEY = '@intentions';
 const CHECKINS_KEY = '@intention_checkins';
@@ -243,6 +246,12 @@ export async function createCheckIn(
     input: IntentionCheckInCreateInput
 ): Promise<IntentionCheckIn> {
     const now = Date.now();
+    const createdAt = typeof input.createdAt === 'number' && Number.isFinite(input.createdAt)
+        ? input.createdAt
+        : now;
+    const updatedAt = typeof input.updatedAt === 'number' && Number.isFinite(input.updatedAt)
+        ? input.updatedAt
+        : createdAt;
     const checkIn: IntentionCheckIn = {
         id: generateId('checkin'),
         intentionId: input.intentionId,
@@ -253,8 +262,8 @@ export async function createCheckIn(
         personaId: input.personaId,
         messages: input.messages ?? [],
         status: input.status,
-        createdAt: now,
-        updatedAt: now,
+        createdAt,
+        updatedAt,
     };
 
     const map = await loadMap<IntentionCheckIn>(CHECKINS_KEY);
@@ -273,6 +282,26 @@ export async function createCheckIn(
         } catch (error) {
             console.warn('Failed to save check-in memories:', error);
         }
+        try {
+            await upsertCheckInDayDigest(checkIn);
+        } catch (error) {
+            console.warn('Failed to update day digest for check-in:', error);
+        }
+        // Fire-and-forget — do not block check-in save on flash extract / digest.
+        const userLines = (checkIn.messages ?? [])
+            .filter((m) => m.role === 'user')
+            .map((m) => m.content);
+        void extractIdentityFromSessionTranscript(userLines).catch((error) => {
+            console.warn('Failed to extract identity from check-in:', error);
+        });
+        void buildAndSaveSessionDigest({
+            sessionId: checkIn.id,
+            sourceKind: 'intention_checkin',
+            sourceId: checkIn.id,
+            userMessages: userLines,
+        }).catch((error) => {
+            console.warn('Failed to build session digest for check-in:', error);
+        });
     }
 
     return checkIn;
@@ -311,6 +340,25 @@ export async function updateCheckIn(
         } catch (error) {
             console.warn('Failed to save check-in memories:', error);
         }
+        try {
+            await upsertCheckInDayDigest(updated);
+        } catch (error) {
+            console.warn('Failed to update day digest for check-in:', error);
+        }
+        const userLines = (updated.messages ?? [])
+            .filter((m) => m.role === 'user')
+            .map((m) => m.content);
+        void extractIdentityFromSessionTranscript(userLines).catch((error) => {
+            console.warn('Failed to extract identity from check-in:', error);
+        });
+        void buildAndSaveSessionDigest({
+            sessionId: updated.id,
+            sourceKind: 'intention_checkin',
+            sourceId: updated.id,
+            userMessages: userLines,
+        }).catch((error) => {
+            console.warn('Failed to build session digest for check-in:', error);
+        });
     }
 
     return updated;

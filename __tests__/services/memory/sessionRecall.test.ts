@@ -1,0 +1,203 @@
+/* eslint-disable import/first */
+/**
+ * Phase 3 session recall triggers + ranking.
+ *
+ * What would make these fail?
+ * - Firing on unrelated small talk (false positive)
+ * - Missing "what did we talk about last month" (false negative)
+ * - Requiring embeddings when offline (blocks date-only path)
+ */
+
+jest.mock('@react-native-async-storage/async-storage', () => ({
+    __esModule: true,
+    default: {
+        getItem: jest.fn(),
+        setItem: jest.fn(),
+        removeItem: jest.fn(),
+    },
+}));
+
+jest.mock('../../../services/ai/embeddingsTransport', () => ({
+    embedText: jest.fn(),
+}));
+
+import { embedText } from '../../../services/ai/embeddingsTransport';
+import {
+    buildSessionRecallContext,
+    detectSessionRecallIntent,
+    resolveSessionRecallDateRange,
+} from '../../../services/memory/sessionRecall';
+import {
+    clearSessionDigests,
+    resetSessionDigestStorageAdapter,
+    setSessionDigestStorageAdapter,
+    upsertSessionDigest,
+} from '../../../services/memory/sessionDigestStorage';
+import type { SessionDigest } from '../../../services/memory/sessionDigest.types';
+import { l2Normalize } from '../../../services/memory/embeddings';
+
+function createInMemoryAdapter() {
+    const store = new Map<string, string>();
+    return {
+        store,
+        getItem: async (key: string) => store.get(key) ?? null,
+        setItem: async (key: string, value: string) => {
+            store.set(key, value);
+        },
+        removeItem: async (key: string) => {
+            store.delete(key);
+        },
+        multiGet: async (keys: readonly string[]) =>
+            keys.map((k) => [k, store.get(k) ?? null] as [string, string | null]),
+        multiRemove: async (keys: readonly string[]) => {
+            keys.forEach((k) => store.delete(k));
+        },
+        getAllKeys: async () => Array.from(store.keys()),
+    };
+}
+
+const mockEmbed = jest.mocked(embedText);
+
+function digest(partial: Partial<SessionDigest> & Pick<SessionDigest, 'sessionId' | 'dateISO' | 'oneLineSummary'>): SessionDigest {
+    return {
+        schemaVersion: 1,
+        topics: partial.topics ?? ['general'],
+        embedding: partial.embedding ?? [],
+        entryWordCount: partial.entryWordCount ?? 20,
+        createdAt: partial.createdAt ?? Date.now(),
+        sourceKind: partial.sourceKind ?? 'journal_entry',
+        sourceId: partial.sourceId ?? partial.sessionId,
+        ...partial,
+    };
+}
+
+describe('sessionRecall', () => {
+    beforeEach(() => {
+        setSessionDigestStorageAdapter(createInMemoryAdapter());
+        mockEmbed.mockReset();
+    });
+
+    afterEach(async () => {
+        await clearSessionDigests();
+        resetSessionDigestStorageAdapter();
+    });
+
+    it('fires on temporal recall and not on unrelated small talk', () => {
+        expect(detectSessionRecallIntent('what did we talk about last month')).toBe(true);
+        expect(detectSessionRecallIntent('What did we talk about last month?')).toBe(true);
+        expect(detectSessionRecallIntent('did I mention my sister')).toBe(true);
+        expect(detectSessionRecallIntent('last time I mentioned work')).toBe(true);
+
+        // False-positive check
+        expect(detectSessionRecallIntent('hi')).toBe(false);
+        expect(detectSessionRecallIntent('I am tired today')).toBe(false);
+        expect(detectSessionRecallIntent('how do I make pasta')).toBe(false);
+    });
+
+    it('resolves last month to a ~30 day window', () => {
+        const now = new Date(2026, 6, 17); // July 17 2026 local
+        const range = resolveSessionRecallDateRange('what did we talk about last month', now);
+        expect(range?.label).toBe('last month');
+        expect(range?.to).toBe('2026-07-17');
+        expect(range?.from).toBe('2026-06-17');
+    });
+
+    it('injects matching digests for last month (date path, offline embed)', async () => {
+        mockEmbed.mockResolvedValue(null);
+        const now = new Date(2026, 6, 17, 12, 0, 0);
+
+        await upsertSessionDigest(digest({
+            sessionId: 'in-range',
+            dateISO: '2026-07-01',
+            oneLineSummary: 'Talked about sister and family stress.',
+            topics: ['family', 'sister'],
+            createdAt: now.getTime() - 5 * 86_400_000,
+        }));
+        await upsertSessionDigest(digest({
+            sessionId: 'out-of-range',
+            dateISO: '2026-01-01',
+            oneLineSummary: 'Ancient session about pasta recipes.',
+            topics: ['food'],
+            createdAt: now.getTime() - 200 * 86_400_000,
+        }));
+
+        const block = await buildSessionRecallContext(
+            'what did we talk about last month',
+            { now, skipEmbed: true },
+        );
+
+        expect(block).toContain('## Relevant past context');
+        expect(block).toContain('sister');
+        expect(block).toContain('Written 2026-07-01');
+        expect(block).not.toContain('pasta');
+
+        // eslint-disable-next-line no-console
+        console.log('[recall-diag] last month block:\n', block);
+    });
+
+    /**
+     * Offline: embed fails → still return date-window digests.
+     * What would make this fail: requiring non-empty embedding to include a row.
+     */
+    it('falls back to date-range-only when embeddings fail', async () => {
+        mockEmbed.mockResolvedValue(null);
+        const now = new Date(2026, 6, 17);
+        await upsertSessionDigest(digest({
+            sessionId: 'work1',
+            dateISO: '2026-07-10',
+            oneLineSummary: 'Deadlines at work felt crushing.',
+            topics: ['work stress'],
+            embedding: [], // empty stored vector
+            createdAt: now.getTime() - 3 * 86_400_000,
+        }));
+
+        const block = await buildSessionRecallContext(
+            'what did we talk about last week',
+            { now },
+        );
+        expect(mockEmbed).toHaveBeenCalled();
+        expect(block).toContain('Deadlines at work');
+        expect(block).toContain('Date window');
+    });
+
+    it('ranks by semantic similarity when embeddings available', async () => {
+        const now = new Date(2026, 6, 17);
+        const workVec = l2Normalize([1, 0, 0, 0]);
+        const foodVec = l2Normalize([0, 1, 0, 0]);
+        const queryVec = l2Normalize([0.95, 0.05, 0, 0]);
+
+        await upsertSessionDigest(digest({
+            sessionId: 'work',
+            dateISO: '2026-07-01',
+            oneLineSummary: 'Work stress and deadlines.',
+            embedding: workVec,
+            createdAt: now.getTime() - 10 * 86_400_000,
+        }));
+        await upsertSessionDigest(digest({
+            sessionId: 'food',
+            dateISO: '2026-07-02',
+            oneLineSummary: 'Cooked a tomato pasta recipe.',
+            embedding: foodVec,
+            createdAt: now.getTime() - 9 * 86_400_000,
+        }));
+
+        const block = await buildSessionRecallContext(
+            'last time I mentioned work pressure',
+            { now, queryEmbedding: queryVec, skipEmbed: true },
+        );
+        expect(block).toContain('Work stress');
+        // Food is orthogonal in embedding space — should be filtered by MIN_SIMILARITY.
+        expect(block).not.toContain('pasta');
+    });
+
+    it('returns undefined (no inject) for non-recall messages even if digests exist', async () => {
+        await upsertSessionDigest(digest({
+            sessionId: 'x',
+            dateISO: '2026-07-01',
+            oneLineSummary: 'Anything',
+        }));
+        const block = await buildSessionRecallContext('I am tired today');
+        expect(block).toBeUndefined();
+        expect(mockEmbed).not.toHaveBeenCalled();
+    });
+});

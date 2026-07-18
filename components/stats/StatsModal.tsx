@@ -46,7 +46,7 @@ export function StatsModal({ visible, onClose, title, children }: StatsModalProp
                             <MaterialIcons
                                 name="close"
                                 size={24}
-                                color={isDark ? '#A0A0A0' : '#757575'}
+                                color={isDark ? '#98989D' : '#6B7280'}
                             />
                         </Pressable>
                     </View>

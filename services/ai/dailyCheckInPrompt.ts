@@ -7,11 +7,11 @@
  * builder in `useChat.ts`.
  */
 
-import { THERAPIST_SYSTEM_PROMPT } from '@/constants/aiPrompts';
+import { GUIDED_COMPANION_SYSTEM_PROMPT } from '@/constants/aiPrompts';
 import { DailyPrompt } from '@/constants/dailyPrompts';
 
 export function buildDailyCheckInSystemPrompt(prompt: DailyPrompt): string {
-    return `${THERAPIST_SYSTEM_PROMPT}
+    return `${GUIDED_COMPANION_SYSTEM_PROMPT}
 
 ## Current Check-In Context
 The user is doing a "${prompt.title}" daily check-in. The prompt they're responding to is:

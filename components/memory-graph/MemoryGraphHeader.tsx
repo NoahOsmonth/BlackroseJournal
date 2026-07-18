@@ -12,38 +12,51 @@ interface HeaderProps {
 
 export function MemoryGraphHeader({ query, onQueryChange, onBack }: HeaderProps) {
     const colorScheme = useColorScheme();
-    const iconColor = colorScheme === 'dark' ? Colors.dark.text : Colors.light.icon;
-    const placeholderColor = colorScheme === 'dark' ? Colors.dark.icon : Colors.light.icon;
+    const isDark = colorScheme === 'dark';
+    const iconColor = isDark ? Colors.dark.text : Colors.light.icon;
+    const placeholderColor = isDark ? Colors.dark.icon : Colors.light.icon;
 
     return (
-        <View className="px-5 pt-3 pb-4 border-b border-divider-light dark:border-divider-dark">
+        <View className="border-b border-divider-light px-5 pb-4 pt-3 dark:border-divider-dark">
             <View className="flex-row items-center gap-3">
                 {onBack ? (
                     <Pressable
                         onPress={onBack}
                         accessibilityRole="button"
                         accessibilityLabel="Back from memory graph"
-                        className="rounded-full bg-surface-light p-2 dark:bg-surface-dark"
+                        className="h-10 w-10 items-center justify-center rounded-2xl
+                        border border-divider-light bg-surface-light
+                        dark:border-divider-dark dark:bg-surface-dark"
                     >
                         <MaterialIcons name="arrow-back" size={20} color={iconColor} />
                     </Pressable>
                 ) : null}
-                <Text className="text-2xl font-bold text-text-light dark:text-text-dark">
-                    Memory Graph
-                </Text>
+                <View className="min-w-0 flex-1">
+                    <Text
+                        className="text-2xl font-bold text-text-light dark:text-text-dark"
+                        style={{ fontFamily: 'PlayfairDisplayBold' }}
+                    >
+                        Memory map
+                    </Text>
+                    <Text className="mt-0.5 text-xs text-text-secondary-light dark:text-text-secondary-dark">
+                        Your inner constellation
+                    </Text>
+                </View>
             </View>
             <View
-                className="mt-3 flex-row items-center rounded-2xl border border-divider-light
-                dark:border-divider-dark bg-surface-light dark:bg-surface-dark px-3"
+                className="mt-3.5 flex-row items-center rounded-2xl border border-divider-light
+                bg-surface-light px-3.5 dark:border-divider-dark dark:bg-surface-dark"
             >
                 <MaterialIcons name="search" size={18} color={iconColor} />
                 <TextInput
                     accessibilityLabel="Search memory graph"
                     className="ml-2 flex-1 py-3 text-sm text-text-light dark:text-text-dark"
-                    placeholder="Search memory node or keyword..."
+                    placeholder="Search stars, themes, keywords…"
                     placeholderTextColor={placeholderColor}
                     value={query}
                     onChangeText={onQueryChange}
+                    returnKeyType="search"
+                    clearButtonMode="while-editing"
                 />
             </View>
         </View>

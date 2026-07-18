@@ -102,21 +102,21 @@ describe('directConfig — getDirectConfig', () => {
         expect(() => getDirectConfig()).toThrow(/placeholder/i);
     });
 
-    it('4. falls back to https://nano-gpt.com/api/v1 when base URL env is missing', () => {
+    it('4. falls back to OpenRouter when base URL env is missing', () => {
         process.env[KEY] = 'sk-test-key';
 
         const cfg = getDirectConfig();
 
-        expect(cfg.apiBaseUrl).toBe('https://nano-gpt.com/api/v1');
+        expect(cfg.apiBaseUrl).toBe('https://openrouter.ai/api/v1');
     });
 
-    it('5. falls back to Nemotron Ultra for model and flash model', () => {
+    it('5. falls back to free OpenRouter model defaults', () => {
         process.env[KEY] = 'sk-test-key';
 
         const cfg = getDirectConfig();
 
-        expect(cfg.model).toBe('nvidia/nemotron-3-ultra-550b-a55b');
-        expect(cfg.flashModel).toBe('nvidia/nemotron-3-ultra-550b-a55b');
+        expect(cfg.model).toBe('tencent/hy3:free');
+        expect(cfg.flashModel).toBe('tencent/hy3:free');
     });
 });
 
@@ -158,12 +158,13 @@ describe('directConfig — getResolvedDirectConfig', () => {
         await saveCustomAiProviderSettings({
             ...getDefaultCustomAiProviderSettings(),
             enabled: true,
+            freeOnly: true,
             baseUrl: 'https://openrouter.ai/api/v1',
             apiKey: 'sk-or-test',
-            selectedModelId: 'openai/gpt-4',
+            selectedModelId: 'tencent/hy3:free',
             models: [{
-                id: 'openai/gpt-4',
-                contextWindow: 8192,
+                id: 'tencent/hy3:free',
+                contextWindow: 262000,
                 contextWindowSource: 'api',
             }],
         });
@@ -171,10 +172,10 @@ describe('directConfig — getResolvedDirectConfig', () => {
         await expect(getResolvedDirectConfig()).resolves.toEqual({
             apiKey: 'sk-or-test',
             apiBaseUrl: 'https://openrouter.ai/api/v1',
-            model: 'openai/gpt-4',
-            flashModel: 'openai/gpt-4',
+            model: 'tencent/hy3:free',
+            flashModel: 'tencent/hy3:free',
             source: 'custom',
-            contextWindow: 8192,
+            contextWindow: 262000,
             contextWindowSource: 'api',
         });
     });

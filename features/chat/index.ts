@@ -24,7 +24,12 @@ export type { ResumeChatSessionOptions } from './hooks';
 export type { ChatState, Message, StreamingMessage } from './types';
 
 // Flows
-export { FLOWS, composeSystemPrompt, flowForCheckInType } from './flows';
+export {
+    FLOWS,
+    composeHistoryContextBlocks,
+    composeSystemPrompt,
+    flowForCheckInType,
+} from './flows';
 export type {
     ChatFlow,
     ChatFlowContext,

@@ -270,7 +270,9 @@ describe('Plan 09 manual-QA smoke test', () => {
         const atoms = await saveJournalEntryMemories(entry);
         expect(atoms.length).toBeGreaterThanOrEqual(2);
         const layers = atoms.map((a) => a.layer);
-        expect(layers).toEqual(expect.arrayContaining(['episodic', 'profile']));
+        expect(layers).toEqual(expect.arrayContaining(['episodic']));
+        expect(atoms.every((a) => a.title.toLowerCase() !== 'about the user')).toBe(true);
+        expect(atoms.every((a) => a.rootSourceId === entry.id)).toBe(true);
 
         // The hook (and therefore the graph) should see them
         const { result } = renderHook(() => useLocalMemories());
@@ -278,10 +280,10 @@ describe('Plan 09 manual-QA smoke test', () => {
 
         // Convert to graph display model: salience 1-10, ISO date string
         const graphAtoms = result.current.atoms
-            .filter((a) => a.sourceId?.startsWith(entry.id) || a.sourceId?.includes(entry.id))
+            .filter((a) => a.rootSourceId === entry.id || a.sourceId === entry.id)
             .map((a) => ({
                 id: a.id,
-                entryId: a.sourceId ?? a.id,
+                entryId: a.rootSourceId ?? a.sourceId ?? a.id,
                 title: a.title,
                 content: a.content,
                 layer: a.layer,

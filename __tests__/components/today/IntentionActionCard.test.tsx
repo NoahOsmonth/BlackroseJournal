@@ -12,7 +12,7 @@ jest.mock('@expo/vector-icons', () => ({
 }));
 
 describe('IntentionActionCard', () => {
-    it('renders title, subtitle, and a minimum 140dp height', () => {
+    it('renders title, subtitle, and a reserved minimum height', () => {
         render(
             <IntentionActionCard
                 title={"Morning\nIntention"}
@@ -27,10 +27,10 @@ describe('IntentionActionCard', () => {
         expect(screen.getByText(/Intention/)).toBeTruthy();
         expect(screen.getByText('Start your day')).toBeTruthy();
         expect(screen.getByLabelText('Morning Intention').props.className)
-            .toContain('min-h-[140px]');
+            .toContain('min-h-[148px]');
     });
 
-    it('renders the completed checkmark instead of the subtitle', () => {
+    it('renders Done in the footer instead of the subtitle when completed', () => {
         render(
             <IntentionActionCard
                 title={"Evening\nReflection"}
@@ -44,5 +44,6 @@ describe('IntentionActionCard', () => {
         expect(screen.getByText(/Evening/)).toBeTruthy();
         expect(screen.getByText(/Reflection/)).toBeTruthy();
         expect(screen.queryByText('Reflect & unwind')).toBeNull();
+        expect(screen.getByText('Done')).toBeTruthy();
     });
 });

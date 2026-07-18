@@ -154,7 +154,7 @@ export default function RewardsScreen() {
                                 )}
                                 {selectedAchievement.isUnlocked && (
                                     <View className="items-center">
-                                        <Text className="text-sm text-green-500 font-bold">
+                                        <Text className="text-sm text-green-500 dark:text-green-400 font-bold">
                                             ✓ Unlocked!
                                         </Text>
                                     </View>

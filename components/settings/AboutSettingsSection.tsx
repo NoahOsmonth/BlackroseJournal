@@ -8,6 +8,7 @@ import { SettingsSection } from './SettingsSection';
 interface AboutSettingsSectionProps {
     readonly onAboutPress: () => void;
     readonly onPrivacyPress: () => void;
+    readonly embedded?: boolean;
 }
 
 interface AboutRowProps {
@@ -45,9 +46,10 @@ function AboutRow({ label, iconName, showBorder = true, onPress }: AboutRowProps
 export function AboutSettingsSection({
     onAboutPress,
     onPrivacyPress,
+    embedded = false,
 }: AboutSettingsSectionProps) {
     return (
-        <SettingsSection title="About">
+        <SettingsSection title="About" embedded={embedded}>
             <AboutRow label="About" iconName="information-circle-outline" onPress={onAboutPress} />
             <AboutRow
                 label="Privacy Policy"

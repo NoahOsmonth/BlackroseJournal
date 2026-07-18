@@ -12,12 +12,15 @@ function atom(
     id: string,
     layer: MemoryLayer,
     tags: string[],
-    createdAt = '2026-01-01T00:00:00.000Z'
+    createdAt = '2026-01-01T00:00:00.000Z',
+    rootSourceId?: string
 ): MemoryGraphAtom {
     return {
         id,
-        entryId: id,
+        entryId: rootSourceId ?? id,
         source: 'journal',
+        rootSourceId,
+        rootSourceKind: rootSourceId ? 'journal_entry' : undefined,
         title: id,
         content: `Memory ${id}`,
         layer,
@@ -41,6 +44,21 @@ describe('memoryGraphUtils', () => {
             to: 'b',
             strength: 1,
             tags: ['career', 'rest', 'sleep', 'focus', 'home'],
+        }]);
+    });
+
+    it('links atoms that share a root source even without tags', () => {
+        const connections = computeConnections([
+            atom('a', 'episodic', [], '2026-01-01T00:00:00.000Z', 'entry-1'),
+            atom('b', 'semantic', [], '2026-01-01T00:00:00.000Z', 'entry-1'),
+            atom('c', 'note', [], '2026-01-01T00:00:00.000Z', 'entry-2'),
+        ]);
+
+        expect(connections).toEqual([{
+            from: 'a',
+            to: 'b',
+            strength: 0.9,
+            tags: ['same-source'],
         }]);
     });
 

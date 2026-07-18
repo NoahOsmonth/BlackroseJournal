@@ -1,5 +1,14 @@
 /* eslint-disable import/first */
 
+jest.mock('@/services/memory/memoryAtomExtraction', () => ({
+    extractJournalMemoryAtoms: jest.fn(async () => []),
+    extractCheckInMemoryAtoms: jest.fn(async () => []),
+}));
+
+jest.mock('@/services/ai/embeddingsTransport', () => ({
+    embedText: jest.fn(async () => null),
+}));
+
 jest.mock('@react-native-async-storage/async-storage', () => ({
     __esModule: true,
     default: {
@@ -15,14 +24,18 @@ import {
     deleteMemoryAtomsBySource,
     generateMemoryNoteSuggestion,
     listMemoryAtoms,
+    rankAtom,
     resetMemoryStorageAdapter,
     deleteMemoryAtom,
+    retrieveLocalMemories,
     saveGeneratedMemoryNote,
     saveManualMemoryNote,
     saveIntentionCheckInMemories,
     saveJournalEntryMemories,
     setMemoryStorageAdapter,
+    upsertMemoryAtom,
 } from '../../services/memory/localMemory';
+import { l2Normalize } from '../../services/memory/embeddings';
 import type {
     JournalEntry,
     StorageAdapter,
@@ -108,7 +121,9 @@ describe('localMemory', () => {
         const layers = atoms.map((atom) => atom.layer);
 
         expect(layers).toEqual(expect.arrayContaining(['episodic', 'profile', 'semantic']));
-        expect(atoms.some((atom) => atom.title === 'Theme: Career')).toBe(true);
+        expect(atoms.some((atom) => atom.layer === 'semantic' && atom.title === 'Career')).toBe(true);
+        expect(atoms.every((atom) => atom.title.toLowerCase() !== 'about the user')).toBe(true);
+        expect(atoms.every((atom) => atom.rootSourceId === 'entry-1')).toBe(true);
     });
 
     it('builds a bounded prompt capsule and records retrieval access', async () => {
@@ -119,6 +134,7 @@ describe('localMemory', () => {
 
         expect(context).toContain('## Local Memory Capsule');
         expect(context).toContain('Career');
+        expect(context).toMatch(/Written \d{4}-\d{2}-\d{2}/);
         expect(atoms.some((atom) => atom.accessCount > 0)).toBe(true);
     });
 
@@ -166,12 +182,12 @@ describe('localMemory', () => {
         const sources = atoms.map((atom) => atom.source);
         const layers = atoms.map((atom) => atom.layer);
 
-        expect(sources).toEqual(['intention', 'intention']);
-        expect(layers).toEqual(expect.arrayContaining(['episodic', 'profile']));
+        expect(sources).toEqual(['intention']);
+        expect(layers).toEqual(['episodic']);
         expect(atoms.some((atom) => atom.title === 'Morning intention: Start the day with focus'))
             .toBe(true);
-        expect(atoms.some((atom) => atom.layer === 'profile' && atom.content.includes('pattern')))
-            .toBe(true);
+        expect(atoms[0]?.rootSourceKind).toBe('intention_checkin');
+        expect(atoms.every((atom) => atom.title.toLowerCase() !== 'about the user')).toBe(true);
     });
 
     it('does not save unfinished intention check-ins as long-term memory', async () => {
@@ -201,5 +217,60 @@ describe('localMemory', () => {
         expect(atoms.some((atom) => atom.source === 'journal')).toBe(false);
         expect(atoms.some((atom) => atom.source === 'intention')).toBe(true);
         expect(atoms.some((atom) => atom.source === 'manual')).toBe(true);
+    });
+
+    /**
+     * Phase 5: semantic primary. Work embedding aligns with query; food is orthogonal.
+     * What would make this fail: lexical-only rank preferring food if query tokens overlap badly,
+     * or equal weights ignoring cosine.
+     */
+    it('ranks atoms by embedding similarity when vectors exist (semantic primary)', async () => {
+        const workVec = l2Normalize([1, 0, 0, 0]);
+        const foodVec = l2Normalize([0, 1, 0, 0]);
+        const queryVec = l2Normalize([0.99, 0.01, 0, 0]);
+
+        await upsertMemoryAtom({
+            layer: 'episodic',
+            source: 'journal',
+            sourceId: 'work-atom',
+            title: 'zzzz lexical trap pasta pasta',
+            content: 'Work stress and crushing deadlines at the office.',
+            tags: ['work'],
+            salience: 0.4,
+            confidence: 0.8,
+            embedding: workVec,
+        });
+        await upsertMemoryAtom({
+            layer: 'episodic',
+            source: 'journal',
+            sourceId: 'food-atom',
+            title: 'Tomato pasta recipe night',
+            content: 'Cooked a simple pasta with garlic.',
+            tags: ['food', 'pasta'],
+            salience: 0.95,
+            confidence: 0.9,
+            embedding: foodVec,
+        });
+
+        const work = (await listMemoryAtoms()).find((a) => a.sourceId === 'work-atom')!;
+        const food = (await listMemoryAtoms()).find((a) => a.sourceId === 'food-atom')!;
+        const tokens = new Set(['pasta', 'recipe']); // lexical would prefer food
+        const now = Date.now();
+
+        const workScore = rankAtom(work, tokens, now, queryVec);
+        const foodScore = rankAtom(food, tokens, now, queryVec);
+        expect(workScore).toBeGreaterThan(foodScore);
+
+        // retrieveLocalMemories with injected path via upsert embeddings + mocked embedText
+        const { embedText } = jest.requireMock('@/services/ai/embeddingsTransport') as {
+            embedText: jest.Mock;
+        };
+        embedText.mockResolvedValueOnce(queryVec);
+
+        const ranked = await retrieveLocalMemories({
+            query: 'feeling crushed by work deadlines',
+            limit: 2,
+        });
+        expect(ranked[0]?.sourceId).toBe('work-atom');
     });
 });

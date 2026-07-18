@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useActiveModelContext } from './useActiveModelContext';
 import {
     DEFAULT_GENERATION,
@@ -24,12 +24,18 @@ export function useGenerationSettings(): UseGenerationSettingsReturn {
     const model = useActiveModelContext();
     const [settings, setSettings] = useState<GenerationSettings>(DEFAULT_GENERATION);
     const [isLoading, setIsLoading] = useState(true);
+    const settingsRef = useRef(settings);
+    settingsRef.current = settings;
+    const saveQueue = useRef(Promise.resolve());
 
     useEffect(() => {
         let mounted = true;
         loadGenerationSettings(model.context?.contextWindow)
             .then((loaded) => {
-                if (mounted) setSettings(loaded);
+                if (mounted) {
+                    settingsRef.current = loaded;
+                    setSettings(loaded);
+                }
             })
             .finally(() => mounted && setIsLoading(false));
         return () => {
@@ -39,23 +45,35 @@ export function useGenerationSettings(): UseGenerationSettingsReturn {
 
     useEffect(() => {
         if (!model.context) return;
-        setSettings((current) => sanitizeGenerationSettings(
-            current,
-            model.context?.contextWindow
-        ));
+        setSettings((current) => {
+            const next = sanitizeGenerationSettings(
+                current,
+                model.context?.contextWindow
+            );
+            settingsRef.current = next;
+            return next;
+        });
     }, [model.context]);
 
     const update = useCallback(async (partial: Partial<GenerationSettings>) => {
         const next = sanitizeGenerationSettings(
-            { ...settings, ...partial },
+            { ...settingsRef.current, ...partial },
             model.context?.contextWindow
         );
+        settingsRef.current = next;
         setSettings(next);
-        setSettings(await saveGenerationSettings(next, model.context?.contextWindow));
-    }, [model.context?.contextWindow, settings]);
+        // Serialize AsyncStorage writes so rapid slider commits cannot clobber each other.
+        const run = saveQueue.current.then(() =>
+            saveGenerationSettings(next, model.context?.contextWindow)
+        );
+        saveQueue.current = run.then(() => undefined, () => undefined);
+        await run;
+    }, [model.context?.contextWindow]);
 
     const reset = useCallback(async () => {
-        setSettings(await resetGenerationSettings(model.context?.contextWindow));
+        const defaults = await resetGenerationSettings(model.context?.contextWindow);
+        settingsRef.current = defaults;
+        setSettings(defaults);
     }, [model.context?.contextWindow]);
 
     return {

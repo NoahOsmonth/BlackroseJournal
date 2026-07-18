@@ -10,11 +10,22 @@ export type LocalMemoryLayer =
 
 export type LocalMemorySource = 'journal' | 'intention' | 'feedback' | 'manual' | 'system';
 
+/** Navigable provenance for opening journal/check-in detail from the graph. */
+export type LocalMemoryRootSourceKind =
+    | 'journal_entry'
+    | 'intention_checkin'
+    | 'manual'
+    | 'system'
+    | 'feedback';
+
 export interface LocalMemoryAtom {
     id: string;
     layer: LocalMemoryLayer;
     source: LocalMemorySource;
     sourceId?: string;
+    /** Navigable journal entry id or check-in id when known. */
+    rootSourceId?: string;
+    rootSourceKind?: LocalMemoryRootSourceKind;
     title: string;
     content: string;
     tags: string[];
@@ -24,18 +35,27 @@ export interface LocalMemoryAtom {
     updatedAt: number;
     lastAccessedAt?: number;
     accessCount: number;
+    /**
+     * Optional L2-normalized embedding (EMBEDDING_MODEL) of title+content.
+     * Used for semantic capsule ranking (Memory v3 Phase 5). Missing on older
+     * atoms → lexical fallback.
+     */
+    embedding?: number[];
 }
 
 export interface LocalMemoryAtomInput {
     layer: LocalMemoryLayer;
     source: LocalMemorySource;
     sourceId: string;
+    rootSourceId?: string;
+    rootSourceKind?: LocalMemoryRootSourceKind;
     title: string;
     content: string;
     tags?: string[];
     salience?: number;
     confidence?: number;
     createdAt?: number;
+    embedding?: number[];
 }
 
 export interface LocalMemoryEnvelope {

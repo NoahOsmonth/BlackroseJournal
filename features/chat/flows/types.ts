@@ -33,8 +33,24 @@ export type ChatFlowId =
 export interface ChatFlowContext {
     /** Active persona — injected uniformly by `composeSystemPrompt` when present. */
     activePersona?: Persona | null;
+    /**
+     * Local clock block. When omitted, `composeSystemPrompt` builds one from `now`
+     * (or the current time) so every chat knows today's date.
+     */
+    clockContext?: string;
+    /** Recent day digests (summarized history by calendar day). */
+    recentDaysContext?: string;
+    /**
+     * Always-on identity block (preferred name, pronouns, key people).
+     * Bypasses capsule ranking — inject early so free models still see it.
+     */
+    identityContext?: string;
     /** The bounded "Local Memory Capsule" string. */
     localMemoryContext?: string;
+    /** Turn-specific prefetched history (eager temporal retrieval). */
+    retrievedHistoryContext?: string;
+    /** When true, omit the default history-tools policy block. */
+    omitHistoryToolsPolicy?: boolean;
     /** The formatted active goals + habits block for AI context. */
     goalsContext?: string;
     /** AI feedback guidance derived from prior thumbs. */
@@ -51,9 +67,10 @@ export interface ChatFlowContext {
     memorySummary?: string;
     /** Daily-prompt payload for the `dailyCheckIn` flow. */
     dailyPrompt?: DailyPrompt;
-    /**
     /** Per-flow generation settings available to tuning-aware flows. */
     generation?: GenerationSettings;
+    /** Optional fixed "now" for deterministic clock injection in tests. */
+    now?: number;
 }
 
 export interface GuidedStage {

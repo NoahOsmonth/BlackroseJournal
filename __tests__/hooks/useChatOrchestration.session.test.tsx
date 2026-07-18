@@ -22,7 +22,7 @@ jest.mock('../../services/ai/sessionStorage', () => ({
 
 jest.mock('../../hooks/settings/useGenerationSettings', () => ({
     useGenerationSettings: () => ({
-        settings: { temperature: 1, topP: 0.9, maxTokens: 32_768 },
+        settings: { temperature: 1, topP: 0.95, maxTokens: 32_768 },
         modelContext: null,
         contextError: null,
         isLoading: false,

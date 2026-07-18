@@ -171,7 +171,7 @@ describe('openaiCompat adapter — retry policy', () => {
         jest.restoreAllMocks();
     });
 
-    it('6. retries once on 429 and succeeds on the second try', async () => {
+    it('6. retries on 429 and succeeds on the second try', async () => {
         const fetchMock = jest
             .fn()
             .mockResolvedValueOnce(mockJsonResponse(429, { error: 'rate limit' }))
@@ -186,15 +186,12 @@ describe('openaiCompat adapter — retry policy', () => {
         expect(result.content).toBe('hi');
     });
 
-    it('7. retries once on 503 and fails when the second try is also 503', async () => {
-        const fetchMock = jest
-            .fn()
-            .mockResolvedValueOnce(mockJsonResponse(503, { error: 'down' }))
-            .mockResolvedValueOnce(mockJsonResponse(503, { error: 'still down' }));
+    it('7. retries 503 up to 3 times and fails when all attempts return 503', async () => {
+        const fetchMock = jest.fn().mockResolvedValue(mockJsonResponse(503, { error: 'down' }));
         global.fetch = fetchMock as unknown as typeof fetch;
 
         await expect(openaiCompatChat(BASE_REQ, PROFILE)).rejects.toBeDefined();
-        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(fetchMock).toHaveBeenCalledTimes(3);
     });
 
     it('8. does not retry on 401 and throws', async () => {
@@ -221,14 +218,15 @@ describe('openaiCompat adapter — retry policy', () => {
         expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
-    it('11. does not retry on 500 (only 503 in the 5xx range is retryable)', async () => {
-        const fetchMock = jest.fn().mockResolvedValue(mockJsonResponse(500, { error: 'oops' }));
+    it('11. retries 500/504 as transient gateway errors (3 attempts)', async () => {
+        const fetchMock = jest.fn().mockResolvedValue(mockJsonResponse(504, { error: 'timeout' }));
         global.fetch = fetchMock as unknown as typeof fetch;
 
         await expect(openaiCompatChat(BASE_REQ, PROFILE)).rejects.toBeDefined();
-        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(fetchMock).toHaveBeenCalledTimes(3);
     });
 });
+
 
 describe('openaiCompat adapter — non-streaming response parsing', () => {
     const originalFetch = global.fetch;
@@ -334,5 +332,42 @@ describe('openaiCompat adapter — secret redaction & streaming pass-through', (
         // Body is still consumable by the caller.
         const text = await result.text();
         expect(text).toBe(sseBody);
+    });
+});
+
+describe('openaiCompat adapter — provider-specific (ZenMux)', () => {
+    const originalFetch = global.fetch;
+
+    afterEach(() => {
+        global.fetch = originalFetch;
+        jest.restoreAllMocks();
+    });
+
+    const ZENMUX_PROFILE: ResolvedProfile = {
+        apiBaseUrl: 'https://zenmux.ai/api/v1',
+        apiKey: 'sk-zenmux-secret',
+        model: 'stepfun/step-3.7-flash-free',
+        flashModel: 'stepfun/step-3.7-flash-free',
+        capabilities: {
+            streaming: true,
+            reasoning: true,
+            reasoningField: 'reasoning_content',
+            sseFormat: 'openai',
+            authHeaderStyle: 'bearer',
+        },
+    };
+
+    it('emits max_completion_tokens (not max_tokens) for ZenMux', async () => {
+        const fetchMock = jest.fn().mockResolvedValue(
+            mockJsonResponse(200, { choices: [{ message: { content: 'ok' } }] })
+        );
+        global.fetch = fetchMock as unknown as typeof fetch;
+
+        await openaiCompatChat({ ...BASE_REQ, maxTokens: 512 }, ZENMUX_PROFILE);
+
+        const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+        const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+        expect(body.max_completion_tokens).toBe(512);
+        expect(body).not.toHaveProperty('max_tokens');
     });
 });

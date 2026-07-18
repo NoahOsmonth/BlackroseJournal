@@ -72,6 +72,9 @@ describe('generationSettings service', () => {
             'balanced',
             'creative',
         ]);
+        expect(DEFAULT_GENERATION).toMatchObject({ temperature: 1, topP: 0.95 });
+        expect(GENERATION_PRESETS.find((preset) => preset.id === 'balanced'))
+            .toMatchObject({ temperature: 1, topP: 0.95 });
         expect(GENERATION_PRESETS.find((preset) => preset.id === 'creative'))
             .toMatchObject({ temperature: 1.7, topP: 0.95 });
     });

@@ -28,6 +28,11 @@ export interface StreamChatOptions {
     systemPrompt?: string;
     conversationId?: string;
     generation?: Partial<GenerationSettings>;
+    /**
+     * When true, history tools may run for this turn (agent loop).
+     * Defaults to auto: enabled when the latest user message looks temporal/historical.
+     */
+    enableHistoryTools?: boolean | 'auto';
 }
 
 export interface ChatRequestPayload {
@@ -38,6 +43,8 @@ export interface ChatRequestPayload {
     top_p: number;
     max_tokens: number;
     conversationId?: string;
+    tools?: unknown[];
+    tool_choice?: 'auto' | 'none';
 }
 
 export interface ChatAccumulator {

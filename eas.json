@@ -8,19 +8,19 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_NEW_ARCH": "false"
+        "EXPO_NEW_ARCH": "true"
       }
     },
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_NEW_ARCH": "false"
+        "EXPO_NEW_ARCH": "true"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_NEW_ARCH": "false"
+        "EXPO_NEW_ARCH": "true"
       }
     },
     "production-apk": {
@@ -35,7 +35,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_NEW_ARCH": "false"
+        "EXPO_NEW_ARCH": "true"
       }
     }
   },

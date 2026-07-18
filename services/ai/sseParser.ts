@@ -175,6 +175,21 @@ export async function emitSimulatedStreaming(
     }
 }
 
+function extractProviderErrorMessage(text: string): string | null {
+    const parsed = parseJsonSafely(text);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const error = (parsed as { error?: unknown }).error;
+    if (!error) return null;
+    if (typeof error === 'string') return error;
+    if (typeof error === 'object' && error !== null) {
+        const message = (error as { message?: unknown }).message;
+        if (typeof message === 'string') return message;
+        const type = (error as { type?: unknown }).type;
+        if (typeof type === 'string') return type;
+    }
+    return null;
+}
+
 export async function buildResponseError(
     response: Response,
     context: string,
@@ -182,5 +197,11 @@ export async function buildResponseError(
 ): Promise<Error> {
     const responseText = await response.text().catch(() => '');
     const preview = responseText.slice(0, 200);
-    return new Error(`${context} (status ${response.status}, streaming=${streamingAvailable}).${preview ? ` Preview: ${preview}` : ''}`);
+    const providerMessage = extractProviderErrorMessage(responseText);
+    const parts = [
+        `${context} (status ${response.status}, streaming=${streamingAvailable}).`,
+    ];
+    if (providerMessage) parts.push(`Provider: ${providerMessage}`);
+    if (preview) parts.push(`Preview: ${preview}`);
+    return new Error(parts.join(' '));
 }

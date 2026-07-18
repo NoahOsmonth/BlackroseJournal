@@ -9,6 +9,15 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
     },
 }));
 
+jest.mock('@/services/memory/memoryAtomExtraction', () => ({
+    extractJournalMemoryAtoms: jest.fn(async () => []),
+    extractCheckInMemoryAtoms: jest.fn(async () => []),
+}));
+
+jest.mock('@/services/ai/embeddingsTransport', () => ({
+    embedText: jest.fn(async () => null),
+}));
+
 import {
     LOCAL_MEMORY_CORRUPT_BACKUP_KEY,
     LOCAL_MEMORY_STORAGE_KEY,

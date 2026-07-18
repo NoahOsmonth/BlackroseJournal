@@ -10,22 +10,31 @@ import type {
 interface WebViewProps {
     atoms: MemoryGraphAtom[];
     connections: MemoryConnection[];
+    colorScheme?: 'light' | 'dark';
     onSelectNode: (id: string | null) => void;
 }
 
 export function MemoryGraphWebView({
     atoms,
     connections,
+    colorScheme = 'dark',
     onSelectNode,
 }: WebViewProps) {
     const iframeRef = useRef<HTMLIFrameElement | null>(null);
     const [engineUri, setEngineUri] = useState<string | null>(null);
     const [isLoaded, setIsLoaded] = useState(false);
 
+    const postToEngine = useCallback((payload: object) => {
+        iframeRef.current?.contentWindow?.postMessage(JSON.stringify(payload), '*');
+    }, []);
+
     const syncData = useCallback(() => {
-        const payload = JSON.stringify({ type: 'SYNC_DATA', atoms, connections });
-        iframeRef.current?.contentWindow?.postMessage(payload, '*');
-    }, [atoms, connections]);
+        postToEngine({ type: 'SYNC_DATA', atoms, connections });
+    }, [atoms, connections, postToEngine]);
+
+    const syncTheme = useCallback(() => {
+        postToEngine({ type: 'SET_THEME', theme: colorScheme });
+    }, [colorScheme, postToEngine]);
 
     useEffect(() => {
         Asset.fromModule(memoryGraphEngine)
@@ -51,8 +60,10 @@ export function MemoryGraphWebView({
     }, [onSelectNode]);
 
     useEffect(() => {
-        if (isLoaded) syncData();
-    }, [isLoaded, syncData]);
+        if (!isLoaded) return;
+        syncTheme();
+        syncData();
+    }, [isLoaded, syncData, syncTheme]);
 
     return (
         <View style={styles.container}>

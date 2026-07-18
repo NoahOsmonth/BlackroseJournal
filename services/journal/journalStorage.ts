@@ -97,6 +97,12 @@ async function syncFromRemoteIfNeeded(): Promise<void> {
  */
 export async function createEntry(input: JournalEntryCreateInput): Promise<JournalEntry> {
     const now = Date.now();
+    const createdAt = typeof input.createdAt === 'number' && Number.isFinite(input.createdAt)
+        ? input.createdAt
+        : now;
+    const updatedAt = typeof input.updatedAt === 'number' && Number.isFinite(input.updatedAt)
+        ? input.updatedAt
+        : createdAt;
     const entry: JournalEntry = {
         id: generateId(),
         title: input.title || 'Untitled',
@@ -104,8 +110,8 @@ export async function createEntry(input: JournalEntryCreateInput): Promise<Journ
         messages: input.messages,
         status: input.status,
         analysis: input.analysis,
-        createdAt: now,
-        updatedAt: now,
+        createdAt,
+        updatedAt,
     };
 
     const entries = await getAllEntriesMap();

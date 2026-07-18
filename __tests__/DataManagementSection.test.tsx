@@ -9,7 +9,7 @@ jest.mock('@expo/vector-icons', () => ({
 
 describe('DataManagementSection', () => {
     it('shows local backup controls and the latest backup label', () => {
-        const { getByText } = render(
+        const { getByText, queryByText } = render(
             <DataManagementSection
                 latestBackup={{ id: 'backup-1', name: 'Friday backup', createdAt: 0, itemCount: 2 }}
                 isBusy={false}
@@ -23,6 +23,27 @@ describe('DataManagementSection', () => {
         expect(getByText('Create Local Backup')).toBeTruthy();
         expect(getByText('Restore Latest Backup')).toBeTruthy();
         expect(getByText('Latest: Friday backup')).toBeTruthy();
+        // Production default: demo seed controls hidden
+        expect(queryByText('Seed Demo Data')).toBeNull();
+        expect(queryByText('Clear demo data')).toBeNull();
+    });
+
+    it('shows seed controls only when showDemoSeedControls is true', () => {
+        const { getByText } = render(
+            <DataManagementSection
+                latestBackup={null}
+                isBusy={false}
+                onCreateBackup={jest.fn()}
+                onRestoreLatestBackup={jest.fn()}
+                onExportJournalJson={jest.fn()}
+                showDemoSeedControls
+                onSeedDemoData={jest.fn()}
+                onClearDemoData={jest.fn()}
+                onClearHistory={jest.fn()}
+            />
+        );
+        expect(getByText('Seed Demo Data')).toBeTruthy();
+        expect(getByText('Clear demo data')).toBeTruthy();
     });
 
     it('calls the backup actions from the visible controls', () => {

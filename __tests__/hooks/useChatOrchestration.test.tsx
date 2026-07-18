@@ -15,7 +15,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 
 jest.mock('../../hooks/settings/useGenerationSettings', () => ({
     useGenerationSettings: () => ({
-        settings: { temperature: 1, topP: 0.9, maxTokens: 32_768 },
+        settings: { temperature: 1, topP: 0.95, maxTokens: 32_768 },
         modelContext: null,
         contextError: null,
         isLoading: false,
@@ -143,6 +143,9 @@ describe('useChatOrchestration scroll behavior', () => {
 describe('useChatOrchestration initialPrompt + flow', () => {
     const setSystemPrompt = (useChat as jest.Mock & { __mockSetSystemPrompt: jest.Mock })
         .__mockSetSystemPrompt;
+    const useChatMock = useChat as jest.Mock;
+    const getSendInitialMessage = () => useChatMock.mock.results.at(-1)?.value.sendInitialMessage as jest.Mock;
+    const getSetMessages = () => useChatMock.mock.results.at(-1)?.value.setMessages as jest.Mock;
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -162,6 +165,37 @@ describe('useChatOrchestration initialPrompt + flow', () => {
         );
         expect(setSystemPrompt).toHaveBeenCalledWith(
             expect.stringContaining(THERAPIST_SYSTEM_PROMPT)
+        );
+        expect(getSendInitialMessage()).toHaveBeenCalled();
+    });
+
+    it('seeds static flow openers without calling the AI', () => {
+        function EveningHarness() {
+            const scrollViewRef = useRef<ScrollView | null>(null);
+            const inputRef = useRef<InlineTypingInputRef | null>(null);
+            useChatOrchestration({
+                scrollViewRef,
+                inputRef,
+                initialPrompt: {
+                    systemPrompt: 'guided',
+                    triggerText: '[Start intention check-in]',
+                },
+                flow: FLOWS.evening,
+            });
+            return null;
+        }
+
+        render(<EveningHarness />);
+
+        expect(getSendInitialMessage()).not.toHaveBeenCalled();
+        expect(getSetMessages()).toHaveBeenCalledWith(
+            [
+                expect.objectContaining({
+                    role: 'assistant',
+                    content: expect.stringContaining("Let's gently look back"),
+                }),
+            ],
+            expect.any(String)
         );
     });
 });

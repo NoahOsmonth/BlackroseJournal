@@ -3,14 +3,15 @@ import { Pressable, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
-import { useActiveModelContext } from '@/hooks/settings/useActiveModelContext';
-import { formatModelContextLabel } from '@/services/ai/modelContext';
+import { ModelHeaderControl } from '@/components/ai/ModelHeaderControl';
 
 interface IntentionChatHeaderProps {
     personaName: string;
     onOpenPersona: () => void;
     onOpenDrafts: () => void;
     onClose: () => void;
+    onOpenModelPicker?: () => void;
+    modelPickerDisabled?: boolean;
 }
 
 export function IntentionChatHeader({
@@ -18,14 +19,14 @@ export function IntentionChatHeader({
     onOpenPersona,
     onOpenDrafts,
     onClose,
+    onOpenModelPicker,
+    modelPickerDisabled = false,
 }: IntentionChatHeaderProps) {
     const colorScheme = useColorScheme();
-    const { context } = useActiveModelContext();
     const isDark = colorScheme === 'dark';
     const badgeIconColor = isDark ? Colors.dark.text : Colors.light.surface;
     const chevronIconColor = isDark ? Colors.dark.tabIconDefault : Colors.light.tabIconDefault;
     const closeIconColor = isDark ? Colors.dark.text : Colors.light.text;
-    const modelLabel = context ? formatModelContextLabel(context) : undefined;
 
     return (
         <View className="px-4 pb-2 pt-6">
@@ -57,11 +58,10 @@ export function IntentionChatHeader({
                     </Pressable>
                 </View>
             </View>
-            {modelLabel ? (
-                <Text className="mt-2 text-[11px] text-text-secondary-light dark:text-text-secondary-dark">
-                    {modelLabel}
-                </Text>
-            ) : null}
+            <ModelHeaderControl
+                onPress={onOpenModelPicker}
+                disabled={modelPickerDisabled}
+            />
         </View>
     );
 }

@@ -10,6 +10,15 @@ interface MyIntentionsSectionProps {
     onSelect: (intention: Intention) => void;
 }
 
+/** Half-width cell with horizontal padding so 50%+50% never overflows with gap. */
+function GridCell({ children }: { children: React.ReactNode }) {
+    return (
+        <View style={{ width: '50%', paddingHorizontal: 6, marginBottom: 12 }}>
+            {children}
+        </View>
+    );
+}
+
 export function MyIntentionsSection({
     intentions,
     onAdd,
@@ -24,18 +33,18 @@ export function MyIntentionsSection({
                 My intentions
             </Text>
             {hasIntentions ? (
-                <View className="flex-row flex-wrap gap-4">
+                <View className="flex-row flex-wrap" style={{ marginHorizontal: -6 }}>
                     {cards.map((intention) => (
-                        <View key={intention.id} className="w-[48%]">
+                        <GridCell key={intention.id}>
                             <IntentionCard
                                 intention={intention}
                                 onPress={() => onSelect(intention)}
                             />
-                        </View>
+                        </GridCell>
                     ))}
-                    <View className="w-[48%]">
+                    <GridCell>
                         <AddIntentionCard onPress={onAdd} />
-                    </View>
+                    </GridCell>
                 </View>
             ) : (
                 <AddIntentionCard onPress={onAdd} variant="full" />

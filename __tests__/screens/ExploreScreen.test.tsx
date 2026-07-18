@@ -144,14 +144,14 @@ describe('ExploreScreen memory hub', () => {
         expect(screen.getByText('Memory')).toBeTruthy();
         expect(screen.getAllByText('Recent journal pattern: quieter evenings help.').length)
             .toBeGreaterThan(0);
-        expect(screen.getByText('Generated note')).toBeTruthy();
-        expect(screen.getByText('Memory atoms')).toBeTruthy();
+        expect(screen.getByText('Memories')).toBeTruthy();
         expect(mockPush).toHaveBeenCalledWith('/memory-graph');
     });
 
     it('saves notes, filters atoms, and deletes an atom', async () => {
         render(<ExploreScreen />);
 
+        fireEvent.press(screen.getByLabelText('Notes'));
         fireEvent.changeText(screen.getByLabelText('Memory note'), 'Keep Sundays quiet.');
         fireEvent.press(screen.getByLabelText('Save memory note'));
         fireEvent.press(screen.getByLabelText('Save generated memory note'));
@@ -177,8 +177,38 @@ describe('ExploreScreen memory hub', () => {
         };
 
         render(<ExploreScreen />);
+        fireEvent.press(screen.getByLabelText('Notes'));
 
-        expect(screen.getByText("Rosebud hasn't noticed a stable pattern yet — keep journaling and I'll learn more about you.")).toBeTruthy();
+        expect(screen.getByText(/No stable pattern yet/)).toBeTruthy();
+    });
+
+    it('paginates memory atoms instead of rendering an unbounded list', () => {
+        const manyAtoms: LocalMemoryAtom[] = Array.from({ length: 12 }, (_, index) => ({
+            id: `atom-${index}`,
+            layer: 'episodic',
+            source: 'journal',
+            title: `Memory ${index}`,
+            content: `Content for memory ${index}`,
+            tags: [],
+            salience: 0.5,
+            confidence: 0.5,
+            createdAt: index,
+            updatedAt: index,
+            accessCount: 0,
+        }));
+        mockMemoryState = {
+            ...mockMemoryState,
+            atoms: manyAtoms,
+        };
+
+        render(<ExploreScreen />);
+
+        expect(screen.getByText('Memory 0')).toBeTruthy();
+        expect(screen.getByText('Memory 7')).toBeTruthy();
+        expect(screen.queryByText('Memory 8')).toBeNull();
+        fireEvent.press(screen.getByLabelText('Show 4 more memories'));
+        expect(screen.getByText('Memory 8')).toBeTruthy();
+        expect(screen.getByText('Memory 11')).toBeTruthy();
     });
 
     it('renders an empty state with an entry action', () => {
@@ -192,7 +222,26 @@ describe('ExploreScreen memory hub', () => {
 
         fireEvent.press(screen.getByLabelText('Write your first entry'));
 
-        expect(screen.getByText('Your memory grows as you journal')).toBeTruthy();
+        expect(screen.getByText('Still quiet here')).toBeTruthy();
         expect(mockPush).toHaveBeenCalledWith('/chat');
     });
+
+    it('opens a navigable memory atom source when provenance exists', () => {
+        mockMemoryState = {
+            ...mockMemoryState,
+            atoms: [{
+                ...atoms[2],
+                rootSourceId: 'entry-99',
+                rootSourceKind: 'journal_entry',
+            }],
+        };
+
+        render(<ExploreScreen />);
+        fireEvent.press(screen.getByLabelText('Open memory Work meeting'));
+        expect(mockPush).toHaveBeenCalledWith({
+            pathname: '/entry-detail',
+            params: { id: 'entry-99' },
+        });
+    });
 });
+

@@ -1,4 +1,4 @@
-import { THERAPIST_SYSTEM_PROMPT } from '@/constants/aiPrompts';
+import { GUIDED_COMPANION_SYSTEM_PROMPT } from '@/constants/aiPrompts';
 import { DAILY_PROMPTS } from '@/constants/dailyPrompts';
 import { IntentionCheckInType } from '@/services/intentions/intentionsStorage.types';
 
@@ -57,7 +57,7 @@ export function buildIntentionRefineSystemPrompt({
 
     const feedbackBlock = feedbackGuidance ? `\n${feedbackGuidance}\n` : '';
 
-    return `${THERAPIST_SYSTEM_PROMPT}\n\n${contextBlock}${personaBlock}${feedbackBlock}`.trim();
+    return `${GUIDED_COMPANION_SYSTEM_PROMPT}\n\n${contextBlock}${personaBlock}${feedbackBlock}`.trim();
 }
 
 export function buildIntentionSystemPrompt({
@@ -94,5 +94,5 @@ export function buildIntentionSystemPrompt({
 
     const feedbackBlock = feedbackGuidance ? `\n${feedbackGuidance}\n` : '';
 
-    return `${THERAPIST_SYSTEM_PROMPT}\n\n${contextBlock}${personaBlock}${feedbackBlock}`.trim();
+    return `${GUIDED_COMPANION_SYSTEM_PROMPT}\n\n${contextBlock}${personaBlock}${feedbackBlock}`.trim();
 }

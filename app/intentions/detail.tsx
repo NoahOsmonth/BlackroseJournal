@@ -216,7 +216,7 @@ export default function IntentionDetailScreen() {
                                 <Text className="text-base text-text-light dark:text-text-dark">Archive</Text>
                             </Pressable>
                             <Pressable onPress={handleDelete} className="py-3">
-                                <Text className="text-base text-red-500">Delete</Text>
+                                <Text className="text-base text-red-500 dark:text-red-400">Delete</Text>
                             </Pressable>
                             <Pressable onPress={() => setMoreVisible(false)} className="py-3">
                                 <Text className="text-base text-text-secondary-light dark:text-text-secondary-dark">

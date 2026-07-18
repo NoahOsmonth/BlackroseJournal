@@ -1,4 +1,5 @@
 import {
+    assertModelAllowed,
     clearCustomAiProviderSettings,
     fetchOpenAiCompatibleModels,
     getActiveCustomModelConfig,
@@ -8,6 +9,7 @@ import {
     resetCustomModelStorageAdapter,
     saveCustomAiProviderSettings,
     setCustomModelStorageAdapter,
+    withSelectedModel,
 } from '../../../services/ai/customModels';
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
@@ -57,6 +59,13 @@ describe('customModels service', () => {
             .toBe('https://openrouter.ai/api/v1');
     });
 
+    it('defaults freeOnly on and OpenRouter-style base', () => {
+        const defaults = getDefaultCustomAiProviderSettings();
+        expect(defaults.freeOnly).toBe(true);
+        expect(defaults.baseUrl).toContain('openrouter.ai');
+        expect(defaults.recentModelIds).toEqual([]);
+    });
+
     it('parses OpenAI model lists with fallback context metadata', () => {
         const models = parseOpenAiCompatibleModels({
             object: 'list',
@@ -84,9 +93,12 @@ describe('customModels service', () => {
         }));
     });
 
-    it('fetches /models with bearer auth and returns parsed models', async () => {
+    it('fetches /models with bearer auth and returns free models only by default', async () => {
         fetchMock.mockResolvedValue(new Response(JSON.stringify({
-            data: [{ id: 'openrouter/auto', context_length: 200_000 }],
+            data: [
+                { id: 'openai/gpt-4', context_length: 8192 },
+                { id: 'tencent/hy3:free', context_length: 262000 },
+            ],
         }), { status: 200 }));
 
         const result = await fetchOpenAiCompatibleModels({
@@ -101,19 +113,62 @@ describe('customModels service', () => {
                 headers: expect.objectContaining({ Authorization: 'Bearer sk-or-test' }),
             })
         );
-        expect(result.models[0].contextWindow).toBe(200_000);
+        expect(result.models).toHaveLength(1);
+        expect(result.models[0].id).toBe('tencent/hy3:free');
+        expect(result.models[0].contextWindow).toBe(262000);
     });
 
-    it('resolves the active selected custom model config', async () => {
+    it('can fetch all models when freeOnly is false', async () => {
+        fetchMock.mockResolvedValue(new Response(JSON.stringify({
+            data: [
+                { id: 'openai/gpt-4', context_length: 8192 },
+                { id: 'tencent/hy3:free', context_length: 262000 },
+            ],
+        }), { status: 200 }));
+
+        const result = await fetchOpenAiCompatibleModels({
+            baseUrl: 'https://openrouter.ai/api/v1',
+            apiKey: 'sk-or-test',
+            freeOnly: false,
+        });
+        expect(result.models).toHaveLength(2);
+    });
+
+    it('blocks paid models when freeOnly is on', () => {
+        expect(() => assertModelAllowed('openai/gpt-4', true)).toThrow(/Free models only/);
+        expect(() => assertModelAllowed('tencent/hy3:free', true)).not.toThrow();
+    });
+
+    it('withSelectedModel records recent ids and rejects paid free-only picks', () => {
+        const base = {
+            ...getDefaultCustomAiProviderSettings(),
+            freeOnly: true,
+            models: [
+                {
+                    id: 'tencent/hy3:free',
+                    contextWindow: 262000,
+                    contextWindowSource: 'api' as const,
+                },
+            ],
+        };
+        const next = withSelectedModel(base, 'tencent/hy3:free');
+        expect(next.selectedModelId).toBe('tencent/hy3:free');
+        expect(next.recentModelIds).toEqual(['tencent/hy3:free']);
+        expect(next.enabled).toBe(true);
+        expect(() => withSelectedModel(base, 'openai/gpt-4')).toThrow(/Free models only/);
+    });
+
+    it('resolves the active selected free custom model config', async () => {
         await saveCustomAiProviderSettings({
             ...getDefaultCustomAiProviderSettings(),
             enabled: true,
+            freeOnly: true,
             baseUrl: 'https://openrouter.ai/api/v1',
             apiKey: 'sk-or-test',
-            selectedModelId: 'openai/gpt-4',
+            selectedModelId: 'tencent/hy3:free',
             models: [{
-                id: 'openai/gpt-4',
-                contextWindow: 8192,
+                id: 'tencent/hy3:free',
+                contextWindow: 262000,
                 contextWindowSource: 'api',
             }],
         });
@@ -121,9 +176,9 @@ describe('customModels service', () => {
         await expect(getActiveCustomModelConfig()).resolves.toEqual({
             apiBaseUrl: 'https://openrouter.ai/api/v1',
             apiKey: 'sk-or-test',
-            model: 'openai/gpt-4',
-            flashModel: 'openai/gpt-4',
-            contextWindow: 8192,
+            model: 'tencent/hy3:free',
+            flashModel: 'tencent/hy3:free',
+            contextWindow: 262000,
             contextWindowSource: 'api',
         });
     });

@@ -4,31 +4,47 @@
  * `FLOWS` maps every conversational surface to a declarative `ChatFlow`. The
  * single engine `useChatOrchestration` reads a flow to derive its system prompt
  * and opener, so persona/memory/feedback are woven uniformly in ONE place.
- *
- * Behavior-preservation contract: each flow's `buildSystemPrompt` reproduces the
- * exact prompt the screens assembled inline before this refactor. See
- * `__tests__/features/chatFlows.test.ts` for the byte-identity guards.
  */
 
 import { THERAPIST_SYSTEM_PROMPT } from '@/constants/aiPrompts';
 import { buildDailyCheckInSystemPrompt } from '@/services/ai/dailyCheckInPrompt';
+import { HISTORY_TOOLS_POLICY } from '@/services/ai/tools';
 import {
     buildIntentionRefineSystemPrompt,
     buildIntentionSystemPrompt,
 } from '@/services/intentions/intentionPrompts';
 import type { IntentionCheckInType } from '@/services/intentions/intentionsStorage.types';
+import { buildClockContext } from '@/utils/date';
 
 import type { ChatFlow, ChatFlowContext, ChatFlowId } from './types';
 
+function resolveClockContext(ctx: ChatFlowContext): string {
+    if (ctx.clockContext) return ctx.clockContext;
+    return buildClockContext(ctx.now !== undefined ? new Date(ctx.now) : new Date());
+}
+
 /**
- * The single seam where persona + memory + feedback are woven into a base
- * prompt. Used by the freeform flows. The persona slot stays `undefined`
- * unless `ctx.activePersona` is provided (WS3 supplies it), so today's
- * freeform output — which never injected persona — is byte-identical.
+ * Shared time/history blocks used by freeform and intention-family flows.
+ */
+export function composeHistoryContextBlocks(ctx: ChatFlowContext): string[] {
+    return [
+        resolveClockContext(ctx),
+        // Identity before digests/capsule so name never loses ranking slots.
+        ctx.identityContext,
+        ctx.recentDaysContext,
+        ctx.retrievedHistoryContext,
+        ctx.omitHistoryToolsPolicy ? undefined : HISTORY_TOOLS_POLICY,
+    ].filter((block): block is string => Boolean(block));
+}
+
+/**
+ * The single seam where clock, digests, persona, memory, and feedback are woven
+ * into a base prompt.
  */
 export function composeSystemPrompt(base: string, ctx: ChatFlowContext): string {
     return [
         base,
+        ...composeHistoryContextBlocks(ctx),
         ctx.localMemoryContext,
         ctx.goalsContext,
         ctx.activePersona?.prompt
@@ -40,7 +56,7 @@ export function composeSystemPrompt(base: string, ctx: ChatFlowContext): string 
         .join('\n\n');
 }
 
-/** Builds the intention-family prompt; preserves the legacy assembly exactly. */
+/** Builds the intention-family prompt with shared clock/history blocks. */
 function buildIntentionFlowPrompt(
     type: IntentionCheckInType,
     ctx: ChatFlowContext
@@ -53,7 +69,16 @@ function buildIntentionFlowPrompt(
         memorySummary: ctx.memorySummary,
         feedbackGuidance: ctx.feedbackGuidance,
     });
-    return ctx.goalsContext ? `${base}\n\n${ctx.goalsContext}` : base;
+    const shared = composeHistoryContextBlocks(ctx);
+    const memory = ctx.localMemoryContext;
+    return [
+        base,
+        ...shared,
+        memory,
+        ctx.goalsContext,
+    ]
+        .filter(Boolean)
+        .join('\n\n');
 }
 
 const freeform: ChatFlow = {
@@ -69,9 +94,12 @@ const continueFlow: ChatFlow = {
 const dailyCheckIn: ChatFlow = {
     id: 'dailyCheckIn',
     buildSystemPrompt: (ctx) =>
-        ctx.dailyPrompt
-            ? buildDailyCheckInSystemPrompt(ctx.dailyPrompt)
-            : composeSystemPrompt(THERAPIST_SYSTEM_PROMPT, ctx),
+        composeSystemPrompt(
+            ctx.dailyPrompt
+                ? buildDailyCheckInSystemPrompt(ctx.dailyPrompt)
+                : THERAPIST_SYSTEM_PROMPT,
+            ctx,
+        ),
 };
 
 const morning: ChatFlow = {
@@ -109,7 +137,14 @@ const intentionRefine: ChatFlow = {
             memorySummary: ctx.memorySummary,
             feedbackGuidance: ctx.feedbackGuidance,
         });
-        return ctx.goalsContext ? `${base}\n\n${ctx.goalsContext}` : base;
+        return [
+            base,
+            ...composeHistoryContextBlocks(ctx),
+            ctx.localMemoryContext,
+            ctx.goalsContext,
+        ]
+            .filter(Boolean)
+            .join('\n\n');
     },
     openingMessage: (ctx) =>
         `I see you're working on "${ctx.intentionTitle ?? 'this intention'}." What would you like to adjust or build on?`,

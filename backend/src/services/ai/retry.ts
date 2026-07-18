@@ -5,8 +5,8 @@
  * `baseMs * 4^attempt` (default 200ms → 800ms) with ±20% jitter to avoid
  * thundering herd. Non-retryable errors propagate immediately.
  *
- * Defaults: maxAttempts=2 (1 initial + 1 retry), baseMs=200. These map
- * directly to the openai-compat adapter's 429/503 policy.
+ * Defaults: maxAttempts=3 (1 initial + 2 retries), baseMs=200. These map
+ * directly to the openai-compat adapter's transient HTTP retry policy.
  */
 
 export interface RetryError {
@@ -22,7 +22,7 @@ export interface RetryOptions {
 
 export type IsRetryable = (err: unknown) => boolean;
 
-const DEFAULT_MAX_ATTEMPTS = 2;
+const DEFAULT_MAX_ATTEMPTS = 3;
 const DEFAULT_BASE_MS = 200;
 const JITTER = 0.2;
 

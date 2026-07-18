@@ -32,6 +32,9 @@ export interface JournalEntryCreateInput {
     messages: Message[];
     status: EntryStatus;
     analysis?: JournalEntryAnalysis;
+    /** Optional override (seed demo uses daysAgo offsets). Defaults to now. */
+    createdAt?: number;
+    updatedAt?: number;
 }
 
 export interface JournalEntryUpdateInput {

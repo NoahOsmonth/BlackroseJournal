@@ -19,6 +19,9 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
     },
 }));
 
+// Skipped unless RUN_INTEGRATION_TESTS=1: requires a real provider API key in .env.
+// Real reason: paid/quota network smoke; must not fail offline CI or default `jest` runs.
+// TODO(follow-up): document key setup in PROGRESS when enabling live smoke on a machine.
 const describeMaybe = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
 
 interface NanoEnv {

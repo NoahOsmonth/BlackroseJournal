@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     clearMemoryAtoms,
     deleteMemoryAtom,
@@ -26,13 +26,21 @@ export function useLocalMemories(): UseLocalMemoriesReturn {
     const [atoms, setAtoms] = useState<LocalMemoryAtom[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [generatedNote, setGeneratedNote] = useState('');
+    const hasLoadedRef = useRef(false);
 
     const refresh = useCallback(async () => {
-        setIsLoading(true);
-        const nextAtoms = await listMemoryAtoms();
-        setAtoms(nextAtoms);
-        setGeneratedNote(generateMemoryNoteSuggestion(nextAtoms) ?? '');
-        setIsLoading(false);
+        // Full-page spinner only on first load — keep the list mounted after that.
+        if (!hasLoadedRef.current) {
+            setIsLoading(true);
+        }
+        try {
+            const nextAtoms = await listMemoryAtoms();
+            setAtoms(nextAtoms);
+            setGeneratedNote(generateMemoryNoteSuggestion(nextAtoms) ?? '');
+            hasLoadedRef.current = true;
+        } finally {
+            setIsLoading(false);
+        }
     }, []);
 
     const addNote = useCallback(async (content: string) => {

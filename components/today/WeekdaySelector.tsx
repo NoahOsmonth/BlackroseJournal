@@ -1,7 +1,6 @@
 /**
  * WeekdaySelector Component
- * Horizontal row of weekday buttons
- * Matches today.html design
+ * Horizontal row of weekday buttons — no absolute underlines that clip.
  */
 
 import { DayInfo } from '@/hooks/today/useSelectedDay';
@@ -15,6 +14,16 @@ interface WeekdaySelectorProps {
     onDaySelect: (dayIndex: number) => void;
     completedDayIndices: number[];
 }
+
+const DAY_NAMES = [
+    'Sunday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+] as const;
 
 export function WeekdaySelector({
     weekDays,
@@ -32,37 +41,40 @@ export function WeekdaySelector({
                     <Pressable
                         key={day.dayIndex}
                         onPress={() => onDaySelect(day.dayIndex)}
-                        accessibilityLabel={`Select ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][day.dayIndex]}`}
+                        accessibilityLabel={`Select ${DAY_NAMES[day.dayIndex]}`}
                         accessibilityRole="button"
                         accessibilityState={{ selected: isSelected }}
-                        className="flex flex-col items-center gap-1 w-10"
+                        className="flex-1 items-center gap-1 py-1"
                     >
                         <Text
-                            className={`text-[10px] uppercase font-medium ${isSelected
-                                ? 'text-white'
-                                : 'text-text-secondary-light dark:text-text-secondary-dark'
-                                }`}
+                            className={`text-[10px] uppercase font-medium ${
+                                isSelected
+                                    ? 'text-text-light dark:text-text-dark font-bold'
+                                    : 'text-text-secondary-light dark:text-text-secondary-dark'
+                            }`}
                         >
                             {day.label}
                         </Text>
 
                         {isSelected ? (
-                            <View className="flex flex-col items-center">
-                                <Text className="text-base font-bold text-white mb-1">{day.dayNumber}</Text>
-                                <View className="w-1 h-1 rounded-full bg-white" />
+                            <View className="items-center gap-1">
+                                <View className="w-8 h-8 rounded-full bg-primary/15 dark:bg-primary/25 items-center justify-center">
+                                    <Text className="text-sm font-bold text-text-light dark:text-text-dark">
+                                        {day.dayNumber}
+                                    </Text>
+                                </View>
+                                <View className="w-1 h-1 rounded-full bg-primary" />
                             </View>
                         ) : isCompleted ? (
-                            <View className="w-6 h-6 rounded-full bg-accent-green/10 items-center justify-center">
+                            <View className="w-8 h-8 rounded-full bg-accent-green/10 items-center justify-center">
                                 <MaterialIcons name="check" size={16} color="#32D74B" />
                             </View>
                         ) : (
-                            <Text className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">
-                                {day.dayNumber}
-                            </Text>
-                        )}
-
-                        {isSelected && (
-                            <View className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-full h-[2px] bg-white rounded-t-full" />
+                            <View className="w-8 h-8 items-center justify-center">
+                                <Text className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">
+                                    {day.dayNumber}
+                                </Text>
+                            </View>
                         )}
                     </Pressable>
                 );

@@ -24,6 +24,8 @@ function storedAtom(overrides: Partial<LocalMemoryAtom>): LocalMemoryAtom {
         layer: 'episodic',
         source: 'journal',
         sourceId: 'entry-1',
+        rootSourceId: 'entry-1',
+        rootSourceKind: 'journal_entry',
         title: 'Career pressure',
         content: 'The user wants recovery after career pressure.',
         tags: ['career', 'rest'],
@@ -44,8 +46,9 @@ describe('useMemoryGraph', () => {
                 storedAtom({
                     id: 'atom-2',
                     layer: 'profile',
-                    title: 'About the user',
+                    title: 'Balances ambition with recovery',
                     tags: ['career', 'identity'],
+                    rootSourceId: 'entry-1',
                 }),
             ],
             isLoading: false,
@@ -71,15 +74,14 @@ describe('useMemoryGraph', () => {
         expect(result.current.atoms[0]).toMatchObject({
             id: 'atom-1',
             entryId: 'entry-1',
+            rootSourceId: 'entry-1',
             source: 'journal',
             salience: 7,
         });
-        expect(result.current.connections).toEqual([{
-            from: 'atom-1',
-            to: 'atom-2',
-            strength: 0.25,
-            tags: ['career'],
-        }]);
+        // Same-root edge always; tags may also contribute.
+        expect(result.current.connections.some(
+            (edge) => edge.from === 'atom-1' && edge.to === 'atom-2'
+        )).toBe(true);
 
         act(() => result.current.setSearchQuery('identity'));
         expect(result.current.atoms.map((atom) => atom.id)).toEqual(['atom-2']);
@@ -88,7 +90,12 @@ describe('useMemoryGraph', () => {
     it('maps intention source atoms through to the graph display model', () => {
         mockUseLocalMemories.mockReturnValue({
             atoms: [
-                storedAtom({ id: 'atom-3', source: 'intention', layer: 'episodic' }),
+                storedAtom({
+                    id: 'atom-3',
+                    source: 'intention',
+                    layer: 'episodic',
+                    rootSourceKind: 'intention_checkin',
+                }),
             ],
             isLoading: false,
             generatedNote: '',
@@ -107,22 +114,40 @@ describe('useMemoryGraph', () => {
             id: 'atom-3',
             source: 'intention',
             layer: 'episodic',
+            rootSourceKind: 'intention_checkin',
         });
     });
 
-    it('synthesizes insight for the selected graph atom', async () => {
+    it('auto-generates AI at-a-glance on select and deepens on demand', async () => {
+        mockSynthesizeMemoryInsight
+            .mockResolvedValueOnce('Career recovery is still the quiet center of this week.')
+            .mockResolvedValueOnce('A deeper read about rest after ambition.');
+
         const { result } = renderHook(() => useMemoryGraph());
 
         act(() => result.current.setSelectedNodeId('atom-1'));
+        expect(result.current.remoteInsight).toBeNull();
+
+        await waitFor(() => {
+            expect(result.current.localInsight).toBe(
+                'Career recovery is still the quiet center of this week.'
+            );
+        });
+        expect(mockSynthesizeMemoryInsight).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'atom-1' }),
+            expect.objectContaining({ mode: 'glance' })
+        );
+
         await act(async () => {
-            await result.current.synthesizeSelectedAtom();
+            await result.current.deepenSelectedAtom();
         });
 
         await waitFor(() => {
-            expect(result.current.insight).toBe('A concise connection.');
+            expect(result.current.remoteInsight).toBe('A deeper read about rest after ambition.');
         });
         expect(mockSynthesizeMemoryInsight).toHaveBeenCalledWith(
-            expect.objectContaining({ id: 'atom-1' })
+            expect.objectContaining({ id: 'atom-1' }),
+            expect.objectContaining({ mode: 'deep' })
         );
     });
 });

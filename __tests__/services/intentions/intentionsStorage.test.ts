@@ -30,6 +30,18 @@ jest.mock('../../../services/intentions/intentionsRemote', () => ({
     queueIntentionUpsert: jest.fn(() => Promise.resolve()),
 }));
 
+jest.mock('../../../services/ai/embeddingsTransport', () => ({
+    embedText: jest.fn(async () => null),
+}));
+
+jest.mock('../../../services/memory/sessionDigestBuild', () => ({
+    buildAndSaveSessionDigest: jest.fn(async () => null),
+}));
+
+jest.mock('../../../services/memory/identityExtraction', () => ({
+    extractIdentityFromSessionTranscript: jest.fn(async () => null),
+}));
+
 import {
     createCheckIn,
     updateCheckIn,

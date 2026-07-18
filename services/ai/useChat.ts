@@ -123,6 +123,8 @@ export function useChat() {
                     systemPrompt: basePrompt,
                     conversationId: conversationIdRef.current,
                     generation: generationRef.current,
+                    // Bootstrap turn: stream only — agent loop would block the opener on free models.
+                    enableHistoryTools: false,
                 }
             );
         },
@@ -164,6 +166,8 @@ export function useChat() {
                     systemPrompt,
                     conversationId: conversationIdRef.current,
                     generation: generationRef.current,
+                    // Bootstrap turn: stream only — agent loop would block the opener on free models.
+                    enableHistoryTools: false,
                 }
             );
         },

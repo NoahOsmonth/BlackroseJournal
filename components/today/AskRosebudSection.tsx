@@ -51,7 +51,7 @@ export function AskRosebudSection({
                 <MaterialIcons
                     name="expand-more"
                     size={16}
-                    color={isDark ? '#A0A0A0' : '#757575'}
+                    color={isDark ? '#98989D' : '#6B7280'}
                     style={{ marginLeft: 4 }}
                 />
             </Pressable>

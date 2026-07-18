@@ -11,6 +11,7 @@ interface AccountSettingsSectionProps {
     readonly onSignIn: () => void;
     readonly onCreateAccount: () => void;
     readonly onForgotPassword: () => void;
+    readonly embedded?: boolean;
 }
 
 export function AccountSettingsSection({
@@ -21,10 +22,11 @@ export function AccountSettingsSection({
     onSignIn,
     onCreateAccount,
     onForgotPassword,
+    embedded = false,
 }: AccountSettingsSectionProps) {
     if (email) {
         return (
-            <SettingsSection title="Account">
+            <SettingsSection title="Account" embedded={embedded}>
                 <Text className="text-text-light dark:text-text-dark font-medium text-base">
                     Signed in as {email}
                 </Text>
@@ -45,7 +47,7 @@ export function AccountSettingsSection({
     }
 
     return (
-        <SettingsSection title="Account">
+        <SettingsSection title="Account" embedded={embedded}>
             <Text className="text-text-light dark:text-text-dark font-medium text-base">
                 Sign in to your account
             </Text>

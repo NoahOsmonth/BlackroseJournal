@@ -31,12 +31,6 @@
       "skillPath": "plugins/expo/skills/expo-brownfield/SKILL.md",
       "computedHash": "b7e46eba9d7643fd0488adedabc224914f45af2f0aa20c6ee6516aea81acdff9"
     },
-    "expo-cicd-workflows": {
-      "source": "expo/skills",
-      "sourceType": "github",
-      "skillPath": "plugins/expo/skills/expo-cicd-workflows/SKILL.md",
-      "computedHash": "6b5b10d32105e345a3494cf60f1b80165f971fd72e1a0ad355ca9b0b36af1f43"
-    },
     "expo-deployment": {
       "source": "expo/skills",
       "sourceType": "github",

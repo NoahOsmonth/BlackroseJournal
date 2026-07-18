@@ -29,6 +29,7 @@ import {
     removeSession,
     saveSession,
 } from '../../../services/ai/sessionStorage';
+import { scheduleIdentityExtractionFromTurn } from '../../../services/memory/identityExtraction';
 import { useGenerationSettings } from '../../../hooks/settings/useGenerationSettings';
 import type { ChatFlow, ChatFlowContext } from '../flows/types';
 import { StreamingMessage } from '../types';
@@ -173,6 +174,8 @@ export function useChatOrchestration({
 
     // Derive the effective system prompt: a flow descriptor takes precedence,
     // falling back to the string `systemPrompt` option for incremental migrations.
+    // Freeform topic seeds prepend an instruction; intention/morning/evening already
+    // pass the flow prompt as initialPrompt.systemPrompt — do not double it.
     const resolvedSystemPrompt = useMemo(() => {
         const base = flow
             ? flow.buildSystemPrompt(flowContext ?? {})
@@ -180,27 +183,40 @@ export function useChatOrchestration({
         if (!initialPrompt?.systemPrompt || !base) {
             return base ?? initialPrompt?.systemPrompt;
         }
+        const seed = initialPrompt.systemPrompt.trim();
+        const baseTrimmed = base.trim();
+        if (!seed || seed === baseTrimmed || baseTrimmed.startsWith(seed) || seed.startsWith(baseTrimmed)) {
+            return base;
+        }
         return `${initialPrompt.systemPrompt}\n\n${base}`;
     }, [flow, flowContext, systemPrompt, initialPrompt]);
 
     // Effective initial prompt: when a flow is active and the caller opted into
-    // an opener (via `initialPrompt`), the flow drives the system prompt and —
-    // if it defines one — the opening message, replacing bare trigger text.
+    // an opener (via `initialPrompt`), the flow drives the system prompt.
+    // Static `openingMessage` is seeded as the first assistant turn (no AI wait);
+    // only flows without a static opener still call the model for the bootstrap.
+    const staticOpeningMessage = useMemo(() => {
+        if (!initialPrompt || !flow?.openingMessage) return undefined;
+        const opener = flow.openingMessage(flowContext ?? {}).trim();
+        return opener.length > 0 ? opener : undefined;
+    }, [initialPrompt, flow, flowContext]);
+
     const effectiveInitialPrompt = useMemo(() => {
         if (!initialPrompt) return undefined;
+        if (staticOpeningMessage) return undefined;
         if (!flow) return initialPrompt;
-        const opener = flow.openingMessage?.(flowContext ?? {});
         return {
             systemPrompt: resolvedSystemPrompt ?? initialPrompt.systemPrompt,
-            triggerText: opener ?? initialPrompt.triggerText,
+            triggerText: initialPrompt.triggerText,
         };
-    }, [initialPrompt, flow, flowContext, resolvedSystemPrompt]);
+    }, [initialPrompt, flow, staticOpeningMessage, resolvedSystemPrompt]);
 
     useEffect(() => {
-        if (effectiveInitialPrompt?.systemPrompt) {
-            setSystemPrompt(effectiveInitialPrompt.systemPrompt);
+        const prompt = resolvedSystemPrompt ?? effectiveInitialPrompt?.systemPrompt ?? initialPrompt?.systemPrompt;
+        if (prompt) {
+            setSystemPrompt(prompt);
         }
-    }, [effectiveInitialPrompt?.systemPrompt, setSystemPrompt]);
+    }, [resolvedSystemPrompt, effectiveInitialPrompt?.systemPrompt, initialPrompt?.systemPrompt, setSystemPrompt]);
 
     useEffect(() => {
         if (resolvedSystemPrompt) {
@@ -302,7 +318,37 @@ export function useChatOrchestration({
         focusInput();
     }, [focusInput]);
 
-    // Trigger initial AI message for custom prompts
+    // Seed static flow openers immediately (morning / evening / intention).
+    // Avoids a free-model reasoning + agent-loop wait that leaves "…" on screen.
+    useEffect(() => {
+        if (!staticOpeningMessage || hasInitialized.current) {
+            return;
+        }
+        hasInitialized.current = true;
+        clearError();
+        const openerMessage: Message = {
+            id: `opener-${Date.now()}`,
+            role: 'assistant',
+            content: staticOpeningMessage,
+            timestamp: Date.now(),
+        };
+        setMessages([openerMessage]);
+        setChatMessages([openerMessage], resolvedSystemPrompt ?? initialPrompt?.systemPrompt);
+        setStreamingMessage(null);
+        setIsLoading(false);
+        scrollToBottom({ force: true });
+        focusInput();
+    }, [
+        staticOpeningMessage,
+        clearError,
+        focusInput,
+        initialPrompt?.systemPrompt,
+        resolvedSystemPrompt,
+        scrollToBottom,
+        setChatMessages,
+    ]);
+
+    // Trigger initial AI message for custom prompts (no static flow opener)
     useEffect(() => {
         if (!effectiveInitialPrompt || hasInitialized.current) {
             return;
@@ -418,6 +464,10 @@ export function useChatOrchestration({
         setMessages(prev => [...prev, userMessage]);
         setLastUserMessage(userMessage);
         scrollToBottom({ force: true });
+
+        // Core identity write path (deterministic + optional flash LLM). Fire-and-forget
+        // so chat latency is unchanged; next turn sees updated ## Identity via subscribe.
+        scheduleIdentityExtractionFromTurn(text);
 
         const tempStreamingId = beginStreaming();
 

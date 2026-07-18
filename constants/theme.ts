@@ -366,13 +366,14 @@ export const TodayIconColors = {
   morningHillDark: '#14532D',
 } as const;
 
+/** Aurora constellation palette — cohesive pastels for memory layers. */
 export const MemoryLayerColors = {
-  episodic: '#A370F7',
-  semantic: '#38BDF8',
-  profile: '#FB7185',
-  procedural: '#34D399',
-  note: '#FBBF24',
-  working: '#F472B6',
+  episodic: '#C4A1FF',
+  semantic: '#7DD3FC',
+  profile: '#FDA4AF',
+  procedural: '#6EE7B7',
+  note: '#FCD34D',
+  working: '#F0ABFC',
 } as const;
 
 export const Colors = {

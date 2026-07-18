@@ -21,6 +21,9 @@ export interface GoalCreateInput {
     type: GoalType;
     dateKey?: string;
     intentionId?: string;
+    /** Optional override (seed demo). Defaults to now. */
+    createdAt?: number;
+    updatedAt?: number;
 }
 
 export interface GoalUpdateInput {

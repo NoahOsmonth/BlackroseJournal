@@ -2,7 +2,6 @@ import React from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 
-import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 interface MemoryNotesPanelProps {
@@ -17,8 +16,8 @@ interface MemoryNotesPanelProps {
 }
 
 const INPUT_CLASS = [
-    'min-h-[84px] rounded-lg border border-divider-light dark:border-divider-dark',
-    'bg-surface-light dark:bg-surface-dark px-3 py-3',
+    'min-h-[72px] rounded-xl border border-divider-light dark:border-divider-dark',
+    'bg-background-light dark:bg-background-dark px-3 py-3',
     'text-text-light dark:text-text-dark',
 ].join(' ');
 
@@ -33,70 +32,22 @@ export function MemoryNotesPanel({
     onRefreshGeneratedNote,
 }: MemoryNotesPanelProps) {
     const isDark = useColorScheme() === 'dark';
-    const iconColor = isDark ? Colors.dark.text : Colors.light.text;
-    const primaryIconColor = Colors.light.text;
+    const iconColor = isDark ? '#F9FAFB' : '#111827';
     const placeholderColor = isDark ? '#9CA3AF' : '#6B7280';
     const canSave = noteText.trim().length > 0 && !isBusy;
-    const canSaveGenerated = generatedNote.trim().length > 0 && !isBusy;
-    const sourceText = sourceThemes.length > 0
-        ? `Source themes: ${sourceThemes.join(', ')}`
-        : 'Source themes appear after more completed journal entries.';
+    const canUseSuggestion = generatedNote.trim().length > 0 && !isBusy;
+    const sourceText = sourceThemes.length > 0 ? sourceThemes.join(' · ') : null;
 
     return (
-        <View className="gap-4">
-            <Text className="text-xs font-bold uppercase text-text-secondary-light dark:text-text-secondary-dark">
-                Notes
+        <View className="gap-3 rounded-2xl border border-divider-light dark:border-divider-dark bg-surface-light dark:bg-surface-dark p-4">
+            <Text className="text-xs font-semibold text-text-secondary-light dark:text-text-secondary-dark">
+                Pin a note for Rosebud
             </Text>
-
-            <View className="rounded-lg border border-divider-light bg-surface-light p-4 dark:border-divider-dark dark:bg-surface-dark">
-                <View className="mb-2 flex-row items-center justify-between">
-                    <View className="flex-row items-center gap-2">
-                        <MaterialIcons name="auto-awesome" size={18} color={iconColor} />
-                        <Text className="text-xs font-bold uppercase text-text-secondary-light dark:text-text-secondary-dark">
-                            Generated note
-                        </Text>
-                    </View>
-                    <Pressable
-                        onPress={onRefreshGeneratedNote}
-                        disabled={isBusy}
-                        className={isBusy ? 'opacity-50' : ''}
-                        accessibilityRole="button"
-                        accessibilityState={{ disabled: isBusy }}
-                        accessibilityLabel="Refresh generated memory note"
-                    >
-                        <MaterialIcons name="refresh" size={20} color={iconColor} />
-                    </Pressable>
-                </View>
-
-                <Text className="text-sm leading-5 text-text-light dark:text-text-dark">
-                    {generatedNote || "Rosebud hasn't noticed a stable pattern yet — keep journaling and I'll learn more about you."}
-                </Text>
-                <Text className="mt-2 text-xs text-text-secondary-light dark:text-text-secondary-dark">
-                    {sourceText}
-                </Text>
-
-                <Pressable
-                    onPress={onSaveGeneratedNote}
-                    disabled={!canSaveGenerated}
-                    className={[
-                        'mt-4 flex-row items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3',
-                        canSaveGenerated ? '' : 'opacity-50',
-                    ].join(' ')}
-                    accessibilityRole="button"
-                    accessibilityState={{ disabled: !canSaveGenerated }}
-                    accessibilityLabel="Save generated memory note"
-                >
-                    <MaterialIcons name="save" size={18} color={primaryIconColor} />
-                    <Text className="font-bold text-text-light dark:text-text-light">
-                        Save generated note
-                    </Text>
-                </Pressable>
-            </View>
 
             <TextInput
                 value={noteText}
                 onChangeText={onNoteTextChange}
-                placeholder="Add a memory note"
+                placeholder="Something you want remembered…"
                 placeholderTextColor={placeholderColor}
                 multiline
                 textAlignVertical="top"
@@ -108,18 +59,59 @@ export function MemoryNotesPanel({
                 onPress={onSaveNote}
                 disabled={!canSave}
                 className={[
-                    'flex-row items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3',
+                    'flex-row items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 dark:bg-primary-dark',
                     canSave ? '' : 'opacity-50',
                 ].join(' ')}
                 accessibilityRole="button"
                 accessibilityState={{ disabled: !canSave }}
                 accessibilityLabel="Save memory note"
             >
-                <MaterialIcons name="note-add" size={18} color={primaryIconColor} />
-                <Text className="font-bold text-text-light dark:text-text-light">
+                <MaterialIcons name="note-add" size={18} color={isDark ? '#111827' : '#FFFFFF'} />
+                <Text className="font-semibold text-white dark:text-gray-900">
                     Save note
                 </Text>
             </Pressable>
+
+            {generatedNote || sourceText ? (
+                <View className="gap-2 border-t border-divider-light dark:border-divider-dark pt-3">
+                    <View className="flex-row items-center justify-between">
+                        <Text className="text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark">
+                            Rosebud&apos;s suggestion
+                        </Text>
+                        <Pressable
+                            onPress={onRefreshGeneratedNote}
+                            disabled={isBusy}
+                            className={isBusy ? 'opacity-50' : ''}
+                            accessibilityRole="button"
+                            accessibilityState={{ disabled: isBusy }}
+                            accessibilityLabel="Refresh generated memory note"
+                            hitSlop={8}
+                        >
+                            <MaterialIcons name="refresh" size={16} color={iconColor} />
+                        </Pressable>
+                    </View>
+                    <Text className="text-sm leading-5 text-text-secondary-light dark:text-text-secondary-dark">
+                        {generatedNote || "No stable pattern yet — keep journaling."}
+                    </Text>
+                    {sourceText ? (
+                        <Text className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
+                            {sourceText}
+                        </Text>
+                    ) : null}
+                    {canUseSuggestion ? (
+                        <Pressable
+                            onPress={onSaveGeneratedNote}
+                            accessibilityRole="button"
+                            accessibilityLabel="Save generated memory note"
+                            hitSlop={4}
+                        >
+                            <Text className="text-sm font-semibold text-primary dark:text-primary-dark">
+                                Use this suggestion
+                            </Text>
+                        </Pressable>
+                    ) : null}
+                </View>
+            ) : null}
         </View>
     );
 }

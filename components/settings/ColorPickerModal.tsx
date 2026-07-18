@@ -1,8 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-    GestureResponderEvent,
-    LayoutChangeEvent,
     Modal,
     Pressable,
     ScrollView,
@@ -25,6 +23,7 @@ import {
     hslToHex,
     softenNeutralPartner,
 } from '@/services/theme/colorDerivation';
+import { ColorSlider } from '@/components/ui/ColorSlider';
 
 interface ColorPickerModalProps {
     /**
@@ -68,84 +67,6 @@ function buildToneRamp(hue: number): readonly string[] {
         samples.push(hslToHex({ h: hue, s: 90, l: lightness }));
     }
     return samples;
-}
-
-/**
- * Horizontal slider built on the responder system. We avoid pulling in a
- * third-party slider library because the rest of the app uses platform
- * primitives and the project deliberately keeps deps minimal.
- *
- * The outer View both claims the touch responder and measures the width, so
- * `locationX` is always relative to the element the ratio is computed
- * against. The track segments are `pointerEvents="none"` — if they could be
- * touch targets, `locationX` would arrive relative to the tapped segment and
- * the thumb would jump to the wrong color.
- */
-function ColorSlider({
-    ariaLabel,
-    trackColors,
-    thumbColor = '#FFFFFF',
-    valueRatio,
-    onChange,
-}: {
-    readonly ariaLabel: string;
-    readonly trackColors: readonly string[];
-    readonly thumbColor?: string;
-    readonly valueRatio: number;
-    readonly onChange: (ratio: number) => void;
-}) {
-    const [width, setWidth] = useState(0);
-    const handleLayout = (event: LayoutChangeEvent) => {
-        setWidth(event.nativeEvent.layout.width);
-    };
-    const handleTouch = (event: GestureResponderEvent) => {
-        if (width <= 0) {
-            return;
-        }
-        const raw = event.nativeEvent.locationX / width;
-        onChange(Math.max(0, Math.min(1, raw)));
-    };
-    const thumbLeft = Math.max(0, Math.min(width, valueRatio * width)) - 9;
-
-    return (
-        <View
-            accessibilityLabel={ariaLabel}
-            accessibilityRole="adjustable"
-            accessibilityValue={{ min: 0, max: 100, now: Math.round(valueRatio * 100) }}
-            onLayout={handleLayout}
-            onStartShouldSetResponder={() => true}
-            onMoveShouldSetResponder={() => true}
-            onResponderGrant={handleTouch}
-            onResponderMove={handleTouch}
-            className="h-10 justify-center"
-        >
-            <View
-                pointerEvents="none"
-                className="h-3 w-full rounded-full overflow-hidden flex-row"
-            >
-                {trackColors.map((color, index) => (
-                    <View
-                        key={`${color}-${index}`}
-                        className="flex-1"
-                        style={{ backgroundColor: color }}
-                    />
-                ))}
-            </View>
-            <View
-                pointerEvents="none"
-                className="absolute h-5 w-5 rounded-full border-2 border-white"
-                style={{
-                    left: thumbLeft,
-                    backgroundColor: thumbColor,
-                    shadowColor: '#000000',
-                    shadowOpacity: 0.25,
-                    shadowRadius: 3,
-                    shadowOffset: { width: 0, height: 1 },
-                    elevation: 3,
-                }}
-            />
-        </View>
-    );
 }
 
 const SLOT_LABELS: Record<ColorThemeSlot, string> = {

@@ -47,9 +47,12 @@ describe('useCustomAiModels', () => {
         jest.restoreAllMocks();
     });
 
-    it('fetches OpenAI-compatible models and saves the selected custom provider', async () => {
+    it('fetches free OpenRouter models and saves the selected custom provider', async () => {
         fetchMock.mockResolvedValue(new Response(JSON.stringify({
-            data: [{ id: 'openai/gpt-4', name: 'GPT-4', context_length: 8192 }],
+            data: [
+                { id: 'openai/gpt-4', name: 'GPT-4', context_length: 8192 },
+                { id: 'tencent/hy3:free', name: 'Hy3 free', context_length: 262000 },
+            ],
         }), { status: 200 }));
 
         const { result } = renderHook(() => useCustomAiModels());
@@ -62,22 +65,23 @@ describe('useCustomAiModels', () => {
 
         expect(result.current.status).toEqual({
             kind: 'success',
-            message: 'Custom model saved and enabled.',
+            message: 'AI model saved and enabled.',
         });
+        expect(result.current.settings.models.every((m) => m.id.includes(':free') || m.id === 'openrouter/free')).toBe(true);
         await expect(getActiveCustomModelConfig()).resolves.toEqual(
             expect.objectContaining({
                 apiBaseUrl: 'https://openrouter.ai/api/v1',
-                model: 'openai/gpt-4',
-                contextWindow: 8192,
+                model: 'tencent/hy3:free',
+                contextWindow: 262000,
             })
         );
     });
 
-    it('enables the custom provider when a fetched model is selected', async () => {
+    it('enables the custom provider when a free model is selected', async () => {
         fetchMock.mockResolvedValue(new Response(JSON.stringify({
             data: [
-                { id: 'openai/gpt-4', name: 'GPT-4', context_length: 8192 },
-                { id: 'anthropic/claude', name: 'Claude', context_length: 200000 },
+                { id: 'nvidia/nemotron:free', name: 'Nemotron free', context_length: 1000000 },
+                { id: 'tencent/hy3:free', name: 'Hy3 free', context_length: 262000 },
             ],
         }), { status: 200 }));
 
@@ -87,16 +91,34 @@ describe('useCustomAiModels', () => {
         act(() => result.current.setBaseUrl('https://openrouter.ai'));
         act(() => result.current.setApiKey('sk-or-test'));
         await act(async () => result.current.fetchModels());
-        await act(async () => result.current.selectModel('anthropic/claude'));
+        await act(async () => result.current.selectModel('nvidia/nemotron:free'));
 
         expect(result.current.settings.enabled).toBe(true);
-        expect(result.current.settings.selectedModelId).toBe('anthropic/claude');
+        expect(result.current.settings.selectedModelId).toBe('nvidia/nemotron:free');
+        expect(result.current.settings.recentModelIds[0]).toBe('nvidia/nemotron:free');
         expect(result.current.status).toEqual({
             kind: 'success',
-            message: 'Custom model selected and enabled.',
+            message: 'Model selected and enabled.',
         });
         await expect(getActiveCustomModelConfig()).resolves.toEqual(
-            expect.objectContaining({ model: 'anthropic/claude' })
+            expect.objectContaining({ model: 'nvidia/nemotron:free' })
         );
+    });
+
+    it('rejects selecting paid models while freeOnly is on', async () => {
+        fetchMock.mockResolvedValue(new Response(JSON.stringify({
+            data: [{ id: 'tencent/hy3:free', context_length: 262000 }],
+        }), { status: 200 }));
+
+        const { result } = renderHook(() => useCustomAiModels());
+        await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+        act(() => result.current.setBaseUrl('https://openrouter.ai'));
+        act(() => result.current.setApiKey('sk-or-test'));
+        await act(async () => result.current.fetchModels());
+        await act(async () => result.current.selectModel('openai/gpt-4'));
+
+        expect(result.current.status.kind).toBe('error');
+        expect(result.current.settings.selectedModelId).not.toBe('openai/gpt-4');
     });
 });

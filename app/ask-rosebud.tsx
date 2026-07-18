@@ -197,7 +197,7 @@ export default function AskRosebudScreen() {
                             value={inputText}
                             onChangeText={setInputText}
                             placeholder="Ask about your journal..."
-                            placeholderTextColor={isDark ? '#666' : '#999'}
+                            placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
                             className={`flex-1 text-base ${isDark ? 'text-white' : 'text-black'}`}
                             onSubmitEditing={() => handleSendMessage(inputText)}
                             editable={!isLoading}

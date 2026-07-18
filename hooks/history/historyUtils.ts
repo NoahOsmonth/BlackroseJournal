@@ -3,6 +3,7 @@ import { IntentionCheckIn } from '@/services/intentions/intentionsStorage.types'
 import { getLocalDateKey } from '@/utils/date';
 
 export type HistoryItemType = 'journal' | 'checkin';
+export type HistoryFilter = 'all' | 'journal' | 'ritual';
 
 export interface HistoryItem {
     id: string;
@@ -19,6 +20,11 @@ export interface HistoryItem {
 export interface HistorySection {
     dateKey: string;
     label: string;
+    dayNumber: number;
+    weekdayShort: string;
+    relativeLabel: 'today' | 'yesterday' | null;
+    monthKey: string;
+    monthLabel: string;
     items: HistoryItem[];
 }
 
@@ -28,10 +34,23 @@ export interface WeeklyHistorySummary {
     journalCount: number;
     checkInCount: number;
     activeDays: number;
+    activeDayKeys: string[];
+    weekDayKeys: string[];
     topSignals: string[];
 }
 
+export interface HistoryDayMeta {
+    dateKey: string;
+    dayNumber: number;
+    weekdayShort: string;
+    relativeLabel: 'today' | 'yesterday' | null;
+    monthKey: string;
+    monthLabel: string;
+    label: string;
+}
+
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DAY_SHORT = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const MONTH_NAMES = [
     'January',
     'February',
@@ -63,27 +82,64 @@ export function toDateKey(timestamp: number): string {
     return getLocalDateKey(new Date(timestamp));
 }
 
-function parseDateKey(dateKey: string): Date {
+export function parseDateKey(dateKey: string): Date {
     const [year, month, day] = dateKey.split('-').map((value) => Number(value));
     return new Date(year, (month ?? 1) - 1, day ?? 1);
 }
 
-export function formatDateLabel(date: Date): string {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+export function formatMonthYear(date = new Date()): string {
+    return `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
+}
 
-    const compare = new Date(date);
-    compare.setHours(0, 0, 0, 0);
+export function getWeekdayMonograms(): readonly string[] {
+    return DAY_SHORT;
+}
 
-    const dayName = DAY_NAMES[compare.getDay()];
-    const monthName = MONTH_NAMES[compare.getMonth()];
-    const dayNumber = compare.getDate();
+function startOfDay(date: Date): Date {
+    const next = new Date(date);
+    next.setHours(0, 0, 0, 0);
+    return next;
+}
 
+export function resolveDayMeta(date: Date, now = new Date()): HistoryDayMeta {
+    const compare = startOfDay(date);
+    const today = startOfDay(now);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    let relativeLabel: HistoryDayMeta['relativeLabel'] = null;
     if (compare.getTime() === today.getTime()) {
-        return `Today ${monthName} ${dayNumber}`;
+        relativeLabel = 'today';
+    } else if (compare.getTime() === yesterday.getTime()) {
+        relativeLabel = 'yesterday';
     }
 
-    return `${dayName} ${monthName} ${dayNumber}`;
+    const dayNumber = compare.getDate();
+    const weekdayShort = DAY_NAMES[compare.getDay()].slice(0, 3);
+    const monthKey = `${compare.getFullYear()}-${String(compare.getMonth() + 1).padStart(2, '0')}`;
+    const monthLabel = MONTH_NAMES[compare.getMonth()];
+    const dateKey = getLocalDateKey(compare);
+
+    const label = relativeLabel === 'today'
+        ? 'Today'
+        : relativeLabel === 'yesterday'
+            ? 'Yesterday'
+            : `${DAY_NAMES[compare.getDay()]} ${monthLabel} ${dayNumber}`;
+
+    return {
+        dateKey,
+        dayNumber,
+        weekdayShort,
+        relativeLabel,
+        monthKey,
+        monthLabel,
+        label,
+    };
+}
+
+/** @deprecated Prefer resolveDayMeta — kept for callers expecting a single string label. */
+export function formatDateLabel(date: Date): string {
+    return resolveDayMeta(date).label;
 }
 
 function extractSummaryFromEntry(entry: JournalEntry): string {
@@ -100,21 +156,25 @@ export function buildHistoryItems(
     entries: JournalEntry[],
     checkIns: IntentionCheckIn[]
 ): HistoryItem[] {
-    const journalItems = entries.map<HistoryItem>((entry) => ({
-        id: `journal-${entry.id}`,
-        type: 'journal',
-        title: entry.title,
-        summary: extractSummaryFromEntry(entry),
-        createdAt: entry.createdAt,
-        sourceId: entry.id,
-    }));
+    const journalItems = entries.map<HistoryItem>((entry) => {
+        const mood = entry.analysis?.mood?.trim();
+        return {
+            id: `journal-${entry.id}`,
+            type: 'journal',
+            title: entry.title,
+            summary: extractSummaryFromEntry(entry),
+            mood: mood || undefined,
+            createdAt: entry.createdAt,
+            sourceId: entry.id,
+        };
+    });
 
     const checkInItems = checkIns.map<HistoryItem>((checkIn) => ({
         id: `checkin-${checkIn.id}`,
         type: 'checkin',
         title: checkIn.title,
         summary: checkIn.summary,
-        mood: checkIn.mood,
+        mood: checkIn.mood?.trim() || undefined,
         createdAt: checkIn.createdAt,
         sourceId: checkIn.id,
         checkInType: checkIn.type,
@@ -124,6 +184,28 @@ export function buildHistoryItems(
     return [...journalItems, ...checkInItems].sort((a, b) => b.createdAt - a.createdAt);
 }
 
+export function filterHistoryItems(
+    items: readonly HistoryItem[],
+    filter: HistoryFilter
+): HistoryItem[] {
+    if (filter === 'all') return [...items];
+    if (filter === 'journal') return items.filter((item) => item.type === 'journal');
+    return items.filter((item) => item.type === 'checkin');
+}
+
+export function filterHistorySections(
+    sections: readonly HistorySection[],
+    filter: HistoryFilter
+): HistorySection[] {
+    if (filter === 'all') return [...sections];
+    return sections
+        .map((section) => ({
+            ...section,
+            items: filterHistoryItems(section.items, filter),
+        }))
+        .filter((section) => section.items.length > 0);
+}
+
 function getWeekBounds(date: Date): { start: Date; end: Date } {
     const start = new Date(date);
     start.setHours(0, 0, 0, 0);
@@ -131,6 +213,15 @@ function getWeekBounds(date: Date): { start: Date; end: Date } {
     const end = new Date(start);
     end.setDate(start.getDate() + 7);
     return { start, end };
+}
+
+export function buildWeekDayKeys(now = new Date()): string[] {
+    const { start } = getWeekBounds(now);
+    return Array.from({ length: 7 }, (_, index) => {
+        const day = new Date(start);
+        day.setDate(start.getDate() + index);
+        return getLocalDateKey(day);
+    });
 }
 
 function formatShortDate(date: Date): string {
@@ -159,7 +250,8 @@ export function buildWeeklyHistorySummary(
     const { start, end } = getWeekBounds(now);
     const weekItems = items.filter((item) => item.createdAt >= start.getTime()
         && item.createdAt < end.getTime());
-    const activeDays = new Set(weekItems.map((item) => toDateKey(item.createdAt))).size;
+    const activeDayKeySet = new Set(weekItems.map((item) => toDateKey(item.createdAt)));
+    const activeDayKeys = Array.from(activeDayKeySet).sort();
     const endLabel = new Date(end);
     endLabel.setDate(endLabel.getDate() - 1);
 
@@ -168,12 +260,24 @@ export function buildWeeklyHistorySummary(
         itemCount: weekItems.length,
         journalCount: weekItems.filter((item) => item.type === 'journal').length,
         checkInCount: weekItems.filter((item) => item.type === 'checkin').length,
-        activeDays,
+        activeDays: activeDayKeys.length,
+        activeDayKeys,
+        weekDayKeys: buildWeekDayKeys(now),
         topSignals: getTopSignals(weekItems),
     };
 }
 
-export function groupHistorySections(items: HistoryItem[]): HistorySection[] {
+export function formatWeekProse(summary: WeeklyHistorySummary): string | null {
+    if (summary.itemCount === 0) return null;
+    const entryWord = summary.itemCount === 1 ? 'entry' : 'entries';
+    const dayWord = summary.activeDays === 1 ? 'day' : 'days';
+    return `${summary.itemCount} ${entryWord} · ${summary.activeDays} ${dayWord}`;
+}
+
+export function groupHistorySections(
+    items: HistoryItem[],
+    now = new Date()
+): HistorySection[] {
     const groups = new Map<string, HistoryItem[]>();
 
     items.forEach((item) => {
@@ -186,10 +290,15 @@ export function groupHistorySections(items: HistoryItem[]): HistorySection[] {
     return Array.from(groups.entries())
         .sort(([a], [b]) => (a > b ? -1 : 1))
         .map(([dateKey, groupItems]) => {
-            const date = parseDateKey(dateKey);
+            const meta = resolveDayMeta(parseDateKey(dateKey), now);
             return {
                 dateKey,
-                label: formatDateLabel(date),
+                label: meta.label,
+                dayNumber: meta.dayNumber,
+                weekdayShort: meta.weekdayShort,
+                relativeLabel: meta.relativeLabel,
+                monthKey: meta.monthKey,
+                monthLabel: meta.monthLabel,
                 items: groupItems.sort((a, b) => b.createdAt - a.createdAt),
             };
         });
