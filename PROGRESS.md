@@ -12,6 +12,10 @@
 - [x] **TOOL-CODEX-001**: Codex CLI with OMO Light Edition
 
 ## Updates
+- **2026-07-18**: Memory battery follow-ups (T6/T3a/T4)
+  - **T6 future-event date (verdict A — storage gap, report-only):** Live store for dentist entry has free-text "Friday" only in session digest / day digest / atoms — **no structured event date field and no absolute `2026-07-24`**. Write-turn model can resolve Friday→absolute; storage does not persist it. Do **not** add event-date extraction without explicit schema go-ahead.
+  - **T3a atom embeddings:** Finish path `saveAtomBatch` now soft-attaches vectors via same `embedText()` / `EMBEDDING_MODEL` as digests (was only on `upsertMemoryAtom`). Jest: 2048-d on finish atoms; sabotage skip-embed → red → green. Live: purple-telescope atoms have `embedding.length === 2048`. Suite delta: **+1 test** → 730 passed / 743 total (suites still 170/4 skipped).
+  - **T4 web restore confirm:** `handleRestoreLatestBackup` + `handleClearHistory` use `window.confirm` on web (mobile `Alert.alert` untouched). Live UI: clear → empty; restore dialog accepted; digests rematerialize; recall about purple telescope works.
 - **2026-07-18**: Final verification pass (pre-commit)
   - Full suite: **170 passed / 4 skipped suites, 729 passed / 13 skipped tests**, exit 0 (`cmd /c node node_modules/jest/bin/jest.js --runInBand`).
   - Count recon vs prior closeout intermediate (171p suites / 727p tests / 740 total): **-1 suite / -2 tests** `memoryClassifier.test.ts` deleted; **+4 net tests** from closeout day-slip/seed/jsonCompletion assertions → **729p / 742 total**. (User baseline "174/740" = total suites + prior total tests, not all-passed.)

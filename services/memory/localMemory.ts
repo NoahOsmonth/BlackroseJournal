@@ -301,6 +301,32 @@ function profileTitleFromInsight(insight: string): string {
     return shortened;
 }
 
+/**
+ * Soft-attach embedding outside the storage lock (network I/O).
+ * Same embedText() / EMBEDDING_MODEL path as session digests + rollups.
+ * Failure leaves the atom lexical-only — never throws.
+ */
+async function softAttachEmbedding(atom: LocalMemoryAtom): Promise<LocalMemoryAtom> {
+    if (atom.embedding?.length) return atom;
+    try {
+        const vector = await embedText(`${atom.title}\n${atom.content}`);
+        if (!vector?.length) return atom;
+        return await withMemoryLock(async () => {
+            const map = await loadMemoryMap();
+            const existing = map[atom.id];
+            if (!existing) return atom;
+            // Another writer may have attached a vector while we embedded.
+            if (existing.embedding?.length) return existing;
+            const next = { ...existing, embedding: vector };
+            map[atom.id] = next;
+            await saveMemoryMap(map);
+            return next;
+        });
+    } catch {
+        return atom;
+    }
+}
+
 export async function upsertMemoryAtom(input: LocalMemoryAtomInput): Promise<LocalMemoryAtom> {
     let atom = await withMemoryLock(async () => {
         const map = await loadMemoryMap();
@@ -313,24 +339,11 @@ export async function upsertMemoryAtom(input: LocalMemoryAtomInput): Promise<Loc
     });
     notifyMemoryChanged();
 
-    // Soft-attach embedding outside the lock (network). Same EMBEDDING_MODEL
-    // as digests/rollups via embedText. Failure leaves atom lexical-only.
-    if (!atom.embedding?.length && !input.embedding?.length) {
-        try {
-            const vector = await embedText(`${atom.title}\n${atom.content}`);
-            if (vector?.length) {
-                atom = await withMemoryLock(async () => {
-                    const map = await loadMemoryMap();
-                    const existing = map[atom.id];
-                    if (!existing) return atom;
-                    const next = { ...existing, embedding: vector };
-                    map[atom.id] = next;
-                    await saveMemoryMap(map);
-                    return next;
-                });
-            }
-        } catch {
-            // ranking falls back to lexical
+    if (!input.embedding?.length) {
+        atom = await softAttachEmbedding(atom);
+        if (atom.embedding?.length) {
+            // Vector landed after the first notify — refresh listeners once.
+            notifyMemoryChanged();
         }
     }
 
@@ -519,7 +532,22 @@ async function saveAtomBatch(atoms: readonly LocalMemoryAtomInput[]): Promise<Lo
         return merged.filter((atom) => Boolean(map[atom.id]));
     });
     notifyMemoryChanged();
-    return saved;
+
+    // Finish-path atoms previously skipped embeddings (only upsertMemoryAtom attached).
+    // Soft-attach via the same embedText() pair as digests — sequential to share the lock queue.
+    const withEmbeddings: LocalMemoryAtom[] = [];
+    let anyNewVector = false;
+    for (const atom of saved) {
+        const next = await softAttachEmbedding(atom);
+        if (next.embedding?.length && !atom.embedding?.length) {
+            anyNewVector = true;
+        }
+        withEmbeddings.push(next);
+    }
+    if (anyNewVector) {
+        notifyMemoryChanged();
+    }
+    return withEmbeddings;
 }
 
 export async function saveJournalEntryMemories(entry: JournalEntry): Promise<LocalMemoryAtom[]> {

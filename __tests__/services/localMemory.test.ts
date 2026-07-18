@@ -35,7 +35,8 @@ import {
     setMemoryStorageAdapter,
     upsertMemoryAtom,
 } from '../../services/memory/localMemory';
-import { l2Normalize } from '../../services/memory/embeddings';
+import { EMBEDDING_DIMENSIONS, l2Normalize } from '../../services/memory/embeddings';
+import { embedText } from '../../services/ai/embeddingsTransport';
 import type {
     JournalEntry,
     StorageAdapter,
@@ -272,5 +273,41 @@ describe('localMemory', () => {
             limit: 2,
         });
         expect(ranked[0]?.sourceId).toBe('work-atom');
+    });
+
+    /**
+     * Finish path (saveJournalEntryMemories → saveAtomBatch) must soft-attach
+     * embeddings via the same embedText() pair as digests — not only upsertMemoryAtom.
+     * What would make this fail: batch save skipping softAttachEmbedding.
+     */
+    it('attaches a 2048-d embedding on journal finish atoms via embedText', async () => {
+        const mockEmbed = jest.mocked(embedText);
+        const vector = Array.from({ length: EMBEDDING_DIMENSIONS }, (_, i) => (i === 0 ? 1 : 0));
+        mockEmbed.mockResolvedValue(vector);
+
+        const saved = await saveJournalEntryMemories(buildEntry());
+        expect(saved.length).toBeGreaterThan(0);
+        expect(mockEmbed).toHaveBeenCalled();
+
+        const atoms = await listMemoryAtoms();
+        const journalAtoms = atoms.filter((a) => a.source === 'journal');
+        expect(journalAtoms.length).toBeGreaterThan(0);
+        for (const atom of journalAtoms) {
+            expect(atom.embedding).toBeDefined();
+            expect(atom.embedding!.length).toBe(EMBEDDING_DIMENSIONS);
+        }
+
+        // Cosine-primary still wins when vectors exist (reuse ranking contract).
+        const withVec = journalAtoms[0]!;
+        const tokens = new Set(['zzzznomatch']);
+        const semanticScore = rankAtom(withVec, tokens, Date.now(), vector);
+        const lexicalOnly = rankAtom(
+            { ...withVec, embedding: undefined },
+            tokens,
+            Date.now(),
+            vector,
+        );
+        // With matching query embedding, semantic path should dominate over empty lexical.
+        expect(semanticScore).toBeGreaterThan(lexicalOnly);
     });
 });

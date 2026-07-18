@@ -214,15 +214,35 @@ export default function SettingsScreen() {
         }
     };
 
+    const runClearJournalHistory = async () => {
+        try {
+            await clearJournalHistory();
+            Alert.alert('Success', 'All history and related memories have been deleted.');
+        } catch (error) {
+            const message = error instanceof Error
+                ? error.message
+                : 'Failed to clear history and memories.';
+            Alert.alert('Error', message);
+        }
+    };
+
     const handleRestoreLatestBackup = () => {
         if (!latestBackup) {
             Alert.alert('No backup', 'Create a local backup before restoring.');
             return;
         }
 
+        // Web: window.confirm is reliable under Playwright; native keeps Alert (mobile UX unchanged).
+        const message = `Restore "${latestBackup.name}"? Current local app data will be replaced.`;
+        if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+            const ok = window.confirm(message);
+            if (ok) void restoreLatestBackup();
+            return;
+        }
+
         Alert.alert(
             'Restore local backup',
-            `Restore "${latestBackup.name}"? Current local app data will be replaced.`,
+            message,
             [
                 { text: 'Cancel', style: 'cancel' },
                 { text: 'Restore', style: 'destructive', onPress: restoreLatestBackup },
@@ -231,25 +251,24 @@ export default function SettingsScreen() {
     };
 
     const handleClearHistory = () => {
+        const message =
+            'Delete all journal entries, intention check-ins, chat sessions, insights, and saved AI memories from this device? This action cannot be undone.';
+        // Web: window.confirm is reliable under Playwright; native keeps Alert (mobile UX unchanged).
+        if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+            const ok = window.confirm(message);
+            if (ok) void runClearJournalHistory();
+            return;
+        }
+
         Alert.alert(
             'Clear History & Memories',
-            'Delete all journal entries, intention check-ins, chat sessions, insights, and saved AI memories from this device? This action cannot be undone.',
+            message,
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
                     text: 'Delete',
                     style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            await clearJournalHistory();
-                            Alert.alert('Success', 'All history and related memories have been deleted.');
-                        } catch (error) {
-                            const message = error instanceof Error
-                                ? error.message
-                                : 'Failed to clear history and memories.';
-                            Alert.alert('Error', message);
-                        }
-                    },
+                    onPress: () => { void runClearJournalHistory(); },
                 },
             ]
         );
