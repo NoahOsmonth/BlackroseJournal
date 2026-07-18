@@ -27,6 +27,8 @@ export interface DirectChatRequest {
     response_format?: { type: 'json_object' };
     tools?: unknown[];
     tool_choice?: 'auto' | 'none' | { type: 'function'; function: { name: string } };
+    /** OpenAI stream usage on final chunk. */
+    stream_options?: { include_usage?: boolean };
 }
 
 export interface DirectChatOptions {
@@ -113,6 +115,9 @@ export async function prepareDirectChatRequest(
     if (payload.tools && payload.tools.length > 0) {
         body.tools = payload.tools;
         body.tool_choice = payload.tool_choice ?? 'auto';
+    }
+    if (payload.stream && payload.stream_options) {
+        body.stream_options = payload.stream_options;
     }
 
     return { url, headers, body, configSource: config.source, capabilities };

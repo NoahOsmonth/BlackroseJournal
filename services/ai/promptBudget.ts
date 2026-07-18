@@ -230,13 +230,18 @@ export function attachRealUsage(
     return { ...ledger, realPromptTokens: real };
 }
 
-/** One-line console log — stable prefix for live grep. */
+/**
+ * One-line console log — stable prefix for live grep.
+ * PR8c: never bare `n/a` — use `usage-unavailable` when the provider omits usage.
+ */
 export function formatPromptBudgetLogLine(ledger: PromptBudgetLedger): string {
     const perBlock = ledger.blocks
         .map((b) => `${b.label}=${b.estTokens}`)
         .join(' ');
     const real =
-        ledger.realPromptTokens == null ? 'n/a' : String(ledger.realPromptTokens);
+        ledger.realPromptTokens == null
+            ? 'usage-unavailable'
+            : String(ledger.realPromptTokens);
     return (
         `[prompt-budget] branch=${ledger.toolsBranch} ` +
         `estTotal=${ledger.totalEstTokens} systemChars=${ledger.systemChars} ` +

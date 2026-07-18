@@ -13,13 +13,27 @@ export const HISTORY_TOOL_DEFINITIONS: ToolDefinition[] = [
     {
         name: 'list_recent_days',
         description:
-            'List recent journaling day digests (summaries + topics + session titles). Prefer this before loading full conversations.',
+            'List recent journaling day digests (summaries + topics + session titles). Prefer this before loading full conversations. Use order=oldest or from/to to reach older history without paging forever.',
         parameters: {
             type: 'object',
             properties: {
                 days: {
                     type: 'number',
-                    description: 'How many recent active days to return (1–14, default 7).',
+                    description: 'How many active days to return (1–14, default 7).',
+                },
+                order: {
+                    type: 'string',
+                    enum: ['newest', 'oldest'],
+                    description:
+                        "Sort order. 'newest' (default) = most recent first; 'oldest' = earliest matching days first (use for 'first entry' / early history).",
+                },
+                from: {
+                    type: 'string',
+                    description: 'Optional start date YYYY-MM-DD inclusive.',
+                },
+                to: {
+                    type: 'string',
+                    description: 'Optional end date YYYY-MM-DD inclusive.',
                 },
             },
             additionalProperties: false,

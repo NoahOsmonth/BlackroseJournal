@@ -12,6 +12,15 @@
 - [x] **TOOL-CODEX-001**: Codex CLI with OMO Light Edition
 
 ## Updates
+- **2026-07-18**: **PR8c** — tool-loop hardening (6 items)
+  - `AGENT_TURN_TOKEN_BUDGET=12000` cumulative (real `prompt_tokens` or chars/4 est; log source per round) → stop tool rounds + final no-tools.
+  - Identical tool name+args twice → no re-exec; inject `DUPLICATE_TOOL_CALL_NOTE` → final no-tools.
+  - `list_recent_days`: optional `order` newest|oldest + `from`/`to` (other 6 tool schemas byte-pinned).
+  - Max-round exhaustion discards loop narration; `AGENT_EXHAUSTION_FALLBACK` if final pass fails.
+  - `AUGMENT_BLOB_MAX_EST_TOKENS=1500` — drop lowest-similarity recall then oldest digests; whole lines only.
+  - Stream path: capture usage from final SSE chunk; `[prompt-budget]` uses real number or `usage-unavailable` (never bare n/a).
+  - Live (`PROBE_LLM=1`, `tencent/hy3:free`, first take): oldest-of-365 **PASS** (rounds=2, usage prompt_tokens=3947); zephyr-quill-8137 **PASS** via search→atom. Artifacts: `probes/artifacts/pr8c-*`.
+  - Suite: **179 passed / 6 skipped suites, 773 passed / 21 skipped tests** (vs baseline 176/5 · 758/19). Delta: +3 suites (toolSchemaPin, historyPrefetchCap, streamUsageLogging), +1 skipped live suite (pr8cListRecentDaysLive); +15 tests / +2 skipped.
 - **2026-07-18**: **PR8b-1** — companion static prompt diet (≤5k est tokens) + non-directive persona
   - `COMPANION_PROMPT_BUDGET = 5000`; freeform static ~**853** est tokens (was ~11900). Persona: reflect-first, max one suggestion, prefer questions.
   - Identity header dieted; tools-policy tightened. Full date doctrine unchanged in `buildClockContext`.

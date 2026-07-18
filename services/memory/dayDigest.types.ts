@@ -30,6 +30,8 @@ export interface DayDigestListOptions {
     to?: string;
     limit?: number;
     now?: number;
+    /** Sort order. Default 'newest' (dateKey descending). */
+    order?: 'newest' | 'oldest';
 }
 
 export interface DayDigestPromptOptions {

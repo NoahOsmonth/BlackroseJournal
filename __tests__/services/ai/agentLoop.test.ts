@@ -1,4 +1,10 @@
-import { MAX_AGENT_TOOL_ROUNDS, runAgentTurnWithTools } from '../../../services/ai/agentLoop';
+import {
+    AGENT_EXHAUSTION_FALLBACK,
+    AGENT_TURN_TOKEN_BUDGET,
+    DUPLICATE_TOOL_CALL_NOTE,
+    MAX_AGENT_TOOL_ROUNDS,
+    runAgentTurnWithTools,
+} from '../../../services/ai/agentLoop';
 import * as directTransport from '../../../services/ai/directTransport';
 import * as executeTool from '../../../services/ai/tools/executeTool';
 
@@ -20,6 +26,34 @@ function jsonResponse(body: unknown, status = 200): Response {
         status,
         text: async () => JSON.stringify(body),
     } as Response;
+}
+
+function toolCallMessage(
+    name: string,
+    args: string,
+    content: string | null = null,
+    id = 'call_1'
+) {
+    return {
+        choices: [{
+            message: {
+                content,
+                tool_calls: [{
+                    id,
+                    type: 'function',
+                    function: { name, arguments: args },
+                }],
+            },
+        }],
+        usage: { prompt_tokens: 500, completion_tokens: 20, total_tokens: 520 },
+    };
+}
+
+function textMessage(content: string, usage?: { prompt_tokens: number }) {
+    return {
+        choices: [{ message: { content, reasoning_content: '' } }],
+        usage: usage ?? { prompt_tokens: 400, completion_tokens: 30, total_tokens: 430 },
+    };
 }
 
 describe('runAgentTurnWithTools', () => {
@@ -279,5 +313,163 @@ describe('runAgentTurnWithTools', () => {
 
     it('caps tool rounds', () => {
         expect(MAX_AGENT_TOOL_ROUNDS).toBe(3);
+        expect(AGENT_TURN_TOKEN_BUDGET).toBe(12_000);
+    });
+
+    it('PR8c: cross-round token budget stops further tool rounds and runs final pass', async () => {
+        // Each round reports 5_000 real prompt_tokens; budget 9_000 → stop after round 2 tools.
+        fetchMock
+            .mockResolvedValueOnce(
+                jsonResponse({
+                    ...toolCallMessage('list_recent_days', '{"days":7}', null, 'c1'),
+                    usage: { prompt_tokens: 5_000, completion_tokens: 10, total_tokens: 5_010 },
+                })
+            )
+            .mockResolvedValueOnce(
+                jsonResponse({
+                    ...toolCallMessage('list_recent_days', '{"days":7,"order":"oldest"}', null, 'c2'),
+                    usage: { prompt_tokens: 5_000, completion_tokens: 10, total_tokens: 5_010 },
+                })
+            )
+            .mockResolvedValueOnce(
+                jsonResponse(textMessage('Final answer within budget.'))
+            );
+
+        toolsMock
+            .mockResolvedValueOnce([
+                { toolCallId: 'c1', name: 'list_recent_days', content: 'day A' },
+            ])
+            .mockResolvedValueOnce([
+                { toolCallId: 'c2', name: 'list_recent_days', content: 'day B' },
+            ]);
+
+        const result = await runAgentTurnWithTools({
+            systemPrompt: 'sys',
+            messages: [{ id: '1', role: 'user', content: 'what is my first entry?', timestamp: 1 }],
+            turnTokenBudget: 9_000,
+            maxRounds: 3,
+        });
+
+        expect(result.stopReason).toBe('token_budget');
+        expect(result.cumulativePromptTokens).toBeGreaterThanOrEqual(9_000);
+        expect(result.content).toBe('Final answer within budget.');
+        // Two tool rounds only — no third tool round.
+        expect(toolsMock).toHaveBeenCalledTimes(2);
+        // 2 tool completions + 1 final no-tools
+        expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('PR8c: repeated identical list_recent_days is not re-executed; final pass runs', async () => {
+        const listArgs = '{"days":7}';
+        fetchMock
+            .mockResolvedValueOnce(
+                jsonResponse(toolCallMessage('list_recent_days', listArgs, null, 'c1'))
+            )
+            // Identical call again (Kimi loop shape)
+            .mockResolvedValueOnce(
+                jsonResponse(
+                    toolCallMessage(
+                        'list_recent_days',
+                        listArgs,
+                        'Let me continue to the next page.',
+                        'c2'
+                    )
+                )
+            )
+            .mockResolvedValueOnce(
+                jsonResponse(textMessage('You started with a short first-day note.'))
+            );
+
+        toolsMock.mockResolvedValueOnce([
+            { toolCallId: 'c1', name: 'list_recent_days', content: 'page 1 of days' },
+        ]);
+
+        const result = await runAgentTurnWithTools({
+            systemPrompt: 'sys',
+            messages: [{ id: '1', role: 'user', content: 'first journal entry?', timestamp: 1 }],
+            maxRounds: 3,
+        });
+
+        expect(toolsMock).toHaveBeenCalledTimes(1);
+        expect(result.stopReason).toBe('duplicate_call');
+        expect(result.content).toBe('You started with a short first-day note.');
+        expect(result.content).not.toBe('Let me continue to the next page.');
+        // Final pass request should include the duplicate note.
+        const finalReq = fetchMock.mock.calls[2][0] as {
+            messages: { role: string; content: string | null }[];
+            tools?: unknown;
+        };
+        expect(finalReq.tools).toBeUndefined();
+        expect(
+            finalReq.messages.some(
+                (m) => typeof m.content === 'string' && m.content.includes(DUPLICATE_TOOL_CALL_NOTE)
+            )
+        ).toBe(true);
+    });
+
+    it('PR8c: max-round exhaustion discards last-round narration; never ships hy3 leak string', async () => {
+        const LEAK = 'Let me continue to the next page.';
+        fetchMock
+            .mockResolvedValueOnce(
+                jsonResponse(toolCallMessage('get_clock', '{}', LEAK, 'c1'))
+            )
+            .mockResolvedValueOnce(
+                jsonResponse(toolCallMessage('get_day', '{"date":"yesterday"}', LEAK, 'c2'))
+            )
+            .mockResolvedValueOnce(
+                jsonResponse(toolCallMessage('list_recent_days', '{"days":5}', LEAK, 'c3'))
+            )
+            .mockResolvedValueOnce(
+                jsonResponse(textMessage('Yesterday you wrote about sleep debt.'))
+            );
+
+        toolsMock
+            .mockResolvedValueOnce([{ toolCallId: 'c1', name: 'get_clock', content: 'ok' }])
+            .mockResolvedValueOnce([{ toolCallId: 'c2', name: 'get_day', content: 'ok' }])
+            .mockResolvedValueOnce([{ toolCallId: 'c3', name: 'list_recent_days', content: 'ok' }]);
+
+        const result = await runAgentTurnWithTools({
+            systemPrompt: 'sys',
+            messages: [{ id: '1', role: 'user', content: 'What about yesterday?', timestamp: 1 }],
+            maxRounds: 3,
+        });
+
+        expect(result.content).not.toBe(LEAK);
+        expect(result.content).not.toContain(LEAK);
+        expect(result.content).toBe('Yesterday you wrote about sleep debt.');
+        expect(result.stopReason).toBe('max_rounds');
+        // 3 tool rounds + final no-tools
+        expect(fetchMock).toHaveBeenCalledTimes(4);
+    });
+
+    it('PR8c: exhaustion final-pass failure ships graceful fallback (not narration)', async () => {
+        const LEAK = 'Let me continue to the next page.';
+        fetchMock
+            .mockResolvedValueOnce(
+                jsonResponse(toolCallMessage('get_clock', '{}', LEAK, 'c1'))
+            )
+            .mockResolvedValueOnce(
+                jsonResponse(toolCallMessage('get_day', '{"date":"today"}', LEAK, 'c2'))
+            )
+            .mockResolvedValueOnce(
+                jsonResponse(toolCallMessage('list_recent_days', '{"days":3}', LEAK, 'c3'))
+            )
+            .mockResolvedValueOnce(
+                jsonResponse({ error: { message: 'upstream down' } }, 500)
+            );
+
+        toolsMock
+            .mockResolvedValueOnce([{ toolCallId: 'c1', name: 'get_clock', content: 'ok' }])
+            .mockResolvedValueOnce([{ toolCallId: 'c2', name: 'get_day', content: 'ok' }])
+            .mockResolvedValueOnce([{ toolCallId: 'c3', name: 'list_recent_days', content: 'ok' }]);
+
+        const result = await runAgentTurnWithTools({
+            systemPrompt: 'sys',
+            messages: [{ id: '1', role: 'user', content: 'history?', timestamp: 1 }],
+            maxRounds: 3,
+        });
+
+        expect(result.content).toBe(AGENT_EXHAUSTION_FALLBACK);
+        expect(result.content).not.toBe(LEAK);
     });
 });

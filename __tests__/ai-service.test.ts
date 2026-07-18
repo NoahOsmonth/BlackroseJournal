@@ -105,6 +105,7 @@ describe('ai service fallback parsing', () => {
         expect(result).toEqual({
             content: 'Hello world',
             reasoning: 'warm opening',
+            usage: null,
         });
     });
 

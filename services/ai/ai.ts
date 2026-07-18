@@ -38,7 +38,6 @@ import {
 import {
     attachRealUsage,
     buildLedgerFromAssembledRequest,
-    extractUsageFromCompletion,
     logPromptBudget,
     type HistoryToolsBranch,
 } from './promptBudget';
@@ -257,17 +256,22 @@ export async function streamChat(
             }
         }
 
-        // Stream path budget (no agent loop, or agent fell through).
-        if (!lastUsage) {
-            const streamLedger = buildLedgerFromAssembledRequest({
-                systemPrompt,
-                messages: outboundMessages,
-                toolsBranch,
-                includeToolsSchema: false,
-                eagerAugmentationText,
-            });
+        // Stream path: log [prompt-budget] after stream so real usage can attach.
+        // PR8c: never bare n/a — usage-unavailable when provider omits usage.
+        const logStreamBudget = (usage: { prompt_tokens?: number } | null) => {
+            if (lastUsage) return; // already logged on agent path
+            const streamLedger = attachRealUsage(
+                buildLedgerFromAssembledRequest({
+                    systemPrompt,
+                    messages: outboundMessages,
+                    toolsBranch,
+                    includeToolsSchema: false,
+                    eagerAugmentationText,
+                }),
+                usage
+            );
             logPromptBudget(streamLedger);
-        }
+        };
 
         const streamPayload = buildChatPayload(
             DEFAULT_DIRECT_MODEL,
@@ -278,13 +282,16 @@ export async function streamChat(
             resolved.generation
         );
 
-        const usedXhrStreaming = await streamChatWithXhr(
+        const xhrResult = await streamChatWithXhr(
             streamPayload, onChunk, onComplete
         ).catch((error) => {
             console.warn('XMLHttpRequest streaming fallback failed:', error);
-            return false;
+            return { ok: false as const, usage: null };
         });
-        if (usedXhrStreaming) return;
+        if (xhrResult.ok) {
+            logStreamBudget(xhrResult.usage);
+            return;
+        }
 
         const response = await fetchChatCompletion(streamPayload);
         const streamingAvailable = hasReadableStream(response.body)
@@ -293,13 +300,12 @@ export async function streamChat(
             throw await buildResponseError(response, 'AI request failed', streamingAvailable);
         }
         if (streamingAvailable && response.body) {
-            await readStreamResponse(response.body, onChunk, onComplete);
+            const streamUsage = await readStreamResponse(response.body, onChunk, onComplete);
+            logStreamBudget(streamUsage);
             return;
         }
         const fallbackResult = await readNonStreamingResponse(response);
-        // Non-stream fallback may carry usage in raw JSON — best-effort re-parse is N/A here
-        // (body already consumed). Log content complete only.
-        void extractUsageFromCompletion;
+        logStreamBudget(fallbackResult.usage ?? null);
         await emitSimulatedStreaming(fallbackResult, onChunk);
         onComplete(fallbackResult.content, fallbackResult.reasoning);
     } catch (error) {

@@ -196,7 +196,12 @@ export async function listDayDigests(options: DayDigestListOptions = {}): Promis
     if (options.to) {
         list = list.filter((d) => d.dateKey <= options.to!);
     }
-    list.sort((a, b) => b.dateKey.localeCompare(a.dateKey));
+    const order = options.order === 'oldest' ? 'oldest' : 'newest';
+    if (order === 'oldest') {
+        list.sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+    } else {
+        list.sort((a, b) => b.dateKey.localeCompare(a.dateKey));
+    }
     if (options.limit !== undefined) {
         list = list.slice(0, Math.max(0, options.limit));
     }

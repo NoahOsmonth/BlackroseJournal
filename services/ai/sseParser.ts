@@ -1,10 +1,28 @@
 import {
     ChatAccumulator,
+    ChatUsage,
     ParsedSseChunk,
     SimulatedStreamingOptions,
     StreamingCallback,
     CompleteCallback,
 } from './chatTypes';
+
+function parseUsageField(raw: unknown): ChatUsage | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const u = raw as Record<string, unknown>;
+    const out: ChatUsage = {};
+    if (typeof u.prompt_tokens === 'number') out.prompt_tokens = u.prompt_tokens;
+    if (typeof u.completion_tokens === 'number') out.completion_tokens = u.completion_tokens;
+    if (typeof u.total_tokens === 'number') out.total_tokens = u.total_tokens;
+    if (
+        out.prompt_tokens === undefined
+        && out.completion_tokens === undefined
+        && out.total_tokens === undefined
+    ) {
+        return null;
+    }
+    return out;
+}
 
 export function parseSseLine(line: string): ParsedSseChunk | null {
     const trimmed = line.trim();
@@ -18,6 +36,7 @@ export function parseSseLine(line: string): ParsedSseChunk | null {
         return {
             content: delta?.content,
             reasoning: delta?.reasoning || delta?.reasoning_content,
+            usage: parseUsageField(parsed.usage),
         };
     } catch {
         return null;
@@ -32,6 +51,7 @@ export function appendChunk(
     const { content, reasoning } = chunk;
     if (content) accumulator.content += content;
     if (reasoning) accumulator.reasoning += reasoning;
+    if (chunk.usage) accumulator.usage = chunk.usage;
     if (content || reasoning) onChunk(content || '', reasoning);
 }
 
@@ -77,14 +97,18 @@ function processStreamLines(
     return false;
 }
 
+/** PR8c: optional usage callback when the stream carries a usage chunk. */
+export type StreamUsageCallback = (usage: ChatUsage | null) => void;
+
 export async function readStreamResponse(
     body: { getReader: () => { read: () => Promise<{ done: boolean; value?: Uint8Array }> } },
     onChunk: StreamingCallback,
-    onComplete: CompleteCallback
-): Promise<void> {
+    onComplete: CompleteCallback,
+    onUsage?: StreamUsageCallback
+): Promise<ChatUsage | null> {
     const reader = body.getReader();
     const decoder = new TextDecoder('utf-8');
-    const accumulator: ChatAccumulator = { content: '', reasoning: '' };
+    const accumulator: ChatAccumulator = { content: '', reasoning: '', usage: null };
     let buffer = '';
     while (true) {
         const { done, value } = await reader.read();
@@ -92,10 +116,17 @@ export async function readStreamResponse(
         buffer = decodeStreamChunk(decoder, value, buffer);
         const { lines, remainder } = splitStreamBuffer(buffer);
         buffer = remainder;
-        if (processStreamLines(lines, accumulator, onChunk, onComplete)) return;
+        if (processStreamLines(lines, accumulator, onChunk, onComplete)) {
+            const usage = accumulator.usage ?? null;
+            onUsage?.(usage);
+            return usage;
+        }
     }
     assertFinalContent(accumulator);
     onComplete(accumulator.content, accumulator.reasoning);
+    const usage = accumulator.usage ?? null;
+    onUsage?.(usage);
+    return usage;
 }
 
 function parseJsonSafely(rawText: string): unknown {
@@ -107,23 +138,25 @@ function parseJsonSafely(rawText: string): unknown {
 }
 
 function extractMessageContent(data: unknown): ChatAccumulator {
-    const message = (data as { choices?: { message?: { content?: string; reasoning?: string; reasoning_content?: string } }[] })
+    const message = (data as { choices?: { message?: { content?: string; reasoning?: string; reasoning_content?: string } }[]; usage?: unknown })
         ?.choices?.[0]?.message;
     return {
         content: message?.content || '',
         reasoning: message?.reasoning || message?.reasoning_content || '',
+        usage: parseUsageField((data as { usage?: unknown })?.usage),
     };
 }
 
 function parseSseTranscript(rawText: string): ChatAccumulator | null {
     const lines = rawText.split('\n');
-    const accumulator: ChatAccumulator = { content: '', reasoning: '' };
+    const accumulator: ChatAccumulator = { content: '', reasoning: '', usage: null };
     let parsedChunks = 0;
     for (const line of lines) {
         const parsed = parseSseLine(line);
         if (!parsed || parsed.done) continue;
         if (parsed.content) accumulator.content += parsed.content;
         if (parsed.reasoning) accumulator.reasoning += parsed.reasoning;
+        if (parsed.usage) accumulator.usage = parsed.usage;
         if (parsed.content || parsed.reasoning) parsedChunks += 1;
     }
     return parsedChunks > 0 ? accumulator : null;

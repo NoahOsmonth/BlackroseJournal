@@ -62,7 +62,16 @@ export const getClockTool: ToolHandler = async () => buildClockContext(new Date(
 
 export const listRecentDaysTool: ToolHandler = async (args) => {
     const days = Math.min(14, Math.max(1, Math.floor(asNumber(args.days) ?? 7)));
-    const digests = await listDayDigests({ limit: days });
+    const orderRaw = asString(args.order)?.toLowerCase();
+    const order: 'newest' | 'oldest' = orderRaw === 'oldest' ? 'oldest' : 'newest';
+    const from = asString(args.from);
+    const to = asString(args.to);
+    const digests = await listDayDigests({
+        limit: days,
+        order,
+        ...(from ? { from } : {}),
+        ...(to ? { to } : {}),
+    });
     if (digests.length === 0) {
         return 'No day digests on device yet. Completed journal entries and check-ins create digests when finished.';
     }

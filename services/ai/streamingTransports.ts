@@ -2,6 +2,7 @@ import { prepareDirectChatRequest, fetchDirectChatCompletion } from './directTra
 import {
     ChatAccumulator,
     ChatRequestPayload,
+    ChatUsage,
     CompleteCallback,
     StreamingCallback,
 } from './chatTypes';
@@ -31,16 +32,22 @@ export async function fetchChatCompletion(payload: ChatRequestPayload): Promise<
     return fetchDirectChatCompletion(payload);
 }
 
+/** PR8c: stream result includes usage when the provider emits a usage chunk. */
+export interface StreamXhrResult {
+    ok: boolean;
+    usage: ChatUsage | null;
+}
+
 export async function streamChatWithXhr(
     payload: ChatRequestPayload,
     onChunk: StreamingCallback,
     onComplete: CompleteCallback
-): Promise<boolean> {
-    if (!hasXmlHttpRequest()) return false;
+): Promise<StreamXhrResult> {
+    if (!hasXmlHttpRequest()) return { ok: false, usage: null };
     const request = await prepareDirectChatRequest(payload);
     return new Promise((resolve, reject) => {
         const xhr = new globalThis.XMLHttpRequest();
-        const accumulator: ChatAccumulator = { content: '', reasoning: '' };
+        const accumulator: ChatAccumulator = { content: '', reasoning: '', usage: null };
         let buffer = '';
         let consumedLength = 0;
         let settled = false;
@@ -66,7 +73,7 @@ export async function streamChatWithXhr(
                             return;
                         }
                         onComplete(accumulator.content, accumulator.reasoning);
-                        resolve(true);
+                        resolve({ ok: true, usage: accumulator.usage ?? null });
                     });
                     return;
                 }
@@ -86,12 +93,12 @@ export async function streamChatWithXhr(
             if (settled) return;
             if (isOkStatus(xhr.status)) {
                 if (!hasFinalContent(accumulator)) {
-                    settle(() => resolve(false));
+                    settle(() => resolve({ ok: false, usage: accumulator.usage ?? null }));
                     return;
                 }
                 settle(() => {
                     onComplete(accumulator.content, accumulator.reasoning);
-                    resolve(true);
+                    resolve({ ok: true, usage: accumulator.usage ?? null });
                 });
                 return;
             }

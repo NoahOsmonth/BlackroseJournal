@@ -7,6 +7,11 @@
  *   2. local schema validate + repair + dedupe
  *   3. text pseudo-code parse (degraded free-model path)
  *   4. execute on device, feed results, loop
+ *
+ * PR8c hardening:
+ *   - AGENT_TURN_TOKEN_BUDGET cumulative across rounds
+ *   - repeated identical tool-call → note + final no-tools pass
+ *   - max-round exhaustion never ships loop narration
  */
 
 import {
@@ -34,7 +39,7 @@ import {
 } from './tools/validateToolCalls';
 import type { AgentMessage, ToolCall } from './tools/types';
 import type { Message } from './chatTypes';
-import { extractUsageFromCompletion } from './promptBudget';
+import { estimateTokensFromChars, extractUsageFromCompletion } from './promptBudget';
 
 export const MAX_AGENT_TOOL_ROUNDS = 3;
 /**
@@ -44,6 +49,27 @@ export const MAX_AGENT_TOOL_ROUNDS = 3;
  */
 export const AGENT_ROUND_MAX_TOKENS = 1_536;
 
+/**
+ * PR8c: cumulative prompt-token budget across all tool rounds of one agent turn.
+ * Real usage.prompt_tokens when available; chars/4 estimator otherwise.
+ * Tools-schema + framing often add ~900 real tokens/round outside the system string.
+ */
+export const AGENT_TURN_TOKEN_BUDGET = 12_000;
+
+/**
+ * User-visible fallback when tool rounds exhaust and the final no-tools pass
+ * fails or returns empty. Must never be loop narration.
+ */
+export const AGENT_EXHAUSTION_FALLBACK =
+    'I looked through what is on this device, but I am having trouble putting the answer into words. Try asking once more, or rephrase slightly.';
+
+/**
+ * Injected when the model repeats an identical tool name + args already executed
+ * this turn. Triggers the final no-tools pass.
+ */
+export const DUPLICATE_TOOL_CALL_NOTE =
+    'System note: duplicate call — you already have these results; answer with what you have.';
+
 export class ToolsUnsupportedError extends Error {
     constructor(message: string) {
         super(message);
@@ -52,6 +78,8 @@ export class ToolsUnsupportedError extends Error {
 }
 
 export type AgentToolCallSource = 'structured' | 'text' | 'mixed' | 'none';
+
+export type AgentTokenSource = 'real' | 'est';
 
 export interface AgentLoopResult {
     content: string;
@@ -66,6 +94,10 @@ export interface AgentLoopResult {
     capabilityMode: ToolCapability['mode'];
     /** Provider usage from the last completion round (when present). */
     usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | null;
+    /** Cumulative prompt tokens billed to the turn budget (real or est). */
+    cumulativePromptTokens?: number;
+    /** Why the loop stopped early, if applicable. */
+    stopReason?: 'complete' | 'max_rounds' | 'token_budget' | 'duplicate_call' | 'skipped';
 }
 
 interface AgentLoopOptions {
@@ -76,6 +108,8 @@ interface AgentLoopOptions {
     model?: string;
     /** Override capability (tests / advanced). */
     capability?: ToolCapability;
+    /** Override turn token budget (tests). Defaults to AGENT_TURN_TOKEN_BUDGET. */
+    turnTokenBudget?: number;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -199,6 +233,7 @@ function emptyResult(
         toolsSkippedInvalid: 0,
         toolsSkippedDuplicate: 0,
         capabilityMode,
+        stopReason: 'skipped',
         ...extra,
     };
 }
@@ -217,6 +252,56 @@ function mergeToolSource(
 
 function agentRoundMaxTokens(settings: GenerationSettings): number {
     return Math.min(settings.maxTokens, AGENT_ROUND_MAX_TOKENS);
+}
+
+/** Estimate prompt tokens for a round when the provider omits usage (chars/4). */
+export function estimateAgentRoundPromptTokens(
+    agentMessages: readonly AgentMessage[],
+    sendTools: boolean
+): number {
+    let chars = 0;
+    try {
+        chars += JSON.stringify(agentMessages).length;
+    } catch {
+        chars += agentMessages.reduce((sum, m) => sum + (m.content?.length ?? 0), 0);
+    }
+    if (sendTools) {
+        try {
+            chars += JSON.stringify(toOpenAiToolSpecs(HISTORY_TOOL_DEFINITIONS)).length;
+        } catch {
+            chars += 3_600; // ~tools-schema framing ballpark
+        }
+    }
+    return estimateTokensFromChars(chars);
+}
+
+function accountRoundTokens(
+    data: unknown,
+    agentMessages: readonly AgentMessage[],
+    sendTools: boolean
+): { tokens: number; source: AgentTokenSource } {
+    const usage = extractUsageFromCompletion(data);
+    if (usage && typeof usage.prompt_tokens === 'number' && Number.isFinite(usage.prompt_tokens)) {
+        return { tokens: usage.prompt_tokens, source: 'real' };
+    }
+    return {
+        tokens: estimateAgentRoundPromptTokens(agentMessages, sendTools),
+        source: 'est',
+    };
+}
+
+function logRoundTokenBudget(options: {
+    round: number;
+    tokens: number;
+    source: AgentTokenSource;
+    cumulative: number;
+    budget: number;
+}): void {
+    // eslint-disable-next-line no-console
+    console.log(
+        `[agent-loop] round=${options.round} tokens=${options.tokens} source=${options.source} `
+        + `cumulative=${options.cumulative} budget=${options.budget}`
+    );
 }
 
 async function completeWithTools(
@@ -262,7 +347,7 @@ async function completeWithoutTools(
     agentMessages: AgentMessage[],
     settings: GenerationSettings,
     model: string
-): Promise<{ content: string; reasoning: string }> {
+): Promise<{ content: string; reasoning: string; usage: AgentLoopResult['usage'] }> {
     const response = await fetchDirectChatCompletion({
         model,
         messages: agentMessages as unknown as { role: string; content: string }[],
@@ -281,7 +366,11 @@ async function completeWithoutTools(
     } catch {
         throw new Error(`Agent final pass non-JSON. Preview: ${rawText.slice(0, 200)}`);
     }
-    return extractAssistantContent(data);
+    const extracted = extractAssistantContent(data);
+    return {
+        ...extracted,
+        usage: extractUsageFromCompletion(data),
+    };
 }
 
 const TEXT_TOOL_NUDGE =
@@ -289,11 +378,93 @@ const TEXT_TOOL_NUDGE =
     + 'Answer the user in natural language only. Use any tool results and context already provided. '
     + 'Do not write function calls, XML, JSON tool objects, or code fences.';
 
+function baseResultFields(options: {
+    usedTools: boolean;
+    rounds: number;
+    toolCallSource: AgentToolCallSource;
+    toolsRepaired: number;
+    toolsSkippedInvalid: number;
+    toolsSkippedDuplicate: number;
+    capabilityMode: ToolCapability['mode'];
+    usage: AgentLoopResult['usage'];
+    cumulativePromptTokens: number;
+    stopReason: NonNullable<AgentLoopResult['stopReason']>;
+}): Omit<AgentLoopResult, 'content' | 'reasoning'> {
+    return {
+        usedTools: options.usedTools,
+        rounds: options.rounds,
+        toolCallSource: options.toolCallSource,
+        toolsRepaired: options.toolsRepaired,
+        toolsSkippedInvalid: options.toolsSkippedInvalid,
+        toolsSkippedDuplicate: options.toolsSkippedDuplicate,
+        capabilityMode: options.capabilityMode,
+        usage: options.usage,
+        cumulativePromptTokens: options.cumulativePromptTokens,
+        stopReason: options.stopReason,
+    };
+}
+
+/**
+ * Final no-tools pass after tool rounds stop (budget / duplicate / max rounds).
+ * Never returns loop narration: empty/failed → AGENT_EXHAUSTION_FALLBACK.
+ */
+async function runFinalNoToolsPass(
+    agentMessages: AgentMessage[],
+    settings: GenerationSettings,
+    model: string,
+    meta: {
+        usedTools: boolean;
+        rounds: number;
+        toolCallSource: AgentToolCallSource;
+        toolsRepaired: number;
+        toolsSkippedInvalid: number;
+        toolsSkippedDuplicate: number;
+        capabilityMode: ToolCapability['mode'];
+        lastUsage: AgentLoopResult['usage'];
+        cumulativePromptTokens: number;
+        stopReason: NonNullable<AgentLoopResult['stopReason']>;
+    }
+): Promise<AgentLoopResult> {
+    try {
+        const final = await completeWithoutTools(agentMessages, settings, model);
+        const safe = finalizeUserFacingContent(final.content, final.reasoning);
+        if (!safe.trim()) {
+            return {
+                content: AGENT_EXHAUSTION_FALLBACK,
+                reasoning: final.reasoning,
+                ...baseResultFields({
+                    ...meta,
+                    usage: final.usage ?? meta.lastUsage,
+                }),
+            };
+        }
+        return {
+            content: safe,
+            reasoning: final.reasoning,
+            ...baseResultFields({
+                ...meta,
+                usage: final.usage ?? meta.lastUsage,
+            }),
+        };
+    } catch (error) {
+        console.warn('Agent final no-tools pass failed:', error);
+        return {
+            content: AGENT_EXHAUSTION_FALLBACK,
+            reasoning: '',
+            ...baseResultFields({
+                ...meta,
+                usage: meta.lastUsage,
+            }),
+        };
+    }
+}
+
 export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<AgentLoopResult> {
     const settings = sanitizeGenerationSettings(options.generation ?? DEFAULT_GENERATION);
     const maxRounds = options.maxRounds ?? MAX_AGENT_TOOL_ROUNDS;
     const model = options.model ?? 'agent-default';
     const capability = options.capability ?? resolveToolCapability(model);
+    const turnBudget = options.turnTokenBudget ?? AGENT_TURN_TOKEN_BUDGET;
 
     if (!capability.runAgentLoop) {
         logToolTelemetry('agent_skipped_inject_only', { model, mode: capability.mode });
@@ -311,8 +482,21 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
     let toolsSkippedDuplicate = 0;
     let sendTools = capability.sendToolsInApi;
     let lastUsage: AgentLoopResult['usage'] = null;
+    let cumulativePromptTokens = 0;
+    let stopReason: NonNullable<AgentLoopResult['stopReason']> = 'complete';
 
     for (let round = 0; round < maxRounds; round += 1) {
+        // Cross-round budget: do not start another model+tools round if already over.
+        if (round > 0 && cumulativePromptTokens >= turnBudget) {
+            stopReason = 'token_budget';
+            logToolTelemetry('agent_token_budget', {
+                model,
+                cumulative: cumulativePromptTokens,
+                budget: turnBudget,
+            });
+            break;
+        }
+
         rounds = round + 1;
         let data: unknown;
         try {
@@ -330,12 +514,24 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
 
         lastUsage = extractUsageFromCompletion(data) ?? lastUsage;
 
+        const accounted = accountRoundTokens(data, agentMessages, sendTools);
+        cumulativePromptTokens += accounted.tokens;
+        logRoundTokenBudget({
+            round: rounds,
+            tokens: accounted.tokens,
+            source: accounted.source,
+            cumulative: cumulativePromptTokens,
+            budget: turnBudget,
+        });
+
         const structuredCalls = extractToolCalls(data);
         const { content, reasoning } = extractAssistantContent(data);
 
         const textParsed = capability.parseTextToolDumps
             ? parseTextToolCalls(content, `text_r${round}`)
             : { toolCalls: [] as ToolCall[], cleanedContent: content, lookedLikeToolDump: false };
+
+        const candidateCount = structuredCalls.length + textParsed.toolCalls.length;
 
         // Prefer structured; if missing or all invalid after repair, fall back to text dumps.
         let prepared = prepareToolCalls(
@@ -364,6 +560,26 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
             stripToolCallSyntax(content) || textParsed.cleanedContent || null;
 
         if (toolCalls.length === 0) {
+            // Pure duplicate of an already-executed call (Kimi loop shape): do not re-run;
+            // inject note and finish with a no-tools answer pass.
+            if (candidateCount > 0 && prepared.skippedDuplicate > 0) {
+                agentMessages.push({
+                    role: 'assistant',
+                    content: cleanedAssistant || content || '(duplicate tool call)',
+                });
+                agentMessages.push({
+                    role: 'user',
+                    content: DUPLICATE_TOOL_CALL_NOTE,
+                });
+                stopReason = 'duplicate_call';
+                logToolTelemetry('agent_duplicate_call', {
+                    model,
+                    rounds,
+                    skippedDuplicate: prepared.skippedDuplicate,
+                });
+                break;
+            }
+
             if (textParsed.lookedLikeToolDump && round < maxRounds - 1) {
                 agentMessages.push({
                     role: 'assistant',
@@ -371,6 +587,14 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
                 });
                 agentMessages.push({ role: 'user', content: TEXT_TOOL_NUDGE });
                 continue;
+            }
+
+            // If we already used tools and this is the last allowed round, discard
+            // last-round narration and force a clean final pass (exhaustion UX).
+            if (usedTools && rounds >= maxRounds) {
+                // Do not push narration into the final answer path.
+                stopReason = 'max_rounds';
+                break;
             }
 
             const safe = finalizeUserFacingContent(content, reasoning);
@@ -387,14 +611,18 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
             return {
                 content: safe,
                 reasoning,
-                usedTools,
-                rounds,
-                toolCallSource,
-                toolsRepaired,
-                toolsSkippedInvalid,
-                toolsSkippedDuplicate,
-                capabilityMode: capability.mode,
-                usage: lastUsage,
+                ...baseResultFields({
+                    usedTools,
+                    rounds,
+                    toolCallSource,
+                    toolsRepaired,
+                    toolsSkippedInvalid,
+                    toolsSkippedDuplicate,
+                    capabilityMode: capability.mode,
+                    usage: lastUsage,
+                    cumulativePromptTokens,
+                    stopReason: 'complete',
+                }),
             };
         }
 
@@ -442,19 +670,34 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
                 });
             }
         }
+
+        // After executing tools, if budget is exhausted, stop further tool rounds.
+        if (cumulativePromptTokens >= turnBudget) {
+            stopReason = 'token_budget';
+            logToolTelemetry('agent_token_budget', {
+                model,
+                cumulative: cumulativePromptTokens,
+                budget: turnBudget,
+            });
+            break;
+        }
     }
 
-    const final = await completeWithoutTools(agentMessages, settings, model);
+    if (stopReason === 'complete' && rounds >= maxRounds) {
+        stopReason = 'max_rounds';
+    }
+
     logToolTelemetry('agent_max_rounds', {
         model,
         mode: capability.mode,
         rounds,
         toolCallSource,
         toolsRepaired,
+        stopReason,
     });
-    return {
-        content: finalizeUserFacingContent(final.content, final.reasoning),
-        reasoning: final.reasoning,
+
+    // Discard any last-round loop narration; only the final no-tools pass may ship.
+    return runFinalNoToolsPass(agentMessages, settings, model, {
         usedTools,
         rounds,
         toolCallSource,
@@ -462,6 +705,8 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
         toolsSkippedInvalid,
         toolsSkippedDuplicate,
         capabilityMode: capability.mode,
-        usage: lastUsage,
-    };
+        lastUsage,
+        cumulativePromptTokens,
+        stopReason,
+    });
 }

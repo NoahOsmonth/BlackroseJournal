@@ -79,6 +79,46 @@ describe('history tools + intent detection', () => {
         expect(day).toContain('entry-hist-1');
     });
 
+    it('PR8c: list_recent_days supports order oldest and from/to bounds', async () => {
+        const older: JournalEntry = {
+            ...journal(),
+            id: 'entry-old',
+            title: 'Oldest start',
+            createdAt: new Date(2025, 0, 5, 10, 0, 0).getTime(),
+            updatedAt: new Date(2025, 0, 5, 10, 0, 0).getTime(),
+        };
+        const mid: JournalEntry = {
+            ...journal(),
+            id: 'entry-mid',
+            title: 'Mid era',
+            createdAt: new Date(2025, 6, 1, 10, 0, 0).getTime(),
+            updatedAt: new Date(2025, 6, 1, 10, 0, 0).getTime(),
+        };
+        const newest = journal(); // 2026-07-12
+        await upsertJournalDayDigest(older);
+        await upsertJournalDayDigest(mid);
+        await upsertJournalDayDigest(newest);
+
+        const oldestFirst = await listRecentDaysTool({ days: 2, order: 'oldest' });
+        const firstBlock = oldestFirst.split('\n\n---\n\n')[0] ?? '';
+        expect(firstBlock).toContain('writtenDate: 2025-01-05');
+        expect(firstBlock).toContain('Oldest start');
+
+        const ranged = await listRecentDaysTool({
+            days: 10,
+            order: 'oldest',
+            from: '2025-06-01',
+            to: '2025-12-31',
+        });
+        expect(ranged).toContain('Mid era');
+        expect(ranged).not.toContain('Oldest start');
+        expect(ranged).not.toContain('Sleep notes');
+
+        // Default remains newest-first.
+        const newestFirst = await listRecentDaysTool({ days: 1 });
+        expect(newestFirst).toContain('Sleep notes');
+    });
+
     it('executeToolCall validates unknown tools', async () => {
         const result = await executeToolCall({
             id: 'c1',
