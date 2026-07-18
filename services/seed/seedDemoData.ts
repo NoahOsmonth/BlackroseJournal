@@ -583,6 +583,90 @@ export async function seedDemoData(): Promise<void> {
     await saveSeedRecord(record);
 }
 
+const BULK_TOPICS = ['work', 'sleep', 'family', 'exercise', 'food', 'mood'] as const;
+
+/**
+ * Inline bulk journal rows (no probes/ import — isolation forbids services → probes).
+ * Deterministic titles/bodies for prompt-budget 365-entry runs.
+ */
+function buildBulkSeedRows(count: number): readonly {
+    title: string;
+    body: string;
+    topic: string;
+    daysBack: number;
+}[] {
+    const n = Math.max(1, Math.min(count, 400));
+    const rows: { title: string; body: string; topic: string; daysBack: number }[] = [];
+    for (let i = 0; i < n; i += 1) {
+        const topic = BULK_TOPICS[i % BULK_TOPICS.length];
+        const daysBack = Math.floor((i / Math.max(n - 1, 1)) * 396);
+        rows.push({
+            title: `Probe day ${i + 1}: ${topic}`,
+            body:
+                `Bulk seed entry ${i + 1} about ${topic}. `
+                + `I wrote this to fill history for prompt-budget measurement. `
+                + `Day offset ${daysBack}. The week has been uneven; noting it here.`,
+            topic,
+            daysBack,
+        });
+    }
+    return rows;
+}
+
+/**
+ * Dev-only bulk journal seed (~365).
+ * Tracked IDs go through DEMO_SEED_RECORD_KEY so clearDemoData wipes them.
+ * Digests written for rollups; atom extraction skipped for speed.
+ */
+export async function seedBulkProbeJournal(options: { count?: number } = {}): Promise<number> {
+    if (!isDemoSeedEnabled()) {
+        throw new Error('Bulk probe seed is only available in __DEV__');
+    }
+
+    const target = Math.max(1, options.count ?? 365);
+    const probeEntries = buildBulkSeedRows(target);
+
+    await clearDemoData();
+    const record = emptyRecord();
+
+    for (let i = 0; i < probeEntries.length; i += 1) {
+        const seed = probeEntries[i];
+        const createdAt = daysAgo(seed.daysBack);
+        const idSeed = `probe_${i}`;
+        const entry = await createEntry({
+            title: seed.title,
+            emoji: '📓',
+            status: 'completed',
+            createdAt,
+            updatedAt: createdAt,
+            messages: [
+                msg('user', seed.body, createdAt, `${idSeed}_u`),
+                msg(
+                    'assistant',
+                    `I hear you about ${seed.topic}. Thanks for writing this down.`,
+                    createdAt + 1000,
+                    `${idSeed}_a`,
+                ),
+            ],
+            analysis: {
+                insight: seed.body.slice(0, 180),
+                quote: seed.body.slice(0, 80),
+                mood: seed.topic,
+                topics: [seed.topic],
+                generatedAt: createdAt,
+            },
+        });
+        record.journalEntryIds.push(entry.id);
+        await upsertJournalDayDigest(entry);
+        if (i % 25 === 0 || i === probeEntries.length - 1) {
+            await saveSeedRecord(record);
+        }
+    }
+
+    await saveSeedRecord(record);
+    return record.journalEntryIds.length;
+}
+
 /** Prevent concurrent first-launch seeds (layout re-mount / double effect). */
 let seedInFlight: Promise<boolean> | null = null;
 

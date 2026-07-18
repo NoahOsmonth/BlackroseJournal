@@ -17,6 +17,8 @@ interface DataManagementSectionProps {
     readonly onExportJournalJson: () => void;
     /** Dev-only: omit or no-op in production builds. */
     readonly onSeedDemoData?: () => void;
+    /** Dev-only: bulk ~365 probe journal entries for prompt-budget. */
+    readonly onSeedBulkProbe?: () => void;
     /** Dev-only: remove tracked seed IDs only. */
     readonly onClearDemoData?: () => void;
     readonly showDemoSeedControls?: boolean;
@@ -87,6 +89,7 @@ export function DataManagementSection({
     onRestoreLatestBackup,
     onExportJournalJson,
     onSeedDemoData,
+    onSeedBulkProbe,
     onClearDemoData,
     showDemoSeedControls = false,
     onClearHistory,
@@ -98,6 +101,7 @@ export function DataManagementSection({
     const dangerIconColor = isDark ? '#F87171' : '#DC2626';
     const latestLabel = latestBackup ? `Latest: ${latestBackup.name}` : 'No local backup yet';
     const showSeed = showDemoSeedControls && typeof onSeedDemoData === 'function';
+    const showBulk = showDemoSeedControls && typeof onSeedBulkProbe === 'function';
     const showClearDemo = showDemoSeedControls && typeof onClearDemoData === 'function';
 
     return (
@@ -134,6 +138,16 @@ export function DataManagementSection({
                     iconColor={iconColor}
                     disabled={isBusy}
                     onPress={onSeedDemoData}
+                />
+            ) : null}
+            {showBulk ? (
+                <SettingsRow
+                    label="Seed 365 probe entries"
+                    detail="Dev only. Bulk journals + day digests for prompt-budget (tracked, clearable)."
+                    iconName="layers-outline"
+                    iconColor={iconColor}
+                    disabled={isBusy}
+                    onPress={onSeedBulkProbe}
                 />
             ) : null}
             {showClearDemo ? (

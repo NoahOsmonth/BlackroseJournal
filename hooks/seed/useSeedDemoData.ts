@@ -1,9 +1,10 @@
 import { useCallback, useState } from 'react';
 
-import { seedDemoData } from '@/services/seed/seedDemoData';
+import { seedBulkProbeJournal, seedDemoData } from '@/services/seed/seedDemoData';
 
 interface UseSeedDemoDataReturn {
     seed: () => Promise<void>;
+    seedBulk: (count?: number) => Promise<number>;
     isSeeding: boolean;
 }
 
@@ -19,8 +20,18 @@ export function useSeedDemoData(): UseSeedDemoDataReturn {
         }
     }, []);
 
+    const seedBulk = useCallback(async (count?: number) => {
+        setIsSeeding(true);
+        try {
+            return await seedBulkProbeJournal({ count });
+        } finally {
+            setIsSeeding(false);
+        }
+    }, []);
+
     return {
         seed,
+        seedBulk,
         isSeeding,
     };
 }

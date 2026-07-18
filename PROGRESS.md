@@ -12,6 +12,12 @@
 - [x] **TOOL-CODEX-001**: Codex CLI with OMO Light Edition
 
 ## Updates
+- **2026-07-18**: **PR8a** — prompt-budget ledger + PR7 seam closure (no injection changes)
+  - **Part 1 live (no store seed):** clear identity → Finish "My name is Mara" → store value Mara extraction; Finish "My name is Ren" → pendingCandidate Ren; Settings Confirm → value Ren `source:manual` + previousValues Mara. Next-session system **52924** chars, Identity block Preferred name Ren. Artifacts under `probes/artifacts/pr7-seam-*`.
+  - **Code answers:** Confirm stamps `manual` (same forceApply class as Settings edit); Dismiss bumps field `updatedAt` only — no prod UI/prompt reads scalar `updatedAt`.
+  - **Part 2:** `services/ai/promptBudget.ts` + streamChat/agentLoop usage log `[prompt-budget]`; free ledger ~51–53k system chars (companion ~47.6k dominates). Live 365 vs empty: real prompt_tokens **12545 vs 11957** (Δ588); rollups+capsule only on seeded.
+  - Dev `seedBulkProbeJournal` (~365 tracked IDs) + Settings "Seed 365 probe entries". Tools inventory: 7 history tools; max 3 rounds × 1536 tokens.
+  - Suite reconcile: **176 passed / 5 skipped suites, 753 passed / 19 skipped tests** (+1 suite / +6 tests vs 175/747; skips unchanged).
 - **2026-07-18**: **PR7** — Settings Identity Confirm/Dismiss UI
   - `IdentitySettingsSection` + `useIdentityProfile` + `identityProfileView` (generic scalar field iteration).
   - Confirm → `confirmIdentityPendingField`; Dismiss → `dismissIdentityPendingField`; web `window.confirm` (T4 pattern).

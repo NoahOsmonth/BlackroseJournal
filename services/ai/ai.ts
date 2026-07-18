@@ -35,6 +35,13 @@ import {
     markToolsUnsupported,
     resolveToolCapability,
 } from './tools/toolCapability';
+import {
+    attachRealUsage,
+    buildLedgerFromAssembledRequest,
+    extractUsageFromCompletion,
+    logPromptBudget,
+    type HistoryToolsBranch,
+} from './promptBudget';
 
 export {
     Message,
@@ -45,6 +52,7 @@ export {
 } from './chatTypes';
 export type { ChatAccumulator } from './chatTypes';
 export { useChat } from './useChat';
+export type { HistoryToolsBranch } from './promptBudget';
 
 const DEFAULT_DIRECT_MODEL = 'agent-default';
 
@@ -77,24 +85,34 @@ function latestUserText(messages: Message[]): string {
 /** Synthetic bootstrap lines used to start guided chats — not real user text. */
 const BOOTSTRAP_TRIGGER_RE = /^\[Start\b/i;
 
+/**
+ * Which shouldEnableHistoryTools arm fired (instrumentation / prompt-budget).
+ * Mirrors the boolean gate exactly — first matching branch wins.
+ */
+export function resolveHistoryToolsBranch(
+    flag: StreamChatOptions['enableHistoryTools'],
+    userText: string,
+    messages: readonly Message[],
+): HistoryToolsBranch {
+    if (flag === false) return 'forced-false';
+    if (flag === true) return 'forced-true';
+    const trimmed = userText.trim();
+    if (BOOTSTRAP_TRIGGER_RE.test(trimmed)) return 'bootstrap';
+    if (detectHistoryIntent(trimmed)) return 'historyIntent';
+    if (trimmed.length >= 80) return 'length>=80';
+    if (PROACTIVE_TOOL_RE.test(trimmed)) return 'PROACTIVE_RE';
+    const userTurns = messages.filter((m) => m.role === 'user').length;
+    if (userTurns <= 2 && trimmed.length >= 12) return 'first-turns';
+    return 'none';
+}
+
 export function shouldEnableHistoryTools(
     flag: StreamChatOptions['enableHistoryTools'],
     userText: string,
     messages: readonly Message[]
 ): boolean {
-    if (flag === false) return false;
-    if (flag === true) return true;
-    const trimmed = userText.trim();
-    // Never burn a non-streaming agent loop on synthetic openers — free reasoning
-    // models can sit on "…" for a long time before any user-facing text.
-    if (BOOTSTRAP_TRIGGER_RE.test(trimmed)) return false;
-    if (detectHistoryIntent(trimmed)) return true;
-    if (trimmed.length >= 80) return true;
-    if (PROACTIVE_TOOL_RE.test(trimmed)) return true;
-    const userTurns = messages.filter((m) => m.role === 'user').length;
-    // First couple of real user turns: orient with clock / recent days
-    if (userTurns <= 2 && trimmed.length >= 12) return true;
-    return false;
+    const branch = resolveHistoryToolsBranch(flag, userText, messages);
+    return branch !== 'forced-false' && branch !== 'bootstrap' && branch !== 'none';
 }
 
 /** Local-only context window resolve — no network hang on mobile offline. */
@@ -134,6 +152,11 @@ export async function streamChat(
         const resolved = resolveStreamOptions(options);
         let systemPrompt = resolved.systemPrompt || THERAPIST_SYSTEM_PROMPT;
         const userText = latestUserText(messages);
+        const toolsBranch = resolveHistoryToolsBranch(
+            resolved.enableHistoryTools,
+            userText,
+            messages
+        );
         const toolsEnabled = shouldEnableHistoryTools(
             resolved.enableHistoryTools,
             userText,
@@ -156,13 +179,29 @@ export async function streamChat(
         });
         const outboundMessages = compactResult.messages;
 
+        let eagerAugmentationText: string | undefined;
+        let lastUsage: { prompt_tokens?: number } | null = null;
+
         // Eager digests whenever history tools would help (even inject-only models).
         if (toolsEnabled) {
+            const beforeAugment = systemPrompt;
             systemPrompt = await augmentSystemPromptForTurn(systemPrompt, userText);
+            if (systemPrompt.length > beforeAugment.length) {
+                // augmentSystemPromptForTurn joins with "\n\n"
+                eagerAugmentationText = systemPrompt.slice(beforeAugment.length).replace(/^\n\n/, '');
+            }
 
             // inject_only: digests + clock in prompt, skip tools API agent loop.
             if (capability.runAgentLoop) {
                 try {
+                    const preLedger = buildLedgerFromAssembledRequest({
+                        systemPrompt,
+                        messages: outboundMessages,
+                        toolsBranch,
+                        includeToolsSchema: true,
+                        eagerAugmentationText,
+                    });
+
                     const agentResult = await runAgentTurnWithTools({
                         systemPrompt,
                         messages: outboundMessages,
@@ -170,6 +209,12 @@ export async function streamChat(
                         model: DEFAULT_DIRECT_MODEL,
                         capability,
                     });
+                    lastUsage = agentResult.usage ?? null;
+                    logPromptBudget(attachRealUsage(preLedger, lastUsage));
+                    if (lastUsage) {
+                        // eslint-disable-next-line no-console
+                        console.log('[prompt-budget] usage', JSON.stringify(lastUsage));
+                    }
                     logToolTelemetry('stream_agent_result', {
                         model: activeModelId,
                         mode: agentResult.capabilityMode,
@@ -212,6 +257,18 @@ export async function streamChat(
             }
         }
 
+        // Stream path budget (no agent loop, or agent fell through).
+        if (!lastUsage) {
+            const streamLedger = buildLedgerFromAssembledRequest({
+                systemPrompt,
+                messages: outboundMessages,
+                toolsBranch,
+                includeToolsSchema: false,
+                eagerAugmentationText,
+            });
+            logPromptBudget(streamLedger);
+        }
+
         const streamPayload = buildChatPayload(
             DEFAULT_DIRECT_MODEL,
             outboundMessages,
@@ -240,6 +297,9 @@ export async function streamChat(
             return;
         }
         const fallbackResult = await readNonStreamingResponse(response);
+        // Non-stream fallback may carry usage in raw JSON — best-effort re-parse is N/A here
+        // (body already consumed). Log content complete only.
+        void extractUsageFromCompletion;
         await emitSimulatedStreaming(fallbackResult, onChunk);
         onComplete(fallbackResult.content, fallbackResult.reasoning);
     } catch (error) {

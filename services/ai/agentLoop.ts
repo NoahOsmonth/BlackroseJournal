@@ -34,6 +34,7 @@ import {
 } from './tools/validateToolCalls';
 import type { AgentMessage, ToolCall } from './tools/types';
 import type { Message } from './chatTypes';
+import { extractUsageFromCompletion } from './promptBudget';
 
 export const MAX_AGENT_TOOL_ROUNDS = 3;
 /**
@@ -63,6 +64,8 @@ export interface AgentLoopResult {
     toolsSkippedInvalid: number;
     toolsSkippedDuplicate: number;
     capabilityMode: ToolCapability['mode'];
+    /** Provider usage from the last completion round (when present). */
+    usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | null;
 }
 
 interface AgentLoopOptions {
@@ -307,6 +310,7 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
     let toolsSkippedInvalid = 0;
     let toolsSkippedDuplicate = 0;
     let sendTools = capability.sendToolsInApi;
+    let lastUsage: AgentLoopResult['usage'] = null;
 
     for (let round = 0; round < maxRounds; round += 1) {
         rounds = round + 1;
@@ -323,6 +327,8 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
                 throw error;
             }
         }
+
+        lastUsage = extractUsageFromCompletion(data) ?? lastUsage;
 
         const structuredCalls = extractToolCalls(data);
         const { content, reasoning } = extractAssistantContent(data);
@@ -388,6 +394,7 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
                 toolsSkippedInvalid,
                 toolsSkippedDuplicate,
                 capabilityMode: capability.mode,
+                usage: lastUsage,
             };
         }
 
@@ -455,5 +462,6 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
         toolsSkippedInvalid,
         toolsSkippedDuplicate,
         capabilityMode: capability.mode,
+        usage: lastUsage,
     };
 }

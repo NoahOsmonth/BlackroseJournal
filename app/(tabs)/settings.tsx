@@ -68,7 +68,7 @@ export default function SettingsScreen() {
     const { goToTab } = useTabNavigation();
     const { exportAsJson } = useJournalExport();
     const { clearAll: clearJournalHistory, isClearing: isClearingJournalHistory } = useClearJournalHistory();
-    const { seed: seedDemoData } = useSeedDemoData();
+    const { seed: seedDemoData, seedBulk: seedBulkProbe } = useSeedDemoData();
     const [isSigningOut, setIsSigningOut] = useState(false);
     const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set());
 
@@ -122,73 +122,72 @@ export default function SettingsScreen() {
         }
     };
 
-    const runSeedDemoData = async () => {
-        try {
-            await seedDemoData();
-            await markDemoDataSeeded();
-            goToTab('history');
-            Alert.alert('Demo data added', 'Sample content ready to explore.');
-        } catch (error) {
-            const message = error instanceof Error
-                ? error.message
-                : 'Failed to seed demo data.';
-            Alert.alert('Error', message);
+    /** Web: window.confirm (Playwright-friendly); native: Alert. */
+    const confirmDevAction = (title: string, message: string, run: () => void) => {
+        if (!isDemoSeedEnabled()) return;
+        if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+            if (window.confirm(message)) run();
+            return;
         }
+        Alert.alert(title, message, [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'OK', onPress: run },
+        ]);
     };
 
     const handleSeedDemoData = () => {
-        if (!isDemoSeedEnabled()) return;
-        // Web: window.confirm is reliable under Playwright; native keeps Alert.
-        if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
-            const ok = window.confirm(
-                'Dev only. Add sample journals/intentions/goals/memories? Replaces a prior seed only — real rows stay.',
-            );
-            if (ok) void runSeedDemoData();
-            return;
-        }
-        Alert.alert(
+        confirmDevAction(
             'Seed Demo Data',
-            'Dev only. Adds sample journals/intentions/goals/memories. Replaces a prior seed only — real user rows are kept.',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Seed', onPress: () => { void runSeedDemoData(); } },
-            ]
+            'Dev only. Sample journals/intentions/goals/memories. Replaces prior seed only.',
+            () => {
+                void (async () => {
+                    try {
+                        await seedDemoData();
+                        await markDemoDataSeeded();
+                        goToTab('entries');
+                        Alert.alert('Demo data added', 'Sample content ready to explore.');
+                    } catch (error) {
+                        Alert.alert('Error', error instanceof Error ? error.message : 'Seed failed.');
+                    }
+                })();
+            },
         );
     };
 
-    const runClearDemoData = async () => {
-        try {
-            await clearDemoData();
-            goToTab('history');
-            Alert.alert('Demo cleared', 'Seed rows removed; your real data is intact.');
-        } catch (error) {
-            const message = error instanceof Error
-                ? error.message
-                : 'Failed to clear demo data.';
-            Alert.alert('Error', message);
-        }
+    const handleSeedBulkProbe = () => {
+        confirmDevAction(
+            'Seed 365 probe entries',
+            'Dev only. ~365 journals + digests (tracked, clearable). Replaces prior seed only.',
+            () => {
+                void (async () => {
+                    try {
+                        const n = await seedBulkProbe(365);
+                        await markDemoDataSeeded();
+                        goToTab('entries');
+                        Alert.alert('Bulk probe seeded', `${n} entries + digests.`);
+                    } catch (error) {
+                        Alert.alert('Error', error instanceof Error ? error.message : 'Bulk seed failed.');
+                    }
+                })();
+            },
+        );
     };
 
     const handleClearDemoData = () => {
-        if (!isDemoSeedEnabled()) return;
-        if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
-            const ok = window.confirm(
-                'Remove only tracked seed IDs? Real entries stay.',
-            );
-            if (ok) void runClearDemoData();
-            return;
-        }
-        Alert.alert(
+        confirmDevAction(
             'Clear demo data',
-            'Remove only tracked seed IDs (journals, intentions, check-ins, goals, memory atoms, day digests)? Real entries stay.',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Clear demo',
-                    style: 'destructive',
-                    onPress: () => { void runClearDemoData(); },
-                },
-            ]
+            'Remove only tracked seed IDs? Real entries stay.',
+            () => {
+                void (async () => {
+                    try {
+                        await clearDemoData();
+                        goToTab('entries');
+                        Alert.alert('Demo cleared', 'Seed rows removed; your real data is intact.');
+                    } catch (error) {
+                        Alert.alert('Error', error instanceof Error ? error.message : 'Clear failed.');
+                    }
+                })();
+            },
         );
     };
 
@@ -386,6 +385,7 @@ export default function SettingsScreen() {
                         onExportJournalJson={handleExportJournalJson}
                         showDemoSeedControls={isDemoSeedEnabled()}
                         onSeedDemoData={handleSeedDemoData}
+                        onSeedBulkProbe={handleSeedBulkProbe}
                         onClearDemoData={handleClearDemoData}
                         onClearHistory={handleClearHistory}
                         embedded

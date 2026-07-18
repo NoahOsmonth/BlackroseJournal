@@ -57,6 +57,7 @@ import {
     SEED_FLAG_KEY,
     clearDemoData,
     isDemoSeedEnabled,
+    seedBulkProbeJournal,
     seedDemoData,
     seedDemoDataIfFirstLaunch,
     setDemoSeedEnabledForTests,
@@ -144,6 +145,21 @@ describe('seedDemoData', () => {
         expect(did).toBe(false);
         expect(await listEntries()).toHaveLength(0);
         expect(mockStore.get(SEED_FLAG_KEY)).toBeUndefined();
+    });
+
+    it('seedBulkProbeJournal writes N tracked entries clearable via clearDemoData', async () => {
+        const n = await seedBulkProbeJournal({ count: 3 });
+        expect(n).toBe(3);
+        expect(await listEntries()).toHaveLength(3);
+        expect(mockStore.get(DEMO_SEED_RECORD_KEY)).toBeTruthy();
+        const cleared = await clearDemoData();
+        expect(cleared).toBe(true);
+        expect(await listEntries()).toHaveLength(0);
+    });
+
+    it('seedBulkProbeJournal throws when demo seed is disabled', async () => {
+        setDemoSeedEnabledForTests(false);
+        await expect(seedBulkProbeJournal({ count: 2 })).rejects.toThrow(/__DEV__/);
     });
 
     /**
