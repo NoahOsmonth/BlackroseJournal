@@ -12,6 +12,11 @@
 - [x] **TOOL-CODEX-001**: Codex CLI with OMO Light Edition
 
 ## Updates
+- **2026-07-18**: **PR8b-1** — companion static prompt diet (≤5k est tokens) + non-directive persona
+  - `COMPANION_PROMPT_BUDGET = 5000`; freeform static ~**853** est tokens (was ~11900). Persona: reflect-first, max one suggestion, prefer questions.
+  - Identity header dieted; tools-policy tightened. Full date doctrine unchanged in `buildClockContext`.
+  - Live: day-slip PASS; persona soft PASS; empty-store real prompt_tokens **11957→2263**.
+  - Suite: **176 passed / 5 skipped suites, 758 passed / 19 skipped tests** (+5 tests vs 753; skips unchanged — budget/doctrine/persona gates).
 - **2026-07-18**: **PR8a** — prompt-budget ledger + PR7 seam closure (no injection changes)
   - **Part 1 live (no store seed):** clear identity → Finish "My name is Mara" → store value Mara extraction; Finish "My name is Ren" → pendingCandidate Ren; Settings Confirm → value Ren `source:manual` + previousValues Mara. Next-session system **52924** chars, Identity block Preferred name Ren. Artifacts under `probes/artifacts/pr7-seam-*`.
   - **Code answers:** Confirm stamps `manual` (same forceApply class as Settings edit); Dismiss bumps field `updatedAt` only — no prod UI/prompt reads scalar `updatedAt`.

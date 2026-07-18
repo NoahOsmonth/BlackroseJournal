@@ -75,7 +75,7 @@ describe('identityProfile', () => {
         });
 
         const ctx = await buildIdentityContext();
-        expect(ctx).toContain('## Identity (always-on core memory)');
+        expect(ctx).toContain('## Identity');
         expect(ctx).toContain('Preferred name: Sigurd');
         expect(ctx).not.toContain('Local Memory Capsule');
     });

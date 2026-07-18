@@ -69,7 +69,7 @@ describe('composeSystemPrompt', () => {
     it('orders clock, identity, digests, memory, goals, persona, feedback', () => {
         const goalsContext = "## User's Current Goals and Habits\n- Walk daily (Goal)";
         const clock = buildClockContext(new Date(FIXED_NOW));
-        const identity = '## Identity (always-on core memory)\n- Preferred name: Sigurd';
+        const identity = '## Identity\n- Preferred name: Sigurd';
         const out = composeSystemPrompt('BASE', withClock({
             clockContext: clock,
             identityContext: identity,
@@ -96,7 +96,7 @@ describe('composeSystemPrompt', () => {
 
 describe('chat flows — dailyCheckIn', () => {
     it('includes guided daily prompt plus shared history/identity blocks', () => {
-        const identity = '## Identity (always-on core memory)\n- Preferred name: Sigurd';
+        const identity = '## Identity\n- Preferred name: Sigurd';
         const ctx: ChatFlowContext = withClock({
             dailyPrompt: DAILY_PROMPTS.morning,
             identityContext: identity,

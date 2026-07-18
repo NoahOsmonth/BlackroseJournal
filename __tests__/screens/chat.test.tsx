@@ -149,7 +149,7 @@ jest.mock('../../hooks/goals/useGoalsContext', () => ({
 
 // Real useLocalMemoryContext runs — only retrieval is stubbed.
 jest.mock('../../hooks/memory/useIdentityContext', () => ({
-    useIdentityContext: () => ({ context: '## Identity (always-on core memory)\n- Preferred name: Test' }),
+    useIdentityContext: () => ({ context: '## Identity\n- Preferred name: Test' }),
 }));
 
 jest.mock('../../hooks/memory/useRecentDaysContext', () => ({

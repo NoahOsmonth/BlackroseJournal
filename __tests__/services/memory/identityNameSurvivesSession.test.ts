@@ -125,7 +125,7 @@ describe('identity name survives session (Memory v2 §9 golden)', () => {
         );
 
         expect(prompt).toContain(THERAPIST_SYSTEM_PROMPT);
-        expect(prompt).toContain('## Identity (always-on core memory)');
+        expect(prompt).toContain('## Identity');
         expect(prompt).toContain('Preferred name: Sigurd');
         expect(prompt).toContain('Local Memory Capsule');
         expect(prompt.indexOf('## Identity')).toBeLessThan(prompt.indexOf('Local Memory Capsule'));
@@ -141,7 +141,7 @@ describe('identity name survives session (Memory v2 §9 golden)', () => {
 
         const prompt = await composeSessionBPrompt();
         expect(prompt).toContain('Preferred name: Sigurd');
-        expect(prompt).toContain('## Identity (always-on core memory)');
+        expect(prompt).toContain('## Identity');
     });
 
     it('composeSystemPrompt still carries name when capsule context is omitted', async () => {
@@ -151,7 +151,7 @@ describe('identity name survives session (Memory v2 §9 golden)', () => {
             now: Date.now(),
             identityContext,
         });
-        expect(out).toContain('## Identity (always-on core memory)');
+        expect(out).toContain('## Identity');
         expect(out).toContain('Preferred name: Sigurd');
         expect(identityContext).toBeDefined();
         expect(identityContext).toContain('Preferred name: Sigurd');

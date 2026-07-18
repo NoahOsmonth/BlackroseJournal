@@ -270,8 +270,8 @@ export function extractUsageFromCompletion(data: unknown): { prompt_tokens?: num
  */
 const SECTION_RULES: { match: RegExp; label: PromptBudgetBlockLabel }[] = [
     { match: /^## Clock\b/m, label: 'clock-doctrine' },
-    // Always-on core memory only — NOT companion "## Identity: You Are Rosebud".
-    { match: /^## Identity \(always-on/m, label: 'identity' },
+    // Identity profile block only (## Identity) — not companion headers.
+    { match: /^## Identity\b/m, label: 'identity' },
     { match: /^## Recent day digests\b/m, label: 'rollups' },
     { match: /^## Retrieved history\b/m, label: 'recall-context' },
     { match: /^## Relevant past\b/m, label: 'recall-context' },

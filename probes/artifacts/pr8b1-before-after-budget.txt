@@ -1,0 +1,16 @@
+﻿# PR8b-1 before/after [prompt-budget] (empty-ish store, same user message)
+
+User message (both): "Just checking in after a long day at work. Feeling tired but ok."
+
+## BEFORE (PR8a empty store — pr8a-live-budget-365-vs-empty.txt)
+[prompt-budget] branch=PROACTIVE_RE estTotal=13658 systemChars=51026 system-companion-static=11900 clock-doctrine=277 identity=84 tools-policy=473 persona=22 tools-schema=886 user-message=16 real.prompt_tokens=11957
+[prompt-budget] usage {"prompt_tokens":11957,"completion_tokens":90,"total_tokens":12047}
+
+## AFTER (PR8b-1 diet — live Playwright empty store)
+[prompt-budget] branch=PROACTIVE_RE estTotal=2204 systemChars=5210 system-companion-static=853 clock-doctrine=277 tools-policy=150 persona=22 tools-schema=886 user-message=16 real.prompt_tokens=2263
+[prompt-budget] usage {"prompt_tokens":2263,"completion_tokens":75,"total_tokens":2338}
+
+## Delta
+system-companion-static: 11900 -> 853 est tokens (target <=5000 HARD CAP: PASS)
+real.prompt_tokens: 11957 -> 2263 (delta -9694)
+systemChars: 51026 -> 5210

@@ -558,9 +558,10 @@ export async function dismissIdentityPendingField(
 export function formatIdentityContext(profile: IdentityProfile): string | undefined {
     if (!profileHasIdentity(profile)) return undefined;
 
+    // PR8b-1: tight header — keep load-bearing trust / no-invent doctrine verbatim.
     const lines: string[] = [
-        '## Identity (always-on core memory)',
-        'These facts are confirmed on-device about THIS user. Use them naturally (name in greeting, correct pronouns).',
+        '## Identity',
+        'Confirmed on-device facts about THIS user. Use naturally (name, pronouns).',
         'Do not invent identity details that are not listed. If a fact conflicts with the live message, trust the live message and treat the stored value as possibly outdated.',
     ];
 
