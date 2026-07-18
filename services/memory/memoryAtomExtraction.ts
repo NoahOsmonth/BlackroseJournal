@@ -11,6 +11,7 @@ import { INSIGHTS_TEMPERATURE } from '@/services/ai/generationSettings';
 import type { Message } from '@/services/ai';
 import type { JournalEntry } from '@/services/journal/journalStorage.types';
 import type { IntentionCheckIn } from '@/services/intentions/intentionsStorage.types';
+import { getLocalDateKey, normalizeEventDate } from '@/utils/date';
 import type {
     LocalMemoryAtomInput,
     LocalMemoryLayer,
@@ -39,7 +40,8 @@ Return ONLY valid JSON:
       "tags": string[],
       "salience": number,
       "confidence": number,
-      "mergeKey": string
+      "mergeKey": string,
+      "eventDate": string | null
     }
   ]
 }
@@ -52,6 +54,10 @@ Rules:
 - tags: 2–5 short lowercase labels.
 - salience and confidence: 0–1.
 - mergeKey: stable snake-ish key for theme/profile merges (e.g. "calm_mornings"). Episodic may use "session".
+- eventDate: OPTIONAL absolute YYYY-MM-DD for a SPECIFIC datable life event. Prefer putting it on the episodic atom.
+  Set ONLY when the text clearly references a calendar-bound event (weekday name, "tomorrow", "next Tuesday", explicit date).
+  Resolve relative phrases against the WRITE DAY clock in the user message (e.g. Saturday 2026-07-18 + "Friday" → "2026-07-24").
+  If undatable, set null. Never invent dates. Theme/profile atoms usually leave eventDate null.
 - Prefer quality over quantity. Skip empty fluff.`;
 
 interface ExtractedAtomRaw {
@@ -62,6 +68,7 @@ interface ExtractedAtomRaw {
     salience?: unknown;
     confidence?: unknown;
     mergeKey?: unknown;
+    eventDate?: unknown;
 }
 
 interface ExtractionResponse {
@@ -76,6 +83,8 @@ export interface MemoryExtractionContext {
     sessionKindLabel: string;
     entryText: string;
     assistantHints?: string;
+    /** Write/finish day for resolving relative eventDate phrases (tests inject fixed clock). */
+    now?: Date;
 }
 
 function clamp01(value: unknown, fallback: number): number {
@@ -131,7 +140,8 @@ function userTranscript(messages: readonly Message[] | undefined): string {
 
 function toAtomInputs(
     ctx: MemoryExtractionContext,
-    rawAtoms: readonly ExtractedAtomRaw[]
+    rawAtoms: readonly ExtractedAtomRaw[],
+    writeDay: Date,
 ): LocalMemoryAtomInput[] {
     const out: LocalMemoryAtomInput[] = [];
     let episodicCount = 0;
@@ -168,6 +178,17 @@ function toAtomInputs(
             sourceId = `${layer}:${mergeKey}:${ctx.rootSourceId}`;
         }
 
+        let eventDate: string | null = null;
+        if (raw.eventDate !== undefined && raw.eventDate !== null && raw.eventDate !== '') {
+            eventDate = normalizeEventDate(raw.eventDate, writeDay);
+            if (!eventDate) {
+                console.warn(
+                    '[eventDate] Memory atom eventDate unparseable; storing null. raw=',
+                    JSON.stringify(raw.eventDate),
+                );
+            }
+        }
+
         out.push({
             layer,
             source: ctx.source,
@@ -179,6 +200,7 @@ function toAtomInputs(
             tags: asTags(raw.tags),
             salience: clamp01(raw.salience, layer === 'episodic' ? 0.76 : 0.62),
             confidence: clamp01(raw.confidence, 0.78),
+            eventDate,
         });
     }
 
@@ -188,6 +210,9 @@ function toAtomInputs(
 async function requestExtraction(ctx: MemoryExtractionContext): Promise<LocalMemoryAtomInput[]> {
     if (!ctx.entryText.trim()) return [];
 
+    const writeDay = ctx.now ?? new Date();
+    const writeKey = getLocalDateKey(writeDay);
+
     const { content } = await fetchDirectJsonCompletion(
         {
             model: 'agent-default',
@@ -196,6 +221,7 @@ async function requestExtraction(ctx: MemoryExtractionContext): Promise<LocalMem
                 {
                     role: 'user',
                     content: [
+                        `Write day (device local clock for resolving relative dates): ${writeKey}`,
                         `Session kind: ${ctx.sessionKindLabel}`,
                         `Session title: ${ctx.sessionTitle}`,
                         ctx.assistantHints ? `Hints:\n${ctx.assistantHints}` : '',
@@ -216,7 +242,7 @@ async function requestExtraction(ctx: MemoryExtractionContext): Promise<LocalMem
         throw new Error('Memory atom extraction returned no atoms.');
     }
 
-    return toAtomInputs(ctx, parsed.atoms);
+    return toAtomInputs(ctx, parsed.atoms, writeDay);
 }
 
 /** Public for tests / optional direct use. Soft-fails to []. */

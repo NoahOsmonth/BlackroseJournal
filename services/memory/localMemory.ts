@@ -3,7 +3,7 @@ import type { Message } from '@/services/ai';
 import { embedText } from '@/services/ai/embeddingsTransport';
 import type { JournalEntry } from '@/services/journal/journalStorage.types';
 import type { IntentionCheckIn } from '@/services/intentions/intentionsStorage.types';
-import { getLocalDateKeyFromTimestamp } from '@/utils/date';
+import { formatEventDateLabel, getLocalDateKeyFromTimestamp, isValidIsoDateKey } from '@/utils/date';
 import { cosineSimilarity } from '@/services/memory/embeddings';
 import type {
     LocalMemoryAtom,
@@ -160,10 +160,17 @@ function sanitizeAtoms(value: unknown): Record<string, LocalMemoryAtom> {
             const embedding = sanitizeEmbedding(
                 (candidate as { embedding?: unknown }).embedding,
             );
+            const rawEvent = (candidate as { eventDate?: unknown }).eventDate;
+            const eventDate = typeof rawEvent === 'string' && isValidIsoDateKey(rawEvent)
+                ? rawEvent
+                : rawEvent === null
+                    ? null
+                    : undefined;
             const base: LocalMemoryAtom = {
                 ...candidate,
                 accessCount: typeof candidate.accessCount === 'number' ? candidate.accessCount : 0,
                 ...(embedding ? { embedding } : {}),
+                ...(eventDate !== undefined ? { eventDate } : {}),
             };
             result[key] = migrateAtomProvenance(base);
         }
@@ -248,6 +255,10 @@ function mergeAtom(existing: LocalMemoryAtom | undefined, input: LocalMemoryAtom
         ? input.embedding
         : existing?.embedding;
 
+    const eventDate = input.eventDate !== undefined
+        ? input.eventDate
+        : existing?.eventDate;
+
     return {
         id: atomId(input),
         layer: input.layer,
@@ -265,6 +276,7 @@ function mergeAtom(existing: LocalMemoryAtom | undefined, input: LocalMemoryAtom
         lastAccessedAt: existing?.lastAccessedAt,
         accessCount: existing?.accessCount ?? 0,
         ...(embedding?.length ? { embedding } : {}),
+        ...(eventDate !== undefined ? { eventDate } : {}),
     };
 }
 
@@ -744,7 +756,10 @@ function formatAtomForPrompt(atom: LocalMemoryAtom): string {
     const dateKey = getLocalDateKeyFromTimestamp(atom.createdAt);
     const tags = atom.tags.slice(0, 4).join(', ');
     const suffix = tags ? ` [${tags}]` : '';
-    return `- Written ${dateKey}: ${atom.layer} — ${atom.title} - ${atom.content}${suffix}`;
+    const eventPart = atom.eventDate
+        ? ` ${formatEventDateLabel(atom.eventDate)}`
+        : '';
+    return `- Written ${dateKey}${eventPart}: ${atom.layer} — ${atom.title} - ${atom.content}${suffix}`;
 }
 
 export async function buildLocalMemoryContext(

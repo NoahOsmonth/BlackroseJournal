@@ -114,12 +114,20 @@ function sanitizeDigest(value: unknown): SessionDigest | null {
         .filter(Boolean)
         .slice(0, MAX_TOPICS);
 
+    const eventDate = typeof value.eventDate === 'string'
+        && /^\d{4}-\d{2}-\d{2}$/.test(value.eventDate)
+        ? value.eventDate
+        : value.eventDate === null
+            ? null
+            : undefined;
+
     return {
         schemaVersion: SESSION_DIGEST_SCHEMA_VERSION,
         sessionId: value.sessionId.trim(),
         dateISO: value.dateISO,
         oneLineSummary: trimText(value.oneLineSummary, MAX_SUMMARY_CHARS),
         topics,
+        ...(eventDate !== undefined ? { eventDate } : {}),
         embedding,
         entryWordCount: Math.max(0, Math.floor(value.entryWordCount)),
         createdAt: value.createdAt,

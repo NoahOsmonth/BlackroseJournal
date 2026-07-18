@@ -160,6 +160,36 @@ describe('sessionRecall', () => {
         expect(block).toContain('Date window');
     });
 
+    /**
+     * T6: stored eventDate surfaces as absolute Event label in recall lines.
+     * Sabotage: drop eventDate formatting from formatRecallLine → red.
+     */
+    it('injects Event absolute date label when digest has eventDate', async () => {
+        mockEmbed.mockResolvedValue(null);
+        const now = new Date(2026, 6, 18, 16, 0, 0);
+
+        await upsertSessionDigest(digest({
+            sessionId: 'dentist-event',
+            dateISO: '2026-07-18',
+            oneLineSummary: 'User noted having a dentist appointment on Friday.',
+            topics: ['dentist', 'appointment'],
+            eventDate: '2026-07-24',
+            createdAt: now.getTime(),
+        }));
+
+        expect(detectSessionRecallIntent('When is my dentist appointment?')).toBe(true);
+
+        const block = await buildSessionRecallContext(
+            'When is my dentist appointment?',
+            { now, skipEmbed: true },
+        );
+
+        expect(block).toContain('## Relevant past context');
+        expect(block).toContain('Written 2026-07-18');
+        expect(block).toContain('Event: 2026-07-24 (Fri)');
+        expect(block).toContain('dentist');
+    });
+
     it('ranks by semantic similarity when embeddings available', async () => {
         const now = new Date(2026, 6, 17);
         const workVec = l2Normalize([1, 0, 0, 0]);

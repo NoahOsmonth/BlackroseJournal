@@ -1,10 +1,13 @@
 import {
     addLocalDays,
     buildClockContext,
+    formatEventDateLabel,
     getLocalDateKey,
     getLocalDateKeyFromTimestamp,
+    normalizeEventDate,
     parseLocalDateKey,
     resolveRelativeDateKey,
+    resolveUpcomingWeekdayKey,
 } from '../../utils/date';
 
 describe('utils/date', () => {
@@ -49,6 +52,20 @@ describe('utils/date', () => {
         expect(clock).toContain('WRITTEN');
         expect(clock).toMatch(/user'?s own words are authoritative/i);
         expect(clock).toContain('Never call an event "today"');
+        // Stored Event labels are authoritative — sabotage: drop this line from buildClockContext → red
+        expect(clock).toContain('When an "Event: YYYY-MM-DD" label is present');
+        expect(clock).toMatch(/authoritative for when the event occurs/i);
+    });
+
+    it('resolves upcoming Friday from Saturday write-day (event-oriented, not past)', () => {
+        const saturday = new Date(2026, 6, 18, 14, 0, 0); // Sat 2026-07-18
+        expect(resolveUpcomingWeekdayKey('friday', saturday)).toBe('2026-07-24');
+        expect(normalizeEventDate('Friday', saturday)).toBe('2026-07-24');
+        expect(normalizeEventDate('2026-07-24', saturday)).toBe('2026-07-24');
+        expect(normalizeEventDate('tomorrow', saturday)).toBe('2026-07-19');
+        expect(normalizeEventDate(null, saturday)).toBeNull();
+        expect(normalizeEventDate('not-a-date', saturday)).toBeNull();
+        expect(formatEventDateLabel('2026-07-24')).toBe('Event: 2026-07-24 (Fri)');
     });
 
     /**

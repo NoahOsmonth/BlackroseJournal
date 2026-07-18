@@ -12,6 +12,11 @@
 - [x] **TOOL-CODEX-001**: Codex CLI with OMO Light Edition
 
 ## Updates
+- **2026-07-18**: T6 eventDate extraction (absolute event day on digest + atom)
+  - Optional `eventDate` (YYYY-MM-DD) on session digests + memory atoms; absent = null (no migration).
+  - Extracted via existing `fetchDirectJsonCompletion`; relative weekdays normalized against write-day clock (`normalizeEventDate` / upcoming Friday).
+  - Recall + capsule lines surface `Event: YYYY-MM-DD (Fri)` next to `Written …`; doctrine: Event label authoritative.
+  - Soft-fail: malformed → null + `[eventDate]` warn; never blocks Finish.
 - **2026-07-18**: Memory battery follow-ups (T6/T3a/T4)
   - **T6 future-event date (verdict A — storage gap, report-only):** Live store for dentist entry has free-text "Friday" only in session digest / day digest / atoms — **no structured event date field and no absolute `2026-07-24`**. Write-turn model can resolve Friday→absolute; storage does not persist it. Do **not** add event-date extraction without explicit schema go-ahead.
   - **T3a atom embeddings:** Finish path `saveAtomBatch` now soft-attaches vectors via same `embedText()` / `EMBEDDING_MODEL` as digests (was only on `upsertMemoryAtom`). Jest: 2048-d on finish atoms; sabotage skip-embed → red → green. Live: purple-telescope atoms have `embedding.length === 2048`. Suite delta: **+1 test** → 730 passed / 743 total (suites still 170/4 skipped).

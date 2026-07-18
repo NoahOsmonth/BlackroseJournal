@@ -13,12 +13,18 @@ export interface SessionDigest {
     schemaVersion: number;
     /** Stable id — usually the journal entry / check-in id. */
     sessionId: string;
-    /** Local calendar day YYYY-MM-DD. */
+    /** Local calendar day YYYY-MM-DD (write/finish day — not event day). */
     dateISO: string;
     /** AI one–two sentence summary. */
     oneLineSummary: string;
     /** AI topic tags, e.g. ["work stress", "family"]. */
     topics: string[];
+    /**
+     * Absolute ISO date (YYYY-MM-DD) of a specific datable event in the session,
+     * when extraction can resolve one (e.g. "dentist on Friday" → next Friday).
+     * Absent/null on older shards or undatable sessions — treat as no event date.
+     */
+    eventDate?: string | null;
     /**
      * L2-normalized embedding of summary (+ topics) from EMBEDDING_MODEL.
      * Empty array if embed failed offline — still keep the text digest.

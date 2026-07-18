@@ -29,7 +29,10 @@ jest.mock('../../../services/ai/embeddingsTransport', () => ({
 import { fetchDirectChatCompletion } from '../../../services/ai/directTransport';
 import { embedText } from '../../../services/ai/embeddingsTransport';
 import { resetJsonCompletionStateForTests } from '../../../services/ai/jsonCompletion';
-import { buildAndSaveSessionDigest } from '../../../services/memory/sessionDigestBuild';
+import {
+    buildAndSaveSessionDigest,
+    parseDigestJson,
+} from '../../../services/memory/sessionDigestBuild';
 import {
     clearSessionDigests,
     getSessionDigest,
@@ -212,6 +215,132 @@ describe('buildAndSaveSessionDigest', () => {
         });
         expect(saved).toBeNull();
         expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    /**
+     * T6 eventDate: LLM returns absolute ISO → stored on digest.
+     * What would make this fail: dropping eventDate from parse/upsert.
+     */
+    it('stores absolute eventDate from LLM when present', async () => {
+        mockFetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                choices: [{
+                    message: {
+                        content: JSON.stringify({
+                            oneLineSummary: 'Has a dentist appointment on Friday.',
+                            topics: ['dentist', 'health'],
+                            eventDate: '2026-07-24',
+                        }),
+                    },
+                }],
+            }),
+            text: async () => '',
+        } as Response);
+        mockEmbed.mockResolvedValue([0.1, 0.2]);
+
+        const saturday = new Date(2026, 6, 18, 15, 0, 0).getTime();
+        const saved = await buildAndSaveSessionDigest({
+            sessionId: 'dentist-1',
+            sourceKind: 'journal_entry',
+            sourceId: 'dentist-1',
+            userMessages: ['I have a dentist appointment on Friday.'],
+            now: saturday,
+        });
+
+        expect(saved?.dateISO).toBe('2026-07-18');
+        expect(saved?.eventDate).toBe('2026-07-24');
+        expect((await getSessionDigest('dentist-1'))?.eventDate).toBe('2026-07-24');
+    });
+
+    /**
+     * Relative "Friday" from model → normalize to upcoming Friday on write day Saturday.
+     */
+    it('normalizes relative Friday eventDate against fixed Saturday write clock', async () => {
+        mockFetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                choices: [{
+                    message: {
+                        content: JSON.stringify({
+                            oneLineSummary: 'Dentist on Friday.',
+                            topics: ['dentist'],
+                            eventDate: 'Friday',
+                        }),
+                    },
+                }],
+            }),
+            text: async () => '',
+        } as Response);
+        mockEmbed.mockResolvedValue([0.3]);
+
+        const saturday = new Date(2026, 6, 18, 12, 0, 0).getTime();
+        const saved = await buildAndSaveSessionDigest({
+            sessionId: 'dentist-rel',
+            sourceKind: 'journal_entry',
+            sourceId: 'dentist-rel',
+            userMessages: ['I have a dentist appointment on Friday.'],
+            now: saturday,
+        });
+        expect(saved?.eventDate).toBe('2026-07-24');
+    });
+
+    /**
+     * Malformed eventDate → null + warn; digest still succeeds.
+     * What would make this fail: throwing on bad eventDate or dropping the whole digest.
+     */
+    it('stores null eventDate and warns when model returns malformed date; write still succeeds', async () => {
+        const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        mockFetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                choices: [{
+                    message: {
+                        content: JSON.stringify({
+                            oneLineSummary: 'Thoughts about the future.',
+                            topics: ['mood'],
+                            eventDate: 'sometime-soon-ish',
+                        }),
+                    },
+                }],
+            }),
+            text: async () => '',
+        } as Response);
+        mockEmbed.mockResolvedValue([0.4]);
+
+        const saved = await buildAndSaveSessionDigest({
+            sessionId: 'bad-event',
+            sourceKind: 'journal_entry',
+            sourceId: 'bad-event',
+            userMessages: ['I feel weird about something coming up.'],
+            now: new Date(2026, 6, 18).getTime(),
+        });
+
+        expect(saved).not.toBeNull();
+        expect(saved?.oneLineSummary).toContain('future');
+        expect(saved?.eventDate).toBeNull();
+        expect(warnSpy).toHaveBeenCalledWith(
+            expect.stringContaining('[eventDate]'),
+            expect.anything(),
+        );
+        warnSpy.mockRestore();
+    });
+
+    it('parseDigestJson normalizes bare Friday against write day without network', () => {
+        const saturday = new Date(2026, 6, 18);
+        const parsed = parseDigestJson(
+            JSON.stringify({
+                oneLineSummary: 'Dentist Friday',
+                topics: ['dentist'],
+                eventDate: 'Friday',
+            }),
+            saturday,
+        );
+        expect(parsed?.eventDate).toBe('2026-07-24');
+        expect(parseDigestJson(
+            JSON.stringify({ oneLineSummary: 'ok', topics: [], eventDate: null }),
+            saturday,
+        )?.eventDate).toBeNull();
     });
 
     /**

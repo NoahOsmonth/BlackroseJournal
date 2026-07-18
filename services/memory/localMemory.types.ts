@@ -41,6 +41,11 @@ export interface LocalMemoryAtom {
      * atoms → lexical fallback.
      */
     embedding?: number[];
+    /**
+     * Absolute ISO date (YYYY-MM-DD) of a specific datable event in this atom,
+     * when extraction resolved one. Absent/null on undatable or older atoms.
+     */
+    eventDate?: string | null;
 }
 
 export interface LocalMemoryAtomInput {
@@ -56,6 +61,7 @@ export interface LocalMemoryAtomInput {
     confidence?: number;
     createdAt?: number;
     embedding?: number[];
+    eventDate?: string | null;
 }
 
 export interface LocalMemoryEnvelope {

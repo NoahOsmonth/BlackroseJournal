@@ -127,6 +127,83 @@ export function resolveRelativeDateKey(
 }
 
 /**
+ * True when value is a real local calendar day as YYYY-MM-DD.
+ */
+export function isValidIsoDateKey(value: string): boolean {
+    return parseLocalDateKey(value) !== null;
+}
+
+/**
+ * Resolve a weekday name to the upcoming occurrence (including today when it matches).
+ * "Friday" written on Saturday → next Friday (not the past one).
+ */
+export function resolveUpcomingWeekdayKey(
+    weekdayName: string,
+    now: Date = new Date(),
+): string | null {
+    const day = WEEKDAY_ALIASES[weekdayName.trim().toLowerCase()];
+    if (day === undefined) return null;
+    const today = now.getDay();
+    const delta = (day - today + 7) % 7;
+    return getLocalDateKey(addLocalDays(now, delta));
+}
+
+/**
+ * Normalize extraction/model output into an absolute event date (YYYY-MM-DD).
+ * Accepts ISO keys, today/tomorrow/yesterday, bare weekdays (upcoming),
+ * "next Friday", "last Monday". Returns null when undatable.
+ *
+ * Write-day clock must be the finish-day clock — not wall-clock if tests inject `now`.
+ */
+export function normalizeEventDate(
+    value: unknown,
+    writeDay: Date = new Date(),
+): string | null {
+    if (value === null || value === undefined) return null;
+    if (typeof value !== 'string') return null;
+    const raw = value.trim();
+    if (!raw || raw.toLowerCase() === 'null' || raw.toLowerCase() === 'none') return null;
+
+    // Absolute ISO first
+    if (isValidIsoDateKey(raw)) return raw;
+
+    const lower = raw.toLowerCase();
+    if (lower === 'today') return getLocalDateKey(writeDay);
+    if (lower === 'tomorrow') return getLocalDateKey(addLocalDays(writeDay, 1));
+    if (lower === 'yesterday') return getLocalDateKey(addLocalDays(writeDay, -1));
+
+    const nextWeekday = /^next\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday|sun|mon|tue|tues|wed|thu|thur|thurs|fri|sat)$/.exec(lower);
+    if (nextWeekday) {
+        const day = WEEKDAY_ALIASES[nextWeekday[1]];
+        if (day === undefined) return null;
+        const today = writeDay.getDay();
+        let delta = (day - today + 7) % 7;
+        if (delta === 0) delta = 7;
+        return getLocalDateKey(addLocalDays(writeDay, delta));
+    }
+
+    const lastWeekday = /^last\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday|sun|mon|tue|tues|wed|thu|thur|thurs|fri|sat)$/.exec(lower);
+    if (lastWeekday) {
+        return resolveRelativeDateKey(lower, writeDay);
+    }
+
+    // Bare weekday → upcoming (event-oriented)
+    if (WEEKDAY_ALIASES[lower] !== undefined) {
+        return resolveUpcomingWeekdayKey(lower, writeDay);
+    }
+
+    return null;
+}
+
+/** Prompt label: "Event: 2026-07-24 (Fri)" */
+export function formatEventDateLabel(eventDate: string): string {
+    const parsed = parseLocalDateKey(eventDate);
+    if (!parsed) return `Event: ${eventDate}`;
+    const short = formatWeekdayName(parsed).slice(0, 3);
+    return `Event: ${eventDate} (${short})`;
+}
+
+/**
  * Markdown block injected into system prompts so the model knows local time.
  * Also carries write-day vs event-day doctrine (Test B day-slip fix).
  * Consumed via `features/chat/flows/index.ts` → `resolveClockContext` →
@@ -148,5 +225,6 @@ export function buildClockContext(now: Date = new Date()): string {
         'Dates labeled on past entries, digests, session recall lines, and memory capsule lines (e.g. "Written YYYY-MM-DD") are when those items were WRITTEN or finished on this device — not when life events described in the prose occurred.',
         "Weekday and calendar names in the user's own words are authoritative for event timing. Resolve them against this clock (most recent past occurrence unless clearly future). Prefer absolute YYYY-MM-DD over relative phrases when you state when something happened.",
         'Never call an event "today" or "yesterday" unless its resolved date matches this clock. Never say "the day before", "the day after", or similar unless the arithmetic actually holds for the absolute dates you state.',
+        'When an "Event: YYYY-MM-DD" label is present on a past-context line, that absolute date is authoritative for when the event occurs — do not re-resolve or contradict it.',
     ].join('\n');
 }

@@ -20,6 +20,7 @@ import {
 import type { SessionDigest } from '@/services/memory/sessionDigest.types';
 import {
     addLocalDays,
+    formatEventDateLabel,
     getLocalDateKey,
 } from '@/utils/date';
 
@@ -30,9 +31,9 @@ const MIN_SIMILARITY = 0.28;
 const TEMPORAL_RECALL_RE =
     /\b(last\s+(week|month|year|time)|this\s+(week|month|year)|yesterday|what\s+did\s+we\s+talk|what\s+have\s+we\s+(talked|discussed)|when\s+we\s+(talked|spoke|discussed)|past\s+(sessions?|entries|conversations?)|a\s+while\s+ago|earlier\s+(this\s+)?(week|month|year))\b/i;
 
-/** Topic / mention recall phrasing. */
+/** Topic / mention recall phrasing (includes "when is my …" for dated events). */
 const TOPIC_RECALL_RE =
-    /\b(did\s+i\s+(mention|say|talk|write|journal)|what\s+did\s+i\s+(say|mention|write|talk|journal)|last\s+time\s+i\s+(mentioned|said|talked|wrote)|have\s+i\s+(mentioned|talked|said)|remind\s+me\s+(what|about)|about\s+my\s+\w+)\b/i;
+    /\b(did\s+i\s+(mention|say|talk|write|journal)|what\s+did\s+i\s+(say|mention|write|talk|journal)|what\s+have\s+i\s+(said|written|mentioned|talked)|last\s+time\s+i\s+(mentioned|said|talked|wrote)|have\s+i\s+(mentioned|talked|said|written)|remind\s+me\s+(what|about)|about\s+my\s+\w+|when\s+(is|was|do|does|did)\s+(my|the))\b/i;
 
 export interface DateRangeFilter {
     from: string;
@@ -107,7 +108,10 @@ function formatRecallLine(digest: SessionDigest): string {
         ? ` [${digest.topics.slice(0, 4).join(', ')}]`
         : '';
     const summary = digest.oneLineSummary.replace(/\s+/g, ' ').trim();
-    return `- Written ${digest.dateISO}${topics}: ${summary}`;
+    const eventPart = digest.eventDate
+        ? ` ${formatEventDateLabel(digest.eventDate)}`
+        : '';
+    return `- Written ${digest.dateISO}${eventPart}${topics}: ${summary}`;
 }
 
 function formatRollupLine(rollup: MemoryRollup): string {
