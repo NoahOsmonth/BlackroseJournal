@@ -13,6 +13,7 @@ interface IntentionChatFooterProps {
     disabled?: boolean;
     canGoDeeper?: boolean;
     canFinish?: boolean;
+    isSaving?: boolean;
 }
 
 export function IntentionChatFooter({
@@ -23,6 +24,7 @@ export function IntentionChatFooter({
     disabled = false,
     canGoDeeper = false,
     canFinish = false,
+    isSaving = false,
 }: IntentionChatFooterProps) {
     const isDark = useColorScheme() === 'dark';
     const mutedIconColor = isDark ? Colors.dark.tabIconDefault : Colors.light.tabIconDefault;
@@ -48,6 +50,7 @@ export function IntentionChatFooter({
                 disabled={disabled}
                 canGoDeeper={canGoDeeper}
                 canFinish={canFinish}
+                isSaving={isSaving}
             />
         </View>
     );

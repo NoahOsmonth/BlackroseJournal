@@ -458,6 +458,7 @@ export default function IntentionChatScreen() {
                     disabled={isLoading || isSaving}
                     canGoDeeper={trimmedInput.length > 0}
                     canFinish={hasContent(messages) || trimmedInput.length > 0}
+                    isSaving={isSaving}
                 />
 
                 <IntentionChatOverlays

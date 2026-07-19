@@ -2,6 +2,7 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { MaterialIcons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
+import { LoadingBar } from '@/components/ui/LoadingBar';
 
 interface FooterActionsProps {
   onGoDeeper: () => void;
@@ -9,6 +10,7 @@ interface FooterActionsProps {
   disabled?: boolean;
   canGoDeeper?: boolean;
   canFinish?: boolean;
+  isSaving?: boolean;
 }
 
 export function FooterActions({
@@ -17,10 +19,11 @@ export function FooterActions({
   disabled = false,
   canGoDeeper = false,
   canFinish = false,
+  isSaving = false,
 }: FooterActionsProps) {
   const textColor = useThemeColor({}, 'text');
   const goDeeperDisabled = disabled || !canGoDeeper;
-  const finishEntryDisabled = disabled || !canFinish || !onFinishEntry;
+  const finishEntryDisabled = disabled || !canFinish || !onFinishEntry || isSaving;
 
   return (
     <View className="bg-background-light dark:bg-background-dark border-t border-slate-100 dark:border-slate-800 pb-8 pt-4">
@@ -43,11 +46,17 @@ export function FooterActions({
           onPress={onFinishEntry}
           disabled={finishEntryDisabled}
           accessibilityRole="button"
-          accessibilityLabel="Finish entry"
+          accessibilityLabel={isSaving ? 'Finishing entry' : 'Finish entry'}
         >
           <View className="flex-row items-center justify-center gap-2">
-            <MaterialIcons name="check" size={18} color={textColor} />
-            <Text className="font-bold text-[15px] text-text-light dark:text-text-dark">Finish entry</Text>
+            {isSaving ? (
+              <LoadingBar size="sm" accessibilityLabel="Finishing entry" />
+            ) : (
+              <>
+                <MaterialIcons name="check" size={18} color={textColor} />
+                <Text className="font-bold text-[15px] text-text-light dark:text-text-dark">Finish entry</Text>
+              </>
+            )}
           </View>
         </Pressable>
       </View>

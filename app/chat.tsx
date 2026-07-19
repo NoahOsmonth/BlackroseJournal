@@ -454,6 +454,7 @@ export default function ChatScreen() {
                         disabled={isLoading || isSaving}
                         canGoDeeper={canGoDeeper}
                         canFinish={canFinish}
+                        isSaving={isSaving}
                     />
                 </View>
 
