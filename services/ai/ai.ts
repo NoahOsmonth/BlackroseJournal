@@ -1,14 +1,29 @@
 import { THERAPIST_SYSTEM_PROMPT } from '@/constants/aiPrompts';
+import { runAgentTurnWithTools, ToolsUnsupportedError } from './agentLoop';
 import {
     buildChatPayload,
     ChatAccumulator,
-    resolveStreamOptions,
-    StreamChatOptions,
-    Message,
     CompleteCallback,
     ErrorCallback,
+    Message,
+    resolveStreamOptions,
+    StreamChatOptions,
     StreamingCallback,
 } from './chatTypes';
+import {
+    compactConversationIfNeeded,
+    DEFAULT_COMPACT_CONTEXT_WINDOW,
+    DEFAULT_OUTPUT_RESERVE,
+} from './conversationCompact';
+import { getKnownContextWindow } from './customModels';
+import { getResolvedDirectConfig } from './directConfig';
+import { augmentSystemPromptForTurn, detectHistoryIntent } from './historyPrefetch';
+import {
+    attachRealUsage,
+    buildLedgerFromAssembledRequest,
+    logPromptBudget,
+    type HistoryToolsBranch,
+} from './promptBudget';
 import {
     buildResponseError,
     emitSimulatedStreaming,
@@ -20,39 +35,21 @@ import {
     hasReadableStream,
     streamChatWithXhr,
 } from './streamingTransports';
-import { runAgentTurnWithTools, ToolsUnsupportedError } from './agentLoop';
-import { augmentSystemPromptForTurn, detectHistoryIntent } from './historyPrefetch';
 import { HISTORY_TOOLS_POLICY } from './tools';
-import {
-    compactConversationIfNeeded,
-    DEFAULT_COMPACT_CONTEXT_WINDOW,
-    DEFAULT_OUTPUT_RESERVE,
-} from './conversationCompact';
-import { getResolvedDirectConfig } from './directConfig';
-import { getKnownContextWindow } from './customModels';
 import { stripToolCallSyntax } from './tools/parseTextToolCalls';
 import {
     logToolTelemetry,
     markToolsUnsupported,
     resolveToolCapability,
 } from './tools/toolCapability';
-import {
-    attachRealUsage,
-    buildLedgerFromAssembledRequest,
-    logPromptBudget,
-    type HistoryToolsBranch,
-} from './promptBudget';
 
 export {
-    Message,
-    StreamingCallback,
     CompleteCallback,
-    ErrorCallback,
-    StreamChatOptions,
+    ErrorCallback, Message, StreamChatOptions, StreamingCallback
 } from './chatTypes';
 export type { ChatAccumulator } from './chatTypes';
-export { useChat } from './useChat';
 export type { HistoryToolsBranch } from './promptBudget';
+export { useChat } from './useChat';
 
 const DEFAULT_DIRECT_MODEL = 'agent-default';
 

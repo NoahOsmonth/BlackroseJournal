@@ -5,15 +5,15 @@
  * can pin the URL + key, then mocks the global `fetch` to verify the
  * wire shape (URL, headers, body, error path).
  */
-import {
-    fetchDirectChatCompletion,
-    prepareDirectChatRequest,
-    clearModelUnavailableCache,
-    isModelCachedUnavailable,
-    getLastResolvedModel,
-} from '../../../services/ai/directTransport';
-import { getResolvedDirectConfig } from '../../../services/ai/directConfig';
 import { loadCustomAiProviderSettings } from '../../../services/ai/customModels';
+import { getResolvedDirectConfig } from '../../../services/ai/directConfig';
+import {
+    clearModelUnavailableCache,
+    fetchDirectChatCompletion,
+    getLastResolvedModel,
+    isModelCachedUnavailable,
+    prepareDirectChatRequest,
+} from '../../../services/ai/directTransport';
 
 const TEST_ENV_RESOLVED_CONFIG = {
     apiKey: 'sk-direct-test-key',

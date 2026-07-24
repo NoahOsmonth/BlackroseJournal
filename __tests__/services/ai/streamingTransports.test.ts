@@ -2,12 +2,12 @@
  * Tests for services/ai/streamingTransports.ts — Fix 5:
  * XHR streaming skips when the primary model is cached-unavailable.
  */
-import { streamChatWithXhr } from '../../../services/ai/streamingTransports';
+import type { ChatRequestPayload } from '../../../services/ai/chatTypes';
 import {
     clearModelUnavailableCache,
     isModelCachedUnavailable,
 } from '../../../services/ai/directTransport';
-import type { ChatRequestPayload } from '../../../services/ai/chatTypes';
+import { streamChatWithXhr } from '../../../services/ai/streamingTransports';
 
 // Mock directTransport so prepareDirectChatRequest doesn't hit real config.
 jest.mock('../../../services/ai/directConfig', () => ({

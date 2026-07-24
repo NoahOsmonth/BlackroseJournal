@@ -1,4 +1,3 @@
-import { prepareDirectChatRequest, fetchDirectChatCompletion, isModelCachedUnavailable } from './directTransport';
 import {
     ChatAccumulator,
     ChatRequestPayload,
@@ -6,7 +5,8 @@ import {
     CompleteCallback,
     StreamingCallback,
 } from './chatTypes';
-import { appendChunk, parseSseLine, readNonStreamingResponse, buildResponseError } from './sseParser';
+import { fetchDirectChatCompletion, isModelCachedUnavailable, prepareDirectChatRequest } from './directTransport';
+import { appendChunk, buildResponseError, parseSseLine, readNonStreamingResponse } from './sseParser';
 
 type ReadableStreamLike = {
     getReader: () => { read: () => Promise<{ done: boolean; value?: Uint8Array }> };
@@ -114,4 +114,5 @@ export async function streamChatWithXhr(
     });
 }
 
-export { hasReadableStream, readNonStreamingResponse, buildResponseError };
+export { buildResponseError, hasReadableStream, readNonStreamingResponse };
+

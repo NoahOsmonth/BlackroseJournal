@@ -7,13 +7,13 @@
  * parameter alternate from the user's cache + curated free fallbacks.
  */
 
-import { getResolvedDirectConfig, type ResolvedDirectConfig } from './directConfig';
-import { getProviderCapabilities, type ProviderCapabilities } from './providerCapabilities';
-import { loadCustomAiProviderSettings } from './customModels';
 import {
     buildModelFallbackQueue,
     isModelNotFoundError,
 } from '@/utils/ai/modelFallback';
+import { loadCustomAiProviderSettings } from './customModels';
+import { getResolvedDirectConfig, type ResolvedDirectConfig } from './directConfig';
+import { getProviderCapabilities, type ProviderCapabilities } from './providerCapabilities';
 
 export interface DirectChatRequest {
     model: string;
@@ -399,8 +399,6 @@ export async function fetchDirectChatCompletion(
     }
 }
 
-export { getDirectConfig } from './directConfig';
-export { getResolvedDirectConfig } from './directConfig';
-export { DirectConfigError } from './directConfig';
-export type { DirectConfig } from './directConfig';
-export type { ResolvedDirectConfig } from './directConfig';
+export { DirectConfigError, getDirectConfig, getResolvedDirectConfig } from './directConfig';
+export type { DirectConfig, ResolvedDirectConfig } from './directConfig';
+
