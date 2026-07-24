@@ -3,16 +3,17 @@
  * Shown immediately after finishing a journal entry.
  */
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { EntryReflectionSkeleton } from '@/components/entries/EntryReflectionSkeleton';
 import { FeedbackCommentModal } from '@/components/intentions/FeedbackCommentModal';
-import { useEntryReflection } from '@/hooks/useEntryReflection';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { saveAiFeedback } from '@/services/feedback/feedbackStorage';
+import { useEntryReflection } from '@/hooks/useEntryReflection';
 import type { AiFeedbackValue } from '@/services/feedback/feedbackStorage';
+import { saveAiFeedback } from '@/services/feedback/feedbackStorage';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type EntryReflectionParams = {
@@ -102,14 +103,7 @@ export default function EntryReflectionScreen() {
                 </View>
 
                 <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
-                    {isLoading && (
-                        <View className="items-center py-10">
-                            <ActivityIndicator size="small" color={primaryColor} />
-                            <Text className="mt-3 text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                                Generating your reflection…
-                            </Text>
-                        </View>
-                    )}
+                    {isLoading && <EntryReflectionSkeleton />}
 
                     {!isLoading && error && (
                         <View className="p-4 rounded-xl bg-surface-light dark:bg-surface-dark">

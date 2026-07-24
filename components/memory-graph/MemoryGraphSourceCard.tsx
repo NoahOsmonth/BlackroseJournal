@@ -1,8 +1,11 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import React from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Pressable, Text, View } from 'react-native';
+
+import { Skeleton } from '@/components/ui/Skeleton';
+import { SkeletonText } from '@/components/ui/SkeletonText';
 import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { MemorySourcePreview } from '@/services/memory/memoryGraph.types';
 
 interface SourceCardProps {
@@ -24,13 +27,14 @@ export function MemoryGraphSourceCard({
 
     if (isLoading) {
         return (
-            <View className="mt-4 rounded-2xl border border-divider-light dark:border-divider-dark bg-background-light dark:bg-background-dark p-3">
-                <View className="flex-row items-center gap-2">
-                    <ActivityIndicator size="small" color={accentColor} />
-                    <Text className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
-                        Loading source…
-                    </Text>
-                </View>
+            <View
+                className="mt-4 gap-3 rounded-2xl border border-divider-light bg-background-light p-3 dark:border-divider-dark dark:bg-background-dark"
+                accessibilityLabel="Loading source"
+            >
+                <Skeleton className="h-3 w-16" accessibilityLabel="Loading source label" />
+                <SkeletonText lines={2} lineClassName="h-4" accessibilityLabel="Loading source title" />
+                <Skeleton className="h-3 w-32" accessibilityLabel="Loading source metadata" />
+                <SkeletonText lines={2} lineClassName="h-3" accessibilityLabel="Loading source snippet" />
             </View>
         );
     }

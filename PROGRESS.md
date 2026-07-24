@@ -12,6 +12,11 @@
 - [x] **TOOL-CODEX-001**: Codex CLI with OMO Light Edition
 
 ## Updates
+- **2026-07-24**: **Skeleton loading redesign** — eliminated every `ActivityIndicator` from app routes and components.
+  - Added shared shimmer infrastructure: `SkeletonProvider` supplies one animation driver to mounted skeletons; `Skeleton` supports provider fallback, memoization, and system reduced-motion static blocks; `SkeletonText` creates accessible paragraph-shaped placeholders.
+  - Replaced post-finish, journal, suggestions, persona, intention, memory, check-in, graph source, model picker, analysis, boot, overlay, and busy-action loading states with composed skeletons or `LoadingBar` as appropriate. Included a `CheckInDetailSkeleton` for the previously unplanned check-in spinner so no circle loader remains.
+  - Added shared Reanimated test mock plus focused skeleton, provider, composed-layout, and analysis loading coverage. Focused suite: **6 suites / 21 tests passed**; changed-file lint passed; design-limit check passed with three existing size warnings.
+  - Full typecheck remains blocked by five pre-existing errors in `IdentitySettingsSection.test.tsx`, `app/(tabs)/settings.tsx`, and `probes/`; none are in the loading redesign.
 - **2026-07-18**: **PR8b-2** — memory caps hygiene
   - `MEMORY_PROMPT_BUDGET=8000` at final assembly (`services/ai/memoryPromptBudget.ts` + `composeSystemPrompt` / intention weave).
   - Sub-caps: identity sacred; capsule/digests 2500; recall 1500; goals+persona 1500; `MEMORY_RECALL_MIN_SIM=0.28`.

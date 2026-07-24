@@ -1,25 +1,10 @@
-import React from 'react';
 import { render, screen } from '@testing-library/react-native';
+import React from 'react';
 
 import { Skeleton } from '../../components/ui/Skeleton';
+import { mockReanimated } from '../mocks/reanimatedMock';
 
-jest.mock('react-native-reanimated', () => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { View } = require('react-native');
-    return {
-        __esModule: true,
-        default: {
-            View,
-            createAnimatedComponent: (C: unknown) => C,
-        },
-        useSharedValue: (v: number) => ({ value: v }),
-        useAnimatedStyle: (factory: () => object) => factory(),
-        withTiming: () => 0,
-        withRepeat: (v: unknown) => v,
-        withDelay: (d: unknown, v: unknown) => v,
-        Easing: { inOut: (v: unknown) => v, ease: 0 },
-    };
-});
+jest.mock('react-native-reanimated', () => mockReanimated());
 
 describe('Skeleton', () => {
     it('renders a progressbar with a default label', () => {

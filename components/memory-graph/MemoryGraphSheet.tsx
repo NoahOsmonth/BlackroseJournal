@@ -1,23 +1,24 @@
-import { MaterialIcons } from '@expo/vector-icons';
-import React, { useMemo } from 'react';
-import {
-    ActivityIndicator,
-    Pressable,
-    ScrollView,
-    Text,
-    View,
-} from 'react-native';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors, MemoryLayerColors } from '@/constants/theme';
+import { MEMORY_LAYER_LABELS } from '@/components/memory/memoryDisplay';
+import { LoadingBar } from '@/components/ui/LoadingBar';
+import { SkeletonText } from '@/components/ui/SkeletonText';
 import { navAwareBottomPadding } from '@/constants/spacing';
+import { Colors, MemoryLayerColors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { LocalMemorySource } from '@/services/memory/localMemory.types';
 import type {
     MemoryGraphAtom,
     MemorySourcePreview,
 } from '@/services/memory/memoryGraph.types';
 import { truncateToWordCount } from '@/services/memory/memoryGraphUtils';
-import { MEMORY_LAYER_LABELS } from '@/components/memory/memoryDisplay';
+import { MaterialIcons } from '@expo/vector-icons';
+import React, { useMemo } from 'react';
+import {
+    Pressable,
+    ScrollView,
+    Text,
+    View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MemoryGraphSourceCard } from './MemoryGraphSourceCard';
 
 function sourceLabel(source: LocalMemorySource): string {
@@ -200,12 +201,12 @@ export function MemoryGraphSheet({
                                 At a glance
                             </Text>
                             {isGlanceLoading && !localInsight ? (
-                                <View className="mt-3 flex-row items-center gap-2">
-                                    <ActivityIndicator size="small" color={Colors.light.tint} />
-                                    <Text className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                                        Writing a short insight…
-                                    </Text>
-                                </View>
+                                <SkeletonText
+                                    lines={2}
+                                    lineClassName="h-4"
+                                    className="mt-3 gap-2"
+                                    accessibilityLabel="Writing insight"
+                                />
                             ) : (
                                 <Text className="mt-2 text-sm leading-5 text-text-light dark:text-text-dark">
                                     {localInsight}
@@ -277,7 +278,7 @@ export function MemoryGraphSheet({
                         onPress={onDeepen}
                     >
                         {isDeepening ? (
-                            <ActivityIndicator color="#111827" />
+                            <LoadingBar size="sm" accessibilityLabel="Deepening with AI" />
                         ) : (
                             <Text className="text-sm font-bold text-text-light">
                                 Deepen with AI

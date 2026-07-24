@@ -1,15 +1,15 @@
-import React, { useCallback } from 'react';
-import { ActivityIndicator, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import React, { useCallback } from 'react';
+import { View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/journal';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { TintColors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { LoadingBar } from '@/components/ui/LoadingBar';
 import { useMemoryGraph } from '@/hooks/memory/useMemoryGraph';
 import { useMemorySourcePreview } from '@/hooks/memory/useMemorySourcePreview';
 import { useTabNavigation } from '@/hooks/navigation/useTabNavigation';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { MemoryLayer } from '@/services/memory/memoryGraph.types';
 import { MemoryGraphFilters } from './MemoryGraphFilters';
 import { MemoryGraphHeader } from './MemoryGraphHeader';
@@ -77,7 +77,7 @@ export function MemoryGraphScreen({
 
                 {graph.isLoading ? (
                     <View className="absolute inset-0 items-center justify-center">
-                        <ActivityIndicator color={isDark ? TintColors.dark : TintColors.light} />
+                        <LoadingBar size="md" accessibilityLabel="Loading graph" />
                     </View>
                 ) : null}
 

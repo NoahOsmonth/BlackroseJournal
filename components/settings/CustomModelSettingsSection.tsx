@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
+import React, { useState } from 'react';
 import { Alert, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 import { ChatModelPickerSheet } from '@/components/ai/ChatModelPickerSheet';
 import { FreeOnlyPill } from '@/components/ai/FreeModelBadge';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { LoadingBar } from '@/components/ui/LoadingBar';
 import type { UseCustomAiModelsReturn } from '@/hooks/settings/useCustomAiModels';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { filterFreeModels, formatPickerModelName, hostLabelFromBaseUrl } from '@/utils/ai/modelDisplay';
 import { SettingsSection } from './SettingsSection';
 
@@ -49,10 +50,16 @@ function ActionButton({
             accessibilityRole="button"
             accessibilityState={{ disabled: inactive }}
         >
-            <Ionicons name={icon} size={18} color={iconColor} />
-            <Text className="font-bold text-text-light dark:text-text-light">
-                {busy ? 'Working...' : label}
-            </Text>
+            {busy ? (
+                <LoadingBar size="sm" accessibilityLabel={`Working on ${label}`} />
+            ) : (
+                <>
+                    <Ionicons name={icon} size={18} color={iconColor} />
+                    <Text className="font-bold text-text-light dark:text-text-light">
+                        {label}
+                    </Text>
+                </>
+            )}
         </TouchableOpacity>
     );
 }

@@ -1,6 +1,7 @@
+import { MaterialIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
     Alert,
     Pressable,
     ScrollView,
@@ -8,8 +9,6 @@ import {
     TextInput,
     View,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/journal';
@@ -21,6 +20,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { LocalMemoryAtom } from '@/services/memory/localMemory.types';
 import { MemoryAtomCard } from './MemoryAtomCard';
 import { MemoryEmpty } from './MemoryEmpty';
+import { MemoryHubSkeleton } from './MemoryHubSkeleton';
 import { MemoryNotesPanel } from './MemoryNotesPanel';
 import { MemoryPortrait } from './MemoryPortrait';
 import {
@@ -201,9 +201,7 @@ export function MemoryHubScreen() {
                 </View>
 
                 {memory.isLoading && memory.atoms.length === 0 ? (
-                    <View className="py-12">
-                        <ActivityIndicator color={iconMuted} />
-                    </View>
+                    <MemoryHubSkeleton />
                 ) : memory.atoms.length === 0 ? (
                     <MemoryEmpty onWritePress={() => router.push('/chat')} />
                 ) : (

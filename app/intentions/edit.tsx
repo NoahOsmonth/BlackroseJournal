@@ -1,9 +1,10 @@
-import React, { useMemo } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useMemo } from 'react';
+import { Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IntentionForm } from '@/components/intentions/IntentionForm';
+import { IntentionFormSkeleton } from '@/components/intentions/IntentionFormSkeleton';
 import { getIntentionAreaConfig } from '@/constants/intentions';
 import { useIntentionEditor } from '@/hooks/intentions/useIntentionEditor';
 
@@ -38,12 +39,7 @@ export default function IntentionEditScreen() {
     if (isLoading) {
         return (
             <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
-                <View className="flex-1 items-center justify-center">
-                    <ActivityIndicator size="small" color="#FF9F0A" />
-                    <Text className="mt-3 text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                        Loading intention...
-                    </Text>
-                </View>
+                <IntentionFormSkeleton />
             </SafeAreaView>
         );
     }

@@ -1,14 +1,15 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ChatMessage } from '@/components/ChatMessage';
 import { EntryAnalysisPanel } from '@/components/entries/EntryAnalysisPanel';
+import { EntryDetailSkeleton } from '@/components/entries/EntryDetailSkeleton';
 import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
 import { useNavBack } from '@/hooks/navigation/useNavBack';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { generateEntryAnalysis } from '@/services/ai';
 import type { JournalEntry } from '@/services/journal/journalStorage.types';
 
@@ -92,14 +93,7 @@ export default function EntryDetailScreen() {
                     <View className="w-10" />
                 </View>
 
-                {isLoading && (
-                    <View className="flex-1 items-center justify-center">
-                        <ActivityIndicator size="small" color="#E91E63" />
-                        <Text className="mt-3 text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                            Loading entry...
-                        </Text>
-                    </View>
-                )}
+                {isLoading && <EntryDetailSkeleton />}
 
                 {!isLoading && entry && (
                     <ScrollView className="flex-1 px-6" showsVerticalScrollIndicator={false}>

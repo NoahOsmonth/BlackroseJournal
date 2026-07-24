@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
 
 import { useRouter } from 'expo-router';
 
-import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { PersonaForm, PersonaFormValues } from '@/components/personas/PersonaForm';
 import { PersonaGenerateInput } from '@/components/personas/PersonaGenerateInput';
-import { PersonaAvatarKey, PERSONA_VOICES } from '@/constants/personas';
+import { PersonaGenerateSkeleton } from '@/components/personas/PersonaGenerateSkeleton';
+import { ScreenContainer } from '@/components/ui/ScreenContainer';
+import { PERSONA_VOICES, PersonaAvatarKey } from '@/constants/personas';
 import { usePersonas } from '@/hooks/personas/usePersonas';
 import { generatePersonaWithAI } from '@/services/personas/personasAiGeneration';
 
@@ -55,15 +55,7 @@ export default function GeneratePersonaScreen() {
     if (phase === 'generating') {
         return (
             <ScreenContainer edges="all">
-                <View className="flex-1 items-center justify-center px-8">
-                    <ActivityIndicator size="large" color="#FF9F0A" />
-                    <Text className="mt-4 text-[16px] text-text-light dark:text-text-dark">
-                        Crafting your guide…
-                    </Text>
-                    <Text className="mt-1 text-[14px] text-text-secondary-light dark:text-text-secondary-dark text-center">
-                        AI is shaping a name, tone, and voice.
-                    </Text>
-                </View>
+                <PersonaGenerateSkeleton />
             </ScreenContainer>
         );
     }

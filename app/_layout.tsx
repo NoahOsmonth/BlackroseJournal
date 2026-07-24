@@ -3,7 +3,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 // Import reanimated FIRST
@@ -15,11 +15,13 @@ import '../global.css';
 import { AppErrorBoundary } from '@/components/system/AppErrorBoundary';
 import { SupabaseStatusBanner } from '@/components/system/SupabaseStatusBanner';
 import { AppColorThemeProvider } from '@/components/theme/AppColorThemeProvider';
+import { LoadingBar } from '@/components/ui/LoadingBar';
+import { SkeletonProvider } from '@/components/ui/SkeletonProvider';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useThemeSettings } from '@/hooks/useThemeSettings';
-import { registerAllWorkers } from '@/services/workers';
-import { seedDemoDataIfFirstLaunch } from '@/services/seed/seedDemoData';
 import { scheduleMemoryRollupsOnAppOpen } from '@/services/memory/memoryRollupBuild';
+import { seedDemoDataIfFirstLaunch } from '@/services/seed/seedDemoData';
+import { registerAllWorkers } from '@/services/workers';
 
 // Font imports
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
@@ -90,18 +92,17 @@ export default function RootLayout() {
     // Show loading screen while fonts load
     if (!appReady) {
         const bgColor = colorScheme === 'dark' ? '#0f0f23' : '#ffffff';
-        const textColor = colorScheme === 'dark' ? '#ffffff' : '#1a1a2e';
         return (
             <View style={{ flex: 1, backgroundColor: bgColor, justifyContent: 'center', alignItems: 'center' }}>
-                <ActivityIndicator size="large" color={textColor} />
-                <Text style={{ color: textColor, fontSize: 16, marginTop: 16 }}>Loading...</Text>
+                <LoadingBar size="md" accessibilityLabel="Loading app" />
             </View>
         );
     }
 
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>
-            <AppColorThemeProvider>
+            <SkeletonProvider>
+                <AppColorThemeProvider>
                 <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
                     <AppErrorBoundary>
                         <SupabaseStatusBanner />
@@ -127,7 +128,8 @@ export default function RootLayout() {
                         <StatusBar style="auto" />
                     </AppErrorBoundary>
                 </ThemeProvider>
-            </AppColorThemeProvider>
+                </AppColorThemeProvider>
+            </SkeletonProvider>
         </GestureHandlerRootView>
     );
 }

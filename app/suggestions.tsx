@@ -3,14 +3,14 @@
  * Shows HABIT suggestions for an entry and allows adding them to Happiness Recipe.
  */
 
+import { SuggestionsSkeleton } from '@/components/entries/SuggestionsSkeleton';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useEntryReflection } from '@/hooks/useEntryReflection';
 import { useHappinessRecipe } from '@/hooks/useHappinessRecipe';
-import { useThemeColor } from '@/hooks/use-theme-color';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type SuggestionsParams = {
@@ -25,7 +25,6 @@ export default function SuggestionsScreen() {
     const router = useRouter();
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
-    const primaryColor = useThemeColor({}, 'primary');
     const params = useLocalSearchParams<SuggestionsParams>();
 
     const entryId = useMemo(() => {
@@ -78,14 +77,7 @@ export default function SuggestionsScreen() {
                 </View>
 
                 <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
-                    {isLoading && (
-                        <View className="items-center py-10">
-                            <ActivityIndicator size="small" color={primaryColor} />
-                            <Text className="mt-3 text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                                Loading suggestions…
-                            </Text>
-                        </View>
-                    )}
+                    {isLoading && <SuggestionsSkeleton />}
 
                     {!isLoading && error && (
                         <View className="p-4 rounded-xl bg-surface-light dark:bg-surface-dark">

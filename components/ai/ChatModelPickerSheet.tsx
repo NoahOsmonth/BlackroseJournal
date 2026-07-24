@@ -1,6 +1,6 @@
+import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
     FlatList,
     Modal,
     Pressable,
@@ -9,9 +9,10 @@ import {
     useWindowDimensions,
     View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { LoadingBar } from '@/components/ui/LoadingBar';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { CustomAiModel } from '@/services/ai/customModels';
 import { FreeOnlyPill } from './FreeModelBadge';
@@ -38,6 +39,15 @@ type ListItem =
     | { type: 'note' }
     | { type: 'section'; title: string }
     | { type: 'model'; model: CustomAiModel };
+
+function ModelRowSkeleton({ index }: { index: number }) {
+    return (
+        <View className="gap-2 rounded-2xl border border-divider-light bg-background-light p-4 dark:border-divider-dark dark:bg-background-dark">
+            <Skeleton className="h-4 w-32" accessibilityLabel={`Loading model name ${index}`} />
+            <Skeleton className="h-3 w-48" accessibilityLabel={`Loading model description ${index}`} />
+        </View>
+    );
+}
 
 export function ChatModelPickerSheet({
     visible,
@@ -143,7 +153,7 @@ export function ChatModelPickerSheet({
                                     }`}
                                 >
                                     {isFetching ? (
-                                        <ActivityIndicator size="small" color={iconColor} />
+                                        <LoadingBar size="sm" accessibilityLabel="Refreshing models" />
                                     ) : (
                                         <Ionicons name="refresh" size={20} color={iconColor} />
                                     )}
@@ -178,11 +188,10 @@ export function ChatModelPickerSheet({
                             ) : null}
                         </View>
                     ) : isLoading && models.length === 0 ? (
-                        <View className="py-12 items-center gap-3">
-                            <ActivityIndicator color={iconColor} />
-                            <Text className="text-sm text-subtext-light dark:text-subtext-dark">
-                                Loading models…
-                            </Text>
+                        <View className="gap-3 px-4 py-8" accessibilityLabel="Loading models">
+                            {[1, 2, 3, 4].map((index) => (
+                                <ModelRowSkeleton key={index} index={index} />
+                            ))}
                         </View>
                     ) : models.length === 0 ? (
                         <View className="px-4 py-8 items-center gap-3">

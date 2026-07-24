@@ -1,17 +1,20 @@
-import React, { useEffect } from 'react';
+import React, { memo, useEffect } from 'react';
 import { View } from 'react-native';
 import Animated, {
     Easing,
     useAnimatedStyle,
+    useReducedMotion,
     useSharedValue,
     withRepeat,
     withTiming,
 } from 'react-native-reanimated';
 
+import { useSkeletonProgress } from './SkeletonProvider';
+
 interface SkeletonProps {
     /** Tailwind size/shape classes forwarded to the block (e.g. 'h-4 w-48 rounded-md'). */
     className?: string;
-    /** Shimmer sweep duration in ms. Defaults to 1200. */
+    /** Shimmer sweep duration in ms; only applies when no SkeletonProvider is mounted. */
     durationMs?: number;
     /** Accessible label for screen readers. */
     accessibilityLabel?: string;
@@ -21,15 +24,22 @@ interface SkeletonProps {
  * Shimmer-animated placeholder block. A lighter band sweeps repeatedly across a
  * gray base, giving smooth visual continuity during async loads (no frozen look).
  */
-export function Skeleton({
+function SkeletonComponent({
     className = 'rounded-md',
     durationMs = 1200,
     accessibilityLabel = 'Loading',
 }: SkeletonProps) {
-    const progress = useSharedValue(0);
+    const sharedProgress = useSkeletonProgress();
+    const localProgress = useSharedValue(0);
+    const reduceMotion = useReducedMotion();
+    const progress = sharedProgress ?? localProgress;
 
     useEffect(() => {
-        progress.value = withRepeat(
+        if (sharedProgress || reduceMotion) {
+            return;
+        }
+
+        localProgress.value = withRepeat(
             withTiming(1, {
                 duration: durationMs,
                 easing: Easing.inOut(Easing.ease),
@@ -38,20 +48,32 @@ export function Skeleton({
             false
         );
         return () => {
-            progress.value = 0;
+            localProgress.value = 0;
         };
-    }, [progress, durationMs]);
+    }, [durationMs, localProgress, reduceMotion, sharedProgress]);
 
     const shimmerStyle = useAnimatedStyle(() => {
         const translateX = -160 + progress.value * 320;
         return { transform: [{ translateX }] };
     });
 
+    const baseClassName = `overflow-hidden bg-divider-light/80 dark:bg-divider-dark/80 ${className}`;
+
+    if (reduceMotion) {
+        return (
+            <View
+                accessibilityLabel={accessibilityLabel}
+                accessibilityRole="progressbar"
+                className={baseClassName}
+            />
+        );
+    }
+
     return (
         <View
             accessibilityLabel={accessibilityLabel}
             accessibilityRole="progressbar"
-            className={`overflow-hidden bg-divider-light/80 dark:bg-divider-dark/80 ${className}`}
+            className={baseClassName}
         >
             <Animated.View
                 style={shimmerStyle}
@@ -60,3 +82,10 @@ export function Skeleton({
         </View>
     );
 }
+
+export const Skeleton = memo(
+    SkeletonComponent,
+    (previous, next) => previous.className === next.className
+        && previous.durationMs === next.durationMs
+        && previous.accessibilityLabel === next.accessibilityLabel
+);

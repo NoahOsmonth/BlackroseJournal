@@ -1,14 +1,15 @@
-import React, { useMemo } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useLocalSearchParams } from 'expo-router';
+import React, { useMemo } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { IntentionCheckIn } from '@/services/intentions/intentionsStorage.types';
 import { ChatMessage } from '@/components/ChatMessage';
+import { CheckInDetailSkeleton } from '@/components/intentions/CheckInDetailSkeleton';
 import { useCheckInDetail } from '@/hooks/intentions/useCheckInDetail';
 import { useNavBack } from '@/hooks/navigation/useNavBack';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { IntentionCheckIn } from '@/services/intentions/intentionsStorage.types';
 
 function resolveLabel(checkIn: IntentionCheckIn): string {
     if (checkIn.type === 'evening') return 'Evening Reflection';
@@ -45,14 +46,7 @@ export default function CheckInDetailScreen() {
                     <View className="w-10" />
                 </View>
 
-                {isLoading && (
-                    <View className="flex-1 items-center justify-center">
-                        <ActivityIndicator size="small" color="#FF9F0A" />
-                        <Text className="mt-3 text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                            Loading check-in...
-                        </Text>
-                    </View>
-                )}
+                {isLoading && <CheckInDetailSkeleton />}
 
                 {!isLoading && !checkIn && (
                     <View className="flex-1 items-center justify-center">

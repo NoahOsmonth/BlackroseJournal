@@ -1,5 +1,5 @@
-import React from 'react';
 import { render } from '@testing-library/react-native';
+import React from 'react';
 
 import { EntryAnalysisPanel } from '../../components/entries/EntryAnalysisPanel';
 
@@ -23,5 +23,16 @@ describe('EntryAnalysisPanel', () => {
         expect(getByText('Hopeful')).toBeTruthy();
         expect(getByText('Morning')).toBeTruthy();
         expect(getByText('Energy')).toBeTruthy();
+    });
+
+    it('renders shaped placeholders while analysis is generated', () => {
+        const { getByLabelText, queryByText } = render(
+            <EntryAnalysisPanel isLoading />
+        );
+
+        expect(getByLabelText('Loading analysis')).toBeTruthy();
+        expect(getByLabelText('Loading analysis insight line 1')).toBeTruthy();
+        expect(getByLabelText('Loading analysis topic 3')).toBeTruthy();
+        expect(queryByText('Generating analysis...')).toBeNull();
     });
 });

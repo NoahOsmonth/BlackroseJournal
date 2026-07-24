@@ -3,13 +3,13 @@
  * (Task 003) Celebrates the user's current streak with an AI-generated haiku.
  */
 
+import { StreakHaikuSkeleton } from '@/components/streak/StreakHaikuSkeleton';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useThemeColor } from '@/hooks/use-theme-color';
 import { useStreakHaiku } from '@/hooks/useStreakHaiku';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type StreakHaikuParams = {
@@ -20,7 +20,6 @@ export default function StreakHaikuScreen() {
     const router = useRouter();
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
-    const primaryColor = useThemeColor({}, 'primary');
     const params = useLocalSearchParams<StreakHaikuParams>();
 
     const entryId = useMemo(() => {
@@ -63,14 +62,7 @@ export default function StreakHaikuScreen() {
                     </View>
 
                     <View className="mt-8 p-6 rounded-2xl bg-surface-light dark:bg-surface-dark">
-                        {isLoading && (
-                            <View className="items-center">
-                                <ActivityIndicator size="small" color={primaryColor} />
-                                <Text className="mt-3 text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                                    Writing your haiku…
-                                </Text>
-                            </View>
-                        )}
+                        {isLoading && <StreakHaikuSkeleton />}
 
                         {!isLoading && error && (
                             <>

@@ -1,5 +1,8 @@
 import React from 'react';
 import { Text, View } from 'react-native';
+
+import { Skeleton } from '@/components/ui/Skeleton';
+import { SkeletonText } from '@/components/ui/SkeletonText';
 import type { JournalEntryAnalysis } from '@/services/journal/journalStorage.types';
 
 interface EntryAnalysisPanelProps {
@@ -10,10 +13,19 @@ interface EntryAnalysisPanelProps {
 export function EntryAnalysisPanel({ analysis, isLoading = false }: EntryAnalysisPanelProps) {
     if (isLoading && !analysis) {
         return (
-            <View className="rounded-2xl bg-surface-light dark:bg-surface-dark p-5">
-                <Text className="text-sm font-semibold text-text-light dark:text-text-dark">
-                    Generating analysis...
-                </Text>
+            <View className="gap-4 rounded-2xl bg-surface-light dark:bg-surface-dark p-5" accessibilityLabel="Loading analysis">
+                <Skeleton className="h-3 w-16" accessibilityLabel="Loading analysis label" />
+                <Skeleton className="h-3 w-12" accessibilityLabel="Loading insight label" />
+                <SkeletonText lines={2} accessibilityLabel="Loading analysis insight" />
+                <Skeleton className="h-3 w-12" accessibilityLabel="Loading quote label" />
+                <SkeletonText lines={2} accessibilityLabel="Loading analysis quote" />
+                <Skeleton className="h-3 w-28" accessibilityLabel="Loading mood topics label" />
+                <Skeleton className="h-4 w-20" accessibilityLabel="Loading analysis mood" />
+                <View className="flex-row gap-2">
+                    {[1, 2, 3].map((index) => (
+                        <Skeleton key={index} className="h-6 w-16 rounded-full" accessibilityLabel={`Loading analysis topic ${index}`} />
+                    ))}
+                </View>
             </View>
         );
     }
