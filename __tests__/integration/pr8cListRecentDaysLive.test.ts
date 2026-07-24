@@ -15,6 +15,7 @@ import {
     MAX_AGENT_TOOL_ROUNDS,
     runAgentTurnWithTools,
 } from '../../services/ai/agentLoop';
+import * as executeTool from '../../services/ai/tools/executeTool';
 import {
     resetCustomModelStorageAdapter,
     setCustomModelStorageAdapter,
@@ -234,17 +235,38 @@ describeMaybe('PR8c live list_recent_days + search regression (PROBE_LLM=1)', ()
         // eslint-disable-next-line no-console
         console.log(`[pr8c-live] Q_oldest attempt=${attemptCount} maxRounds=${MAX_AGENT_TOOL_ROUNDS}`);
 
-        const agent = await runAgentTurnWithTools({
-            systemPrompt,
-            messages,
-            model,
-            generation: { temperature: 0.2, maxTokens: 1_024 },
-            maxRounds: MAX_AGENT_TOOL_ROUNDS,
+        const toolLog: string[] = [];
+        const origExec = executeTool.executeToolCalls.bind(executeTool);
+        const spy = jest.spyOn(executeTool, 'executeToolCalls').mockImplementation(async (calls) => {
+            for (const c of calls) {
+                toolLog.push(`TOOL_CALL name=${c.name} args=${c.arguments}`);
+            }
+            const results = await origExec(calls);
+            for (const r of results) {
+                toolLog.push(
+                    `TOOL_RESULT name=${r.name} isError=${Boolean(r.isError)} preview=${r.content.slice(0, 600)}`
+                );
+            }
+            return results;
         });
+
+        let agent;
+        try {
+            agent = await runAgentTurnWithTools({
+                systemPrompt,
+                messages,
+                model,
+                generation: { temperature: 0.2, maxTokens: 1_024 },
+                maxRounds: MAX_AGENT_TOOL_ROUNDS,
+            });
+        } finally {
+            spy.mockRestore();
+        }
 
         const transcript = [
             `MODEL: ${model}`,
             `ATTEMPT: ${attemptCount} (first take)`,
+            `HARNESS: PROBE_LLM=1 jest __tests__/integration/pr8cListRecentDaysLive.test.ts`,
             `QUESTION: ${question}`,
             `TARGET: ${listOnly.title} / ${listOnly.dateISO}`,
             `ROUNDS: ${agent.rounds}`,
@@ -252,6 +274,8 @@ describeMaybe('PR8c live list_recent_days + search regression (PROBE_LLM=1)', ()
             `STOP: ${agent.stopReason}`,
             `USAGE: ${JSON.stringify(agent.usage ?? null)}`,
             `CUMULATIVE_PROMPT_TOKENS: ${agent.cumulativePromptTokens}`,
+            '--- TOOL_TRACE ---',
+            ...toolLog,
             '--- FINAL ---',
             agent.content,
         ].join('\n');
@@ -286,17 +310,38 @@ describeMaybe('PR8c live list_recent_days + search regression (PROBE_LLM=1)', ()
             { id: 'u2', role: 'user', content: question, timestamp: Date.now() },
         ];
 
-        const agent = await runAgentTurnWithTools({
-            systemPrompt,
-            messages,
-            model,
-            generation: { temperature: 0.2, maxTokens: 1_024 },
-            maxRounds: MAX_AGENT_TOOL_ROUNDS,
+        const toolLog: string[] = [];
+        const origExec = executeTool.executeToolCalls.bind(executeTool);
+        const spy = jest.spyOn(executeTool, 'executeToolCalls').mockImplementation(async (calls) => {
+            for (const c of calls) {
+                toolLog.push(`TOOL_CALL name=${c.name} args=${c.arguments}`);
+            }
+            const results = await origExec(calls);
+            for (const r of results) {
+                toolLog.push(
+                    `TOOL_RESULT name=${r.name} isError=${Boolean(r.isError)} preview=${r.content.slice(0, 600)}`
+                );
+            }
+            return results;
         });
+
+        let agent;
+        try {
+            agent = await runAgentTurnWithTools({
+                systemPrompt,
+                messages,
+                model,
+                generation: { temperature: 0.2, maxTokens: 1_024 },
+                maxRounds: MAX_AGENT_TOOL_ROUNDS,
+            });
+        } finally {
+            spy.mockRestore();
+        }
 
         const transcript = [
             `MODEL: ${model}`,
             `ATTEMPT: ${attemptCount} (first take)`,
+            `HARNESS: PROBE_LLM=1 jest __tests__/integration/pr8cListRecentDaysLive.test.ts`,
             `QUESTION: ${question}`,
             `TARGET: ${SEMANTIC_NEEDLE_TOKEN}`,
             `ROUNDS: ${agent.rounds}`,
@@ -304,6 +349,8 @@ describeMaybe('PR8c live list_recent_days + search regression (PROBE_LLM=1)', ()
             `STOP: ${agent.stopReason}`,
             `USAGE: ${JSON.stringify(agent.usage ?? null)}`,
             `CUMULATIVE_PROMPT_TOKENS: ${agent.cumulativePromptTokens}`,
+            '--- TOOL_TRACE ---',
+            ...toolLog,
             '--- FINAL ---',
             agent.content,
         ].join('\n');

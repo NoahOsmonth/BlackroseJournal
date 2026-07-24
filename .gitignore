@@ -1,4 +1,4 @@
-﻿# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
 # dependencies
 node_modules/
@@ -67,6 +67,15 @@ t3-pet-prompt.json
 
 # OMC agent tool state
 .omc/
+
+# OMO agent state
+.omo/
+
+# Build artifacts
+app-release.apk
+
+# Windows stray file
+nul
 
 # Design probe caches / large vectors (never commit)
 .probe-cache/

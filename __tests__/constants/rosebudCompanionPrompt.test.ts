@@ -16,15 +16,21 @@ import {
     estimateCompanionPromptTokens,
 } from '../../constants/rosebudCompanionPrompt';
 import { HISTORY_TOOLS_POLICY } from '../../services/ai/tools';
+import { estimateTokens } from '../../services/ai/promptBudget';
 import { shouldEnableHistoryTools } from '../../services/ai/ai';
 import type { Message } from '../../services/ai/chatTypes';
 import { buildClockContext } from '../../utils/date';
 import { formatIdentityContext } from '../../services/memory/identityProfile';
 import type { IdentityProfile } from '../../services/memory/identityProfile.types';
+import { FLOWS } from '../../features/chat/flows';
 
 describe('Rosebud companion system prompt — PR8b-1 budget', () => {
     it('static companion est tokens stay under COMPANION_PROMPT_BUDGET (hard cap)', () => {
-        const est = estimateCompanionPromptTokens(ROSEBUD_COMPANION_SYSTEM_PROMPT);
+        // Shared estimator (promptBudget.estimateTokens) must match companion helper.
+        expect(estimateCompanionPromptTokens(ROSEBUD_COMPANION_SYSTEM_PROMPT)).toBe(
+            estimateTokens(ROSEBUD_COMPANION_SYSTEM_PROMPT),
+        );
+        const est = estimateTokens(ROSEBUD_COMPANION_SYSTEM_PROMPT);
         expect(est).toBe(ROSEBUD_COMPANION_EST_TOKENS);
         expect(est).toBeLessThanOrEqual(COMPANION_PROMPT_BUDGET);
         expect(COMPANION_PROMPT_BUDGET).toBe(5000);
@@ -96,6 +102,36 @@ describe('Rosebud companion — load-bearing doctrine', () => {
             'Do not invent identity details that are not listed. If a fact conflicts with the live message, trust the live message and treat the stored value as possibly outdated.',
         );
         expect(ctx).toContain('Preferred name: Sigurd');
+    });
+
+    /**
+     * Identity render regression post-diet: preferredName still injects into freeform assemble.
+     */
+    it('freeform composeSystemPrompt injects Preferred name when identity context is present', () => {
+        const identityContext = formatIdentityContext({
+            schemaVersion: 1,
+            preferredName: {
+                value: 'Ren',
+                confidence: 1,
+                source: 'manual',
+                updatedAt: 1,
+            },
+            keyPeople: [],
+            facts: [],
+            updatedAt: 1,
+        });
+        expect(identityContext).toContain('Preferred name: Ren');
+        const assembled = FLOWS.freeform.buildSystemPrompt({
+            now: new Date(2026, 6, 18, 21, 57, 0).getTime(),
+            identityContext,
+        });
+        expect(assembled).toContain(ROSEBUD_COMPANION_SYSTEM_PROMPT);
+        expect(assembled).toContain('## Clock');
+        expect(assembled).toContain('## Date doctrine (write day vs event day)');
+        expect(assembled).toContain('Preferred name: Ren');
+        expect(assembled).toContain(
+            'Do not invent identity details that are not listed. If a fact conflicts with the live message, trust the live message and treat the stored value as possibly outdated.',
+        );
     });
 
     it('static companion keeps safety/crisis stance', () => {

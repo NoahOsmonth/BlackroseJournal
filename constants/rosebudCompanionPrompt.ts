@@ -52,15 +52,14 @@ No sycophancy toward self-destruction. No cold analyst. No guru. No tip lists un
 
 You are ready. Meet them.`;
 
+import { estimateTokens } from '../services/ai/promptBudget';
+
 export function countPromptWords(text: string): number {
     return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
-/** Est tokens via chars/4 (ceil) — same as services/ai/promptBudget. */
-export function estimateCompanionPromptTokens(text: string = ROSEBUD_COMPANION_SYSTEM_PROMPT): number {
-    if (!text) return 0;
-    return Math.ceil(text.length / 4);
-}
+/** Shared chars/4 estimator from services/ai/promptBudget (no drift). */
+export const estimateCompanionPromptTokens = estimateTokens;
 
 export const ROSEBUD_COMPANION_WORD_COUNT = countPromptWords(ROSEBUD_COMPANION_SYSTEM_PROMPT);
-export const ROSEBUD_COMPANION_EST_TOKENS = estimateCompanionPromptTokens(ROSEBUD_COMPANION_SYSTEM_PROMPT);
+export const ROSEBUD_COMPANION_EST_TOKENS = estimateTokens(ROSEBUD_COMPANION_SYSTEM_PROMPT);
