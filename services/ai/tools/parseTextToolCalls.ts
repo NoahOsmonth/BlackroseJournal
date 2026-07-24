@@ -345,7 +345,7 @@ export function looksLikeToolDump(content: string): boolean {
     ];
     const markerHit = markers.some((m) => lower.includes(m));
     const fnHit = new RegExp(`\\b(${TOOL_NAME_RE})\\s*\\(`, 'i').test(text);
-    const jsonHit = /"name"\s*:\s*"(get_clock|list_recent_days|get_day|get_conversation|search_history)"/.test(text);
+    const jsonHit = /"(?:name|tool|function)"\s*:\s*"(get_clock|list_recent_days|get_day|get_conversation|search_history|get_identity|update_identity)"/.test(text);
 
     if (!(markerHit || fnHit || jsonHit)) return false;
 

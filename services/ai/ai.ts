@@ -22,6 +22,7 @@ import {
 } from './streamingTransports';
 import { runAgentTurnWithTools, ToolsUnsupportedError } from './agentLoop';
 import { augmentSystemPromptForTurn, detectHistoryIntent } from './historyPrefetch';
+import { HISTORY_TOOLS_POLICY } from './tools';
 import {
     compactConversationIfNeeded,
     DEFAULT_COMPACT_CONTEXT_WINDOW,
@@ -250,6 +251,8 @@ export async function streamChat(
                     } else {
                         console.warn('History agent loop failed, falling back to stream:', error);
                     }
+                    // Fix 3: remove tools policy so the stream model does not emit tool syntax.
+                    systemPrompt = systemPrompt.replace(HISTORY_TOOLS_POLICY, '').trim();
                 }
             } else {
                 logToolTelemetry('stream_inject_only', { model: activeModelId, mode: capability.mode });
@@ -282,8 +285,14 @@ export async function streamChat(
             resolved.generation
         );
 
+        // Fix 3: strip any residual tool syntax from the final streamed content.
+        const safeOnComplete: CompleteCallback = (content, reasoning) => {
+            const stripped = stripToolCallSyntax(content).trim();
+            onComplete(stripped || content, reasoning);
+        };
+
         const xhrResult = await streamChatWithXhr(
-            streamPayload, onChunk, onComplete
+            streamPayload, onChunk, safeOnComplete
         ).catch((error) => {
             console.warn('XMLHttpRequest streaming fallback failed:', error);
             return { ok: false as const, usage: null };
@@ -300,14 +309,14 @@ export async function streamChat(
             throw await buildResponseError(response, 'AI request failed', streamingAvailable);
         }
         if (streamingAvailable && response.body) {
-            const streamUsage = await readStreamResponse(response.body, onChunk, onComplete);
+            const streamUsage = await readStreamResponse(response.body, onChunk, safeOnComplete);
             logStreamBudget(streamUsage);
             return;
         }
         const fallbackResult = await readNonStreamingResponse(response);
         logStreamBudget(fallbackResult.usage ?? null);
         await emitSimulatedStreaming(fallbackResult, onChunk);
-        onComplete(fallbackResult.content, fallbackResult.reasoning);
+        safeOnComplete(fallbackResult.content, fallbackResult.reasoning);
     } catch (error) {
         onError(normalizeUnknownError(error));
     }

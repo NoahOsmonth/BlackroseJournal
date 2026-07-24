@@ -8,6 +8,9 @@
 import {
     fetchDirectChatCompletion,
     prepareDirectChatRequest,
+    clearModelUnavailableCache,
+    isModelCachedUnavailable,
+    getLastResolvedModel,
 } from '../../../services/ai/directTransport';
 import { getResolvedDirectConfig } from '../../../services/ai/directConfig';
 import { loadCustomAiProviderSettings } from '../../../services/ai/customModels';
@@ -359,5 +362,170 @@ describe('directTransport — self-heal retries + model cascade', () => {
 
         expect(response.status).toBe(401);
         expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('directTransport — model unavailability cache (Fix 1)', () => {
+    const originalFetch = global.fetch;
+    let fetchMock: jest.Mock;
+
+    beforeEach(() => {
+        clearModelUnavailableCache();
+        fetchMock = jest.fn();
+        global.fetch = fetchMock as unknown as typeof fetch;
+        jest.mocked(getResolvedDirectConfig).mockResolvedValue({
+            apiKey: 'sk-or',
+            apiBaseUrl: 'https://openrouter.ai/api/v1',
+            model: 'dead/missing-7b:free',
+            flashModel: 'dead/missing-7b:free',
+            source: 'env',
+        });
+        jest.mocked(loadCustomAiProviderSettings).mockResolvedValue({
+            enabled: false,
+            baseUrl: 'https://openrouter.ai/api/v1',
+            apiKey: '',
+            selectedModelId: null,
+            models: [
+                {
+                    id: 'meta/llama-70b-instruct:free',
+                    contextWindow: 128_000,
+                    contextWindowSource: 'known',
+                },
+            ],
+            freeOnly: true,
+            recentModelIds: [],
+            fallbackContextWindow: 128_000,
+            updatedAt: 0,
+        });
+    });
+
+    afterEach(() => {
+        global.fetch = originalFetch;
+        clearModelUnavailableCache();
+        jest.restoreAllMocks();
+    });
+
+    it('caches model as unavailable after 404 and skips it on next request', async () => {
+        // First request: 404 on primary, 200 on fallback
+        fetchMock
+            .mockResolvedValueOnce(
+                new Response(
+                    JSON.stringify({ error: { message: 'No endpoints found' } }),
+                    { status: 404 }
+                )
+            )
+            .mockResolvedValueOnce(new Response(JSON.stringify({ choices: [] }), { status: 200 }));
+
+        await fetchDirectChatCompletion({
+            model: 'dead/missing-7b:free',
+            messages: [{ role: 'user', content: 'hi' }],
+            stream: false,
+        });
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+
+        // Model is now cached as unavailable
+        expect(isModelCachedUnavailable('dead/missing-7b:free')).toBe(true);
+
+        // Second request: should skip primary entirely, go straight to fallback
+        fetchMock.mockResolvedValueOnce(
+            new Response(JSON.stringify({ choices: [] }), { status: 200 })
+        );
+
+        await fetchDirectChatCompletion({
+            model: 'dead/missing-7b:free',
+            messages: [{ role: 'user', content: 'hi again' }],
+            stream: false,
+        });
+
+        // Only 1 fetch call (the fallback) — primary was skipped
+        expect(fetchMock).toHaveBeenCalledTimes(3);
+        const lastBody = JSON.parse(
+            String((fetchMock.mock.calls[2][1] as RequestInit).body)
+        ) as { model: string };
+        expect(lastBody.model).not.toBe('dead/missing-7b:free');
+    });
+
+    it('clearModelUnavailableCache resets the cache', async () => {
+        fetchMock
+            .mockResolvedValueOnce(
+                new Response(
+                    JSON.stringify({ error: { message: 'No endpoints found' } }),
+                    { status: 404 }
+                )
+            )
+            .mockResolvedValueOnce(new Response(JSON.stringify({ choices: [] }), { status: 200 }));
+
+        await fetchDirectChatCompletion({
+            model: 'dead/missing-7b:free',
+            messages: [{ role: 'user', content: 'hi' }],
+            stream: false,
+        });
+
+        expect(isModelCachedUnavailable('dead/missing-7b:free')).toBe(true);
+        clearModelUnavailableCache();
+        expect(isModelCachedUnavailable('dead/missing-7b:free')).toBe(false);
+    });
+
+    it('isModelCachedUnavailable returns false for agent-default and null', () => {
+        expect(isModelCachedUnavailable('agent-default')).toBe(false);
+        expect(isModelCachedUnavailable(null)).toBe(false);
+        expect(isModelCachedUnavailable(undefined)).toBe(false);
+    });
+});
+
+describe('directTransport — getLastResolvedModel (Fix 2)', () => {
+    const originalFetch = global.fetch;
+    let fetchMock: jest.Mock;
+
+    beforeEach(() => {
+        clearModelUnavailableCache();
+        fetchMock = jest.fn();
+        global.fetch = fetchMock as unknown as typeof fetch;
+        jest.mocked(getResolvedDirectConfig).mockResolvedValue({
+            apiKey: 'sk-or',
+            apiBaseUrl: 'https://openrouter.ai/api/v1',
+            model: 'dead/missing-7b:free',
+            flashModel: 'dead/missing-7b:free',
+            source: 'env',
+        });
+        jest.mocked(loadCustomAiProviderSettings).mockResolvedValue({
+            enabled: false,
+            baseUrl: 'https://openrouter.ai/api/v1',
+            apiKey: '',
+            selectedModelId: null,
+            models: [],
+            freeOnly: true,
+            recentModelIds: [],
+            fallbackContextWindow: 128_000,
+            updatedAt: 0,
+        });
+    });
+
+    afterEach(() => {
+        global.fetch = originalFetch;
+        clearModelUnavailableCache();
+        jest.restoreAllMocks();
+    });
+
+    it('tracks the model that actually served the request after self-heal', async () => {
+        fetchMock
+            .mockResolvedValueOnce(
+                new Response(
+                    JSON.stringify({ error: { message: 'No endpoints found' } }),
+                    { status: 404 }
+                )
+            )
+            .mockResolvedValueOnce(new Response(JSON.stringify({ choices: [] }), { status: 200 }));
+
+        await fetchDirectChatCompletion({
+            model: 'dead/missing-7b:free',
+            messages: [{ role: 'user', content: 'hi' }],
+            stream: false,
+        });
+
+        // The resolved model should be the fallback, not the dead primary
+        const resolved = getLastResolvedModel();
+        expect(resolved).not.toBe('dead/missing-7b:free');
+        expect(resolved).toBeTruthy();
     });
 });

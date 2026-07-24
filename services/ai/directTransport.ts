@@ -56,6 +56,48 @@ const BASE_BACKOFF_MS = 250;
 /** Cap how many alternate models we try after the primary is missing. */
 const MAX_MODEL_FALLBACKS = 3;
 
+// ---------------------------------------------------------------------------
+// Model-unavailability TTL cache (Fix 1): skip known-dead models on repeat
+// requests instead of re-discovering the 404 every turn.
+// ---------------------------------------------------------------------------
+const UNAVAILABLE_TTL_MS = 5 * 60 * 1000;
+const modelUnavailableCache = new Map<string, number>(); // modelId -> expiry ts
+
+function isCachedUnavailable(model: string): boolean {
+    const expiry = modelUnavailableCache.get(model);
+    if (!expiry) return false;
+    if (Date.now() > expiry) {
+        modelUnavailableCache.delete(model);
+        return false;
+    }
+    return true;
+}
+
+function cacheUnavailable(model: string): void {
+    modelUnavailableCache.set(model, Date.now() + UNAVAILABLE_TTL_MS);
+}
+
+/** Public: check whether a model id is currently cached as unavailable. */
+export function isModelCachedUnavailable(model: string | undefined | null): boolean {
+    if (!model || model === 'agent-default') return false;
+    return isCachedUnavailable(model);
+}
+
+/** Clear the unavailability cache (tests, settings change). */
+export function clearModelUnavailableCache(): void {
+    modelUnavailableCache.clear();
+}
+
+// ---------------------------------------------------------------------------
+// Last resolved model (Fix 2): let the UI reflect self-heal model switches.
+// ---------------------------------------------------------------------------
+let lastResolvedModel: string | null = null;
+
+/** The model that actually served the most recent successful request. */
+export function getLastResolvedModel(): string | null {
+    return lastResolvedModel;
+}
+
 function buildUrl(apiBaseUrl: string): string {
     const base = apiBaseUrl.endsWith('/') ? apiBaseUrl.slice(0, -1) : apiBaseUrl;
     return `${base}/chat/completions`;
@@ -244,6 +286,26 @@ async function fetchWithSelfHeal(
         const model = modelQueue.shift()!;
         if (triedModels.has(model)) continue;
         triedModels.add(model);
+
+        // Fix 1: skip models cached as unavailable — go straight to fallbacks.
+        if (isCachedUnavailable(model)) {
+            if (!fallbacksLoaded) {
+                fallbacksLoaded = true;
+                const fallbacks = await resolveModelFallbacks(primaryModel, config);
+                for (const next of fallbacks) {
+                    if (!triedModels.has(next) && !modelQueue.includes(next)) {
+                        modelQueue.push(next);
+                    }
+                }
+                if (fallbacks.length > 0) {
+                    console.info(
+                        `[ai] self-heal: ${model} cached-unavailable; trying ${fallbacks.join(', ')}`
+                    );
+                }
+            }
+            continue;
+        }
+
         request.body.model = model;
 
         for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
@@ -256,6 +318,7 @@ async function fetchWithSelfHeal(
             const outcome = await singleFetch(request, options);
 
             if (outcome.kind === 'ok') {
+                lastResolvedModel = model;
                 if (model !== primaryModel) {
                     console.info(
                         `[ai] self-heal: switched model ${primaryModel} → ${model} after model error`
@@ -284,6 +347,7 @@ async function fetchWithSelfHeal(
             lastError = null;
 
             if (outcome.modelMissing) {
+                cacheUnavailable(model);
                 if (!fallbacksLoaded) {
                     fallbacksLoaded = true;
                     const fallbacks = await resolveModelFallbacks(primaryModel, config);

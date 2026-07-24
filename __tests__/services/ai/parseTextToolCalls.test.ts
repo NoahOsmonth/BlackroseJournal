@@ -77,6 +77,17 @@ describe('looksLikeToolDump', () => {
         expect(looksLikeToolDump('tool_call\nget_clock()')).toBe(true);
         expect(looksLikeToolDump('How was your day?')).toBe(false);
     });
+
+    it('detects {"tool": "X"} JSON format (Fix 4)', () => {
+        expect(looksLikeToolDump('{"tool": "search_history", "query": "app project"}')).toBe(true);
+        expect(looksLikeToolDump('{"tool": "get_day", "date": "yesterday"}')).toBe(true);
+        expect(looksLikeToolDump('{"function": "get_clock"}')).toBe(true);
+    });
+
+    it('detects {"name": "X"} JSON format with newer tool names', () => {
+        expect(looksLikeToolDump('{"name": "get_identity"}')).toBe(true);
+        expect(looksLikeToolDump('{"name": "update_identity", "arguments": {}}')).toBe(true);
+    });
 });
 
 describe('formatToolResultsForModel', () => {

@@ -1,4 +1,4 @@
-import { prepareDirectChatRequest, fetchDirectChatCompletion } from './directTransport';
+import { prepareDirectChatRequest, fetchDirectChatCompletion, isModelCachedUnavailable } from './directTransport';
 import {
     ChatAccumulator,
     ChatRequestPayload,
@@ -44,6 +44,8 @@ export async function streamChatWithXhr(
     onComplete: CompleteCallback
 ): Promise<StreamXhrResult> {
     if (!hasXmlHttpRequest()) return { ok: false, usage: null };
+    // Fix 5: skip XHR when primary model is known-unavailable (let fetch+self-heal handle it)
+    if (isModelCachedUnavailable(payload.model)) return { ok: false, usage: null };
     const request = await prepareDirectChatRequest(payload);
     return new Promise((resolve, reject) => {
         const xhr = new globalThis.XMLHttpRequest();
