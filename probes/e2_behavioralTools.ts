@@ -3,21 +3,21 @@
  * Hard cap 6 rounds. Q1 semantic needle, Q2 list-only needle.
  */
 
-import {
-    SEMANTIC_NEEDLE_TOKEN,
-    buildProbeFixture,
-    type ProbeFixture,
-} from './shared/fixture';
-import { executeProbeTool, PROBE_TOOL_SPECS } from './shared/fixtureTools';
+import { writeArtifact, writeJsonArtifact } from './shared/artifacts';
 import {
     chatCompletion,
     extractAssistantMessage,
     type ChatMessage,
     type ChatUsage,
 } from './shared/chatClient';
+import {
+    buildProbeFixture,
+    SEMANTIC_NEEDLE_TOKEN,
+    type ProbeFixture,
+} from './shared/fixture';
+import { executeProbeTool, PROBE_TOOL_SPECS } from './shared/fixtureTools';
 import { applyProbeEnv } from './shared/loadEnv';
 import { ROSTER_VERBATIM } from './shared/roster';
-import { writeJsonArtifact, writeArtifact } from './shared/artifacts';
 
 const MAX_ROUNDS = 6;
 
@@ -322,7 +322,7 @@ export async function runE2(): Promise<{
         list.push(r);
         byModel.set(r.model, list);
     }
-    let bestModel = flashModel;
+    let bestModel: string = flashModel;
     let bestScore = -Infinity;
     for (const [model, list] of byModel) {
         const score = list.reduce((s, r) => {

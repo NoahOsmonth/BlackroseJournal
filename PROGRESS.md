@@ -12,6 +12,11 @@
 - [x] **TOOL-CODEX-001**: Codex CLI with OMO Light Edition
 
 ## Updates
+- **2026-07-24**: **Green-gate cleanup** — brought all four gates to green after the skeleton redesign and AI import refactor.
+  - `tsc --noEmit`: fixed the five outstanding errors — widened `IdentitySettingsSection` `onConfirmPending`/`onDismissPending` prop types to `void | Promise<unknown>` (the hook returns `Promise<IdentityProfile>`, callbacks are fire-and-forget), cast-through-`unknown` for the `window.confirm` mock in `IdentitySettingsSection.test.tsx`, typed `bestModel` as `string` in `probes/e2_behavioralTools.ts`, and added `id`/`timestamp` to the probe `Message` in `probes/e4_triggerCoverage.ts`.
+  - `lint`: 13.7k errors were ESLint scanning the minified `dist-prod/` bundle — added `dist-prod/*` to `eslint.config.js` ignores (build output must not be linted). Now 0 errors (only pre-existing unused-`eslint-disable` warnings).
+  - `test`: fixed 7 failing suites. Added `/__tests__/mocks/` to Jest `testPathIgnorePatterns` so the shared `reanimatedMock` helper is not run as a suite; reordered the 5 skeleton tests so `mockReanimated` is imported before the component (hoisted `jest.mock` factory needs the mock module required first). Removed a regression `.trim()` in `services/ai/ai.ts` `safeOnComplete` (introduced in 073a9ff) that stripped legitimate trailing whitespace and broke streaming-fidelity in `ai-service.test.ts` — `stripToolCallSyntax` already trims only when it removes a tool dump.
+  - Result: `tsc` 0, `lint` 0 errors, `check:design` 0 errors, `npm test` 813 passed / 0 failed.
 - **2026-07-24**: **Skeleton loading redesign** — eliminated every `ActivityIndicator` from app routes and components.
   - Added shared shimmer infrastructure: `SkeletonProvider` supplies one animation driver to mounted skeletons; `Skeleton` supports provider fallback, memoization, and system reduced-motion static blocks; `SkeletonText` creates accessible paragraph-shaped placeholders.
   - Replaced post-finish, journal, suggestions, persona, intention, memory, check-in, graph source, model picker, analysis, boot, overlay, and busy-action loading states with composed skeletons or `LoadingBar` as appropriate. Included a `CheckInDetailSkeleton` for the previously unplanned check-in spinner so no circle loader remains.

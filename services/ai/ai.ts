@@ -283,8 +283,10 @@ export async function streamChat(
         );
 
         // Fix 3: strip any residual tool syntax from the final streamed content.
+        // stripToolCallSyntax already trims when it removes a tool dump and otherwise
+        // preserves the content verbatim, so we must not re-trim legitimate output here.
         const safeOnComplete: CompleteCallback = (content, reasoning) => {
-            const stripped = stripToolCallSyntax(content).trim();
+            const stripped = stripToolCallSyntax(content);
             onComplete(stripped || content, reasoning);
         };
 

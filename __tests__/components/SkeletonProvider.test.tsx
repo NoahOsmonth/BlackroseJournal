@@ -2,10 +2,12 @@ import { render, screen } from '@testing-library/react-native';
 import React from 'react';
 import { Text } from 'react-native';
 
-import { SkeletonProvider, useSkeletonProgress } from '../../components/ui/SkeletonProvider';
 import { mockReanimated } from '../mocks/reanimatedMock';
 
 jest.mock('react-native-reanimated', () => mockReanimated());
+
+import { SkeletonProvider, useSkeletonProgress } from '../../components/ui/SkeletonProvider';
+
 
 function ProgressProbe() {
     const progress = useSkeletonProgress();

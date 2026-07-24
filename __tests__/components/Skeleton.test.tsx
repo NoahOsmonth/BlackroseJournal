@@ -1,10 +1,12 @@
 import { render, screen } from '@testing-library/react-native';
 import React from 'react';
 
-import { Skeleton } from '../../components/ui/Skeleton';
 import { mockReanimated } from '../mocks/reanimatedMock';
 
 jest.mock('react-native-reanimated', () => mockReanimated());
+
+import { Skeleton } from '../../components/ui/Skeleton';
+
 
 describe('Skeleton', () => {
     it('renders a progressbar with a default label', () => {

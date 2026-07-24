@@ -4,9 +4,9 @@
  */
 
 import { shouldEnableHistoryTools } from '../services/ai/ai';
-import { detectHistoryIntent } from '../services/ai/historyPrefetch';
 import type { Message } from '../services/ai/chatTypes';
-import { writeJsonArtifact, writeArtifact } from './shared/artifacts';
+import { detectHistoryIntent } from '../services/ai/historyPrefetch';
+import { writeArtifact, writeJsonArtifact } from './shared/artifacts';
 
 export interface TriggerCase {
     id: string;
@@ -79,7 +79,7 @@ export const E4_CASES: TriggerCase[] = [
 ];
 
 function baseMessages(userText: string): Message[] {
-    return [{ role: 'user', content: userText }];
+    return [{ id: 'probe-user', role: 'user', content: userText, timestamp: Date.now() }];
 }
 
 export function runE4(): {

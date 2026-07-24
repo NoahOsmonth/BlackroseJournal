@@ -21,8 +21,8 @@ export interface IdentitySettingsSectionProps {
     readonly pendingRows: readonly IdentityScalarRow[];
     readonly collectionRows: readonly IdentityCollectionRow[];
     readonly isBusy?: boolean;
-    readonly onConfirmPending: (field: IdentityScalarField) => void | Promise<void>;
-    readonly onDismissPending: (field: IdentityScalarField) => void | Promise<void>;
+    readonly onConfirmPending: (field: IdentityScalarField) => void | Promise<unknown>;
+    readonly onDismissPending: (field: IdentityScalarField) => void | Promise<unknown>;
     readonly embedded?: boolean;
 }
 

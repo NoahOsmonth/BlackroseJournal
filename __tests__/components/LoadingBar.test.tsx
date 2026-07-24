@@ -2,10 +2,12 @@ import { render, screen } from '@testing-library/react-native';
 import React from 'react';
 import { View } from 'react-native';
 
-import { LoadingBar } from '../../components/ui/LoadingBar';
 import { mockReanimated } from '../mocks/reanimatedMock';
 
 jest.mock('react-native-reanimated', () => mockReanimated());
+
+import { LoadingBar } from '../../components/ui/LoadingBar';
+
 
 describe('LoadingBar', () => {
     it('renders three moving segments by default', () => {

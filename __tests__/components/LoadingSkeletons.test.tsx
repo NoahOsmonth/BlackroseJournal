@@ -1,6 +1,10 @@
 import { render, screen } from '@testing-library/react-native';
 import React from 'react';
 
+import { mockReanimated } from '../mocks/reanimatedMock';
+
+jest.mock('react-native-reanimated', () => mockReanimated());
+
 import { EntryDetailSkeleton } from '../../components/entries/EntryDetailSkeleton';
 import { EntryReflectionSkeleton } from '../../components/entries/EntryReflectionSkeleton';
 import { SuggestionsSkeleton } from '../../components/entries/SuggestionsSkeleton';
@@ -9,9 +13,7 @@ import { IntentionFormSkeleton } from '../../components/intentions/IntentionForm
 import { MemoryHubSkeleton } from '../../components/memory/MemoryHubSkeleton';
 import { PersonaGenerateSkeleton } from '../../components/personas/PersonaGenerateSkeleton';
 import { StreakHaikuSkeleton } from '../../components/streak/StreakHaikuSkeleton';
-import { mockReanimated } from '../mocks/reanimatedMock';
 
-jest.mock('react-native-reanimated', () => mockReanimated());
 
 describe('composed loading skeletons', () => {
     it.each([

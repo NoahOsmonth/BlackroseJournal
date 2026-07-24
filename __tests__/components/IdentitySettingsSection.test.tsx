@@ -1,5 +1,5 @@
-import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import React from 'react';
 
 import { IdentitySettingsSection } from '../../components/settings/IdentitySettingsSection';
 import type { IdentityScalarRow } from '../../services/memory/identityProfileView';
@@ -86,7 +86,7 @@ describe('IdentitySettingsSection', () => {
         expect(onConfirm).toHaveBeenCalledWith('preferredName');
 
         // Dismiss with accept
-        (global as { window: { confirm: jest.Mock } }).window.confirm.mockReturnValueOnce(true);
+        (global as unknown as { window: { confirm: jest.Mock } }).window.confirm.mockReturnValueOnce(true);
         fireEvent.press(screen.getByTestId('identity-dismiss-preferredName'));
         expect(onDismiss).toHaveBeenCalledWith('preferredName');
 

@@ -4,5 +4,6 @@ module.exports = {
     testPathIgnorePatterns: [
         "/node_modules/",
         "/backend/",
+        "/__tests__/mocks/",
     ],
 };

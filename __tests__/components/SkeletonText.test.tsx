@@ -1,10 +1,12 @@
 import { render, screen } from '@testing-library/react-native';
 import React from 'react';
 
-import { SkeletonText } from '../../components/ui/SkeletonText';
 import { mockReanimated } from '../mocks/reanimatedMock';
 
 jest.mock('react-native-reanimated', () => mockReanimated());
+
+import { SkeletonText } from '../../components/ui/SkeletonText';
+
 
 describe('SkeletonText', () => {
     it('renders the requested number of labeled lines', () => {
