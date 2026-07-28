@@ -9,7 +9,17 @@ export type PostgrestGatewayErrorCode =
   | 'MEMORY_GATEWAY_RPC_FORBIDDEN'
   | 'MEMORY_GATEWAY_REQUEST_FAILED'
   | 'MEMORY_GATEWAY_UNAVAILABLE'
-  | 'MEMORY_GATEWAY_RESPONSE_INVALID';
+  | 'MEMORY_GATEWAY_RESPONSE_INVALID'
+  | MemoryDatabaseErrorCode;
+
+export type MemoryDatabaseErrorCode =
+  | 'MEMORY_STALE_WRITER_EPOCH'
+  | 'MEMORY_WRITES_DISABLED'
+  | 'MEMORY_STALE_JOB_LEASE'
+  | 'MEMORY_WRITER_LEASE_MISMATCH'
+  | 'MEMORY_WRITER_LEASE_EXPIRED'
+  | 'MEMORY_WRITER_LEASE_TOKEN_INVALID'
+  | 'MEMORY_SOURCE_CREDENTIAL_MISMATCH';
 
 export class PostgrestGatewayError extends Error {
   constructor(
@@ -40,6 +50,15 @@ const ALLOWED_RPCS = new Set([
   'memory_get_owner_state',
   'memory_get_source_inventory',
 ]);
+const DATABASE_ERROR_CODES = new Set<MemoryDatabaseErrorCode>([
+  'MEMORY_STALE_WRITER_EPOCH',
+  'MEMORY_WRITES_DISABLED',
+  'MEMORY_STALE_JOB_LEASE',
+  'MEMORY_WRITER_LEASE_MISMATCH',
+  'MEMORY_WRITER_LEASE_EXPIRED',
+  'MEMORY_WRITER_LEASE_TOKEN_INVALID',
+  'MEMORY_SOURCE_CREDENTIAL_MISMATCH',
+]);
 
 function buildHeaders(config: PostgrestGatewayConfig): Headers {
   const headers = new Headers({
@@ -50,6 +69,27 @@ function buildHeaders(config: PostgrestGatewayConfig): Headers {
     headers.set('authorization', `Bearer ${config.postgrestServerKey}`);
   }
   return headers;
+}
+
+async function readStableDatabaseError(
+  response: Response,
+): Promise<MemoryDatabaseErrorCode | null> {
+  try {
+    const body: unknown = await response.json();
+    if (
+      body
+      && typeof body === 'object'
+      && !Array.isArray(body)
+      && 'message' in body
+      && typeof body.message === 'string'
+      && DATABASE_ERROR_CODES.has(body.message as MemoryDatabaseErrorCode)
+    ) {
+      return body.message as MemoryDatabaseErrorCode;
+    }
+  } catch {
+    // Upstream bodies are deliberately discarded.
+  }
+  return null;
 }
 
 export function createPostgrestGateway(
@@ -81,8 +121,9 @@ export function createPostgrestGateway(
       }
 
       if (!response.ok) {
+        const stableDatabaseCode = await readStableDatabaseError(response);
         throw new PostgrestGatewayError(
-          'MEMORY_GATEWAY_REQUEST_FAILED',
+          stableDatabaseCode ?? 'MEMORY_GATEWAY_REQUEST_FAILED',
           response.status,
         );
       }

@@ -135,4 +135,25 @@ describe('PostgREST memory gateway', () => {
         && !String(error).includes('private-broken-json'),
     );
   });
+
+  it('reduces allowlisted database messages to stable error codes', async () => {
+    const gateway = createPostgrestGateway({
+      postgrestBaseUrl: 'https://gateway.example.test/rest/v1',
+      postgrestServerKey: 'sb_secret_test',
+      postgrestKeyKind: 'secret',
+      timeoutMs: 100,
+      fetchImpl: async () => new Response(JSON.stringify({
+        message: 'MEMORY_STALE_WRITER_EPOCH',
+        detail: 'private database detail',
+      }), { status: 409 }),
+    });
+
+    await assert.rejects(
+      gateway.rpc('memory_claim_jobs', {}),
+      (error: unknown) => error instanceof PostgrestGatewayError
+        && error.code === 'MEMORY_STALE_WRITER_EPOCH'
+        && error.status === 409
+        && !String(error).includes('private database detail'),
+    );
+  });
 });
