@@ -2115,3 +2115,71 @@
     `expo-task-manager` / `expo-background-fetch` `defineTask` call at module load in
     `services/workers/taskRegistry.ts:18` (we already have a try/catch around the registration
     effect, but the defineTask itself runs at import time and is unguarded).
+
+
+- **2026-07-28–29**: Cloud memory Phase 0 contract, database, and deployment foundation completed
+  on `codex/cloud-memory-phase-0`.
+  - **Scope and authority**:
+    - Added canonical source, authority, deployment-fence, durable-job, source-inventory, and
+      quality-constitution contracts.
+    - This phase uploaded no journal/check-in source, changed no model or retrieval path, and
+      enabled no cloud feature flag. Hosted state reports zero non-`LOCAL` owners; visible-response
+      memory authority remains `LOCAL`.
+  - **Commits**:
+    - `1a60717`, `76c9c8f`, `539daf1`, `13eb9fc`, `d96acab`, `abe3971`, `7833bc2`,
+      `ca88909`, `3f24dd0`, `2cb3b9d`, `6e620ce`, `768bbd3`, `0228b3a`, `a667662`,
+      `8a12085`, `320cb73`, `76c8014`, `b2ec684`, and `54f879f`.
+  - **Supabase/PostgreSQL**:
+    - Project `blackrose` (`tovejzoqyduelgzsajru`) is `ACTIVE_HEALTHY`, PostgreSQL 17.6.
+    - Hosted migration records:
+      `20260728144157 cloud_memory_foundation_20260728112723` and
+      `20260728144711 cloud_memory_fk_indexes_20260728145000`.
+    - Canonical/generated migration byte check passed. A clean local reset applied every
+      migration; `supabase db lint --fail-on warning` reported no schema errors.
+    - pgTAP: **53/53 passed**. It covers forced RLS isolation, explicit ACLs, writer
+      epoch/lease/token/source fences, content-equivalent idempotency, watermark collisions,
+      deletion-ledger verification enqueue, expired-lease recovery, stale job leases, maximum
+      attempts, attempt audit history, and PostgreSQL 17 column-list nulling.
+    - Hosted authority is active with a future externally issued lease; database and source
+      fingerprints are present; durable job and attempt counts are both zero.
+    - Supabase advisors were recorded after deployment. Security: 47 notices (1 info, 46
+      warnings), consisting of the intentional admin-only authority table, authenticated
+      GraphQL visibility behind owner RLS, the app's intentional anonymous-auth model, and
+      pre-existing legacy-app recommendations. Performance: 25 notices (16 info, 9 warnings);
+      Phase 0 items are unused indexes on empty pre-traffic tables. There are no unindexed
+      cloud-memory foreign keys and no high-severity advisor result.
+  - **Real concurrency and sabotage**:
+    - Real local PostgREST: **2/2 passed**. Direct `service_role` table writes were denied,
+      parallel workers received disjoint job IDs/lease tokens, and a locked high-priority job
+      was skipped without delaying the next claim.
+    - Removing `FOR UPDATE SKIP LOCKED` initially exposed a weak concurrency assertion; a
+      controlled held-row test was added. The actual sabotage then failed by waiting and
+      claiming `skip-locked-high` instead of `skip-locked-next`; restoring the canonical
+      function returned green.
+    - Additional red/green sabotage proved stale/null writer epochs, maintenance mode, expired
+      and foreign writer leases, wrong lease token, wrong source fingerprint, stale job finish,
+      RLS owner isolation, deletion verification, unknown legacy local dates, no-store auth
+      failures, and the Docker shared-contract copy.
+  - **Application verification**:
+    - Focused cloud/memory Jest: **5 suites, 64 tests passed**.
+    - Full Jest: **192 suites passed, 6 skipped; 881 tests passed, 21 skipped; 0 failed**.
+    - Backend: build passed; **14 suites, 45 tests passed** with the opt-in local PostgREST
+      suite separately passing **2/2**.
+    - `npx tsc --noEmit` passed. ESLint passed with **0 errors** and 72 existing warnings.
+      Design check passed with 0 errors and three existing near-limit warnings.
+    - Docker root-context build and artifact probe passed; image is `linux/amd64`, and both
+      lockfiles remained unchanged.
+  - **Heroku Eco deployment**:
+    - App `blackrosejournal-api`, ID `297b095b-5207-4303-9b14-76609465aa75`, EU container
+      stack, exactly `web=1:Eco`, no worker or add-on.
+    - Released commit `54f879f51a172fb9f96e13bc4d33e799d86bf1c6` as Schema-2 image
+      `sha256:72ae882240d1e915fb56f51e713edd5336f3a42796800ddb6678e2b2e47eb0fe`.
+      Heroku release `v7` / `61a60930-5c77-4492-9a6c-6e504c598f34` succeeded.
+    - `/health` is exact `200 {"status":"ok"}`; `/ready` is 200 with all four dependency
+      booleans true. Missing/invalid JWTs return 401 + `no-store` +
+      `MEMORY_AUTH_INVALID`.
+    - A disposable confirmed Supabase user proved JWT-derived owner isolation, ignored a
+      forged query owner, received `LOCAL` state with all flags false, an empty inventory, and
+      a redacted bootstrap; the user was deleted in `finally`.
+    - Final 34-line app-log scan found zero exact-secret leaks, credential-pattern leaks,
+      error lines, or missing-listener evidence.
