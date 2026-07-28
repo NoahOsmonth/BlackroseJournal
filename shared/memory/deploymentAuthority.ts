@@ -44,7 +44,7 @@ function isIdentifier(value: unknown): value is string {
 function isWriterEpoch(value: unknown): value is number {
   return typeof value === 'number'
     && Number.isSafeInteger(value)
-    && value >= 0;
+    && value >= 1;
 }
 
 function isLeaseId(value: unknown): value is string {

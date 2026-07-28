@@ -94,8 +94,24 @@ describe('deployment write authority', () => {
     }, request), { accepted: false, reason: 'lease_key_id_invalid' });
   });
 
-  it('rejects negative, fractional, and non-finite writer epochs', () => {
-    for (const writerEpoch of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+  it('rejects zero writer epochs', () => {
+    assert.deepEqual(evaluateDeploymentWrite({
+      ...authority,
+      writerEpoch: 0,
+    }, {
+      ...request,
+      writerEpoch: 0,
+    }), { accepted: false, reason: 'writer_epoch_invalid' });
+  });
+
+  it('rejects negative, fractional, non-finite, and unsafe writer epochs', () => {
+    for (const writerEpoch of [
+      -1,
+      1.5,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      Number.MAX_SAFE_INTEGER + 1,
+    ]) {
       assert.deepEqual(evaluateDeploymentWrite({
         ...authority,
         writerEpoch,
