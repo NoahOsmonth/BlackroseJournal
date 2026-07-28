@@ -1,6 +1,30 @@
 # Rosebud Memory Implementation Notes
 
-## Implemented in This Pass
+## Phase 0 Cloud Foundation
+
+The existing local stores remain visible-response authority throughout Phase 0.
+The read-only canonical inventory in
+`services/memory/cloud/sourceInventory.ts` treats completed local journals and
+check-ins as future migration sources; it does not upload them or change which
+memory can influence a response.
+
+Per-user memory authority (`LOCAL`, `MIRROR`, `SHADOW`, or `CLOUD`) is distinct
+from deployment writer authority. Per-user authority controls read/write
+behavior for one owner. Deployment authority protects the single active writer
+with a deployment ID, writer epoch, externally issued lease, and source
+credential fingerprint.
+
+The PostgreSQL foundation includes owner-scoped source watermarks and a deletion
+ledger so later migration can resume and invalidate derived data. Phase 0 does
+not claim deletion completion: verified erase-all, backup tombstone enforcement,
+and end-to-end deletion completion are Phase 0P portability work.
+
+The executable quality contract lives in
+`benchmarks/memory/qualityConstitution.ts`. It versions the eight diagnostic
+pipeline stages, zero-tolerance failures, and all initial measured release
+targets.
+
+## Implemented Local Baseline
 
 Rosebud now has the first local-only memory slice of the larger Memory Loom
 architecture described in `idea.md`.
@@ -159,10 +183,6 @@ The tests cover:
 
 ## Next Phases
 
-1. Add a Settings memory inspector with delete/edit controls.
-2. Add explicit manual notes and pinned memories.
-3. Add weekly consolidation from entries, check-ins, and feedback.
-4. Add contradiction handling and confidence decay.
-5. Move storage to SQLite/FTS when AsyncStorage becomes too small.
-6. Add optional local embeddings or hybrid lexical/vector retrieval.
-7. Add prospection-guided retrieval for deeper personalization.
+The phased cloud roadmap is the active plan. The local stores above remain the
+working baseline and later become migration sources; they are not deleted or
+silently bypassed during Phase 0.

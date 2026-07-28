@@ -15,6 +15,19 @@ Auth screens can still use Supabase directly, but normal app data sync calls go
 through `ensureSupabaseSession()` and the sync queue, both of which no-op while
 the data provider is local.
 
+`EXPO_PUBLIC_DATA_PROVIDER` does not select memory authority. Memory authority
+is a separate per-user `LOCAL → MIRROR → SHADOW → CLOUD` state machine. During
+Phase 0, visible-response memory remains `LOCAL` regardless of the legacy app
+data provider.
+
+## Legacy Time Provenance
+
+Historical local entries did not capture every timezone, local-date,
+week-start, or settled-time field required by the cloud contract. The Phase 0
+read-only source inventory labels these records `legacy_unknown` and leaves
+those temporal fields null. It converts only the timestamps that were actually
+stored; it never reconstructs or invents calendar facts.
+
 ## Local Data Keys
 
 The local backup service snapshots these AsyncStorage keys:

@@ -126,7 +126,7 @@ Every change updates or adds tests. If a test isn't feasible, document why in `P
 
 `AppHeader` (`components/navigation`) for Today + History headers, `useHeaderActions`, `useTabNavigation`. Prefer `router.navigate` over `router.push` for tab switches. Don't reinvent navigation per screen.
 
-### 9. AI context is layered, local-first — never dump full history every turn.
+### 9. AI context is layered; memory authority migrates in explicit phases.
 
 | Layer | What | Where |
 |---|---|---|
@@ -136,7 +136,25 @@ Every change updates or adds tests. If a test isn't feasible, document why in `P
 | Full transcripts | On demand only | Tools: `get_conversation` reads journal/check-in storage |
 | Session compact | Older turns → rolling summary when ctx fills | `conversationCompact.ts` inside `streamChat` / `completeChat` |
 
-**Do not** reintroduce a server-side remote memory store. Journal/memory stay on device. Tools execute on the phone; only tool *results* go to the model. Guard: `__tests__/backend-local-only.test.ts`.
+The approved memory transition is `LOCAL → MIRROR → SHADOW → CLOUD`, stored
+per user. Phase 0 builds contracts and cloud infrastructure only:
+visible-response authority remains `LOCAL`, cloud source upload is disabled, and
+existing on-device tools still supply the model. Never infer memory authority
+from deployment state or `EXPO_PUBLIC_DATA_PROVIDER`.
+
+Per-user memory authority and deployment writer authority are separate:
+
+- Per-user authority decides whether local or cloud memory may influence a
+  visible response.
+- Deployment writer authority is fenced by deployment ID, monotonically
+  increasing writer epoch, externally issued writer lease, and source credential fingerprint.
+  A valid database credential alone does not authorize writes.
+- The portable gateway is managed or private PostgREST. Server credentials stay
+  in the backend and must never enter an Expo/client bundle.
+- Every multi-row memory mutation is an atomic PostgreSQL RPC. Do not replace an
+  RPC transaction boundary with client-side table-by-table writes.
+
+Guard: `__tests__/backend-local-only.test.ts`.
 
 ### 10. System prompts: long freeform vs short guided — don't mix them up.
 
@@ -206,7 +224,7 @@ View-model types must not reuse a stored type's name (e.g. `MemoryGraphAtom` is 
 - `constants/aiPrompts.ts`, `constants/rosebudCompanionPrompt.ts` — companion system prompts.
 - `services/ai/` — transport, tools, agent loop, compact, streaming (phone → provider).
 - `services/memory/` — localMemory atoms + day digests + graph helpers.
-- `backend/` — optional Node proxy. AI provider config in `backend/src/config/ai/`. **`NANO_GPT_*` env names are legacy.** Production chat is **device-direct** (`directTransport.ts`); backend is not required for freeform history tools.
+- `backend/` — Node AI proxy plus the Phase 0 cloud-memory control plane. AI provider config lives in `backend/src/config/ai/`. **`NANO_GPT_*` env names are legacy.** Production chat remains **device-direct** (`directTransport.ts`) in Phase 0; backend memory reads cannot influence visible responses while authority is `LOCAL`.
 - `example-design/` — HTML/CSS reference prototypes. Not deployed. Copy patterns out; never modify.
 - `assets/` — embedded HTML engines, fonts, images. `notes/` — dev docs. `supabase/` — migrations + email templates. `scripts/` — build/CI tooling (includes `generate-rosebud-prompt.mjs`).
 
@@ -283,7 +301,7 @@ Start: `cd backend && npm install && npm run dev`, set `EXPO_PUBLIC_AGENT_BASE_U
 
 ## Repo-specific gotchas
 
-- **Data provider toggle:** `EXPO_PUBLIC_DATA_PROVIDER` switches Supabase vs local. Local mode must never reach the network.
+- **Data provider toggle:** `EXPO_PUBLIC_DATA_PROVIDER` switches legacy app-data sync between Supabase and local. It does not select memory authority. Local mode must never reach the network.
 - **WebView layers:** high-frequency rendering (`react-native-webview`) runs raw JS modules inside the WebView, not the RN bridge; state crosses via synchronized data bridges. Theme/color scheme must be pushed explicitly (`SET_THEME` for memory graph) — the WebView does not inherit NativeWind `dark:`.
 - **Web dark mode hook:** `hooks/theme/use-color-scheme.web.ts` must use NativeWind's `useColorScheme` (responds to `setColorScheme()`), not RN's.
 - **Memory change events:** mutations in `services/memory/localMemory.ts` notify `subscribeMemoryChanges` listeners; access bookkeeping (`markAccessed`) deliberately does not (would loop). Keep that invariant. Day-digest UI refresh piggybacks on the same subscription via `useRecentDaysContext`.

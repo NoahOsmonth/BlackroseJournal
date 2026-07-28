@@ -19,4 +19,14 @@ describe('AGENTS memory graph guidance', () => {
         expect(source).toContain('cd backend && npm test');
         expect(source).toContain('cd backend && npx tsc --noEmit');
     });
+
+    it('documents phased cloud authority and portable write fencing', () => {
+        expect(source).toContain('LOCAL → MIRROR → SHADOW → CLOUD');
+        expect(source).toContain('deployment writer authority');
+        expect(source).toContain('externally issued writer lease');
+        expect(source).toContain('source credential fingerprint');
+        expect(source).toContain('managed or private PostgREST');
+        expect(source).toContain('atomic PostgreSQL RPC');
+        expect(source).toContain('visible-response authority remains `LOCAL`');
+    });
 });

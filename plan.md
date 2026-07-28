@@ -1,4 +1,15 @@
-# Epic Plan: Rosebud Local Memory System
+# Legacy Epic Plan: Rosebud Local Memory System
+
+## Status
+
+This file records the implemented local-memory baseline and is retained as
+current-state context. It is not the active cloud migration plan.
+
+The approved 2026-07-28 architecture is defined by:
+
+- [Cloud-authoritative Rosebud memory design](docs/superpowers/specs/2026-07-28-cloud-authoritative-rosebud-memory-design.md)
+- [Backend and database portability design](docs/superpowers/specs/2026-07-28-rosebud-backend-database-portability-design.md)
+- [Phase 0 contract and safety execution plan](docs/superpowers/plans/2026-07-28-cloud-memory-phase-0-contract-safety.md)
 
 ## Goal
 Build a phone-local memory system for Rosebud that gives the AI durable,

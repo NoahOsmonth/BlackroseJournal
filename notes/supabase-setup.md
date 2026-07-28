@@ -27,3 +27,29 @@ Notes
 - The app uses anonymous auth per device (no login UI) unless the user signs in with email.
 - Sessions persist on device with auto-refresh (`persistSession: true`, `autoRefreshToken: true`).
 - Reset password uses `redirectTo` to deep link into `app://update-password`.
+
+## Cloud Memory Phase 0
+
+Supabase Auth verifies the end-user bearer token. The backend derives
+`owner_id` from that verified token; it never accepts an owner supplied in a
+query or request body.
+
+The portable canonical PostgreSQL migrations live in
+`backend/sql/migrations/`. Supabase adds its provider-specific RLS and Auth
+overlay in `supabase/migrations/20260728112723_cloud_memory_foundation.sql`;
+`20260728145000_cloud_memory_fk_indexes.sql` is the additive FK-index migration.
+Applied migrations are immutable.
+
+All memory table privileges are revoked by default. Only explicitly allowlisted
+owner-scoped read and fenced job RPCs receive `execute` grants. Multi-table
+mutations remain inside atomic PostgreSQL RPCs so managed Supabase PostgREST can
+later be replaced by private PostgREST without changing transaction boundaries.
+
+`SUPABASE_SECRET_KEY` or a legacy `SUPABASE_SERVICE_ROLE_KEY` is server-only.
+Never prefix either with `EXPO_PUBLIC_`, commit it, log it, or place it in the
+mobile bundle.
+
+Do not run hosted DDL from a shared working tree. Hosted schema changes require
+explicit authorization and an isolated branch/worktree, then an additive
+migration, local reset/pgTAP verification, hosted application, and post-apply
+inspection.
