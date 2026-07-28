@@ -50,14 +50,14 @@
 
 ### Database
 
-- Create `db/migrations/core/0001_memory_foundation.sql`.
+- Move the verified Phase 0 canonical migration source to `db/migrations/core/0001_memory_foundation.sql`.
 - Create `db/migrations/core/0002_portability_control.sql`.
 - Create `db/migrations/core/0003_deletion_receipts.sql`.
 - Create `db/overlays/supabase/0001_memory_supabase.sql`.
 - Create `db/overlays/generic/0001_memory_generic.sql`.
 - Create `db/overlays/generic/postgrest.conf.template`.
 - Create `scripts/portability/apply-database.mjs`.
-- Create one new, additive Supabase migration `supabase/migrations/20260728133000_portable_memory_core.sql`; do not edit an applied migration.
+- Populate the CLI-generated additive migrations `supabase/migrations/20260728120938_memory_portability_authority.sql`, `supabase/migrations/20260728123338_memory_writer_authority.sql`, and `supabase/migrations/20260728123342_memory_backup_schedule.sql`; do not edit an applied migration.
 - Create pgTAP tests under `supabase/tests/database/`.
 
 ### Backend portability
@@ -70,7 +70,7 @@
 
 ### Runtime and application
 
-- Create Heroku build/start files under `ops/portability/heroku/`.
+- Modify the Phase 0 `backend/Dockerfile` and `backend/Procfile`; create sidecar build/supervision scripts under `backend/scripts/portability/`.
 - Create Windows scripts under `scripts/portability/`.
 - Create endpoint-profile service, hook, and settings component under the existing UI → hook → service boundary.
 - Vendor only `tweetnacl` 1.0.3's audited `nacl-fast.js` and license under `services/crypto/vendor/tweetnacl/`, with npm SRI `sha512-6rt+RN7aOi1nGMyC4Xa5DdYiukl2UWCbcJft7YhxReBGQD7OAM8Pbxw6YMo4r2diNEA8FEmu32YOn9rhaiE5yw==`; do not add it to `package.json`.
@@ -117,9 +117,7 @@ ops/portability/artifacts/*
 - [ ] **Step 2: Run red**
 
 ```powershell
-cd backend
-npm test -- --testPathPattern=portability/does-not-exist
-cd ..
+npm --prefix backend test -- --testPathPattern=portability/does-not-exist
 npx jest --runInBand __tests__/services/portabilityArtifactGuard.test.ts
 ```
 
@@ -202,9 +200,7 @@ Use an external directory:
 ```powershell
 $evidence = Join-Path $env:LOCALAPPDATA "Rosebud\portability-evidence"
 node scripts/portability/run-with-evidence.mjs --operation 00000000-0000-4000-8000-000000000001 --phase runner-green --expect pass --report-dir $evidence -- node --version
-cd backend
-npm test -- --testPathPattern=testRunner
-cd ..
+npm --prefix backend test -- --testPathPattern=testRunner
 npx jest --runInBand __tests__/services/portabilityArtifactGuard.test.ts
 ```
 
@@ -234,15 +230,15 @@ The static gate requires non-empty:
 ```text
 shared/memory/contracts.ts
 shared/memory/deploymentAuthority.ts
-backend/src/memory/db/postgrest.ts
+backend/src/memory/gateway/postgrestGateway.ts
 backend/src/memory/routes/memoryRoutes.ts
-backend/src/memory/jobs/jobRepository.ts
+backend/src/memory/repositories/jobRepository.ts
 supabase/config.toml
 supabase/migrations/20260728112723_cloud_memory_foundation.sql
-supabase/tests/database/memory_foundation.test.sql
+supabase/tests/cloud_memory_foundation.test.sql
 ```
 
-It also requires the Phase 0 report to prove two real users, transactional stale-epoch and expired-lease rejection, internal-JWT owner isolation, real job reclaim, Heroku health, and an independent review with no critical/important issue.
+It also requires the Phase 0 report to prove two real Supabase-authenticated users with RLS isolation, transactional stale-epoch and expired-lease rejection, real job reclaim, exact deployment-artifact health, and an independent review with no critical/important issue. Internal gateway JWT evidence is intentionally excluded here because Task 4 creates it.
 
 - [ ] **Step 2: Run the current expected failure**
 
@@ -258,13 +254,11 @@ Expected: exit `78` naming missing paths only. This is the present repository's 
 ```powershell
 npx supabase start
 npx supabase db reset --local --no-seed
-npx supabase test db --local supabase/tests/database
+npx supabase test db supabase/tests/cloud_memory_foundation.test.sql --local
 npx supabase db lint --local --level error --fail-on error
 npx jest --runInBand __tests__/services/cloudMemoryContracts.test.ts __tests__/services/cloudMemoryMigrationContract.test.ts
-cd backend
-npm run build
-npm test -- --testPathPattern=memory
-cd ..
+npm --prefix backend run build
+npm --prefix backend test -- --testPathPattern=memory
 node scripts/portability/assert-phase0-ready.mjs --mode real --report-dir $evidence
 ```
 
@@ -280,14 +274,15 @@ git commit -m "test(memory): gate portability on phase zero"
 ### Task 2: Canonical Core Migrations and Supabase/Generic Overlays
 
 **Files:**
-- Create: `db/migrations/core/0001_memory_foundation.sql`
+- Move: `backend/sql/migrations/0001_memory_foundation.sql` to `db/migrations/core/0001_memory_foundation.sql`
+- Move: `backend/sql/overlays/supabase/0001_memory_foundation.sql` to `db/overlays/supabase/0001_memory_supabase.sql`
 - Create: `db/migrations/core/0002_portability_control.sql`
 - Create: `db/migrations/core/0003_deletion_receipts.sql`
-- Create: `db/overlays/supabase/0001_memory_supabase.sql`
 - Create: `db/overlays/generic/0001_memory_generic.sql`
 - Create: `db/overlays/generic/postgrest.conf.template`
+- Modify: `scripts/build-cloud-memory-migration.mjs`
 - Create: `scripts/portability/apply-database.mjs`
-- Create: `supabase/migrations/20260728133000_portable_memory_core.sql`
+- Populate: `supabase/migrations/20260728120938_memory_portability_authority.sql`
 - Test: `__tests__/services/portableMigrationContract.test.ts`
 - Test: `supabase/tests/database/portable_overlays.test.sql`
 - Test: `scripts/portability/Test-CoreMigrations.ps1`
@@ -355,6 +350,8 @@ current_setting('request.jwt.claim.owner_id', true)::uuid
 
 The Supabase overlay maps verified Supabase subject claims to the same owner UUID and uses only Supabase-specific grants/helpers. The additive Supabase migration contains the same canonical schema hashes and overlay version in `rosebud_schema_migrations`; it never edits an earlier applied migration.
 
+Move the Phase 0 canonical and overlay sources without changing their bytes, update `scripts/build-cloud-memory-migration.mjs` to read the new paths, regenerate into a temporary file, and prove the result byte-matches `supabase/migrations/20260728112723_cloud_memory_foundation.sql`. The applied Phase 0 migration is never rewritten. `20260728120938_memory_portability_authority.sql` contains only `0002`, `0003`, and their Supabase overlay additions.
+
 - [ ] **Step 4: Run real migrations**
 
 ```powershell
@@ -371,7 +368,7 @@ Remove `FORCE ROW LEVEL SECURITY` from the disposable generic fixture only, capt
 - [ ] **Step 6: Commit**
 
 ```powershell
-git add db supabase/migrations/20260728133000_portable_memory_core.sql supabase/tests/database/portable_overlays.test.sql scripts/portability/apply-database.mjs scripts/portability/Test-CoreMigrations.ps1 __tests__/services/portableMigrationContract.test.ts
+git add db supabase/migrations/20260728120938_memory_portability_authority.sql supabase/tests/database/portable_overlays.test.sql scripts/build-cloud-memory-migration.mjs scripts/portability/apply-database.mjs scripts/portability/Test-CoreMigrations.ps1 __tests__/services/portableMigrationContract.test.ts
 git commit -m "feat(memory): separate portable schema and overlays"
 ```
 
@@ -382,7 +379,10 @@ git commit -m "feat(memory): separate portable schema and overlays"
 - Create: `backend/src/memory/portability/authorityRepository.ts`
 - Create: `backend/src/memory/routes/portabilityCanaryRoutes.ts`
 - Create: `backend/src/memory/portability/leaseCli.ts`
-- Modify: `db/migrations/core/0002_portability_control.sql`
+- Create: `db/migrations/core/0004_writer_authority.sql`
+- Create: `db/overlays/supabase/0002_writer_authority.sql`
+- Create: `db/overlays/generic/0002_writer_authority.sql`
+- Populate: `supabase/migrations/20260728123338_memory_writer_authority.sql`
 - Test: `backend/src/__tests__/portability/writerLease.test.ts`
 - Test: `backend/src/__tests__/portability/authorityRepository.test.ts`
 - Test: `backend/src/__tests__/portability/portabilityCanaryRoutes.test.ts`
@@ -443,18 +443,20 @@ public.memory_transition_authority(
 
 CAS conflicts raise `PT409` with message `MEMORY_AUTHORITY_CONFLICT`. Invalid transitions raise `PT422`. The RPC locks the singleton row, updates the operation head, and appends an immutable event in one transaction.
 
+Generate `supabase/migrations/20260728123338_memory_writer_authority.sql` deterministically from `0004_writer_authority.sql` plus the Supabase overlay; the generic overlay is tested separately and is not concatenated into the Supabase migration.
+
 - [ ] **Step 3: Add a real canary RPC and route**
 
-`public.memory_portability_canary_write(...)` calls `memory_assert_writer` and inserts only an operation UUID, owner UUID, nonce hash, and timestamp. `POST /v1/memory/portability/canary` is authenticated, available only when `ROSEBUD_PORTABILITY_DRILL=1`, and accepts no journal text.
+Create an owner-scoped canary table with operation UUID, canary UUID, owner UUID, version, nonce hash, created/updated times, and tombstone time. Versioned RPCs `memory_portability_canary_create`, `memory_portability_canary_read`, `memory_portability_canary_edit`, and `memory_portability_canary_delete` enforce owner scope; every mutation calls `memory_assert_writer` in its transaction.
+
+Expose authenticated `POST`, `GET`, `PATCH`, and `DELETE /v1/memory/portability/canary/:id` only when `ROSEBUD_PORTABILITY_DRILL=1`. The routes accept only nonce/hash/version metadata—never journal text. Tests prove create/read/edit/delete, stale-version rejection, tombstone behavior, cross-owner denial, stale/expired lease rejection, and that disabled drill mode returns `404`.
 
 - [ ] **Step 4: Run and sabotage**
 
 ```powershell
-cd backend
-npm test -- --testPathPattern=portability/writerLease
-npm test -- --testPathPattern=portability/authorityRepository
-npm test -- --testPathPattern=portability/portabilityCanaryRoutes
-cd ..
+npm --prefix backend test -- --testPathPattern=portability/writerLease
+npm --prefix backend test -- --testPathPattern=portability/authorityRepository
+npm --prefix backend test -- --testPathPattern=portability/portabilityCanaryRoutes
 npx supabase test db --local supabase/tests/database/portability_authority.test.sql
 ```
 
@@ -463,7 +465,7 @@ In the disposable SQL fixture only, bypass lease expiry and confirm the expired-
 - [ ] **Step 5: Commit**
 
 ```powershell
-git add backend/src/memory/portability/writerLease.ts backend/src/memory/portability/authorityRepository.ts backend/src/memory/portability/leaseCli.ts backend/src/memory/routes/portabilityCanaryRoutes.ts backend/src/__tests__/portability supabase/tests/database/portability_authority.test.sql db/migrations/core/0002_portability_control.sql
+git add backend/src/memory/portability/writerLease.ts backend/src/memory/portability/authorityRepository.ts backend/src/memory/portability/leaseCli.ts backend/src/memory/routes/portabilityCanaryRoutes.ts backend/src/__tests__/portability supabase/tests/database/portability_authority.test.sql db/migrations/core/0004_writer_authority.sql db/overlays/supabase/0002_writer_authority.sql db/overlays/generic/0002_writer_authority.sql supabase/migrations/20260728123338_memory_writer_authority.sql
 git commit -m "feat(memory): fence writes with external leases"
 ```
 
@@ -521,7 +523,7 @@ Managed Supabase mode retains the Phase 0 managed transport. Generic mode mints 
 pwsh -NoProfile -File scripts/portability/Test-GenericPostgrest.ps1
 ```
 
-The script starts PostgREST 14.16, verifies `Server: postgrest/14.16`, checks private binding plus admin `/ready`, performs two-user reads, rejects cross-owner access, performs one leased canary, rotates JWKS with overlap, and proves the expired old key fails after the overlap window.
+The script starts PostgREST 14.16, verifies `Server: postgrest/14.16`, checks private binding plus admin `/ready`, performs two-user reads, rejects cross-owner access, performs leased canary create/read/edit/delete, rotates JWKS with overlap, and proves the expired old key fails after the overlap window.
 
 - [ ] **Step 5: Commit**
 
@@ -573,9 +575,7 @@ The signature covers RFC 8785-style canonical JSON bytes. Bootstrap lifetime is 
 - [ ] **Step 3: Run focused tests**
 
 ```powershell
-cd backend
-npm test -- --testPathPattern=portability/signedBootstrap
-cd ..
+npm --prefix backend test -- --testPathPattern=portability/signedBootstrap
 npx jest --runInBand __tests__/services/memoryBackendTransport.test.ts
 ```
 
@@ -623,9 +623,12 @@ config-template.json.age
 deletions-through-<decimal-watermark>.jsonl.age
 deletions.sig
 checksums.sha256
+checksums.sig
 ```
 
-`checksums.sha256` covers ciphertext and signatures. The signed manifest contains those checksum values, the snapshot ID, source/database/deployment fingerprints, lease/epoch metadata without the token, tool versions, schema/overlay hashes, global/per-owner counts, normalized sample hashes, extension inventory, PostgREST config fingerprint, deletion watermark, recovery timestamp, and restore protocol version.
+The plaintext manifest contains content hashes for the dump/schema/config/deletion payloads plus the snapshot ID, source/database/deployment fingerprints, lease/epoch metadata without the token, tool versions, schema/overlay hashes, global/per-owner counts, normalized sample hashes, extension inventory, PostgREST config fingerprint, deletion watermark, recovery timestamp, and restore protocol version. `manifest.sig` signs that plaintext canonical manifest before `manifest.json.age` is produced.
+
+To avoid a circular hash, the manifest does not contain hashes of `manifest.json.age`, `manifest.sig`, `checksums.sha256`, or `checksums.sig`. After all encrypted artifacts and detached signatures exist, `checksums.sha256` covers each of them except the checksum files themselves, and `checksums.sig` signs the canonical checksum file. Verification checks `checksums.sig` first, then ciphertext hashes, then decrypts and verifies `manifest.sig`, then compares the manifest's content hashes to decrypted payloads.
 
 - [ ] **Step 3: Implement one-snapshot backup**
 
@@ -634,6 +637,8 @@ Open one repeatable-read transaction with `pg_export_snapshot()`. Run applicatio
 - [ ] **Step 4: Implement independent deletion export**
 
 Export receipts newer than the last exported watermark, verify the chain back to the recorded prior hash, sign and age-encrypt the stream, copy it to two configured absolute destinations, and only then mark receipts exported. One destination must be outside the backend/laptop. No command marks export complete from a single copy.
+
+An `erase_all` receipt also records the erased owner and current backup-key version without content. It initiates per-owner backup-key retirement and creates a purge obligation for every indexed backup set containing that owner. If a shared backup cannot be selectively cryptographically erased, erase-all remains `pending_backup_purge` until both offsite copies are deleted, absence is verified, and a fresh backup excluding the owner is complete. Tests prove the API never reports erase-all complete while an obligated artifact remains.
 
 - [ ] **Step 5: Run the real backup and corruption sabotage**
 
@@ -782,9 +787,10 @@ git commit -m "feat(memory): perform leased fresh-target cutovers"
 - Create: `backend/src/memory/portability/runtimeConfig.ts`
 - Create: `backend/src/portableMain.ts`
 - Modify: `backend/src/index.ts`
-- Create: `ops/portability/heroku/Procfile`
-- Create: `ops/portability/heroku/build-postgrest.mjs`
-- Create: `ops/portability/heroku/supervise.mjs`
+- Modify: `backend/Dockerfile`
+- Modify: `backend/Procfile`
+- Create: `backend/scripts/portability/build-postgrest.mjs`
+- Create: `backend/scripts/portability/supervise.mjs`
 - Create: `scripts/portability/Initialize-RosebudLocal.ps1`
 - Create: `scripts/portability/Start-RosebudLocal.ps1`
 - Create: `scripts/portability/Backup-RosebudMemory.ps1`
@@ -813,17 +819,15 @@ Build downloads the exact Linux PostgREST archive from Task 0, verifies SHA-256,
 
 - [ ] **Step 3: Implement Windows bootstrap and runtime**
 
-`Initialize-RosebudLocal.ps1` is PowerShell 5.1-compatible and verifies/install-locates PowerShell 7, Node 24, PostgREST 14.16, age 1.3.1, and compatible PostgreSQL client tools. PostgreSQL installation itself is an explicit prerequisite when absent; the script exits `78` and prints the official operator action without mutating the machine.
+`Initialize-RosebudLocal.ps1` is PowerShell 5.1-compatible and verifies PowerShell 7, Node 24, PostgREST 14.16, age 1.3.1, and compatible PostgreSQL client tools. It may download checksum-pinned portable PostgREST/age assets only into the explicit tool root. It never silently installs or upgrades PowerShell, Node, or PostgreSQL; when one is absent it exits `78` and prints the exact official operator action.
 
 `Start-RosebudLocal.ps1` starts hidden children, writes PIDs only below the operation directory, verifies command lines before stop, and exposes the backend only through HTTPS. Supported real-phone paths are a valid local certificate installed through an explicit pairing ceremony or Tailscale HTTPS/Serve. Plain HTTP is test-only and rejects Authorization headers outside loopback.
 
 - [ ] **Step 4: Run runtime tests**
 
 ```powershell
-cd backend
-npm test -- --testPathPattern=portability/runtimeConfig
-npm run build
-cd ..
+npm --prefix backend test -- --testPathPattern=portability/runtimeConfig
+npm --prefix backend run build
 pwsh -NoProfile -File scripts/portability/Test-PortabilityScripts.ps1
 ```
 
@@ -834,7 +838,7 @@ Delay PostgREST readiness beyond 30 seconds and prove the web process exits befo
 - [ ] **Step 6: Commit**
 
 ```powershell
-git add backend/src/memory/portability/runtimeConfig.ts backend/src/portableMain.ts backend/src/index.ts backend/src/__tests__/portability/runtimeConfig.test.ts ops/portability/heroku scripts/portability
+git add backend/src/memory/portability/runtimeConfig.ts backend/src/portableMain.ts backend/src/index.ts backend/src/__tests__/portability/runtimeConfig.test.ts backend/Dockerfile backend/Procfile backend/scripts/portability scripts/portability
 git commit -m "feat(memory): run the portable backend on Heroku and Windows"
 ```
 
@@ -890,7 +894,7 @@ Start two HTTPS backends with signed bootstrap documents. Activate the valid cur
 - [ ] **Step 6: Commit**
 
 ```powershell
-git add services/crypto/vendor services/memory/cloud hooks/memory components/settings app/(tabs)/settings.tsx __tests__/services/endpointProfiles.test.ts __tests__/hooks/useMemoryEndpointProfiles.test.ts __tests__/components/MemoryEndpointProfiles.test.tsx
+git add services/crypto/vendor services/memory/cloud hooks/memory components/settings 'app/(tabs)/settings.tsx' __tests__/services/endpointProfiles.test.ts __tests__/hooks/useMemoryEndpointProfiles.test.ts __tests__/components/MemoryEndpointProfiles.test.tsx
 git commit -m "feat(memory): switch trusted backend endpoints"
 ```
 
@@ -901,7 +905,10 @@ git commit -m "feat(memory): switch trusted backend endpoints"
 - Create: `backend/src/memory/portability/retention.ts`
 - Create: `backend/src/memory/portability/offsiteStore.ts`
 - Create: `backend/src/memory/routes/maintenanceRoutes.ts`
-- Modify: `db/migrations/core/0002_portability_control.sql`
+- Create: `db/migrations/core/0005_backup_schedule.sql`
+- Create: `db/overlays/supabase/0003_backup_schedule.sql`
+- Create: `db/overlays/generic/0003_backup_schedule.sql`
+- Populate: `supabase/migrations/20260728123342_memory_backup_schedule.sql`
 - Test: `backend/src/__tests__/portability/backupSchedule.test.ts`
 - Test: `backend/src/__tests__/portability/retention.test.ts`
 - Test: `backend/src/__tests__/portability/offsiteStore.test.ts`
@@ -912,23 +919,26 @@ git commit -m "feat(memory): switch trusted backend endpoints"
 
 - [ ] **Step 1: Write failing schedule and retention tests**
 
-Prove overlapping startup/request/scheduler triggers claim one operation through advisory lock plus durable CAS, missed work catches up, failed verification is never retention-eligible, rollback-window artifacts are retained, and a missed verified backup surfaces an operator alert.
+Prove overlapping startup/request/scheduler triggers claim one operation through advisory lock plus durable CAS, missed work catches up, failed verification is never retention-eligible, rollback-window artifacts are retained, erase-all purge obligations override normal retention and complete only after both-copy absence plus replacement backup, and a missed verified backup surfaces an operator alert.
 
 - [ ] **Step 2: Implement bounded wake behavior**
 
 Backend startup and authenticated maintenance requests check due work. Heroku Scheduler is only a trigger. Long backups produce an explicit one-off command and are not executed inside a normal web request.
 
+Generate `supabase/migrations/20260728123342_memory_backup_schedule.sql` deterministically from `0005_backup_schedule.sql` plus the Supabase overlay; verify the generated file before applying it.
+
 - [ ] **Step 3: Implement offsite requirements**
 
 `offsiteStore.ts` accepts two configured absolute destinations, one marked `offHost: true`; it verifies post-copy hashes. Retention deletes only immutable verified sets that are superseded, outside the rollback window, and present in both destinations. Provider-native PITR/snapshot IDs are recorded when available but never replace the portable set.
 
+Maintain a signed artifact-owner index so erase-all can locate every shared portable set containing an owner. Key retirement, two-copy purge receipts, provider-native snapshot/PITR purge instructions, and the replacement-backup ID are required before the deletion completion report can become `complete`.
+
 - [ ] **Step 4: Run tests and overlapping-trigger sabotage**
 
 ```powershell
-cd backend
-npm test -- --testPathPattern=portability/backupSchedule
-npm test -- --testPathPattern=portability/retention
-npm test -- --testPathPattern=portability/offsiteStore
+npm --prefix backend test -- --testPathPattern=portability/backupSchedule
+npm --prefix backend test -- --testPathPattern=portability/retention
+npm --prefix backend test -- --testPathPattern=portability/offsiteStore
 ```
 
 Launch three due triggers concurrently and prove one operation. Remove one offsite copy in the fixture and prove retention refuses deletion.
@@ -936,7 +946,7 @@ Launch three due triggers concurrently and prove one operation. Remove one offsi
 - [ ] **Step 5: Commit**
 
 ```powershell
-git add backend/src/memory/portability/backupSchedule.ts backend/src/memory/portability/retention.ts backend/src/memory/portability/offsiteStore.ts backend/src/memory/routes/maintenanceRoutes.ts backend/src/__tests__/portability db/migrations/core/0002_portability_control.sql
+git add backend/src/memory/portability/backupSchedule.ts backend/src/memory/portability/retention.ts backend/src/memory/portability/offsiteStore.ts backend/src/memory/routes/maintenanceRoutes.ts backend/src/__tests__/portability db/migrations/core/0005_backup_schedule.sql db/overlays/supabase/0003_backup_schedule.sql db/overlays/generic/0003_backup_schedule.sql supabase/migrations/20260728123342_memory_backup_schedule.sql
 git commit -m "feat(memory): schedule and retain verified backups"
 ```
 
@@ -1013,10 +1023,8 @@ npm test
 npx tsc --noEmit
 npm run lint
 npm run check:design
-cd backend
-npm run build
-npm test
-cd ..
+npm --prefix backend run build
+npm --prefix backend test
 pwsh -NoProfile -File scripts/portability/Test-CoreMigrations.ps1
 pwsh -NoProfile -File scripts/portability/Test-GenericPostgrest.ps1
 pwsh -NoProfile -File scripts/portability/Test-RealBackup.ps1
@@ -1049,7 +1057,8 @@ RTO starts at the first documented recovery command and ends after authenticated
 Review the full branch against the current spec. Fix every critical/important finding, rerun affected real reports, and perform a scoped re-review. Confirm no backup, report, key, lease, dump, JWT, or connection URL is tracked:
 
 ```powershell
-git ls-files | Select-String -Pattern '\.(age|dump|identity|lease|private\.pem)$|ops/portability/reports/.+\.json$'
+npx jest --runInBand __tests__/services/portabilityArtifactGuard.test.ts
+node scripts/portability/run-with-evidence.mjs --operation $env:ROSEBUD_DRILL_OPERATION_ID --phase artifact-index-guard --expect pass --report-dir $env:ROSEBUD_EVIDENCE_DIR -- npx jest --runInBand __tests__/services/portabilityArtifactGuard.test.ts
 git diff --check
 git status --short
 ```
