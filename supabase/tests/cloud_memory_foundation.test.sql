@@ -263,6 +263,18 @@ select extensions.has_index(
   'memory_jobs_claim_expired_idx',
   'global expired-lease index exists'
 );
+select extensions.has_index(
+  'public',
+  'memory_evidence_spans',
+  'memory_evidence_spans_created_by_job_idx',
+  'evidence-span job foreign key has a covering index'
+);
+select extensions.has_index(
+  'public',
+  'turn_traces',
+  'turn_traces_conversation_idx',
+  'turn-trace conversation foreign key has a covering index'
+);
 
 select * from extensions.finish();
 rollback;

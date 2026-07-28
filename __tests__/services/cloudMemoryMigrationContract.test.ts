@@ -15,6 +15,14 @@ const generatedPath = path.join(
   'supabase/migrations/20260728112723_cloud_memory_foundation.sql',
 );
 const generatorPath = path.join(root, 'scripts/build-cloud-memory-migration.mjs');
+const fkIndexCanonicalPath = path.join(
+  root,
+  'backend/sql/migrations/0002_memory_fk_indexes.sql',
+);
+const fkIndexSupabasePath = path.join(
+  root,
+  'supabase/migrations/20260728145000_cloud_memory_fk_indexes.sql',
+);
 
 describe('cloud memory migration contract', () => {
   it('is byte-generated exactly from canonical SQL and the Supabase overlay', () => {
@@ -141,5 +149,18 @@ describe('cloud memory migration contract', () => {
     ]) {
       expect(gitAttributes).toContain(`${byteSensitivePath} text eol=lf`);
     }
+  });
+
+  it('keeps the additive foreign-key index migration provider-neutral', () => {
+    const canonical = fs.readFileSync(fkIndexCanonicalPath);
+    const supabaseMigration = fs.readFileSync(fkIndexSupabasePath);
+    expect(supabaseMigration.equals(canonical)).toBe(true);
+
+    const sql = canonical.toString('utf8').toLowerCase();
+    expect(sql).toContain('memory_evidence_spans_created_by_job_idx');
+    expect(sql).toContain('memory_evidence_spans (owner_id, created_by_job_id)');
+    expect(sql).toContain('turn_traces_conversation_idx');
+    expect(sql).toContain('turn_traces (owner_id, conversation_id)');
+    expect(sql).not.toMatch(/\b(auth|anon|authenticated|service_role)\b/);
   });
 });
