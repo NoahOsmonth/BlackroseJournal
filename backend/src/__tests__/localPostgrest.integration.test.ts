@@ -87,11 +87,11 @@ run('local PostgREST concurrency', () => {
     }
 
     const [workerA, workerB] = await Promise.all([
-      rpc<Array<{ id: number; lease_token: string }>>(
+      rpc<{ id: number; lease_token: string }[]>(
         'memory_claim_jobs',
         claimBody('parallel-worker-a'),
       ),
-      rpc<Array<{ id: number; lease_token: string }>>(
+      rpc<{ id: number; lease_token: string }[]>(
         'memory_claim_jobs',
         claimBody('parallel-worker-b'),
       ),
@@ -133,10 +133,10 @@ run('local PostgREST concurrency', () => {
     await delay(250);
 
     const startedAt = performance.now();
-    const claimed = await rpc<Array<{
+    const claimed = await rpc<{
       idempotency_key: string;
       lease_token: string;
-    }>>('memory_claim_jobs', claimBody('skip-locked-worker'));
+    }[]>('memory_claim_jobs', claimBody('skip-locked-worker'));
     const elapsedMilliseconds = performance.now() - startedAt;
 
     assert.equal(claimed.length, 1);
