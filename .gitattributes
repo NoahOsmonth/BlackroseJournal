@@ -1,0 +1,4 @@
+backend/sql/migrations/0001_memory_foundation.sql text eol=lf
+backend/sql/overlays/supabase/0001_memory_foundation.sql text eol=lf
+scripts/build-cloud-memory-migration.mjs text eol=lf
+supabase/migrations/20260728112723_cloud_memory_foundation.sql text eol=lf
