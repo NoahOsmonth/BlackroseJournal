@@ -28,6 +28,13 @@ interface ReadinessControllerDeps {
 
 const FINGERPRINT = /^sha256:[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
+function hasSupabaseAuth(config: MemoryConfigResult): boolean {
+  if ('dependencies' in config) {
+    return config.dependencies.supabaseAuth;
+  }
+  return true;
+}
+
 function validAuthority(
   authority: BootstrapState,
   config: Extract<MemoryConfigResult, { ready: true }>['config'],
@@ -56,9 +63,7 @@ export function createReadinessController(
 ): ReadinessController {
   let snapshot: ReadinessSnapshot = {
     ai: false,
-    supabaseAuth: deps.memoryConfig.ready
-      ? true
-      : deps.memoryConfig.dependencies.supabaseAuth,
+    supabaseAuth: hasSupabaseAuth(deps.memoryConfig),
     postgrestGateway: false,
     deploymentAuthority: false,
   };
@@ -91,9 +96,7 @@ export function createReadinessController(
 
     snapshot = {
       ai,
-      supabaseAuth: deps.memoryConfig.ready
-        ? true
-        : deps.memoryConfig.dependencies.supabaseAuth,
+      supabaseAuth: hasSupabaseAuth(deps.memoryConfig),
       postgrestGateway,
       deploymentAuthority,
     };

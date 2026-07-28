@@ -1,7 +1,7 @@
 import http from 'http';
 import { AddressInfo } from 'net';
 import { registerHealthRoutes } from '../../backend/src/routes/healthRoutes';
-import { getAiConfig, loadConfig } from '../../backend/src/config/ai';
+import type { ReadinessProvider } from '../../backend/src/readiness';
 
 // Skipped unless RUN_INTEGRATION_TESTS=1: boots backend express health routes against a test server.
 // Real reason: optional backend integration; root unit suite stays free of backend node_modules quirks.
@@ -28,19 +28,12 @@ interface TestExpressApp {
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const express = require('../../backend/node_modules/express') as () => TestExpressApp;
 
-const VALID_ENV = {
-    AI_DEFAULT_API_KEY: 'sk-test-key-1234',
-    AI_DEFAULT_API_BASE_URL: 'https://nano-gpt.com/api/v1',
-    AI_DEFAULT_MODEL: 'nvidia/nemotron-3-ultra-550b-a55b',
-    AI_DEFAULT_FLASH_MODEL: 'nvidia/nemotron-3-ultra-550b-a55b',
-};
-
-function buildApp(): TestExpressApp {
+function buildApp(readiness: ReadinessProvider): TestExpressApp {
     const app = express();
     // registerHealthRoutes expects an `Application` from express; at runtime
     // the structural TestExpressApp IS an Application. The `as never` cast
     // bridges the two tsconfig contexts (root has no @types/express).
-    registerHealthRoutes(app as never);
+    registerHealthRoutes(app as never, readiness);
     return app;
 }
 
@@ -92,59 +85,62 @@ function invoke(
     });
 }
 
-describeMaybe('integration: /health and /ready (PR4)', () => {
-    const originalEnv = process.env;
-
-    afterAll(() => {
-        process.env = originalEnv;
-    });
-
-    beforeEach(() => {
-        jest.resetModules();
-        process.env = { ...originalEnv, ...VALID_ENV };
-    });
-
-    it('GET /health returns 200 with config.valid === true', async () => {
-        loadConfig();
-        getAiConfig();
-        const app = buildApp();
+describeMaybe('integration: /health and /ready', () => {
+    it('GET /health is unconditional and exactly redacted', async () => {
+        const app = buildApp({
+            getSnapshot: () => ({
+                ai: false,
+                supabaseAuth: false,
+                postgrestGateway: false,
+                deploymentAuthority: false,
+            }),
+        });
         const { status, body } = await invoke(app, 'get', '/health');
         expect(status).toBe(200);
-        const payload = body as {
-            status: string;
-            config: { valid: boolean; profiles: string[]; defaultProfile: string };
-        };
-        expect(payload.status).toBe('ok');
-        expect(payload.config.valid).toBe(true);
-        expect(payload.config.profiles).toEqual(expect.arrayContaining(['default', 'fast']));
-        expect(payload.config.defaultProfile).toBe('default');
+        expect(body).toEqual({ status: 'ok' });
     });
 
-    it('GET /ready returns 200 when at least one profile is valid', async () => {
-        loadConfig();
-        getAiConfig();
-        const app = buildApp();
+    it('GET /ready returns 200 only when every dependency is ready', async () => {
+        const app = buildApp({
+            getSnapshot: () => ({
+                ai: true,
+                supabaseAuth: true,
+                postgrestGateway: true,
+                deploymentAuthority: true,
+            }),
+        });
         const { status, body } = await invoke(app, 'get', '/ready');
         expect(status).toBe(200);
-        const payload = body as { status: string; profiles: string[] };
-        expect(payload.status).toBe('ready');
-        expect(payload.profiles).toEqual(expect.arrayContaining(['default', 'fast']));
+        expect(body).toEqual({
+            status: 'ready',
+            dependencies: {
+                ai: true,
+                supabaseAuth: true,
+                postgrestGateway: true,
+                deploymentAuthority: true,
+            },
+        });
     });
 
-    it('GET /health surfaces 503 when AI_DEFAULT_API_KEY is missing', async () => {
-        const envWithoutKey = { ...originalEnv };
-        delete (envWithoutKey as Record<string, unknown>).AI_DEFAULT_API_KEY;
-        process.env = envWithoutKey;
-        jest.resetModules();
-        // Re-require the routes module so it picks up the missing config.
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { registerHealthRoutes: registerFresh } = require('../../backend/src/routes/healthRoutes') as typeof import('../../backend/src/routes/healthRoutes');
-        const app = express() as TestExpressApp;
-        registerFresh(app as never);
-        const { status, body } = await invoke(app, 'get', '/health');
+    it('GET /ready returns a stable 503 boolean snapshot', async () => {
+        const app = buildApp({
+            getSnapshot: () => ({
+                ai: true,
+                supabaseAuth: true,
+                postgrestGateway: false,
+                deploymentAuthority: false,
+            }),
+        });
+        const { status, body } = await invoke(app, 'get', '/ready');
         expect(status).toBe(503);
-        const payload = body as { status: string; error?: string };
-        expect(payload.status).toBe('unavailable');
-        expect(payload.error).toMatch(/API_KEY|apiKey/);
+        expect(body).toEqual({
+            status: 'not_ready',
+            dependencies: {
+                ai: true,
+                supabaseAuth: true,
+                postgrestGateway: false,
+                deploymentAuthority: false,
+            },
+        });
     });
 });
