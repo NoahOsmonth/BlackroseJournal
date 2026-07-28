@@ -28,7 +28,7 @@
 - Phase 0 creates a source high-watermark table and append-only deletion ledger. It does not claim verified erase-all safety; backup tombstone enforcement, dependency erasure verification, and signed deletion completion belong to Phase 0P and must pass before MIRROR is called complete.
 - No cloud extraction, upload, retrieval, prompt injection, model call, or visible-response routing is added.
 - Heroku deploys an image built from the exact repository-root commit so both `backend/` and `shared/` exist in the build context.
-- Do not create or scale a paid Heroku resource without explicit cost confirmation in the active task.
+- The user has explicitly authorized the existing Heroku Eco subscription for exactly one personal `blackrosejournal-api` web dyno at size `eco`, with no add-ons. Any other paid resource still requires separate authorization.
 - Preserve unrelated dirty files. In particular, never stage all of an already-modified `PROGRESS.md`.
 - Run every command from the repository root. Use `npm --prefix backend ...`; never persistently `cd backend`.
 - A targeted backend test command that matches no files must fail.
@@ -40,7 +40,7 @@
 
 ### Shared contracts
 
-- Create `shared/memory/contracts.ts` — canonical enums, source DTOs, temporal provenance, job records, and runtime guards.
+- Create `shared/memory/contracts.ts` — canonical enums, source DTOs, temporal provenance, job type/status contracts, and runtime guards.
 - Create `shared/memory/sourceIds.ts` — validated reversible source/client-event IDs.
 - Create `shared/memory/deploymentAuthority.ts` — provider-neutral deployment write decision.
 - Test `__tests__/services/cloudMemoryContracts.test.ts`.
@@ -76,7 +76,7 @@
 
 - Create `services/memory/cloud/memoryAuthority.ts`.
 - Create `services/memory/cloud/sourceInventory.ts`.
-- Test `__tests__/services/memoryAuthority.test.ts`.
+- Test `__tests__/services/memory/memoryAuthority.test.ts`.
 - Test `__tests__/services/cloudSourceInventory.test.ts`.
 
 ### Constitution and deployment
@@ -1175,13 +1175,38 @@ git commit -m "feat(memory): derive runtime route from bound owner state"
 - Generate: `supabase/migrations/20260728112723_cloud_memory_foundation.sql`
 - Create: `supabase/config.toml` only if absent
 - Test: `__tests__/services/cloudMemoryMigrationContract.test.ts`
+- Test: `supabase/tests/cloud_memory_foundation.test.sql` (focused Task 3 fence, shape, idempotency, ACL, and lease subset; Task 4 extends this same file)
 
 **Interfaces:**
 - Produces tables: `memory_deployment_authority`, `memory_owner_state`, `memory_source_watermarks`, `memory_deletion_ledger`, `memory_conversations`, `memory_messages`, `memory_message_revisions`, `memory_evidence_spans`, `memory_import_manifests`, `memory_import_chunks`, `memory_jobs`, `memory_job_attempts`, `turn_traces`.
 - Produces atomic RPCs: `memory_begin_import`, `memory_accept_import_chunk`, `memory_record_deletion`, `memory_enqueue_job`, `memory_claim_jobs`, `memory_finish_job`, `memory_get_bootstrap`, `memory_get_owner_state`, `memory_get_source_inventory`.
 - Every mutating RPC begins with `p_deployment_id text, p_writer_epoch bigint, p_writer_lease_id uuid, p_writer_lease_token text, p_source_credential_fingerprint text` and calls `memory_assert_writer` before any write.
+- Every idempotent RPC returns the existing row only when the immutable request is content-equivalent. Reusing an identity with different content raises SQLSTATE `PT409` and message `MEMORY_IDEMPOTENCY_CONFLICT`.
+- The writer epoch is an integer in `[1, 9007199254740991]` during Phase 0. The reviewed Task 1A correction to the shared structural preflight (`Number.isSafeInteger(value) && value >= 1`) is a hard prerequisite; the portability phase's decimal-string boundary remains the required long-term representation before epochs can exceed JavaScript's safe range.
+- Runtime `service_role` receives no direct table DML. It can mutate only through the allowlisted `SECURITY DEFINER` RPCs. Authority provisioning in tests uses the local PostgreSQL administrator, never the runtime key.
+- This task may populate only `supabase/migrations/20260728112723_cloud_memory_foundation.sql`. It must prove `202601240001_init.sql`, `20260728120938_memory_portability_authority.sql`, `20260728123338_memory_writer_authority.sql`, and `20260728123342_memory_backup_schedule.sql` are byte-unchanged.
 
-- [ ] **Step 1: Initialize local Supabase without touching hosted state**
+- [ ] **Step 1: Verify the reviewed Task 1A writer-epoch prerequisite**
+
+Confirm `shared/memory/deploymentAuthority.ts` already contains:
+
+```ts
+function isWriterEpoch(value: unknown): value is number {
+  return typeof value === 'number'
+    && Number.isSafeInteger(value)
+    && value >= 1;
+}
+```
+
+Confirm `backend/src/__tests__/deploymentAuthority.test.ts` rejects `0`, negative, fractional, `NaN`, and infinity for both stored and requested epochs. Run:
+
+```powershell
+npm --prefix backend test -- --testPathPattern=deploymentAuthority
+```
+
+Expected: PASS. If it fails or the exact safe-positive predicate is absent, stop Task 3 and finish/review Task 1A; do not modify the shared contract in this task.
+
+- [ ] **Step 2: Initialize and start PostgreSQL 17 locally without touching hosted state**
 
 Run only when `supabase/config.toml` is absent:
 
@@ -1189,9 +1214,24 @@ Run only when `supabase/config.toml` is absent:
 if (-not (Test-Path -LiteralPath 'supabase/config.toml')) { npx supabase init }
 ```
 
-Expected: local config exists. Do not run `supabase link`, `db push`, or `--linked`.
+Set the generated config to PostgreSQL 17:
 
-- [ ] **Step 2: Write the failing deterministic-generation/static contract test**
+```toml
+[db]
+major_version = 17
+```
+
+Make the installed Docker client visible, verify the daemon, and start the local Supabase stack:
+
+```powershell
+$env:Path = 'C:\Program Files\Docker\Docker\resources\bin;' + $env:Path
+docker version
+npx supabase start
+```
+
+Expected: local config exists, Docker reports both client and server, and the local stack starts. Do not run `supabase link`, `db push`, or `--linked`.
+
+- [ ] **Step 3: Write the failing deterministic-generation/static contract test**
 
 Create `__tests__/services/cloudMemoryMigrationContract.test.ts`:
 
@@ -1208,16 +1248,22 @@ const generatedPath = path.join(
 );
 
 describe('cloud memory migration contract', () => {
-    it('is generated exactly from canonical SQL and the Supabase overlay', () => {
-        const canonical = fs.readFileSync(canonicalPath, 'utf8').trimEnd();
-        const overlay = fs.readFileSync(overlayPath, 'utf8').trimEnd();
-        const generated = fs.readFileSync(generatedPath, 'utf8');
-        expect(generated).toBe(
+    it('is byte-generated exactly from canonical SQL and the Supabase overlay', () => {
+        const canonical = fs.readFileSync(canonicalPath);
+        const overlay = fs.readFileSync(overlayPath);
+        const generated = fs.readFileSync(generatedPath);
+        const header = Buffer.from(
             `-- GENERATED by scripts/build-cloud-memory-migration.mjs\n`
             + `-- Source: backend/sql/migrations/0001_memory_foundation.sql\n`
-            + `-- Overlay: backend/sql/overlays/supabase/0001_memory_foundation.sql\n\n`
-            + `${canonical}\n\n${overlay}\n`,
+            + `-- Overlay: backend/sql/overlays/supabase/0001_memory_foundation.sql\n\n`,
+            'utf8',
         );
+        expect(generated.equals(Buffer.concat([
+            header,
+            canonical,
+            Buffer.from('\n'),
+            overlay,
+        ]))).toBe(true);
     });
 
     it('keeps provider-specific primitives out of canonical SQL', () => {
@@ -1232,6 +1278,11 @@ describe('cloud memory migration contract', () => {
         expect(sql).toContain('memory_claim_jobs');
         expect(sql).toContain('memory_finish_job');
         expect(sql).toContain('for update skip locked');
+        expect(sql).toContain('for share');
+        expect(sql).toContain('is distinct from p_writer_epoch');
+        expect(sql).toContain('is distinct from p_deployment_id');
+        expect(sql).toContain('clock_timestamp()');
+        expect(sql).not.toContain('jsonb_object_length');
         expect(sql).toContain('on delete set null (conversation_id)');
         expect(sql).toContain('on delete set null (created_by_job_id)');
         for (const fn of [
@@ -1266,38 +1317,160 @@ describe('cloud memory migration contract', () => {
             expect(sql).toContain(`grant execute on function public.${fn}`);
         }
         expect(sql).not.toMatch(/grant\s+execute[\s\S]*\bto\s+(anon|authenticated)\b/);
+        expect(sql).not.toMatch(/grant\s+all\s+on\s+table[\s\S]*\bto\s+service_role\b/);
     });
 });
 ```
 
-- [ ] **Step 3: Run red**
+- [ ] **Step 4: Write the focused real PostgreSQL tests before the schema**
+
+Create `supabase/tests/cloud_memory_foundation.test.sql` with `begin`, `extensions.pgtap`, `no_plan()`, `finish()`, and `rollback`. Before Task 4 expands it, this focused Task 3 suite must contain exact assertions for:
+
+```sql
+select has_table('public', 'memory_deployment_authority', 'deployment authority exists');
+select has_table('public', 'memory_jobs', 'job table exists');
+select has_function(
+  'public', 'memory_assert_writer',
+  array['text', 'bigint', 'uuid', 'text', 'text'],
+  'writer assertion has the fenced signature'
+);
+
+select throws_ok(
+  $$insert into public.memory_owner_state (owner_id, feature_flags)
+    values (
+      '00000000-0000-4000-8000-00000000000a',
+      '{"cloudSourceMirroring":false}'::jsonb
+    )$$,
+  '23514',
+  null,
+  'missing feature-flag keys are rejected'
+);
+select throws_ok(
+  $$insert into public.memory_owner_state (owner_id, feature_flags)
+    values (
+      '00000000-0000-4000-8000-00000000000a',
+      '{
+        "cloudSourceMirroring":false,
+        "cloudProjectionBuild":false,
+        "shadowRetrieval":false,
+        "cloudReadAuthority":false,
+        "cloudWriteAuthority":false,
+        "unexpected":true
+      }'::jsonb
+    )$$,
+  '23514',
+  null,
+  'extra feature-flag keys are rejected'
+);
+
+update public.memory_deployment_authority
+set
+  mode = 'active',
+  writer_lease_id = '00000000-0000-4000-8000-000000000077',
+  writer_lease_token_digest = encode(
+    sha256(convert_to('local-test-writer-token', 'UTF8')),
+    'hex'
+  ),
+  writer_lease_expires_at = clock_timestamp() + interval '1 hour',
+  writer_lease_issuer = 'phase0-pgtap',
+  writer_lease_key_id = 'phase0-test-key',
+  source_credential_fingerprint = 'sha256:local-source'
+where singleton;
+
+select throws_ok(
+  $$select public.memory_assert_writer(
+    null, 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source'
+  )$$,
+  'P0001',
+  'MEMORY_DEPLOYMENT_MISMATCH',
+  'null deployment cannot bypass the fence'
+);
+select throws_ok(
+  $$select public.memory_assert_writer(
+    'blackrose-primary', null, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source'
+  )$$,
+  'P0001',
+  'MEMORY_STALE_WRITER_EPOCH',
+  'null epoch cannot bypass the fence'
+);
+select throws_ok(
+  $$select public.memory_assert_writer(
+    'blackrose-primary', 0, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source'
+  )$$,
+  'P0001',
+  'MEMORY_STALE_WRITER_EPOCH',
+  'stale epoch is rejected'
+);
+```
+
+The same focused file must:
+
+- enqueue the same job twice with identical JSON and assert the same `id`;
+- enqueue the same identity with different JSON and expect `PT409` / `MEMORY_IDEMPOTENCY_CONFLICT`;
+- begin the same manifest twice identically, then reject a changed count/hash;
+- accept the same chunk twice identically, then reject changed hash, item count, source kind, sequence, event ID, or observation time;
+- prove an equal watermark sequence with a different event ID raises `PT409` / `MEMORY_SOURCE_WATERMARK_CONFLICT`;
+- record the same deletion twice identically, then reject changed tombstone content;
+- prove a deletion creates exactly one pending ledger row and one `verify_deletion` job;
+- claim a job, expire that job lease, and prove the expired token cannot finish;
+- prove `PUBLIC`, `anon`, and `authenticated` cannot execute mutators;
+- prove `service_role` can execute allowlisted RPCs but has no direct `INSERT`, `UPDATE`, or `DELETE` privilege on memory tables;
+- inspect `pg_constraint` so every cross-record memory FK includes `owner_id`, and prove a cross-owner message/conversation link fails;
+- inspect `pg_indexes` for the global ready and expired-lease claim indexes.
+
+- [ ] **Step 5: Run both red families**
 
 ```powershell
 npx jest --runInBand __tests__/services/cloudMemoryMigrationContract.test.ts
+npx supabase db reset --local --no-seed
+npx supabase test db supabase/tests/cloud_memory_foundation.test.sql --local
 ```
 
-Expected: FAIL because canonical SQL, overlay SQL, and generator do not exist.
+Expected: the Jest test FAILS because canonical SQL, overlay SQL, and generator do not exist. The local reset/test FAILS because the Task 3 schema and functions do not exist.
 
-- [ ] **Step 4: Create the canonical schema**
+- [ ] **Step 6: Create the canonical schema**
 
 Create `backend/sql/migrations/0001_memory_foundation.sql` with the following complete schema. Keep the function signatures unchanged because Tasks 4–7 call them directly.
 
 ```sql
 create table public.memory_deployment_authority (
   singleton boolean primary key default true check (singleton),
-  deployment_id text not null,
-  writer_epoch bigint not null check (writer_epoch > 0),
+  deployment_id text not null
+    check (deployment_id ~ '^[A-Za-z0-9][A-Za-z0-9._-]*$'),
+  writer_epoch bigint not null
+    check (writer_epoch between 1 and 9007199254740991),
   mode text not null check (mode in ('active', 'maintenance', 'read_only', 'retired')),
   backend_base_url text,
-  database_fingerprint text not null,
+  database_fingerprint text not null
+    check (database_fingerprint ~ '^sha256:[A-Za-z0-9][A-Za-z0-9._-]*$'),
   writer_lease_id uuid,
-  writer_lease_token_digest text,
+  writer_lease_token_digest text
+    check (
+      writer_lease_token_digest is null
+      or writer_lease_token_digest ~ '^[0-9a-f]{64}$'
+    ),
   writer_lease_expires_at timestamptz,
-  writer_lease_issuer text,
-  writer_lease_key_id text,
-  source_credential_fingerprint text,
+  writer_lease_issuer text
+    check (
+      writer_lease_issuer is null
+      or writer_lease_issuer ~ '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+    ),
+  writer_lease_key_id text
+    check (
+      writer_lease_key_id is null
+      or writer_lease_key_id ~ '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+    ),
+  source_credential_fingerprint text
+    check (
+      source_credential_fingerprint is null
+      or source_credential_fingerprint
+        ~ '^sha256:[A-Za-z0-9][A-Za-z0-9._-]*$'
+    ),
   changed_at timestamptz not null default now(),
-  change_reason text not null,
+  change_reason text not null check (btrim(change_reason) <> ''),
   check (
     mode <> 'active'
     or (
@@ -1313,16 +1486,18 @@ create table public.memory_deployment_authority (
 
 insert into public.memory_deployment_authority (
   singleton, deployment_id, writer_epoch, mode, database_fingerprint, change_reason
-) values (
+  ) values (
   true, 'blackrose-primary', 1, 'maintenance',
-  'phase0-unprovisioned', 'phase-0 bootstrap; replace fingerprint before hosted writes'
+  'sha256:phase0-unprovisioned',
+  'phase-0 bootstrap; replace fingerprint before hosted writes'
 );
 
 create table public.memory_owner_state (
   owner_id uuid primary key,
   authority_state text not null default 'LOCAL'
     check (authority_state in ('LOCAL', 'MIRROR', 'SHADOW', 'CLOUD')),
-  authority_version bigint not null default 1 check (authority_version > 0),
+  authority_version bigint not null default 1
+    check (authority_version between 1 and 9007199254740991),
   feature_flags jsonb not null default '{
     "cloudSourceMirroring": false,
     "cloudProjectionBuild": false,
@@ -1334,7 +1509,22 @@ create table public.memory_owner_state (
   updated_at timestamptz not null default now(),
   check (
     jsonb_typeof(feature_flags) = 'object'
-    and jsonb_object_length(feature_flags) = 5
+    and feature_flags ?& array[
+      'cloudSourceMirroring',
+      'cloudProjectionBuild',
+      'shadowRetrieval',
+      'cloudReadAuthority',
+      'cloudWriteAuthority'
+    ]::text[]
+    and (
+      feature_flags - array[
+        'cloudSourceMirroring',
+        'cloudProjectionBuild',
+        'shadowRetrieval',
+        'cloudReadAuthority',
+        'cloudWriteAuthority'
+      ]::text[]
+    ) = '{}'::jsonb
     and jsonb_typeof(feature_flags->'cloudSourceMirroring') = 'boolean'
     and jsonb_typeof(feature_flags->'cloudProjectionBuild') = 'boolean'
     and jsonb_typeof(feature_flags->'shadowRetrieval') = 'boolean'
@@ -1369,7 +1559,11 @@ create table public.memory_deletion_ledger (
   verified_at timestamptz,
   created_at timestamptz not null default now(),
   unique (owner_id, client_event_id),
-  unique (owner_id, source_kind, source_id, source_revision)
+  unique (owner_id, source_kind, source_id, source_revision),
+  check (
+    (verification_status = 'verified' and verified_at is not null)
+    or (verification_status <> 'verified' and verified_at is null)
+  )
 );
 
 create table public.memory_conversations (
@@ -1454,7 +1648,30 @@ create table public.memory_message_revisions (
 create table public.memory_jobs (
   id bigint generated always as identity primary key,
   owner_id uuid not null,
-  job_type text not null,
+  job_type text not null check (job_type in (
+    'capture_source',
+    'extract_turn_candidates',
+    'checkpoint_conversation',
+    'curate_session',
+    'reconcile_entities',
+    'reconcile_claims',
+    'audit_epistemic_authorization',
+    'audit_supersession_chains',
+    'build_temporal_digest',
+    'build_current_life_snapshot',
+    'build_profile_tree',
+    'build_search_document',
+    'embed_search_document',
+    'observe_interaction_outcome',
+    'review_pattern_hypotheses',
+    'scan_cross_domain_collisions',
+    'rebuild_personalized_promotion_policy',
+    'refresh_external_fact_snapshot',
+    'cascade_source_invalidation',
+    'verify_deletion',
+    'compare_shadow_retrieval',
+    'rebuild_projection_version'
+  )),
   idempotency_key text not null,
   source_version text not null,
   payload_reference jsonb not null default '{}'::jsonb
@@ -1465,6 +1682,7 @@ create table public.memory_jobs (
   attempt_count integer not null default 0 check (attempt_count >= 0),
   max_attempts integer not null default 5 check (max_attempts > 0),
   available_at timestamptz not null default now(),
+  lease_started_at timestamptz,
   lease_expires_at timestamptz,
   worker_id text,
   lease_token uuid,
@@ -1476,7 +1694,14 @@ create table public.memory_jobs (
   unique (owner_id, job_type, idempotency_key, source_version),
   check (
     status <> 'leased'
-    or (worker_id is not null and lease_token is not null and lease_expires_at is not null)
+    or (
+      worker_id is not null
+      and worker_id <> ''
+      and lease_token is not null
+      and lease_started_at is not null
+      and lease_expires_at is not null
+      and lease_expires_at > lease_started_at
+    )
   )
 );
 
@@ -1510,15 +1735,17 @@ create table public.memory_job_attempts (
   worker_id text not null,
   provider text,
   model text,
-  token_usage jsonb not null default '{}'::jsonb,
+  token_usage jsonb not null default '{}'::jsonb
+    check (jsonb_typeof(token_usage) = 'object'),
   status_code integer,
-  schema_version integer not null,
+  schema_version integer not null check (schema_version > 0),
   started_at timestamptz not null,
   finished_at timestamptz not null,
   outcome text not null
     check (outcome in ('succeeded', 'retryable', 'dead_letter', 'cancelled')),
   error_code text,
-  redacted_diagnostics jsonb not null default '{}'::jsonb,
+  redacted_diagnostics jsonb not null default '{}'::jsonb
+    check (jsonb_typeof(redacted_diagnostics) = 'object'),
   duration_ms integer not null check (duration_ms >= 0),
   unique (owner_id, job_id, attempt_number),
   foreign key (owner_id, job_id)
@@ -1547,6 +1774,11 @@ create table public.memory_import_chunks (
   idempotency_key text not null,
   item_count integer not null check (item_count >= 0),
   chunk_hash text not null,
+  source_kind text not null
+    check (source_kind in ('journal', 'freeform_chat', 'intention_checkin')),
+  highest_client_sequence bigint not null check (highest_client_sequence >= 0),
+  highest_client_event_id text,
+  observed_at timestamptz not null,
   status text not null check (status in ('accepted', 'verified', 'failed')),
   accepted_at timestamptz not null default now(),
   unique (owner_id, id),
@@ -1591,21 +1823,19 @@ create index memory_source_watermarks_owner_updated_idx
   on public.memory_source_watermarks (owner_id, updated_at desc);
 create index memory_deletion_ledger_owner_deleted_idx
   on public.memory_deletion_ledger (owner_id, deleted_at desc);
-create index memory_messages_owner_conversation_sequence_idx
-  on public.memory_messages (owner_id, conversation_id, sequence);
-create index memory_message_revisions_owner_message_idx
-  on public.memory_message_revisions (owner_id, message_id, revision desc);
-create index memory_evidence_spans_owner_revision_idx
-  on public.memory_evidence_spans (owner_id, message_revision_id);
-create index memory_jobs_owner_ready_idx
-  on public.memory_jobs (owner_id, priority desc, available_at, created_at)
-  where status in ('queued', 'retryable', 'leased');
-create index memory_job_attempts_owner_job_idx
-  on public.memory_job_attempts (owner_id, job_id, attempt_number);
+create index memory_deletion_pending_idx
+  on public.memory_deletion_ledger (created_at, id)
+  where verification_status = 'pending';
+create index memory_messages_owner_authored_idx
+  on public.memory_messages (owner_id, authored_at);
+create index memory_jobs_claim_ready_idx
+  on public.memory_jobs (priority desc, available_at, created_at, id)
+  where status in ('queued', 'retryable');
+create index memory_jobs_claim_expired_idx
+  on public.memory_jobs (lease_expires_at, priority desc, available_at, created_at, id)
+  where status = 'leased';
 create index memory_import_manifests_owner_created_idx
   on public.memory_import_manifests (owner_id, created_at desc);
-create index memory_import_chunks_owner_manifest_idx
-  on public.memory_import_chunks (owner_id, manifest_id, chunk_index);
 create index turn_traces_owner_created_idx
   on public.turn_traces (owner_id, created_at desc);
 
@@ -1625,26 +1855,28 @@ declare
 begin
   select * into authority
   from public.memory_deployment_authority
-  where singleton = true;
+  where singleton = true
+  for share;
   if not found then
     raise exception using errcode = 'P0001', message = 'MEMORY_AUTHORITY_UNAVAILABLE';
   end if;
   if authority.mode <> 'active' then
     raise exception using errcode = 'P0001', message = 'MEMORY_WRITES_DISABLED';
   end if;
-  if authority.deployment_id <> p_deployment_id then
+  if authority.deployment_id is distinct from p_deployment_id then
     raise exception using errcode = 'P0001', message = 'MEMORY_DEPLOYMENT_MISMATCH';
   end if;
-  if authority.writer_epoch <> p_writer_epoch then
+  if authority.writer_epoch is distinct from p_writer_epoch then
     raise exception using errcode = 'P0001', message = 'MEMORY_STALE_WRITER_EPOCH';
   end if;
   if authority.writer_lease_id is distinct from p_writer_lease_id then
     raise exception using errcode = 'P0001', message = 'MEMORY_WRITER_LEASE_MISMATCH';
   end if;
-  if authority.writer_lease_expires_at is null or authority.writer_lease_expires_at <= now() then
+  if authority.writer_lease_expires_at is null
+      or authority.writer_lease_expires_at <= clock_timestamp() then
     raise exception using errcode = 'P0001', message = 'MEMORY_WRITER_LEASE_EXPIRED';
   end if;
-  if p_writer_lease_token is null or p_writer_lease_token = '' then
+  if p_writer_lease_token is null or btrim(p_writer_lease_token) = '' then
     raise exception using errcode = 'P0001', message = 'MEMORY_WRITER_LEASE_TOKEN_INVALID';
   end if;
   if authority.writer_lease_token_digest is distinct from encode(
@@ -1689,11 +1921,32 @@ begin
     payload_reference, priority, max_attempts
   ) values (
     p_owner_id, p_job_type, p_idempotency_key, p_source_version,
-    coalesce(p_payload_reference, '{}'::jsonb), p_priority, p_max_attempts
+    coalesce(p_payload_reference, '{}'::jsonb),
+    coalesce(p_priority, 0),
+    coalesce(p_max_attempts, 5)
   )
   on conflict (owner_id, job_type, idempotency_key, source_version)
-  do update set idempotency_key = excluded.idempotency_key
+  do nothing
   returning * into result;
+
+  if not found then
+    select * into result
+    from public.memory_jobs
+    where owner_id = p_owner_id
+      and job_type = p_job_type
+      and idempotency_key = p_idempotency_key
+      and source_version = p_source_version
+    for update;
+    if not found
+        or result.payload_reference
+          is distinct from coalesce(p_payload_reference, '{}'::jsonb)
+        or result.priority is distinct from coalesce(p_priority, 0)
+        or result.max_attempts is distinct from coalesce(p_max_attempts, 5) then
+      raise exception using
+        errcode = 'PT409',
+        message = 'MEMORY_IDEMPOTENCY_CONFLICT';
+    end if;
+  end if;
   return result;
 end;
 $$;
@@ -1712,44 +1965,116 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+declare exhausted public.memory_jobs%rowtype;
 begin
   perform public.memory_assert_writer(
     p_deployment_id, p_writer_epoch, p_writer_lease_id,
     p_writer_lease_token, p_source_credential_fingerprint
   );
+  if p_worker_id is null or btrim(p_worker_id) = '' then
+    raise exception using errcode = '22023', message = 'MEMORY_WORKER_ID_INVALID';
+  end if;
 
-  update public.memory_jobs
-  set status = 'dead_letter', completed_at = now(), updated_at = now(),
-      last_error_code = coalesce(last_error_code, 'MAX_ATTEMPTS_EXHAUSTED'),
-      worker_id = null, lease_token = null, lease_expires_at = null
-  where status in ('queued', 'retryable', 'leased')
-    and attempt_count >= max_attempts
-    and (status <> 'leased' or lease_expires_at <= now());
+  for exhausted in
+    select *
+    from public.memory_jobs
+    where status in ('queued', 'retryable', 'leased')
+      and attempt_count >= max_attempts
+      and (
+        status <> 'leased'
+        or lease_expires_at <= clock_timestamp()
+      )
+    for update skip locked
+  loop
+    if exhausted.status = 'leased' then
+      insert into public.memory_job_attempts (
+        owner_id, job_id, attempt_number, lease_token, worker_id,
+        token_usage, schema_version, started_at, finished_at, outcome,
+        error_code, redacted_diagnostics, duration_ms
+      ) values (
+        exhausted.owner_id, exhausted.id, exhausted.attempt_count,
+        exhausted.lease_token, exhausted.worker_id, '{}'::jsonb, 1,
+        exhausted.lease_started_at, clock_timestamp(), 'dead_letter',
+        'JOB_LEASE_EXPIRED', '{}'::jsonb,
+        least(
+          2147483647,
+          greatest(
+            0,
+            floor(extract(epoch from (
+              clock_timestamp() - exhausted.lease_started_at
+            )) * 1000)
+          )
+        )::integer
+      )
+      on conflict (owner_id, job_id, attempt_number) do nothing;
+    end if;
+    update public.memory_jobs
+    set status = 'dead_letter',
+        completed_at = clock_timestamp(),
+        updated_at = clock_timestamp(),
+        last_error_code = coalesce(last_error_code, 'MAX_ATTEMPTS_EXHAUSTED'),
+        worker_id = null,
+        lease_token = null,
+        lease_started_at = null,
+        lease_expires_at = null
+    where id = exhausted.id;
+  end loop;
 
   return query
-  with candidates as (
-    select job.id
+  with candidates as materialized (
+    select job.*
     from public.memory_jobs as job
     where (
       job.status in ('queued', 'retryable')
-      or (job.status = 'leased' and job.lease_expires_at <= now())
+      or (
+        job.status = 'leased'
+        and job.lease_expires_at <= clock_timestamp()
+      )
     )
-      and job.available_at <= now()
+      and job.available_at <= clock_timestamp()
       and job.attempt_count < job.max_attempts
     order by job.priority desc, job.available_at, job.created_at
     limit greatest(1, least(coalesce(p_limit, 10), 50))
     for update skip locked
+  ),
+  expired_attempts as (
+    insert into public.memory_job_attempts (
+      owner_id, job_id, attempt_number, lease_token, worker_id,
+      token_usage, schema_version, started_at, finished_at, outcome,
+      error_code, redacted_diagnostics, duration_ms
+    )
+    select
+      owner_id, id, attempt_count, lease_token, worker_id,
+      '{}'::jsonb, 1, lease_started_at, clock_timestamp(), 'retryable',
+      'JOB_LEASE_EXPIRED', '{}'::jsonb,
+      least(
+        2147483647,
+        greatest(
+          0,
+          floor(extract(epoch from (
+            clock_timestamp() - lease_started_at
+          )) * 1000)
+        )
+      )::integer
+    from candidates
+    where status = 'leased'
+    on conflict (owner_id, job_id, attempt_number) do nothing
+    returning job_id
+  ),
+  expired_attempt_count as (
+    select count(*) from expired_attempts
   )
   update public.memory_jobs as job
   set status = 'leased',
       worker_id = p_worker_id,
       lease_token = gen_random_uuid(),
-      lease_expires_at = now() + make_interval(
+      lease_started_at = clock_timestamp(),
+      lease_expires_at = clock_timestamp() + make_interval(
         secs => greatest(15, least(coalesce(p_lease_seconds, 60), 900))
       ),
       attempt_count = job.attempt_count + 1,
-      updated_at = now()
-  from candidates
+      updated_at = clock_timestamp()
+  from candidates, expired_attempt_count
   where job.id = candidates.id
   returning job.*;
 end;
@@ -1797,6 +2122,7 @@ begin
     and status = 'leased'
     and worker_id = p_worker_id
     and lease_token = p_lease_token
+    and lease_expires_at > clock_timestamp()
   for update;
   if not found then
     raise exception using errcode = 'P0001', message = 'MEMORY_STALE_JOB_LEASE';
@@ -1815,29 +2141,43 @@ begin
   ) values (
     job.owner_id, job.id, job.attempt_count, p_lease_token, p_worker_id,
     p_provider, p_model, coalesce(p_token_usage, '{}'::jsonb), p_status_code,
-    p_schema_version, p_started_at, now(), final_outcome, p_error_code,
+    p_schema_version, job.lease_started_at, clock_timestamp(),
+    final_outcome, p_error_code,
     coalesce(p_redacted_diagnostics, '{}'::jsonb),
-    greatest(0, floor(extract(epoch from (now() - p_started_at)) * 1000)::integer)
+    least(
+      2147483647,
+      greatest(
+        0,
+        floor(extract(epoch from (
+          clock_timestamp() - job.lease_started_at
+        )) * 1000)
+      )
+    )::integer
   );
 
   update public.memory_jobs
   set status = final_outcome,
       available_at = case
         when final_outcome = 'retryable'
-          then now() + make_interval(
-            secs => greatest(15, least(p_retry_delay_seconds, 3600))
+          then clock_timestamp() + make_interval(
+            secs => greatest(
+              15,
+              least(coalesce(p_retry_delay_seconds, 15), 3600)
+            )
           )
         else available_at
       end,
       completed_at = case
-        when final_outcome in ('succeeded', 'dead_letter', 'cancelled') then now()
+        when final_outcome in ('succeeded', 'dead_letter', 'cancelled')
+          then clock_timestamp()
         else null
       end,
       last_error_code = p_error_code,
       worker_id = null,
       lease_token = null,
+      lease_started_at = null,
       lease_expires_at = null,
-      updated_at = now()
+      updated_at = clock_timestamp()
   where id = job.id
   returning * into job;
   return job;
@@ -1874,8 +2214,23 @@ begin
     p_source_count, p_message_count, p_source_hash, 'created'
   )
   on conflict (owner_id, id)
-  do update set id = excluded.id
+  do nothing
   returning * into result;
+  if not found then
+    select * into result
+    from public.memory_import_manifests
+    where owner_id = p_owner_id and id = p_manifest_id
+    for update;
+    if not found
+        or result.contract_version is distinct from p_contract_version
+        or result.source_count is distinct from p_source_count
+        or result.message_count is distinct from p_message_count
+        or result.source_hash is distinct from p_source_hash then
+      raise exception using
+        errcode = 'PT409',
+        message = 'MEMORY_IDEMPOTENCY_CONFLICT';
+    end if;
+  end if;
   return result;
 end;
 $$;
@@ -1901,7 +2256,11 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-declare result public.memory_import_chunks%rowtype;
+declare
+  result public.memory_import_chunks%rowtype;
+  watermark public.memory_source_watermarks%rowtype;
+  matching_rows bigint;
+  matching_id bigint;
 begin
   perform public.memory_assert_writer(
     p_deployment_id, p_writer_epoch, p_writer_lease_id,
@@ -1909,39 +2268,92 @@ begin
   );
   insert into public.memory_import_chunks (
     owner_id, manifest_id, chunk_index, idempotency_key,
-    item_count, chunk_hash, status
+    item_count, chunk_hash, source_kind, highest_client_sequence,
+    highest_client_event_id, observed_at, status
   ) values (
     p_owner_id, p_manifest_id, p_chunk_index, p_idempotency_key,
-    p_item_count, p_chunk_hash, 'accepted'
+    p_item_count, p_chunk_hash, p_source_kind, p_highest_client_sequence,
+    p_highest_client_event_id, p_observed_at, 'accepted'
   )
-  on conflict (owner_id, idempotency_key)
-  do update set idempotency_key = excluded.idempotency_key
+  on conflict do nothing
   returning * into result;
+
+  if not found then
+    select count(*), min(id)
+    into matching_rows, matching_id
+    from public.memory_import_chunks
+    where owner_id = p_owner_id
+      and (
+        idempotency_key = p_idempotency_key
+        or (
+          manifest_id = p_manifest_id
+          and chunk_index = p_chunk_index
+        )
+      );
+    if matching_rows <> 1 then
+      raise exception using
+        errcode = 'PT409',
+        message = 'MEMORY_IDEMPOTENCY_CONFLICT';
+    end if;
+    select * into result
+    from public.memory_import_chunks
+    where owner_id = p_owner_id and id = matching_id
+    for update;
+    if result.manifest_id is distinct from p_manifest_id
+        or result.chunk_index is distinct from p_chunk_index
+        or result.idempotency_key is distinct from p_idempotency_key
+        or result.item_count is distinct from p_item_count
+        or result.chunk_hash is distinct from p_chunk_hash
+        or result.source_kind is distinct from p_source_kind
+        or result.highest_client_sequence
+          is distinct from p_highest_client_sequence
+        or result.highest_client_event_id
+          is distinct from p_highest_client_event_id
+        or result.observed_at is distinct from p_observed_at then
+      raise exception using
+        errcode = 'PT409',
+        message = 'MEMORY_IDEMPOTENCY_CONFLICT';
+    end if;
+  end if;
 
   insert into public.memory_source_watermarks (
     owner_id, source_kind, highest_client_sequence,
     highest_client_event_id, observed_at
   ) values (
-    p_owner_id, p_source_kind, p_highest_client_sequence,
-    p_highest_client_event_id, p_observed_at
+    result.owner_id, result.source_kind, result.highest_client_sequence,
+    result.highest_client_event_id, result.observed_at
   )
   on conflict (owner_id, source_kind)
-  do update set
-    highest_client_sequence = greatest(
-      public.memory_source_watermarks.highest_client_sequence,
-      excluded.highest_client_sequence
-    ),
-    highest_client_event_id = case
-      when excluded.highest_client_sequence
-        >= public.memory_source_watermarks.highest_client_sequence
-      then excluded.highest_client_event_id
-      else public.memory_source_watermarks.highest_client_event_id
-    end,
-    observed_at = greatest(
-      public.memory_source_watermarks.observed_at,
-      excluded.observed_at
-    ),
-    updated_at = now();
+  do nothing
+  returning * into watermark;
+  if not found then
+    select * into watermark
+    from public.memory_source_watermarks
+    where owner_id = result.owner_id
+      and source_kind = result.source_kind
+    for update;
+    if result.highest_client_sequence = watermark.highest_client_sequence
+        and result.highest_client_event_id
+          is distinct from watermark.highest_client_event_id then
+      raise exception using
+        errcode = 'PT409',
+        message = 'MEMORY_SOURCE_WATERMARK_CONFLICT';
+    elsif result.highest_client_sequence > watermark.highest_client_sequence then
+      update public.memory_source_watermarks
+      set highest_client_sequence = result.highest_client_sequence,
+          highest_client_event_id = result.highest_client_event_id,
+          observed_at = result.observed_at,
+          updated_at = clock_timestamp()
+      where owner_id = result.owner_id
+        and source_kind = result.source_kind;
+    elsif result.highest_client_sequence = watermark.highest_client_sequence then
+      update public.memory_source_watermarks
+      set observed_at = greatest(observed_at, result.observed_at),
+          updated_at = clock_timestamp()
+      where owner_id = result.owner_id
+        and source_kind = result.source_kind;
+    end if;
+  end if;
   return result;
 end;
 $$;
@@ -1964,7 +2376,9 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-declare result public.memory_deletion_ledger%rowtype;
+declare
+  result public.memory_deletion_ledger%rowtype;
+  matching_rows bigint;
 begin
   perform public.memory_assert_writer(
     p_deployment_id, p_writer_epoch, p_writer_lease_id,
@@ -1977,9 +2391,68 @@ begin
     p_owner_id, p_source_kind, p_source_id, p_source_revision,
     p_client_event_id, p_deleted_at, p_reason_code
   )
-  on conflict (owner_id, client_event_id)
-  do update set client_event_id = excluded.client_event_id
+  on conflict do nothing
   returning * into result;
+  if not found then
+    select count(*) into matching_rows
+    from public.memory_deletion_ledger
+    where owner_id = p_owner_id
+      and (
+        client_event_id = p_client_event_id
+        or (
+          source_kind = p_source_kind
+          and source_id = p_source_id
+          and source_revision = p_source_revision
+        )
+      );
+    if matching_rows <> 1 then
+      raise exception using
+        errcode = 'PT409',
+        message = 'MEMORY_IDEMPOTENCY_CONFLICT';
+    end if;
+    select * into result
+    from public.memory_deletion_ledger
+    where owner_id = p_owner_id
+      and (
+        client_event_id = p_client_event_id
+        or (
+          source_kind = p_source_kind
+          and source_id = p_source_id
+          and source_revision = p_source_revision
+        )
+      )
+    for update;
+    if result.source_kind is distinct from p_source_kind
+        or result.source_id is distinct from p_source_id
+        or result.source_revision is distinct from p_source_revision
+        or result.client_event_id is distinct from p_client_event_id
+        or result.deleted_at is distinct from p_deleted_at
+        or result.reason_code is distinct from p_reason_code then
+      raise exception using
+        errcode = 'PT409',
+        message = 'MEMORY_IDEMPOTENCY_CONFLICT';
+    end if;
+  end if;
+
+  perform public.memory_enqueue_job(
+    p_deployment_id,
+    p_writer_epoch,
+    p_writer_lease_id,
+    p_writer_lease_token,
+    p_source_credential_fingerprint,
+    p_owner_id,
+    'verify_deletion',
+    'deletion:' || p_client_event_id,
+    p_source_revision::text,
+    jsonb_build_object(
+      'sourceKind', p_source_kind,
+      'sourceId', p_source_id,
+      'sourceRevision', p_source_revision,
+      'deletionEventId', p_client_event_id
+    ),
+    10,
+    5
+  );
   return result;
 end;
 $$;
@@ -2035,9 +2508,38 @@ as $$
     (select min(authored_at) from public.memory_messages where owner_id = p_owner_id),
     (select max(authored_at) from public.memory_messages where owner_id = p_owner_id)
 $$;
+
+-- Canonical PostgreSQL must never leave SECURITY DEFINER functions executable
+-- by PUBLIC between the core migration and a provider overlay.
+revoke all on function public.memory_assert_writer(text, bigint, uuid, text, text)
+  from public;
+revoke all on function public.memory_enqueue_job(
+  text, bigint, uuid, text, text, uuid, text, text, text, jsonb, smallint, integer
+) from public;
+revoke all on function public.memory_claim_jobs(
+  text, bigint, uuid, text, text, text, integer, integer
+) from public;
+revoke all on function public.memory_finish_job(
+  text, bigint, uuid, text, text, bigint, text, uuid, text, text, integer,
+  text, text, jsonb, integer, integer, timestamptz, jsonb
+) from public;
+revoke all on function public.memory_begin_import(
+  text, bigint, uuid, text, text, uuid, text, integer, integer, integer, text
+) from public;
+revoke all on function public.memory_accept_import_chunk(
+  text, bigint, uuid, text, text, uuid, text, integer, text, integer, text,
+  bigint, text, text, timestamptz
+) from public;
+revoke all on function public.memory_record_deletion(
+  text, bigint, uuid, text, text, uuid, text, text, integer, text,
+  timestamptz, text
+) from public;
+revoke all on function public.memory_get_bootstrap() from public;
+revoke all on function public.memory_get_owner_state(uuid) from public;
+revoke all on function public.memory_get_source_inventory(uuid) from public;
 ```
 
-- [ ] **Step 5: Create the Supabase overlay**
+- [ ] **Step 7: Create the Supabase overlay**
 
 Create `backend/sql/overlays/supabase/0001_memory_foundation.sql`:
 
@@ -2083,7 +2585,7 @@ revoke all on table
   public.memory_jobs,
   public.memory_job_attempts,
   public.turn_traces
-from public, anon, authenticated;
+from public, anon, authenticated, service_role;
 
 grant select on table
   public.memory_owner_state,
@@ -2093,26 +2595,8 @@ grant select on table
   public.memory_messages
 to authenticated;
 
-grant all on table
-  public.memory_deployment_authority,
-  public.memory_owner_state,
-  public.memory_source_watermarks,
-  public.memory_deletion_ledger,
-  public.memory_conversations,
-  public.memory_messages,
-  public.memory_message_revisions,
-  public.memory_evidence_spans,
-  public.memory_import_manifests,
-  public.memory_import_chunks,
-  public.memory_jobs,
-  public.memory_job_attempts,
-  public.turn_traces
-to service_role;
-
-grant usage, select on all sequences in schema public to service_role;
-
 revoke all on function public.memory_assert_writer(text, bigint, uuid, text, text)
-  from public, anon, authenticated;
+  from public, anon, authenticated, service_role;
 revoke all on function public.memory_enqueue_job(
   text, bigint, uuid, text, text, uuid, text, text, text, jsonb, smallint, integer
 ) from public, anon, authenticated;
@@ -2142,8 +2626,6 @@ revoke all on function public.memory_get_owner_state(uuid)
 revoke all on function public.memory_get_source_inventory(uuid)
   from public, anon, authenticated;
 
-grant execute on function public.memory_assert_writer(text, bigint, uuid, text, text)
-  to service_role;
 grant execute on function public.memory_enqueue_job(
   text, bigint, uuid, text, text, uuid, text, text, text, jsonb, smallint, integer
 ) to service_role;
@@ -2171,7 +2653,7 @@ grant execute on function public.memory_get_owner_state(uuid) to service_role;
 grant execute on function public.memory_get_source_inventory(uuid) to service_role;
 ```
 
-- [ ] **Step 6: Add the deterministic generator**
+- [ ] **Step 8: Add the byte-preserving deterministic generator**
 
 Create `scripts/build-cloud-memory-migration.mjs`:
 
@@ -2184,38 +2666,169 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const canonicalRelative = 'backend/sql/migrations/0001_memory_foundation.sql';
 const overlayRelative = 'backend/sql/overlays/supabase/0001_memory_foundation.sql';
 const outputRelative = 'supabase/migrations/20260728112723_cloud_memory_foundation.sql';
-const canonical = (await readFile(path.join(root, canonicalRelative), 'utf8')).trimEnd();
-const overlay = (await readFile(path.join(root, overlayRelative), 'utf8')).trimEnd();
-const output = [
-  '-- GENERATED by scripts/build-cloud-memory-migration.mjs',
-  `-- Source: ${canonicalRelative}`,
-  `-- Overlay: ${overlayRelative}`,
-  '',
+const canonical = await readFile(path.join(root, canonicalRelative));
+const overlay = await readFile(path.join(root, overlayRelative));
+
+function assertCanonicalBytes(label, value) {
+  if (value.includes(13)) {
+    throw new Error(`${label} must use LF, not CRLF`);
+  }
+  if (
+    value.length === 0
+    || value[value.length - 1] !== 10
+    || (value.length > 1 && value[value.length - 2] === 10)
+  ) {
+    throw new Error(`${label} must end with exactly one LF`);
+  }
+}
+
+assertCanonicalBytes(canonicalRelative, canonical);
+assertCanonicalBytes(overlayRelative, overlay);
+const header = Buffer.from(
+  `-- GENERATED by scripts/build-cloud-memory-migration.mjs\n`
+  + `-- Source: ${canonicalRelative}\n`
+  + `-- Overlay: ${overlayRelative}\n\n`,
+  'utf8',
+);
+const expected = Buffer.concat([
+  header,
   canonical,
-  '',
+  Buffer.from('\n'),
   overlay,
-  '',
-].join('\n');
-await writeFile(path.join(root, outputRelative), output, 'utf8');
+]);
+const outputPath = path.join(root, outputRelative);
+
+if (process.argv.includes('--check')) {
+  const actual = await readFile(outputPath);
+  if (!actual.equals(expected)) {
+    throw new Error(`${outputRelative} is not byte-current`);
+  }
+} else {
+  await writeFile(outputPath, expected);
+}
+```
+
+Run:
+
+```powershell
+$protected = @(
+  'supabase/migrations/202601240001_init.sql',
+  'supabase/migrations/20260728120938_memory_portability_authority.sql',
+  'supabase/migrations/20260728123338_memory_writer_authority.sql',
+  'supabase/migrations/20260728123342_memory_backup_schedule.sql'
+)
+$protectedBefore = @{}
+foreach ($path in $protected) {
+  $protectedBefore[$path] = (Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash
+}
+
+node scripts/build-cloud-memory-migration.mjs
+node scripts/build-cloud-memory-migration.mjs --check
+npx jest --runInBand __tests__/services/cloudMemoryMigrationContract.test.ts
+npx supabase db reset --local --no-seed
+npx supabase test db supabase/tests/cloud_memory_foundation.test.sql --local
+npx supabase db lint --local --level warning --fail-on warning
+
+foreach ($path in $protected) {
+  if ((Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash -ne $protectedBefore[$path]) {
+    throw "Protected migration changed: $path"
+  }
+}
+```
+
+Expected: generator check PASS, Jest PASS, reset PASS on PostgreSQL 17, focused pgTAP PASS, lint exits `0`, and every protected migration hash is unchanged.
+
+- [ ] **Step 9: Run a self-contained stale/null-epoch sabotage**
+
+Change only:
+
+```sql
+if authority.writer_epoch is distinct from p_writer_epoch then
+```
+
+to:
+
+```sql
+if false then
 ```
 
 Run:
 
 ```powershell
 node scripts/build-cloud-memory-migration.mjs
-npx jest --runInBand __tests__/services/cloudMemoryMigrationContract.test.ts
 npx supabase db reset --local --no-seed
-npx supabase db lint --local --level warning --fail-on warning
+npx supabase test db supabase/tests/cloud_memory_foundation.test.sql --local
 ```
 
-Expected: generator test PASS, reset PASS, lint exits `0`.
+Expected: FAIL on both stale and null writer-epoch assertions. Restore the exact `IS DISTINCT FROM` expression, regenerate, reset, and confirm PASS.
 
-- [ ] **Step 7: Sabotage and commit**
+- [ ] **Step 10: Run the `FOR SHARE` concurrency sabotage**
 
-Sabotage: remove `p_writer_epoch` validation inside `memory_assert_writer`, regenerate, reset, and confirm Task 4’s stale-epoch test fails. Restore, regenerate, reset, and confirm green.
+Remove only `for share` from `memory_assert_writer`, regenerate, reset, provision the Task 3 test authority, and run two local PostgreSQL sessions:
 
 ```powershell
-git add backend/sql scripts/build-cloud-memory-migration.mjs supabase/config.toml supabase/migrations/20260728112723_cloud_memory_foundation.sql __tests__/services/cloudMemoryMigrationContract.test.ts
+$statusJson = npx supabase status -o json | ConvertFrom-Json
+$dbUrl = $statusJson.DB_URL
+$psql = 'C:\Program Files\PostgreSQL\17\bin\psql.exe'
+& $psql $dbUrl -X -v ON_ERROR_STOP=1 -c @"
+update public.memory_deployment_authority
+set
+  mode = 'active',
+  writer_epoch = 1,
+  writer_lease_id = '00000000-0000-4000-8000-000000000077',
+  writer_lease_token_digest = encode(
+    sha256(convert_to('local-test-writer-token', 'UTF8')),
+    'hex'
+  ),
+  writer_lease_expires_at = clock_timestamp() + interval '1 hour',
+  writer_lease_issuer = 'phase0-lock-sabotage',
+  writer_lease_key_id = 'phase0-test-key',
+  source_credential_fingerprint = 'sha256:local-source',
+  change_reason = 'Task 3 FOR SHARE sabotage setup'
+where singleton;
+"@
+$holder = Start-Job -ScriptBlock {
+  param($psqlPath, $url)
+  & $psqlPath $url -X -v ON_ERROR_STOP=1 -c @"
+begin;
+select public.memory_assert_writer(
+  'blackrose-primary', 1,
+  '00000000-0000-4000-8000-000000000077',
+  'local-test-writer-token', 'sha256:local-source'
+);
+select pg_sleep(4);
+commit;
+"@
+} -ArgumentList $psql, $dbUrl
+Start-Sleep -Milliseconds 750
+$elapsed = Measure-Command {
+  & $psql $dbUrl -X -v ON_ERROR_STOP=1 -c @"
+update public.memory_deployment_authority
+set writer_epoch = 2, change_reason = 'Task 3 FOR SHARE sabotage'
+where singleton;
+"@
+}
+Receive-Job -Job $holder -Wait
+Remove-Job -Job $holder
+if ($elapsed.TotalSeconds -ge 2.5) {
+  throw 'Sabotage unexpectedly retained the transactional authority lock'
+}
+```
+
+Expected with `FOR SHARE` removed: the authority update completes in under `2.5` seconds. Restore `FOR SHARE`, regenerate, reset, provision epoch `1`, rerun the same probe, and invert the assertion:
+
+```powershell
+if ($elapsed.TotalSeconds -lt 2.5) {
+  throw 'Authority rotation did not wait for the fenced transaction'
+}
+```
+
+Expected after restoration: the update waits at least `2.5` seconds and runs only after the holding transaction commits. Regenerate, reset, and rerun the focused suite after restoring.
+
+- [ ] **Step 11: Commit only the exact Task 3 allowlist**
+
+```powershell
+git add backend/sql scripts/build-cloud-memory-migration.mjs supabase/config.toml supabase/migrations/20260728112723_cloud_memory_foundation.sql __tests__/services/cloudMemoryMigrationContract.test.ts supabase/tests/cloud_memory_foundation.test.sql
 git commit -m "feat(memory): add portable fenced PostgreSQL foundation"
 ```
 
@@ -2224,16 +2837,16 @@ git commit -m "feat(memory): add portable fenced PostgreSQL foundation"
 ### Task 4: Real PostgreSQL Isolation, Idempotency, Lease, and Delete Verification
 
 **Files:**
-- Create: `supabase/tests/cloud_memory_foundation.test.sql`
+- Modify: `supabase/tests/cloud_memory_foundation.test.sql`
 - Create: `backend/src/__tests__/localPostgrest.integration.test.ts`
 
 **Interfaces:**
 - Consumes: Task 3 schema and RPC signatures.
-- Proves: owner isolation, explicit ACLs, writer fencing, duplicate enqueue identity, expired lease recovery, lease-token fencing, max attempts, atomic attempt recording, PostgreSQL 17 column-list nulling, and concurrent disjoint claims.
+- Proves: owner isolation, explicit ACLs, writer fencing, content-equivalent job/manifest/chunk/deletion idempotency, watermark collision rejection, deletion verification enqueue, expired lease recovery and audit history, lease-token fencing, max attempts, atomic attempt recording, PostgreSQL 17 column-list nulling, authority-row lock ordering, and concurrent disjoint claims.
 
-- [ ] **Step 1: Write the pgTAP suite using `no_plan()`**
+- [ ] **Step 1: Extend the focused Task 3 pgTAP suite using `no_plan()`**
 
-Create `supabase/tests/cloud_memory_foundation.test.sql`. Use real UUIDs and seed as `postgres`; never rely on an inaccurate assertion count.
+Modify the Task 3 `supabase/tests/cloud_memory_foundation.test.sql`. Preserve its strict feature-shape, null/stale writer, ACL, content-equivalence, expired-finish, owner-FK, and global-index assertions. Add the following isolation, recovery, PostgreSQL 17, and full lifecycle cases. Use real UUIDs and seed as `postgres`; never rely on an inaccurate assertion count.
 
 ```sql
 begin;
@@ -2395,6 +3008,28 @@ select lives_ok(
   'fenced import manifest begins'
 );
 select lives_ok(
+  $$select * from public.memory_begin_import(
+    'blackrose-primary', 1,
+    '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000a',
+    'manifest-a', 1, 0, 0, 'sha256:empty'
+  )$$,
+  'content-equivalent manifest replay returns the existing row'
+);
+select throws_ok(
+  $$select * from public.memory_begin_import(
+    'blackrose-primary', 1,
+    '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000a',
+    'manifest-a', 1, 1, 0, 'sha256:changed'
+  )$$,
+  'PT409',
+  'MEMORY_IDEMPOTENCY_CONFLICT',
+  'same manifest identity with changed counts or hash is rejected'
+);
+select lives_ok(
   $$select * from public.memory_accept_import_chunk(
     'blackrose-primary', 1,
     '00000000-0000-4000-8000-000000000077',
@@ -2404,6 +3039,43 @@ select lives_ok(
     12, 'client-event-12', 'journal', '2026-07-28T00:00:00Z'
   )$$,
   'chunk acceptance and watermark update are one transaction'
+);
+select lives_ok(
+  $$select * from public.memory_accept_import_chunk(
+    'blackrose-primary', 1,
+    '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000a',
+    'manifest-a', 0, 'chunk-event-a', 0, 'sha256:empty',
+    12, 'client-event-12', 'journal', '2026-07-28T00:00:00Z'
+  )$$,
+  'content-equivalent chunk replay returns the existing row'
+);
+select throws_ok(
+  $$select * from public.memory_accept_import_chunk(
+    'blackrose-primary', 1,
+    '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000a',
+    'manifest-a', 0, 'chunk-event-a', 0, 'sha256:changed',
+    12, 'client-event-12', 'journal', '2026-07-28T00:00:00Z'
+  )$$,
+  'PT409',
+  'MEMORY_IDEMPOTENCY_CONFLICT',
+  'same chunk identity with changed content is rejected'
+);
+select throws_ok(
+  $$select * from public.memory_accept_import_chunk(
+    'blackrose-primary', 1,
+    '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000a',
+    'manifest-a', 1, 'chunk-event-b', 0, 'sha256:empty-2',
+    12, 'different-event-at-12', 'journal', '2026-07-28T00:02:00Z'
+  )$$,
+  'PT409',
+  'MEMORY_SOURCE_WATERMARK_CONFLICT',
+  'equal watermark sequence with a different event ID is rejected'
 );
 select is(
   (
@@ -2426,6 +3098,30 @@ select lives_ok(
   )$$,
   'deletion ledger append is fenced'
 );
+select lives_ok(
+  $$select * from public.memory_record_deletion(
+    'blackrose-primary', 1,
+    '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000a',
+    'journal', 'entry-deleted', 1, 'delete-event-1',
+    '2026-07-28T00:01:00Z', 'USER_DELETE'
+  )$$,
+  'content-equivalent deletion replay returns the existing tombstone'
+);
+select throws_ok(
+  $$select * from public.memory_record_deletion(
+    'blackrose-primary', 1,
+    '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000a',
+    'journal', 'entry-deleted', 1, 'delete-event-1',
+    '2026-07-28T00:01:00Z', 'CHANGED_REASON'
+  )$$,
+  'PT409',
+  'MEMORY_IDEMPOTENCY_CONFLICT',
+  'same deletion identity with changed content is rejected'
+);
 select is(
   (
     select verification_status
@@ -2436,6 +3132,17 @@ select is(
   'pending',
   'Phase 0 records but does not falsely verify deletion'
 );
+select is(
+  (
+    select count(*)
+    from public.memory_jobs
+    where owner_id = '00000000-0000-4000-8000-00000000000a'
+      and job_type = 'verify_deletion'
+      and idempotency_key = 'deletion:delete-event-1'
+  ),
+  1::bigint,
+  'deletion atomically enqueues exactly one verification job'
+);
 
 select lives_ok(
   $$select * from public.memory_enqueue_job(
@@ -2443,7 +3150,7 @@ select lives_ok(
     '00000000-0000-4000-8000-000000000077',
     'local-test-writer-token', 'sha256:local-source',
     '00000000-0000-4000-8000-00000000000a',
-    'capture_source', 'same', 'v1', '{"sourceId":"entry-a"}'::jsonb, 0, 2
+    'capture_source', 'same', 'v1', '{"sourceId":"entry-a"}'::jsonb, 20, 2
   )$$,
   'first enqueue succeeds'
 );
@@ -2453,9 +3160,21 @@ select lives_ok(
     '00000000-0000-4000-8000-000000000077',
     'local-test-writer-token', 'sha256:local-source',
     '00000000-0000-4000-8000-00000000000a',
-    'capture_source', 'same', 'v1', '{"sourceId":"different"}'::jsonb, 0, 2
+    'capture_source', 'same', 'v1', '{"sourceId":"entry-a"}'::jsonb, 20, 2
   )$$,
-  'duplicate enqueue returns existing row'
+  'content-equivalent duplicate enqueue returns existing row at priority 20'
+);
+select throws_ok(
+  $$select * from public.memory_enqueue_job(
+    'blackrose-primary', 1,
+    '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000a',
+    'capture_source', 'same', 'v1', '{"sourceId":"different"}'::jsonb, 20, 2
+  )$$,
+  'PT409',
+  'MEMORY_IDEMPOTENCY_CONFLICT',
+  'same job identity with different content is rejected'
 );
 select is(
   (select count(*) from public.memory_jobs where idempotency_key = 'same'),
@@ -2529,8 +3248,17 @@ select is(
 );
 select is(
   (select count(*) from public.memory_job_attempts),
+  2::bigint,
+  'expired lease and final transition each record one attempt atomically'
+);
+select is(
+  (
+    select count(*)
+    from public.memory_job_attempts
+    where error_code = 'JOB_LEASE_EXPIRED'
+  ),
   1::bigint,
-  'job transition records one attempt atomically'
+  'expired lease recovery preserves the abandoned attempt history'
 );
 
 insert into public.turn_traces (
@@ -2564,7 +3292,7 @@ npx supabase db reset --local --no-seed
 npx supabase test db supabase/tests/cloud_memory_foundation.test.sql --local
 ```
 
-Expected before Task 3 fixes: FAIL on the exact broken invariant. Expected after Task 3: PASS.
+Expected: PASS. If any newly added lifecycle assertion is red, repair the exact Task 3 SQL source, regenerate the unapplied foundation migration, rerun reset, and keep the new assertion; never weaken or delete it.
 
 - [ ] **Step 3: Write a real concurrent PostgREST integration test**
 
@@ -2598,32 +3326,23 @@ async function rpc<T>(name: string, body: object): Promise<T> {
 }
 
 run('local PostgREST concurrency', () => {
-  it('returns disjoint leases to parallel workers', async () => {
-    const leaseDigest = createHash('sha256').update(writerLeaseToken, 'utf8').digest('hex');
-    const provision = await fetch(
-      `${baseUrl}/rest/v1/memory_deployment_authority?singleton=eq.true`,
+  it('returns disjoint leases to parallel workers', { timeout: 5_000 }, async () => {
+    const directWrite = await fetch(
+      `${baseUrl}/rest/v1/memory_jobs`,
       {
-        method: 'PATCH',
-        headers: { ...headers, Prefer: 'return=minimal' },
+        method: 'POST',
+        headers,
         body: JSON.stringify({
-          mode: 'active',
-          writer_lease_id: writerLeaseId,
-          writer_lease_token_digest: leaseDigest,
-          writer_lease_expires_at: '2099-07-28T00:00:00.000Z',
-          writer_lease_issuer: 'phase0-node-integration',
-          writer_lease_key_id: 'phase0-test-key',
-          source_credential_fingerprint: sourceCredentialFingerprint,
+          owner_id: ownerA,
+          job_type: 'capture_source',
+          idempotency_key: 'forbidden-direct-write',
+          source_version: 'v1',
         }),
       },
     );
-    assert.equal(provision.ok, true, await provision.text());
-    for (const table of ['memory_job_attempts', 'memory_jobs']) {
-      const cleanup = await fetch(
-        `${baseUrl}/rest/v1/${table}?owner_id=eq.${ownerA}`,
-        { method: 'DELETE', headers },
-      );
-      assert.equal(cleanup.ok, true, await cleanup.text());
-    }
+    assert.equal(directWrite.ok, false);
+    assert.equal([401, 403].includes(directWrite.status), true);
+
     for (const idempotencyKey of ['parallel-a', 'parallel-b']) {
       await rpc('memory_enqueue_job', {
         p_deployment_id: 'blackrose-primary',
@@ -2673,7 +3392,26 @@ run('local PostgREST concurrency', () => {
 Run with values parsed without printing secrets:
 
 ```powershell
+npx supabase db reset --local --no-seed
 $statusJson = npx supabase status -o json | ConvertFrom-Json
+$psql = 'C:\Program Files\PostgreSQL\17\bin\psql.exe'
+& $psql $statusJson.DB_URL -X -v ON_ERROR_STOP=1 -c @"
+update public.memory_deployment_authority
+set
+  mode = 'active',
+  writer_epoch = 1,
+  writer_lease_id = '00000000-0000-4000-8000-000000000077',
+  writer_lease_token_digest = encode(
+    sha256(convert_to('local-test-writer-token', 'UTF8')),
+    'hex'
+  ),
+  writer_lease_expires_at = clock_timestamp() + interval '1 hour',
+  writer_lease_issuer = 'phase0-node-integration',
+  writer_lease_key_id = 'phase0-test-key',
+  source_credential_fingerprint = 'sha256:local-source',
+  change_reason = 'Task 4 local integration'
+where singleton;
+"@
 $env:SUPABASE_LOCAL_URL = $statusJson.API_URL
 $env:SUPABASE_LOCAL_SERVICE_ROLE_KEY = $statusJson.SERVICE_ROLE_KEY
 $env:RUN_SUPABASE_LOCAL_TESTS = '1'
@@ -3541,7 +4279,7 @@ git commit -m "feat(backend): add redacted readiness and root-context artifact"
 
 ---
 
-### Task 11: Full Verification, Optional Heroku Deployment, and Dirty-Safe Progress Update
+### Task 11: Full Verification, Required Supabase/Heroku Deployment, and Dirty-Safe Progress Update
 
 **Files:**
 - Modify through reviewed patch only: `PROGRESS.md`
@@ -3549,12 +4287,12 @@ git commit -m "feat(backend): add redacted readiness and root-context artifact"
 
 **Interfaces:**
 - Verifies the exact local artifact.
-- Optionally deploys the exact image digest to `blackrosejournal-api` after credentials, hosted isolation authorization, and Eco cost confirmation.
+- Applies and verifies the exact migration on the designated Supabase target, then deploys the exact image digest to `blackrosejournal-api` on the already-authorized Eco plan. The live deployment is required for this execution unless a provider-side credential, billing, or availability blocker is captured with exact evidence.
 
 - [ ] **Step 1: Run every local gate from repository root**
 
 ```powershell
-npx jest --runInBand __tests__/services/cloudMemoryContracts.test.ts __tests__/services/memoryAuthority.test.ts __tests__/services/cloudMemoryMigrationContract.test.ts __tests__/services/cloudSourceInventory.test.ts __tests__/benchmarks/memoryQualityConstitution.test.ts
+npx jest --runInBand __tests__/services/cloudMemoryContracts.test.ts __tests__/services/memory/memoryAuthority.test.ts __tests__/services/cloudMemoryMigrationContract.test.ts __tests__/services/cloudSourceInventory.test.ts __tests__/benchmarks/memoryQualityConstitution.test.ts
 npx supabase db reset --local --no-seed
 npx supabase test db supabase/tests/cloud_memory_foundation.test.sql --local
 npx supabase db lint --local --level warning --fail-on warning
@@ -3592,7 +4330,9 @@ Then call the connected Supabase MCP `get_advisors` operation twice against the 
 
 - [ ] **Step 3: Verify deployment prerequisites without printing values**
 
-The operator must explicitly confirm the Eco charge before app creation or scaling. Check only presence:
+The operator already explicitly authorized the existing Eco subscription for
+this personal app. No new cost confirmation is required for the exact
+`blackrosejournal-api`, `web=1:eco`, no-add-on deployment. Check only presence:
 
 ```powershell
 $required = @(
@@ -3620,12 +4360,12 @@ Validate `MEMORY_WRITER_LEASE_ID` as a UUID. The raw
 `MEMORY_WRITER_LEASE_TOKEN` must come from the external lease issuer; do not
 derive it from the Heroku key, Supabase key, or source credential. Stop here if
 the server secret, writer lease, source-credential fingerprint, isolated hosted
-verification, or cost confirmation is missing. Never substitute the
+verification, or required configuration is missing. Never substitute the
 publishable key.
 
 - [ ] **Step 4: Create or verify the Heroku target safely**
 
-Use the Heroku Platform API with `HEROKU_KEY` only in an Authorization header. First issue `GET /apps/blackrosejournal-api`. If it exists with a different owner, region, or stack, stop. If it returns 404 and cost was confirmed in the active task, issue `POST /apps` with exactly `{"name":"blackrosejournal-api","region":"eu","stack":"container"}`. Do not provision add-ons. Treat any other response as a blocker; do not retry a mutation blindly.
+Use the Heroku Platform API with `HEROKU_KEY` only in an Authorization header. First issue `GET /apps/blackrosejournal-api`. If it exists with a different owner, region, or stack, stop. If it returns 404, issue `POST /apps` with exactly `{"name":"blackrosejournal-api","region":"eu","stack":"container"}` under the existing authorization. Do not provision add-ons. Treat any other response as a blocker; do not retry a mutation blindly.
 
 Before changing formation, capture:
 
@@ -3658,8 +4398,11 @@ Remove-Item Env:HEROKU_API_KEY
 
 Before this step, run `heroku --version`; if the Heroku CLI is unavailable, stop
 and record the blocker. Record the immutable pushed image digest and release ID.
-Run `heroku ps:scale web=1 --app blackrosejournal-api` only after cost
-confirmation, then verify no worker formation exists with
+Confirm `eco` appears in
+`GET /apps/blackrosejournal-api/available-dyno-sizes`, then run
+`heroku ps:type web=eco --app blackrosejournal-api` followed by
+`heroku ps:scale web=1 --app blackrosejournal-api`. Verify the resulting web
+formation is exactly `quantity=1,size=eco` and no worker formation exists with
 `heroku ps --app blackrosejournal-api`. If the CLI cannot release without
 exposing credentials, stop rather than improvising a credential-bearing remote.
 
