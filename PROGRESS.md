@@ -12,6 +12,11 @@
 - [x] **TOOL-CODEX-001**: Codex CLI with OMO Light Edition
 
 ## Updates
+- **2026-07-28**: **Loading feedback polish** — Finish Entry now stays visibly alive through every asynchronous phase instead of appearing blank.
+  - Journal finishing reports its real stage: preparing, title generation, insight generation, persistence, then local memory updates. Intention check-ins share the same visible progress treatment.
+  - Added `LoadingStatus`, an accessible, labeled animated wave used for finishing actions and the post-finish reflection, suggestions, haiku, analysis, history, memory hub, and memory-graph loading surfaces.
+  - Refined skeleton shimmer and loading-wave motion for smoother, more visible movement; skeletons still share a single animation driver, and wave animation respects the system reduced-motion preference.
+  - Added FooterActions and loading-status regression coverage. Verified focused tests, `npx tsc --noEmit`, `npm run lint` (0 errors; pre-existing warnings), `npm run check:design` (0 errors; three existing near-size warnings), and full `npm test` (exit 0).
 - **2026-07-24**: **Green-gate cleanup** — brought all four gates to green after the skeleton redesign and AI import refactor.
   - `tsc --noEmit`: fixed the five outstanding errors — widened `IdentitySettingsSection` `onConfirmPending`/`onDismissPending` prop types to `void | Promise<unknown>` (the hook returns `Promise<IdentityProfile>`, callbacks are fire-and-forget), cast-through-`unknown` for the `window.confirm` mock in `IdentitySettingsSection.test.tsx`, typed `bestModel` as `string` in `probes/e2_behavioralTools.ts`, and added `id`/`timestamp` to the probe `Message` in `probes/e4_triggerCoverage.ts`.
   - `lint`: 13.7k errors were ESLint scanning the minified `dist-prod/` bundle — added `dist-prod/*` to `eslint.config.js` ignores (build output must not be linted). Now 0 errors (only pre-existing unused-`eslint-disable` warnings).

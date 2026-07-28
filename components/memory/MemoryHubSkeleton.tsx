@@ -1,11 +1,13 @@
 import { View } from 'react-native';
 
 import { Skeleton } from '@/components/ui/Skeleton';
+import { LoadingStatus } from '@/components/ui/LoadingStatus';
 
 /** Mirrors portrait and atom rows in MemoryHubScreen.tsx. */
 export function MemoryHubSkeleton() {
     return (
         <View className="gap-6 py-4" accessibilityLabel="Loading memory">
+            <LoadingStatus label="Gathering your memories" compact />
             <View className="gap-4 p-5 rounded-2xl bg-surface-light dark:bg-surface-dark">
                 <Skeleton className="h-6 w-40" accessibilityLabel="Loading memory portrait title" />
                 <Skeleton className="h-4 w-3/4" accessibilityLabel="Loading memory portrait description" />

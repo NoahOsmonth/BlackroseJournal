@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/journal';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { LoadingBar } from '@/components/ui/LoadingBar';
+import { LoadingStatus } from '@/components/ui/LoadingStatus';
 import { useMemoryGraph } from '@/hooks/memory/useMemoryGraph';
 import { useMemorySourcePreview } from '@/hooks/memory/useMemorySourcePreview';
 import { useTabNavigation } from '@/hooks/navigation/useTabNavigation';
@@ -76,8 +76,8 @@ export function MemoryGraphScreen({
                 />
 
                 {graph.isLoading ? (
-                    <View className="absolute inset-0 items-center justify-center">
-                        <LoadingBar size="md" accessibilityLabel="Loading graph" />
+                    <View className="absolute inset-0 items-center justify-center px-6">
+                        <LoadingStatus label="Mapping your memories" detail="Connecting moments, people, and patterns." />
                     </View>
                 ) : null}
 

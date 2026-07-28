@@ -3,6 +3,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { LoadingBar } from '@/components/ui/LoadingBar';
+import { LoadingStatus } from '@/components/ui/LoadingStatus';
 
 interface FooterActionsProps {
   onGoDeeper: () => void;
@@ -11,6 +12,7 @@ interface FooterActionsProps {
   canGoDeeper?: boolean;
   canFinish?: boolean;
   isSaving?: boolean;
+  savingLabel?: string;
 }
 
 export function FooterActions({
@@ -20,6 +22,7 @@ export function FooterActions({
   canGoDeeper = false,
   canFinish = false,
   isSaving = false,
+  savingLabel = 'Saving your entry',
 }: FooterActionsProps) {
   const textColor = useThemeColor({}, 'text');
   const goDeeperDisabled = disabled || !canGoDeeper;
@@ -42,7 +45,7 @@ export function FooterActions({
           </View>
         </Pressable>
         <Pressable
-          className={`flex-1 py-3 px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm active:opacity-80 ${finishEntryDisabled ? 'opacity-50' : ''}`}
+          className={`flex-1 py-3 px-4 border rounded-xl shadow-sm active:opacity-80 ${isSaving ? 'bg-primary/10 dark:bg-primary/20 border-primary' : 'bg-surface-light dark:bg-surface-dark border-divider-light dark:border-divider-dark'} ${finishEntryDisabled && !isSaving ? 'opacity-50' : ''}`}
           onPress={onFinishEntry}
           disabled={finishEntryDisabled}
           accessibilityRole="button"
@@ -50,7 +53,10 @@ export function FooterActions({
         >
           <View className="flex-row items-center justify-center gap-2">
             {isSaving ? (
-              <LoadingBar size="sm" accessibilityLabel="Finishing entry" />
+              <>
+                <LoadingBar size="sm" tone="primary" accessibilityLabel="Finishing entry animation" />
+                <Text className="font-bold text-[15px] text-text-light dark:text-text-dark">Finishing</Text>
+              </>
             ) : (
               <>
                 <MaterialIcons name="check" size={18} color={textColor} />
@@ -60,6 +66,15 @@ export function FooterActions({
           </View>
         </Pressable>
       </View>
+
+      {isSaving ? (
+        <LoadingStatus
+          label={savingLabel}
+          detail="Keep this open for a moment — your words are safe."
+          compact
+          className="mt-3 px-4"
+        />
+      ) : null}
 
       {/* Home Indicator (Visual) */}
       <View className="items-center mt-6">

@@ -41,6 +41,7 @@ export default function ChatScreen() {
     const scrollViewRef = useRef<ScrollView>(null);
     const inputRef = useRef<InlineTypingInputRef>(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [finishStage, setFinishStage] = useState('Preparing your entry');
     const [inputValue, setInputValue] = useState('');
     const [continuedEntry, setContinuedEntry] = useState<JournalEntry | null>(null);
     const [readOnlyMessageCount, setReadOnlyMessageCount] = useState(0);
@@ -249,6 +250,7 @@ export default function ChatScreen() {
 
         finalize();
         setIsSaving(true);
+        setFinishStage('Preparing your entry');
         try {
             const entryText = messages
                 .filter(m => m.role === 'user')
@@ -257,6 +259,7 @@ export default function ChatScreen() {
             let title = generateTitle(messages); // Fallback
             try {
                 if (entryText.trim()) {
+                    setFinishStage('Finding a title');
                     title = await generateEntryTitle({ entryText });
                 }
             } catch (err) {
@@ -267,6 +270,7 @@ export default function ChatScreen() {
             let analysis: JournalEntryAnalysis | undefined;
             try {
                 if (entryText.trim()) {
+                    setFinishStage('Creating your insights');
                     const generated = await generateEntryAnalysis({ entryText });
                     analysis = { ...generated, generatedAt: Date.now() };
                 }
@@ -275,6 +279,7 @@ export default function ChatScreen() {
             }
 
             let savedEntry: JournalEntry | null = null;
+            setFinishStage('Saving your entry');
 
             if (entryId) {
                 savedEntry = await update(entryId, {
@@ -295,6 +300,7 @@ export default function ChatScreen() {
             }
             const savedEntryId = savedEntry?.id ?? entryId;
             if (savedEntry) {
+                setFinishStage('Updating your memories');
                 await runJournalFinishSideEffects(savedEntry);
             }
 
@@ -312,6 +318,7 @@ export default function ChatScreen() {
             console.error('Failed to save entry:', error);
         } finally {
             setIsSaving(false);
+            setFinishStage('Preparing your entry');
         }
     }, [messages, isSaving, router, create, update, entryId, handleNewChat, clearPersistedSession, finalize]);
 
@@ -455,6 +462,7 @@ export default function ChatScreen() {
                         canGoDeeper={canGoDeeper}
                         canFinish={canFinish}
                         isSaving={isSaving}
+                        savingLabel={finishStage}
                     />
                 </View>
 

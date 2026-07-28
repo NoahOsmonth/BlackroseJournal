@@ -1,0 +1,150 @@
+<h2>Lean Security for a Trusted Circle</h2>
+<p class="subtitle">Personal use and a small invited group do not need enterprise infrastructure. Keep the few controls that prevent the most damaging failures; postpone everything whose operational cost exceeds its real benefit.</p>
+
+<div class="section">
+  <div class="label">Keep these six protections</div>
+  <div class="cards">
+    <div class="card">
+      <div class="card-body">
+        <h3>1 · Managed authentication</h3>
+        <p>Email link, passkey, or trusted OAuth. Short-lived sessions, logout-all-devices, and no home-grown password system.</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <h3>2 · User-row isolation</h3>
+        <p>Every journal, message, memory, job, and search query is bound to an authenticated user ID and covered by isolation tests.</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <h3>3 · Managed encryption</h3>
+        <p>HTTPS in transit and the cloud provider’s database, object-storage, and backup encryption at rest. No custom key hierarchy yet.</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <h3>4 · Private logs</h3>
+        <p>Log job IDs, timing, models, errors, and counts—not raw journal text, retrieved evidence, prompts, or model responses by default.</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <h3>5 · Provider minimization</h3>
+        <p>Send only the evidence needed for each call. Prefer providers configured not to train on inputs and with bounded retention.</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <h3>6 · Real deletion</h3>
+        <p>Delete raw messages and their derived claims, digests, embeddings, patterns, caches, and queued work together.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Simplified cloud boundary</div>
+  <div style="display:grid;grid-template-columns:1fr 48px 1.2fr 48px 1fr;gap:7px;align-items:center;">
+    <div style="padding:14px;border-radius:11px;background:rgba(59,130,246,.09);border:1px solid rgba(59,130,246,.23);">
+      <strong>Expo app</strong><br><span style="font-size:12px;opacity:.71;">Secure session · offline draft/outbox · minimal cache</span>
+    </div>
+    <div style="text-align:center;font-size:22px;opacity:.43;">→</div>
+    <div style="padding:15px;border-radius:11px;background:rgba(16,185,129,.10);border:1px solid rgba(16,185,129,.27);text-align:center;">
+      <strong>One trusted Rosebud backend</strong><br><span style="font-size:12px;opacity:.71;">API · memory service · job workers · managed database · ordinary role separation</span>
+    </div>
+    <div style="text-align:center;font-size:22px;opacity:.43;">→</div>
+    <div style="padding:14px;border-radius:11px;background:rgba(168,85,247,.09);border:1px solid rgba(168,85,247,.23);">
+      <strong>Approved model providers</strong><br><span style="font-size:12px;opacity:.71;">Bounded brief · no database tools · API key stays on server</span>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Access model</div>
+  <div class="mockup">
+    <div class="mockup-body">
+      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;font-size:12px;">
+        <div style="padding:12px;border-radius:10px;background:rgba(16,185,129,.09);"><strong>User</strong><br><span style="opacity:.70;">Can access only their own journals and memories.</span></div>
+        <div style="padding:12px;border-radius:10px;background:rgba(59,130,246,.09);"><strong>Backend</strong><br><span style="opacity:.70;">Uses server credentials; checks user scope on every operation.</span></div>
+        <div style="padding:12px;border-radius:10px;background:rgba(245,158,11,.09);"><strong>You as operator</strong><br><span style="opacity:.70;">Metadata dashboard by default; direct production-data access only for a real repair.</span></div>
+        <div style="padding:12px;border-radius:10px;background:rgba(168,85,247,.09);"><strong>Friends</strong><br><span style="opacity:.70;">Invite-only accounts; no shared-memory or cross-account features.</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Still non-negotiable</div>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>Small and worth keeping</h4>
+      <ul>
+        <li>Service API keys never shipped inside the mobile app</li>
+        <li>Database row isolation tested with two different users</li>
+        <li>Raw journal content excluded from routine logs and analytics</li>
+        <li>Backups enabled and restore procedure tested once</li>
+        <li>Private differential remains opt-in, ephemeral, and non-durable</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>Dangerous even for five users</h4>
+      <ul>
+        <li>One shared account or shared user ID</li>
+        <li>Admin keys embedded in Expo environment variables</li>
+        <li>Full prompts and conversations copied into error trackers</li>
+        <li>Model provider receiving unrestricted history</li>
+        <li>“Delete” hiding the UI row while derived memory remains searchable</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Deliberately postpone</div>
+  <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;text-align:center;font-size:11px;">
+    <div style="padding:12px 6px;border-radius:10px;border:1px solid rgba(148,163,184,.22);"><strong>Per-user KMS keys</strong><br><span style="opacity:.67;">Later</span></div>
+    <div style="padding:12px 6px;border-radius:10px;border:1px solid rgba(148,163,184,.22);"><strong>Multi-region residency</strong><br><span style="opacity:.67;">Later</span></div>
+    <div style="padding:12px 6px;border-radius:10px;border:1px solid rgba(148,163,184,.22);"><strong>Two-person break-glass</strong><br><span style="opacity:.67;">Later</span></div>
+    <div style="padding:12px 6px;border-radius:10px;border:1px solid rgba(148,163,184,.22);"><strong>Workload-level vaults</strong><br><span style="opacity:.67;">Later</span></div>
+    <div style="padding:12px 6px;border-radius:10px;border:1px solid rgba(148,163,184,.22);"><strong>Formal compliance stack</strong><br><span style="opacity:.67;">Later</span></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Upgrade triggers · add complexity only when reality demands it</div>
+  <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;">
+    <div style="padding:13px;border-radius:10px;border-top:3px solid #3b82f6;background:rgba(59,130,246,.07);"><strong>Audience</strong><br><span style="font-size:12px;opacity:.70;">Public signup, rapid growth, or people you do not personally know.</span></div>
+    <div style="padding:13px;border-radius:10px;border-top:3px solid #a855f7;background:rgba(168,85,247,.07);"><strong>Team</strong><br><span style="font-size:12px;opacity:.70;">Additional developers, support staff, contractors, or production administrators.</span></div>
+    <div style="padding:13px;border-radius:10px;border-top:3px solid #f59e0b;background:rgba(245,158,11,.07);"><strong>Positioning</strong><br><span style="font-size:12px;opacity:.70;">Paid service, clinical claims, institutional partnerships, or professional recommendations.</span></div>
+    <div style="padding:13px;border-radius:10px;border-top:3px solid #ef4444;background:rgba(239,68,68,.06);"><strong>Risk event</strong><br><span style="font-size:12px;opacity:.70;">Security incident, suspicious access, sensitive-log leak, or provider-policy change.</span></div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Trusted-circle baseline</h3>
+  <p class="subtitle">How much security should enter the first cloud-memory execution plan?</p>
+  <div class="options">
+    <div class="option" data-choice="lean-trusted-circle" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Lean trusted-circle baseline — recommended</h3>
+        <p>Managed auth and encryption, strict user-row isolation, private logs, bounded provider access, correct deletion, and explicit upgrade triggers.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="personal-single-account" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Single personal account only</h3>
+        <p>Remove multi-user architecture and optimize solely for you; simplest, but friends cannot safely receive independent accounts later without redesign.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="enterprise-now" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Enterprise controls now</h3>
+        <p>Keep the previous zero-trust design; strongest isolation, but disproportionate build and operational cost for the intended audience.</p>
+      </div>
+    </div>
+  </div>
+</div>

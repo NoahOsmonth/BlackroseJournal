@@ -1,0 +1,215 @@
+<h2>Local-to-Cloud Memory Migration</h2>
+<p class="subtitle">Move authority without risking a single irreversible “big bang.” Existing local data remains intact while the cloud is populated, rebuilt, shadow-tested, and proven against real recall scenarios.</p>
+
+<div class="section">
+  <div class="label">Recommended small-deployment platform</div>
+  <div style="display:grid;grid-template-columns:1fr 45px 1.35fr 45px 1fr;gap:7px;align-items:center;">
+    <div style="padding:14px;border-radius:11px;background:rgba(59,130,246,.09);border:1px solid rgba(59,130,246,.23);">
+      <strong>Expo app</strong><br><span style="font-size:12px;opacity:.71;">Auth session · current chat · offline drafts/outbox · small response cache</span>
+    </div>
+    <div style="text-align:center;font-size:22px;opacity:.43;">→</div>
+    <div style="padding:16px;border-radius:11px;background:rgba(16,185,129,.10);border:1px solid rgba(16,185,129,.28);text-align:center;">
+      <strong>Supabase Postgres as memory authority</strong><br><span style="font-size:12px;opacity:.71;">Auth · row isolation · relational truth · full-text search · pgvector · backups · new migrations only</span>
+    </div>
+    <div style="text-align:center;font-size:22px;opacity:.43;">↔</div>
+    <div style="padding:14px;border-radius:11px;background:rgba(168,85,247,.09);border:1px solid rgba(168,85,247,.23);">
+      <strong>Rosebud Node backend</strong><br><span style="font-size:12px;opacity:.71;">Live orchestration · Postgres-backed jobs · model gateway · curation · debugging</span>
+    </div>
+  </div>
+  <p style="font-size:13px;opacity:.72;margin:10px 0 0;">This reuses the repository’s existing Supabase and backend foundations while avoiding extra infrastructure such as Kafka, Redis, a separate vector database, or a large microservice fleet.</p>
+</div>
+
+<div class="section">
+  <div class="label">Authority states · explicit and reversible</div>
+  <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;">
+    <div style="padding:14px;border-radius:11px;border-top:3px solid #64748b;background:rgba(100,116,139,.08);">
+      <strong>LOCAL</strong><br><span style="font-size:11px;opacity:.68;">Current baseline</span>
+      <p style="font-size:12px;opacity:.73;margin:7px 0 0;">Phone is authoritative. Cloud memory path disabled.</p>
+    </div>
+    <div style="padding:14px;border-radius:11px;border-top:3px solid #3b82f6;background:rgba(59,130,246,.08);">
+      <strong>MIRROR</strong><br><span style="font-size:11px;opacity:.68;">Upload + derive</span>
+      <p style="font-size:12px;opacity:.73;margin:7px 0 0;">Local stays authoritative. Cloud receives idempotent copies and builds projections.</p>
+    </div>
+    <div style="padding:14px;border-radius:11px;border-top:3px solid #f59e0b;background:rgba(245,158,11,.08);">
+      <strong>SHADOW</strong><br><span style="font-size:11px;opacity:.68;">Compare silently</span>
+      <p style="font-size:12px;opacity:.73;margin:7px 0 0;">Both retrieval paths run; only local evidence influences replies while differences are scored.</p>
+    </div>
+    <div style="padding:14px;border-radius:11px;border-top:3px solid #10b981;background:rgba(16,185,129,.08);">
+      <strong>CLOUD</strong><br><span style="font-size:11px;opacity:.68;">New authority</span>
+      <p style="font-size:12px;opacity:.73;margin:7px 0 0;">Cloud owns raw and derived memory. Phone retains only outbox, drafts, and bounded cache.</p>
+    </div>
+  </div>
+  <p style="font-size:13px;opacity:.72;margin:10px 0 0;">The state is recorded per user, not only as one global release flag. Your account can validate cloud authority before any friend is migrated.</p>
+</div>
+
+<div class="section">
+  <div class="label">Phase 0 · freeze the contract before moving data</div>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>Canonical source contract</h4>
+      <ul>
+        <li>Stable IDs for sessions, messages, entries, check-ins, and attachments</li>
+        <li>Original created, event, edit, finish, and deletion timestamps preserved</li>
+        <li>User-authored versus assistant-authored evidence distinguished</li>
+        <li>Content hashes and schema versions for idempotency and verification</li>
+        <li>Import provenance records the local key and source version</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>Architecture rules to replace openly</h4>
+      <ul>
+        <li>“Local-first memory” becomes “cloud-authoritative, offline-resilient”</li>
+        <li>The backend-local-only guard is replaced with cloud-boundary tests</li>
+        <li>Phone tools become authenticated backend memory operations</li>
+        <li>Storage-key ownership remains valid only for migration and offline state</li>
+        <li>Clear-history rules expand to cloud deletion and verification</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Phase 1 · additive cloud foundation</div>
+  <div class="mockup">
+    <div class="mockup-header">New Supabase migrations · applied migrations remain untouched</div>
+    <div class="mockup-body">
+      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;font-size:12px;">
+        <div style="padding:11px;border-radius:10px;background:rgba(59,130,246,.08);"><strong>Evidence</strong><br><span style="opacity:.70;">Conversations · messages · spans · lifecycle events · import manifests</span></div>
+        <div style="padding:11px;border-radius:10px;background:rgba(168,85,247,.08);"><strong>Understanding</strong><br><span style="opacity:.70;">Entities · aliases · claims · episodes · open threads · preferences · hypotheses</span></div>
+        <div style="padding:11px;border-radius:10px;background:rgba(245,158,11,.08);"><strong>Projections</strong><br><span style="opacity:.70;">Digests · rollups · search docs · embeddings · graph edges · dependency links</span></div>
+        <div style="padding:11px;border-radius:10px;background:rgba(16,185,129,.08);"><strong>Operations</strong><br><span style="opacity:.70;">Jobs · attempts · traces · model registry · budgets · migration state · tombstones</span></div>
+      </div>
+      <p style="font-size:13px;opacity:.72;margin:10px 0 0;">Row-level policies are proven with two-user isolation tests before any real journal upload.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Phase 2 · idempotent local importer</div>
+  <div style="display:grid;grid-template-columns:1fr 42px 1fr 42px 1fr 42px 1fr;gap:6px;align-items:center;">
+    <div style="padding:13px;border-radius:10px;background:rgba(59,130,246,.08);text-align:center;"><strong>Inventory</strong><br><span style="font-size:11px;opacity:.68;">Count every owned key and shard</span></div>
+    <div style="text-align:center;font-size:21px;opacity:.42;">→</div>
+    <div style="padding:13px;border-radius:10px;background:rgba(168,85,247,.08);text-align:center;"><strong>Pack canonical sources</strong><br><span style="font-size:11px;opacity:.68;">Stream in bounded chunks</span></div>
+    <div style="text-align:center;font-size:21px;opacity:.42;">→</div>
+    <div style="padding:13px;border-radius:10px;background:rgba(245,158,11,.08);text-align:center;"><strong>Upsert by stable ID</strong><br><span style="font-size:11px;opacity:.68;">Safe to retry after interruption</span></div>
+    <div style="text-align:center;font-size:21px;opacity:.42;">→</div>
+    <div style="padding:13px;border-radius:10px;background:rgba(16,185,129,.08);text-align:center;"><strong>Verify manifest</strong><br><span style="font-size:11px;opacity:.68;">Counts · hashes · dates · ownership</span></div>
+  </div>
+  <div style="margin-top:9px;padding:11px;border-radius:10px;border:1px solid rgba(245,158,11,.23);background:rgba(245,158,11,.07);font-size:12px;">
+    <strong>Derived local memories are imported as migration hints, not unquestioned truth.</strong> The cloud rebuilds claims, digests, embeddings, and rollups from raw journal/check-in evidence, then compares results.
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Phase 3 · cloud rebuild and repair</div>
+  <div class="cards">
+    <div class="card"><div class="card-body"><h3>Normalize time</h3><p>Separate write date from event date, preserve timezone, and flag uncertain weekday references instead of inventing dates.</p></div></div>
+    <div class="card"><div class="card-body"><h3>Resolve people</h3><p>Build aliases and uncertain matches without merging two Jameses or treating every pronoun as the latest person.</p></div></div>
+    <div class="card"><div class="card-body"><h3>Rebuild truth</h3><p>Turn raw evidence into bitemporal claims, explicit supersession, episodes, open threads, and preferences.</p></div></div>
+    <div class="card"><div class="card-body"><h3>Build search</h3><p>Create full-text and vector projections across all sessions—not only the most recent local slice.</p></div></div>
+    <div class="card"><div class="card-body"><h3>Build rollups</h3><p>Session, day, week, month, and year views with links back to original messages and required counterevidence.</p></div></div>
+    <div class="card"><div class="card-body"><h3>Report differences</h3><p>Missing sources, duplicate sessions, stale facts, conflicting people, unsupported patterns, and failed jobs become explicit migration findings.</p></div></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Phase 4 · shadow recall, not just row counting</div>
+  <div style="display:grid;grid-template-columns:1fr 50px 1.25fr 50px 1fr;gap:8px;align-items:center;">
+    <div style="padding:14px;border-radius:11px;background:rgba(100,116,139,.08);border:1px solid rgba(148,163,184,.22);">
+      <strong>Same user turn</strong><br><span style="font-size:12px;opacity:.71;">Current message + same conversation state</span>
+    </div>
+    <div style="text-align:center;font-size:22px;opacity:.43;">→</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;">
+      <div style="padding:13px;border-radius:10px;background:rgba(59,130,246,.08);text-align:center;"><strong>Local retrieval</strong><br><span style="font-size:11px;opacity:.68;">Controls the reply</span></div>
+      <div style="padding:13px;border-radius:10px;background:rgba(168,85,247,.08);text-align:center;"><strong>Cloud retrieval</strong><br><span style="font-size:11px;opacity:.68;">Silent candidate brief</span></div>
+    </div>
+    <div style="text-align:center;font-size:22px;opacity:.43;">→</div>
+    <div style="padding:14px;border-radius:11px;background:rgba(16,185,129,.09);border:1px solid rgba(16,185,129,.24);">
+      <strong>Evidence comparator</strong><br><span style="font-size:12px;opacity:.71;">Relevant hits · stale facts · missed people · unwanted sensitive recall · provenance · latency</span>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Cutover gates · all must pass</div>
+  <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;text-align:center;font-size:11px;">
+    <div style="padding:12px 6px;border-radius:9px;border-top:3px solid #10b981;background:rgba(16,185,129,.07);"><strong>Source parity</strong><br><span style="opacity:.67;">Counts + hashes</span></div>
+    <div style="padding:12px 6px;border-radius:9px;border-top:3px solid #3b82f6;background:rgba(59,130,246,.07);"><strong>Recall quality</strong><br><span style="opacity:.67;">Longitudinal suite</span></div>
+    <div style="padding:12px 6px;border-radius:9px;border-top:3px solid #a855f7;background:rgba(168,85,247,.07);"><strong>Write reliability</strong><br><span style="opacity:.67;">No silent jobs</span></div>
+    <div style="padding:12px 6px;border-radius:9px;border-top:3px solid #f59e0b;background:rgba(245,158,11,.07);"><strong>Delete correctness</strong><br><span style="opacity:.67;">No retrieval path</span></div>
+    <div style="padding:12px 6px;border-radius:9px;border-top:3px solid #64748b;background:rgba(100,116,139,.07);"><strong>Live E2E</strong><br><span style="opacity:.67;">Real provider + app</span></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Phase 5 · staged authority flip</div>
+  <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;">
+    <div style="padding:13px;border-radius:10px;background:rgba(59,130,246,.08);"><strong>Wave 1 · You</strong><br><span style="font-size:12px;opacity:.70;">Cloud reads and writes; local stores retained read-only for comparison.</span></div>
+    <div style="padding:13px;border-radius:10px;background:rgba(168,85,247,.08);"><strong>Wave 2 · One test account</strong><br><span style="font-size:12px;opacity:.70;">Empty-data onboarding, multi-user isolation, invite flow, and deletion.</span></div>
+    <div style="padding:13px;border-radius:10px;background:rgba(245,158,11,.08);"><strong>Wave 3 · Trusted friends</strong><br><span style="font-size:12px;opacity:.70;">Small cohort, per-user flag, cost and recall monitoring.</span></div>
+    <div style="padding:13px;border-radius:10px;background:rgba(16,185,129,.08);"><strong>Retirement</strong><br><span style="font-size:12px;opacity:.70;">Remove heavy phone stores only after the rollback observation window closes.</span></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Rollback without losing new cloud conversations</div>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>Before cloud authority</h4>
+      <ul>
+        <li>Switch the account flag back to LOCAL</li>
+        <li>Local source data remains untouched</li>
+        <li>Cloud imports and projections can be discarded and rebuilt</li>
+        <li>No reverse migration is needed</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>After cloud authority</h4>
+      <ul>
+        <li>Cloud remains the source of newly written conversations</li>
+        <li>Disable advanced retrieval/agents, not cloud durability</li>
+        <li>Fall back to recent sessions and simple verified search</li>
+        <li>Repair forward or export an explicit local recovery bundle</li>
+      </ul>
+    </div>
+  </div>
+  <p style="font-size:13px;opacity:.72;margin:10px 0 0;">Once new cloud-only messages exist, pretending the old local store is authoritative would itself lose data. Rollback therefore separates data authority from feature complexity.</p>
+</div>
+
+<div class="section">
+  <div class="label">Local stores after migration</div>
+  <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;font-size:12px;">
+    <div style="padding:12px;border-radius:10px;background:rgba(16,185,129,.08);"><strong>Keep</strong><br><span style="opacity:.70;">Encrypted draft, network outbox, current conversation, small response cache, auth state.</span></div>
+    <div style="padding:12px;border-radius:10px;background:rgba(59,130,246,.08);"><strong>Temporary migration only</strong><br><span style="opacity:.70;">Read-only journal snapshot and manifest until cutover verification expires.</span></div>
+    <div style="padding:12px;border-radius:10px;background:rgba(245,158,11,.08);"><strong>Retire</strong><br><span style="opacity:.70;">Local atoms, identity, day digests, session embeddings, rollups, and full-history search indexes.</span></div>
+    <div style="padding:12px;border-radius:10px;background:rgba(168,85,247,.08);"><strong>Optional</strong><br><span style="opacity:.70;">User-triggered encrypted export for personal backup—not an active second authority.</span></div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Migration baseline</h3>
+  <p class="subtitle">How should local memory become cloud-authoritative?</p>
+  <div class="options">
+    <div class="option" data-choice="mirror-shadow-cutover" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Mirror → rebuild → shadow → staged cutover — recommended</h3>
+        <p>Idempotent upload, cloud reconstruction from raw evidence, silent retrieval comparison, explicit gates, per-user cutover, and a rollback observation window.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="big-bang-cloud" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>One-release cloud cutover</h3>
+        <p>Upload once and immediately switch authority; fastest, but memory omissions, date errors, and deletion bugs appear only after local fallback is gone.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="long-dual-authority" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Long-term dual local/cloud authority</h3>
+        <p>Maximum fallback, but permanent conflict resolution, duplicated bugs, mobile burden, and unclear truth ownership.</p>
+      </div>
+    </div>
+  </div>
+</div>

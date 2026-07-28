@@ -7,6 +7,7 @@ jest.mock('react-native-reanimated', () => mockReanimated());
 
 import { EntryDetailSkeleton } from '../../components/entries/EntryDetailSkeleton';
 import { EntryReflectionSkeleton } from '../../components/entries/EntryReflectionSkeleton';
+import { HistorySkeleton } from '../../components/history/HistorySkeleton';
 import { SuggestionsSkeleton } from '../../components/entries/SuggestionsSkeleton';
 import { CheckInDetailSkeleton } from '../../components/intentions/CheckInDetailSkeleton';
 import { IntentionFormSkeleton } from '../../components/intentions/IntentionFormSkeleton';
@@ -33,5 +34,13 @@ describe('composed loading skeletons', () => {
     it('uses multiple shaped blocks in the reflection placeholder', () => {
         render(<EntryReflectionSkeleton />);
         expect(screen.getAllByLabelText(/Loading (reflection text line|feedback|insight|suggestions)/).length).toBeGreaterThan(8);
+    });
+
+    it('gives history and memory loading a visible, named status', () => {
+        const memory = render(<MemoryHubSkeleton />);
+        expect(memory.getByLabelText('Gathering your memories')).toBeTruthy();
+
+        const history = render(<HistorySkeleton />);
+        expect(history.getByLabelText('Loading your history')).toBeTruthy();
     });
 });

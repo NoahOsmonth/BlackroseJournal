@@ -1,0 +1,72 @@
+{"type":"server-started","port":50818,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:50818/?key=ce0a9a3732f279e763a330d71c60cfcc63695e181b605131a9dbcb9ae5197433","screen_dir":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content","state_dir":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\state","idle_timeout_ms":14400000}
+{"type":"screen-added","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\private-rosebud-team-architecture.html"}
+{"source":"user-event","type":"click","text":"A\n      Authority & disagreementWho can update truth, veto responses, resolve conflict, and abstain?","choice":"authority","id":null,"timestamp":1785227670875}
+{"source":"user-event","type":"click","text":"A\n      Authority & disagreementWho can update truth, veto responses, resolve conflict, and abstain?","choice":"authority","id":null,"timestamp":1785227671378}
+{"source":"user-event","type":"click","text":"A\n      Authority & disagreementWho can update truth, veto responses, resolve conflict, and abstain?","choice":"authority","id":null,"timestamp":1785227671984}
+{"source":"user-event","type":"click","text":"B\n      Turn choreographyThe exact fast, deep, background, and failure paths through the team.","choice":"choreography","id":null,"timestamp":1785227672296}
+{"source":"user-event","type":"click","text":"B\n      Turn choreographyThe exact fast, deep, background, and failure paths through the team.","choice":"choreography","id":null,"timestamp":1785227672813}
+{"source":"user-event","type":"click","text":"A\n      Authority & disagreementWho can update truth, veto responses, resolve conflict, and abstain?","choice":"authority","id":null,"timestamp":1785227673042}
+{"type":"screen-added","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\waiting-diagnosis-discussion.html"}
+{"type":"screen-added","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\cloud-agent-runtime.html"}
+{"source":"user-event","type":"click","text":"A\n      Durable job runtime — recommendedTyped queues, bounded workers, complete traces, replay, retries, and explicit authority.","choice":"job-runtime","id":null,"timestamp":1785229990768}
+{"type":"screen-added","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\cloud-memory-truth-model.html"}
+{"source":"user-event","type":"click","text":"A\n      Evidence-first, bitemporal model — recommendedImmutable sources, temporal claims, explicit uncertainty, hypotheses, and rebuildable projections.","choice":"evidence-bitemporal","id":null,"timestamp":1785230282704}
+{"type":"screen-added","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\live-turn-memory-orchestration.html"}
+{"type":"screen-added","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\interaction-learning-quality-loop.html"}
+{"source":"user-event","type":"click","text":"A\n      \n        Consent-aware Preference Ledger + bounded outcome learning — recommended\n        Immediate adaptation, evidence-linked durable preferences, contextual scope, decay, user controls, and asynchronous outcome review.","choice":"preference-ledger","id":null,"timestamp":1785230973402}
+{"type":"screen-added","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\deep-formulation-boundary.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\private-rosebud-team-architecture.html"}
+{"source":"user-event","type":"click","text":"B\n      \n        Private diagnostic profile\n        The model privately chooses likely conditions and uses them to steer replies; superficially powerful, but prone to anchoring, stigma, false certainty, and invisible user modeling.","choice":"private-diagnostic-profile","id":null,"timestamp":1785231506249}
+{"type":"screen-added","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\private-differential-governance.html"}
+{"source":"user-event","type":"click","text":"A\n      \n        Opt-in, ephemeral private differential — recommended form of B\n        Multiple provisional possibilities, required non-clinical alternative, short retention, no durable diagnostic profile, and conservative conversational use.","choice":"governed-ephemeral-differential","id":null,"timestamp":1785231785657}
+{"type":"screen-added","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\memory-curation-lifecycle.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\waiting-diagnosis-discussion.html"}
+{"source":"user-event","type":"click","text":"A\n      \n        Event-sourced capture + tiered background curation — recommended\n        Always-durable raw capture and cheap triage, live checkpoints, session curation, daily repair, and evidence-checked periodic consolidation.","choice":"event-sourced-tiered-curation","id":null,"timestamp":1785231949108}
+{"type":"screen-added","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\cloud-memory-trust-boundary.html"}
+{"type":"screen-added","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\lean-trusted-circle-security.html"}
+{"source":"user-event","type":"click","text":"A\n      \n        Lean trusted-circle baseline — recommended\n        Managed auth and encryption, strict user-row isolation, private logs, bounded provider access, correct deletion, and explicit upgrade triggers.","choice":"lean-trusted-circle","id":null,"timestamp":1785232464232}
+{"type":"screen-added","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\quality-cost-latency-routing.html"}
+{"source":"user-event","type":"click","text":"A\n      \n        Adaptive expected-value routing — recommended\n        Two calls normally, three when justified, asynchronous curation, role-specific model benchmarks, hard deadlines, and measured cost per quality gain.","choice":"adaptive-quality-budget","id":null,"timestamp":1785232744140}
+{"type":"screen-added","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\local-to-cloud-migration.html"}
+{"source":"user-event","type":"click","text":"A\n      \n        Mirror → rebuild → shadow → staged cutover — recommended\n        Idempotent upload, cloud reconstruction from raw evidence, silent retrieval comparison, explicit gates, per-user cutover, and a rollback observation window.","choice":"mirror-shadow-cutover","id":null,"timestamp":1785232952365}
+{"type":"screen-added","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\longitudinal-quality-release-gates.html"}
+{"source":"user-event","type":"click","text":"A\n      \n        Longitudinal evidence gates + progressive release — recommended\n        One-year ground-truth timelines, zero-tolerance invariants, live real-provider E2E, human conversation review, sabotage tests, shadow comparison, and account-by-account rollout.","choice":"evidence-gated-rollout","id":null,"timestamp":1785233363461}
+{"type":"screen-added","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\approved-rosebud-memory-system.html"}
+{"source":"user-event","type":"click","text":"A\n      \n        Approve architecture and write the formal design spec — recommended\n        Freeze these decisions, document schemas, boundaries, flows, failure behavior, migration, and acceptance criteria, then self-review before implementation planning.","choice":"approve-write-spec","id":null,"timestamp":1785233514552}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\cloud-agent-runtime.html"}
+{"type":"screen-added","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\temporal-orientation-memory-pack.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\cloud-memory-truth-model.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\interaction-learning-quality-loop.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\live-turn-memory-orchestration.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\deep-formulation-boundary.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\cloud-memory-trust-boundary.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\lean-trusted-circle-security.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\local-to-cloud-migration.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\longitudinal-quality-release-gates.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\memory-curation-lifecycle.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\private-differential-governance.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\private-rosebud-team-architecture.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\quality-cost-latency-routing.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\waiting-diagnosis-discussion.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\approved-rosebud-memory-system.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\cloud-agent-runtime.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\cloud-memory-truth-model.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\temporal-orientation-memory-pack.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\interaction-learning-quality-loop.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\live-turn-memory-orchestration.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\deep-formulation-boundary.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\cloud-memory-trust-boundary.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\lean-trusted-circle-security.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\local-to-cloud-migration.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\longitudinal-quality-release-gates.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\memory-curation-lifecycle.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\private-differential-governance.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\private-rosebud-team-architecture.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\quality-cost-latency-routing.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\waiting-diagnosis-discussion.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\approved-rosebud-memory-system.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\cloud-agent-runtime.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\cloud-memory-truth-model.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\temporal-orientation-memory-pack.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\interaction-learning-quality-loop.html"}
+{"type":"screen-updated","file":"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\.superpowers\\brainstorm\\443-1785227474\\content\\live-turn-memory-orchestration.html"}

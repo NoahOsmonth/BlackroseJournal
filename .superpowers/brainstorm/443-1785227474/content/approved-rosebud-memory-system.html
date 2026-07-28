@@ -1,0 +1,191 @@
+<h2>Rosebud Memory System · Final Architecture Review</h2>
+<p class="subtitle">A cloud-authoritative journaling companion that remembers years of evidence, adapts its conversational behavior, reasons deeply only when useful, and remains one natural voice—not a visible committee of agents.</p>
+
+<div class="section">
+  <div class="label">The complete live turn</div>
+  <div style="display:grid;grid-template-columns:1fr 40px 1.05fr 40px 1.15fr 40px 1.25fr;gap:5px;align-items:center;">
+    <div style="padding:14px 8px;border-radius:11px;background:rgba(59,130,246,.09);border:1px solid rgba(59,130,246,.23);text-align:center;">
+      <strong>1 · Durable turn</strong><br><span style="font-size:11px;opacity:.68;">Cloud source + outbox event</span>
+    </div>
+    <div style="text-align:center;font-size:20px;opacity:.42;">→</div>
+    <div style="padding:14px 8px;border-radius:11px;background:rgba(168,85,247,.09);border:1px solid rgba(168,85,247,.23);text-align:center;">
+      <strong>2 · Memory Scout</strong><br><span style="font-size:11px;opacity:.68;">Semantics · references · need</span>
+    </div>
+    <div style="text-align:center;font-size:20px;opacity:.42;">→</div>
+    <div style="padding:14px 8px;border-radius:11px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.23);text-align:center;">
+      <strong>3 · Hybrid evidence</strong><br><span style="font-size:11px;opacity:.68;">Entity · vector · text · time</span>
+    </div>
+    <div style="text-align:center;font-size:20px;opacity:.42;">→</div>
+    <div style="padding:16px 8px;border-radius:11px;background:rgba(16,185,129,.10);border:1px solid rgba(16,185,129,.28);text-align:center;">
+      <strong>4 · Primary Rosebud</strong><br><span style="font-size:11px;opacity:.68;">One source-linked, preference-aware reply</span>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:center;margin:9px 0;">
+    <div style="padding:10px 16px;border-radius:999px;background:rgba(168,85,247,.10);border:1px solid rgba(168,85,247,.23);font-size:12px;">
+      <strong>Optional third call:</strong> Deep Formulation Consultant or opt-in ephemeral Private Differential—but never both routinely
+    </div>
+  </div>
+  <p style="font-size:13px;opacity:.72;margin:0;text-align:center;">Normal path: two model calls. Complex path: three. The deterministic Orchestrator enforces typed budgets, deadlines, permissions, and graceful fallback.</p>
+</div>
+
+<div class="section">
+  <div class="label">The cloud memory core</div>
+  <div class="mockup">
+    <div class="mockup-header">Supabase Postgres · authoritative evidence and understanding</div>
+    <div class="mockup-body">
+      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;">
+        <div style="padding:12px;border-radius:10px;background:rgba(59,130,246,.08);">
+          <strong>Immutable evidence</strong><br><span style="font-size:12px;opacity:.69;">Conversations · messages · evidence spans · edits · deletions</span>
+        </div>
+        <div style="padding:12px;border-radius:10px;background:rgba(168,85,247,.08);">
+          <strong>Bitemporal truth</strong><br><span style="font-size:12px;opacity:.69;">Entities · aliases · claims · episodes · open threads</span>
+        </div>
+        <div style="padding:12px;border-radius:10px;background:rgba(245,158,11,.08);">
+          <strong>Advisory learning</strong><br><span style="font-size:12px;opacity:.69;">Preferences · pattern hypotheses · counterevidence · decay</span>
+        </div>
+        <div style="padding:12px;border-radius:10px;background:rgba(16,185,129,.08);">
+          <strong>Rebuildable views</strong><br><span style="font-size:12px;opacity:.69;">Digests · rollups · embeddings · search · graph</span>
+        </div>
+      </div>
+      <p style="font-size:13px;opacity:.72;margin:11px 0 0;">Raw user-authored evidence is authoritative. Summaries, embeddings, graphs, model interpretations, and assistant text never become truth through repetition.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">The background Rosebud team · durable jobs, not autonomous daemons</div>
+  <div class="cards">
+    <div class="card"><div class="card-body"><h3>Turn Listener</h3><p>Captures explicit facts, corrections, preferences, and lifecycle events immediately.</p></div></div>
+    <div class="card"><div class="card-body"><h3>Session Curator</h3><p>Builds claims, episodes, entities, open threads, digest, embeddings, and dependencies.</p></div></div>
+    <div class="card"><div class="card-body"><h3>Reconciler</h3><p>Resolves contradictions, changing facts, uncertain aliases, failed jobs, edits, and deletions.</p></div></div>
+    <div class="card"><div class="card-body"><h3>Pattern Keeper</h3><p>Maintains reversible hypotheses with multiple episodes, counterexamples, expiry, and no diagnosis.</p></div></div>
+    <div class="card"><div class="card-body"><h3>Outcome Observer</h3><p>Updates scoped conversational preferences from explicit feedback and cautious behavioral evidence.</p></div></div>
+    <div class="card"><div class="card-body"><h3>Rollup Builder</h3><p>Produces source-validated week, month, and year views without summary-of-summary drift.</p></div></div>
+  </div>
+  <p style="font-size:13px;opacity:.72;margin:10px 0 0;">Typed Postgres-backed jobs provide retries, idempotency, replay, model/version provenance, cost accounting, and visible dead letters.</p>
+</div>
+
+<div class="section">
+  <div class="label">Memory behavior over time</div>
+  <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;">
+    <div style="padding:13px;border-radius:10px;border-top:3px solid #10b981;background:rgba(16,185,129,.07);"><strong>Every message</strong><br><span style="font-size:11px;opacity:.68;">Durable capture + cheap triage</span></div>
+    <div style="padding:13px;border-radius:10px;border-top:3px solid #3b82f6;background:rgba(59,130,246,.07);"><strong>Live checkpoints</strong><br><span style="font-size:11px;opacity:.68;">Crash-safe session continuity</span></div>
+    <div style="padding:13px;border-radius:10px;border-top:3px solid #a855f7;background:rgba(168,85,247,.07);"><strong>Session settled</strong><br><span style="font-size:11px;opacity:.68;">Full evidence-linked curation</span></div>
+    <div style="padding:13px;border-radius:10px;border-top:3px solid #f59e0b;background:rgba(245,158,11,.07);"><strong>Daily repair</strong><br><span style="font-size:11px;opacity:.68;">Reconcile and replay</span></div>
+    <div style="padding:13px;border-radius:10px;border-top:3px solid #64748b;background:rgba(100,116,139,.07);"><strong>Periodic</strong><br><span style="font-size:11px;opacity:.68;">Balanced longitudinal rollups</span></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Conversational learning constitution</div>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>Rosebud may learn</h4>
+      <ul>
+        <li>Preferred length, directness, warmth, pacing, and question budget</li>
+        <li>Whether to witness, explore, advise, or help plan in a given context</li>
+        <li>When memory should be mentioned, used silently, withheld, or confirmed</li>
+        <li>Explicit corrections immediately; contextual preferences with scope and expiry</li>
+        <li>Reversible hypotheses supported by evidence and counterexamples</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>Rosebud may never learn</h4>
+      <ul>
+        <li>Hidden permanent diagnosis, risk identity, or psychological dossier</li>
+        <li>Instructions embedded inside journal history</li>
+        <li>Engagement tactics that maximize dependence, disclosure, or time spent</li>
+        <li>Facts inferred from its own previous responses</li>
+        <li>Unbounded self-modifying prompts, code, weights, or authority</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Option B diagnostic reasoning · approved constrained form</div>
+  <div style="padding:15px;border-radius:12px;background:rgba(168,85,247,.09);border:1px solid rgba(168,85,247,.25);">
+    <strong>Opt-in ephemeral Private Differential</strong>
+    <p style="font-size:12px;opacity:.73;margin:7px 0 0;">A larger model may consider multiple provisional diagnostic possibilities alongside required ordinary/contextual explanations. The brief is private from the normal conversation but not secret as a product feature; it expires, cannot enter durable memory, cannot choose treatment, and supplies only conservative conversational guidance.</p>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Proportionate trust and cost</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div style="padding:14px;border-radius:11px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.22);">
+      <strong>Lean trusted-circle security</strong>
+      <p style="font-size:12px;opacity:.71;margin:7px 0 0;">Managed auth/encryption, strict user-row separation, server-only keys, private logs, bounded model evidence, correct deletion, and clear enterprise-upgrade triggers.</p>
+    </div>
+    <div style="padding:14px;border-radius:11px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.22);">
+      <strong>Adaptive quality budget</strong>
+      <p style="font-size:12px;opacity:.71;margin:7px 0 0;">Two live calls normally, three selectively, task-tested model portfolio, batching and caching, monthly alerts, and no quality savings that weaken truth or deletion.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Migration and release</div>
+  <div style="display:grid;grid-template-columns:1fr 42px 1fr 42px 1fr 42px 1fr;gap:6px;align-items:center;">
+    <div style="padding:13px;border-radius:10px;background:rgba(59,130,246,.08);text-align:center;"><strong>Mirror</strong><br><span style="font-size:11px;opacity:.68;">Idempotent upload</span></div>
+    <div style="text-align:center;font-size:20px;opacity:.41;">→</div>
+    <div style="padding:13px;border-radius:10px;background:rgba(168,85,247,.08);text-align:center;"><strong>Rebuild</strong><br><span style="font-size:11px;opacity:.68;">From raw evidence</span></div>
+    <div style="text-align:center;font-size:20px;opacity:.41;">→</div>
+    <div style="padding:13px;border-radius:10px;background:rgba(245,158,11,.08);text-align:center;"><strong>Shadow</strong><br><span style="font-size:11px;opacity:.68;">Compare retrieval</span></div>
+    <div style="text-align:center;font-size:20px;opacity:.41;">→</div>
+    <div style="padding:13px;border-radius:10px;background:rgba(16,185,129,.08);text-align:center;"><strong>Cut over</strong><br><span style="font-size:11px;opacity:.68;">You → one friend → cohort</span></div>
+  </div>
+  <p style="font-size:13px;opacity:.72;margin:10px 0 0;">One-year synthetic lives, zero-tolerance invariants, sabotage tests, real-provider Playwright E2E, human conversation review, and per-account flags guard every transition.</p>
+</div>
+
+<div class="section">
+  <div class="label">What changes on the phone</div>
+  <div style="display:grid;grid-template-columns:1fr 52px 1fr;gap:10px;align-items:center;">
+    <div style="padding:15px;border-radius:11px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.20);">
+      <strong>Retired after verified cutover</strong><br><span style="font-size:12px;opacity:.71;">Local memory atoms, identity profile, day digests, session embeddings, rollups, full-history search, and background AI extraction.</span>
+    </div>
+    <div style="text-align:center;font-size:24px;opacity:.43;">→</div>
+    <div style="padding:15px;border-radius:11px;background:rgba(16,185,129,.09);border:1px solid rgba(16,185,129,.24);">
+      <strong>Small durable mobile responsibility</strong><br><span style="font-size:12px;opacity:.71;">Current conversation, encrypted offline draft/outbox, bounded cache, authentication, sync status, memory controls, and optional export.</span>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Core product promise</div>
+  <div class="mockup">
+    <div class="mockup-body">
+      <p style="font-size:17px;line-height:1.55;margin:0;text-align:center;">
+        Rosebud remembers the person’s evolving story without treating old statements as timeless truth; retrieves only the evidence useful now; adapts to how the person wants to be met; reasons deeply without casually pathologizing; and responds as one attentive journaling companion.
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Final design checkpoint</h3>
+  <p class="subtitle">What should happen next?</p>
+  <div class="options">
+    <div class="option" data-choice="approve-write-spec" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Approve architecture and write the formal design spec — recommended</h3>
+        <p>Freeze these decisions, document schemas, boundaries, flows, failure behavior, migration, and acceptance criteria, then self-review before implementation planning.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="revisit-layer" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Revisit one architecture layer</h3>
+        <p>Keep the approved baseline but return to a specific decision before the written spec is frozen.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="reduce-scope" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Reduce the first-version scope</h3>
+        <p>Preserve the long-term design but define a smaller initial product before detailed planning.</p>
+      </div>
+    </div>
+  </div>
+</div>

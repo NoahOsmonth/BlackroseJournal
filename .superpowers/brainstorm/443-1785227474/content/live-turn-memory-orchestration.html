@@ -1,0 +1,223 @@
+<h2>Live Turn Memory Orchestration</h2>
+<p class="subtitle">Every meaningful message receives a small semantic preflight. Retrieval then expands only while the expected evidence gain justifies the latency, cost, and emotional risk.</p>
+
+<div class="section">
+  <div class="label">One message enters</div>
+  <div class="mockup">
+    <div class="mockup-header">Turn envelope · persisted before model work</div>
+    <div class="mockup-body">
+      <div style="display:grid;grid-template-columns:1.35fr repeat(4,minmax(0,1fr));gap:9px;align-items:stretch;">
+        <div style="padding:13px;border-radius:11px;background:rgba(168,85,247,.12);border:1px solid rgba(168,85,247,.30);">
+          <strong>Current message</strong><br>
+          <span style="font-size:12px;opacity:.72;">Exact text · conversation · local time · client state</span>
+        </div>
+        <div style="padding:13px 9px;border-radius:11px;border:1px solid rgba(148,163,184,.24);text-align:center;">
+          <strong>Trace ID</strong><br><span style="font-size:11px;opacity:.68;">End-to-end</span>
+        </div>
+        <div style="padding:13px 9px;border-radius:11px;border:1px solid rgba(148,163,184,.24);text-align:center;">
+          <strong>Turn budget</strong><br><span style="font-size:11px;opacity:.68;">Time · calls · tokens</span>
+        </div>
+        <div style="padding:13px 9px;border-radius:11px;border:1px solid rgba(148,163,184,.24);text-align:center;">
+          <strong>Policy</strong><br><span style="font-size:11px;opacity:.68;">Privacy · safety</span>
+        </div>
+        <div style="padding:13px 9px;border-radius:11px;border:1px solid rgba(148,163,184,.24);text-align:center;">
+          <strong>Preference</strong><br><span style="font-size:11px;opacity:.68;">Length · questions</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="display:flex;justify-content:center;font-size:28px;opacity:.48;margin:-4px 0 10px;">↓</div>
+
+<div class="section">
+  <div class="label">Stage 1 · Semantic preflight, not keyword detection</div>
+  <div style="display:grid;grid-template-columns:1.15fr 1fr;gap:12px;">
+    <div class="card">
+      <div class="card-body">
+        <h3>Memory Scout</h3>
+        <p>Produces a compact typed interpretation—not a reply and not a diagnosis.</p>
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:10px;font-size:12px;">
+          <div style="padding:9px;border-radius:9px;background:rgba(59,130,246,.09);"><strong>Conversational need</strong><br><span style="opacity:.70;">Witness · reflect · explore · plan</span></div>
+          <div style="padding:9px;border-radius:9px;background:rgba(59,130,246,.09);"><strong>References</strong><br><span style="opacity:.70;">“he” · James · “that thing”</span></div>
+          <div style="padding:9px;border-radius:9px;background:rgba(59,130,246,.09);"><strong>Time meaning</strong><br><span style="opacity:.70;">Event date vs mention date</span></div>
+          <div style="padding:9px;border-radius:9px;background:rgba(59,130,246,.09);"><strong>Uncertainty</strong><br><span style="opacity:.70;">Ambiguity · contradictions</span></div>
+          <div style="padding:9px;border-radius:9px;background:rgba(59,130,246,.09);"><strong>Interaction feedback</strong><br><span style="opacity:.70;">Too long · too many questions</span></div>
+          <div style="padding:9px;border-radius:9px;background:rgba(59,130,246,.09);"><strong>Sensitivity</strong><br><span style="opacity:.70;">Mention restraint · safety needs</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <h3>Deterministic Turn Orchestrator</h3>
+        <p>Software consumes Scout confidence and policy. It selects a bounded route; it does not interpret natural language itself.</p>
+        <div style="display:flex;flex-direction:column;gap:7px;margin-top:10px;font-size:12px;">
+          <div style="padding:9px;border-radius:9px;border-left:3px solid #10b981;background:rgba(16,185,129,.09);"><strong>Fast:</strong> brief retrieval + Primary Rosebud</div>
+          <div style="padding:9px;border-radius:9px;border-left:3px solid #a855f7;background:rgba(168,85,247,.09);"><strong>Deep:</strong> formulation consultant + Primary Rosebud</div>
+          <div style="padding:9px;border-radius:9px;border-left:3px solid #f59e0b;background:rgba(245,158,11,.09);"><strong>Constrained:</strong> safety policy narrows response behavior</div>
+          <div style="padding:9px;border-radius:9px;border-left:3px solid #64748b;background:rgba(100,116,139,.09);"><strong>Deferred:</strong> nonessential curation becomes a background job</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Stage 2 · Parallel candidate search across a year or more</div>
+  <div class="cards">
+    <div class="card">
+      <div class="card-body">
+        <h3>Entity & alias</h3>
+        <p>People, nicknames, pronouns, relationships, and uncertain identity matches.</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <h3>Semantic</h3>
+        <p>Meaning-level similarity across messages, episodes, digests, and patterns.</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <h3>Lexical</h3>
+        <p>Exact names, rare phrases, places, projects, and words embeddings can miss.</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <h3>Temporal</h3>
+        <p>Yesterday, last May, anniversaries, sequences, recency, and valid-at-time facts.</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <h3>Open threads</h3>
+        <p>Plans, promises, unresolved events, upcoming moments, and explicit follow-ups.</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <h3>Interaction policy</h3>
+        <p>Current response length, question budget, advice preference, and boundaries.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Stage 3 · Progressive disclosure of history</div>
+  <div style="display:grid;grid-template-columns:1fr 48px 1fr 48px 1fr 48px 1fr;gap:6px;align-items:center;">
+    <div style="padding:13px;border-radius:11px;background:rgba(59,130,246,.10);border:1px solid rgba(59,130,246,.24);text-align:center;">
+      <strong>1 · Index hits</strong><br><span style="font-size:11px;opacity:.70;">Cheap candidates</span>
+    </div>
+    <div style="text-align:center;font-size:22px;opacity:.45;">→</div>
+    <div style="padding:13px;border-radius:11px;background:rgba(168,85,247,.10);border:1px solid rgba(168,85,247,.24);text-align:center;">
+      <strong>2 · Evidence cards</strong><br><span style="font-size:11px;opacity:.70;">Claims · episodes · snippets</span>
+    </div>
+    <div style="text-align:center;font-size:22px;opacity:.45;">→</div>
+    <div style="padding:13px;border-radius:11px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.24);text-align:center;">
+      <strong>3 · Session context</strong><br><span style="font-size:11px;opacity:.70;">Source-linked digest</span>
+    </div>
+    <div style="text-align:center;font-size:22px;opacity:.45;">→</div>
+    <div style="padding:13px;border-radius:11px;background:rgba(16,185,129,.10);border:1px solid rgba(16,185,129,.24);text-align:center;">
+      <strong>4 · Exact messages</strong><br><span style="font-size:11px;opacity:.70;">Only when needed</span>
+    </div>
+  </div>
+  <p style="font-size:13px;opacity:.72;margin:10px 0 0;text-align:center;">Stop when evidence gain falls below threshold, confidence is sufficient, the deadline is near, or added detail would create more intrusion than value.</p>
+</div>
+
+<div class="section">
+  <div class="label">Stage 4 · Evidence fusion and restraint</div>
+  <div class="mockup">
+    <div class="mockup-body">
+      <div style="display:grid;grid-template-columns:1.3fr repeat(6,minmax(0,1fr));gap:7px;align-items:center;font-size:11px;">
+        <div style="padding:10px;border-radius:9px;background:rgba(148,163,184,.10);"><strong>Candidate evidence</strong></div>
+        <div style="padding:10px 5px;border-radius:9px;background:rgba(59,130,246,.09);text-align:center;"><strong>Relevance</strong></div>
+        <div style="padding:10px 5px;border-radius:9px;background:rgba(59,130,246,.09);text-align:center;"><strong>Validity now</strong></div>
+        <div style="padding:10px 5px;border-radius:9px;background:rgba(59,130,246,.09);text-align:center;"><strong>Source strength</strong></div>
+        <div style="padding:10px 5px;border-radius:9px;background:rgba(245,158,11,.09);text-align:center;"><strong>Counterevidence</strong></div>
+        <div style="padding:10px 5px;border-radius:9px;background:rgba(239,68,68,.08);text-align:center;"><strong>Sensitivity</strong></div>
+        <div style="padding:10px 5px;border-radius:9px;background:rgba(16,185,129,.09);text-align:center;"><strong>Mention value</strong></div>
+      </div>
+      <div style="margin-top:10px;padding:12px;border-radius:10px;border:1px solid rgba(16,185,129,.25);background:rgba(16,185,129,.07);">
+        <strong>Result: the Turn Blackboard</strong>
+        <p style="font-size:12px;opacity:.74;margin:5px 0 0;">A small, source-linked evidence brief: what is current, what is uncertain, what must not be asserted, relevant counterexamples, interaction policy, and whether a memory should be mentioned explicitly or used only to guide tone.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="display:flex;justify-content:center;font-size:28px;opacity:.48;margin:-4px 0 10px;">↓</div>
+
+<div class="section">
+  <div class="label">Stage 5 · One voice answers</div>
+  <div style="display:grid;grid-template-columns:1fr 56px 1.35fr 56px 1fr;gap:9px;align-items:center;">
+    <div style="padding:14px;border-radius:12px;border:1px solid rgba(168,85,247,.28);background:rgba(168,85,247,.09);">
+      <strong>Optional Deep Formulation Consultant</strong><br>
+      <span style="font-size:12px;opacity:.72;">Multiple interpretations · uncertainty · counterevidence · no diagnosis</span>
+    </div>
+    <div style="text-align:center;font-size:24px;opacity:.45;">→</div>
+    <div style="padding:17px;border-radius:12px;border:1px solid rgba(16,185,129,.34);background:rgba(16,185,129,.11);text-align:center;">
+      <strong>Primary Rosebud</strong><br>
+      <span style="font-size:12px;opacity:.72;">The only agent that speaks to the user</span>
+    </div>
+    <div style="text-align:center;font-size:24px;opacity:.45;">→</div>
+    <div style="padding:14px;border-radius:12px;border:1px solid rgba(59,130,246,.28);background:rgba(59,130,246,.09);">
+      <strong>Selective Response Supervisor</strong><br>
+      <span style="font-size:12px;opacity:.72;">Only when risk or uncertainty justifies an extra call</span>
+    </div>
+  </div>
+  <p style="font-size:13px;opacity:.72;margin:10px 0 0;text-align:center;">Normal path: Scout + Primary Rosebud. Complex path: Scout + Consultant + Primary. The supervisor is exceptional, never an always-on fourth model call.</p>
+</div>
+
+<div class="section">
+  <div class="label">Failure behavior</div>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>Graceful degradation</h4>
+      <ul>
+        <li>Deadline expires → answer from the best verified brief already available</li>
+        <li>Deep retrieval fails → use recent context and say less, never invent</li>
+        <li>Scout unavailable → deterministic safe defaults and minimal retrieval</li>
+        <li>Background jobs never block the live response</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>Forbidden shortcuts</h4>
+      <ul>
+        <li>No “if message contains hi” routing</li>
+        <li>No full-year transcript dump into a prompt</li>
+        <li>No retrieved summary treated as unquestionable truth</li>
+        <li>No sensitive memory mentioned merely because it ranked highly</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Live-turn baseline</h3>
+  <p class="subtitle">Which retrieval contract should the detailed execution plan use?</p>
+  <div class="options">
+    <div class="option" data-choice="semantic-progressive" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Semantic preflight + progressive hybrid retrieval — recommended</h3>
+        <p>Small Scout on every meaningful turn, parallel hybrid search, evidence-linked expansion, strict budgets, and a restrained brief.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="tools-only" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Main-model tools only</h3>
+        <p>Rosebud decides when to search while drafting; fewer moving parts, but inconsistent recall and weaker cost control.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="deep-every-turn" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Deep retrieval every turn</h3>
+        <p>Maximum context each time; highest latency and cost, with more irrelevant or intrusive memory surfacing.</p>
+      </div>
+    </div>
+  </div>
+</div>

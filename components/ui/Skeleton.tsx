@@ -54,7 +54,16 @@ function SkeletonComponent({
 
     const shimmerStyle = useAnimatedStyle(() => {
         const translateX = -160 + progress.value * 320;
-        return { transform: [{ translateX }] };
+        return {
+            opacity: 0.35 + 0.55 * Math.sin(progress.value * Math.PI),
+            transform: [{ translateX }],
+        };
+    });
+
+    const pulseStyle = useAnimatedStyle(() => {
+        return {
+            opacity: 0.78 + 0.22 * Math.sin(progress.value * Math.PI),
+        };
     });
 
     const baseClassName = `overflow-hidden bg-divider-light/80 dark:bg-divider-dark/80 ${className}`;
@@ -70,7 +79,8 @@ function SkeletonComponent({
     }
 
     return (
-        <View
+        <Animated.View
+            style={pulseStyle}
             accessibilityLabel={accessibilityLabel}
             accessibilityRole="progressbar"
             className={baseClassName}
@@ -79,7 +89,7 @@ function SkeletonComponent({
                 style={shimmerStyle}
                 className="absolute inset-y-0 -left-1/2 w-1/2 bg-white/60 dark:bg-white/10"
             />
-        </View>
+        </Animated.View>
     );
 }
 

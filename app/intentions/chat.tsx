@@ -43,7 +43,6 @@ import { useIntentionFeedbackModal } from '@/hooks/feedback/useIntentionFeedback
 import { useChatModelPicker } from '@/hooks/settings/useChatModelPicker';
 import type { AiFeedbackValue } from '@/services/feedback/feedbackStorage';
 import { usePersonaSettingsActions } from '@/hooks/personas/usePersonaSettingsActions';
-
 export default function IntentionChatScreen() {
     const router = useRouter();
     const params = useLocalSearchParams();
@@ -67,6 +66,7 @@ export default function IntentionChatScreen() {
     const modelPicker = useChatModelPicker();
     const [isMuted, setIsMuted] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [finishStage, setFinishStage] = useState('Preparing your check-in');
 
     const areaParam = Array.isArray(params.area) ? params.area[0] : params.area;
     const intentionId = Array.isArray(params.intentionId) ? params.intentionId[0] : params.intentionId;
@@ -287,6 +287,7 @@ export default function IntentionChatScreen() {
 
         finalize();
         setIsSaving(true);
+        setFinishStage('Preparing your check-in');
         try {
             const finalMessages = withPendingInput(messages, inputValue);
             const entryText = finalMessages
@@ -297,12 +298,14 @@ export default function IntentionChatScreen() {
             let generatedTitle: string | undefined;
             if (entryText.trim()) {
                 try {
+                    setFinishStage('Finding a title');
                     generatedTitle = await generateEntryTitle({ entryText });
                 } catch (error) {
                     console.warn('AI title generation failed, using summary fallback', error);
                 }
             }
 
+            setFinishStage('Saving your check-in');
             const { resolvedIntention } = await finishIntentionChat({
                 messages,
                 inputValue,
@@ -335,6 +338,7 @@ export default function IntentionChatScreen() {
             }
         } finally {
             setIsSaving(false);
+            setFinishStage('Preparing your check-in');
         }
     }, [
         activePersona?.id,
@@ -459,6 +463,7 @@ export default function IntentionChatScreen() {
                     canGoDeeper={trimmedInput.length > 0}
                     canFinish={hasContent(messages) || trimmedInput.length > 0}
                     isSaving={isSaving}
+                    savingLabel={finishStage}
                 />
 
                 <IntentionChatOverlays

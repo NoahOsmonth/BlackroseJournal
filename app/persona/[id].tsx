@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Text } from 'react-native';
+import { View } from 'react-native';
 
 import type { PersonaAvatarKey } from '@/constants/personas';
 import { PersonaForm, PersonaFormValues } from '@/components/personas/PersonaForm';
 import { usePersonas } from '@/hooks/personas/usePersonas';
 import { getPersona } from '@/services/personas/personasStorage';
 import { savePersonaDraftSettings } from '@/services/personas/personaDraftSettings';
+import { LoadingStatus } from '@/components/ui/LoadingStatus';
 
 function isPersonaAvatarKey(value: string | undefined): value is PersonaAvatarKey {
     return value === 'persona-default' || value === 'persona-new';
@@ -65,7 +66,9 @@ export default function EditPersonaScreen() {
     if (!values) {
         return (
             <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
-                <Text>Loading...</Text>
+                <View className="flex-1 items-center justify-center px-6">
+                    <LoadingStatus label="Loading your persona" detail="Getting your settings ready." />
+                </View>
             </SafeAreaView>
         );
     }

@@ -10,6 +10,7 @@ import { getLocalDateKey } from '@/utils/date';
 import { useIntentionDetail } from '@/hooks/intentions/useIntentionDetail';
 import { useIntentions } from '@/hooks/intentions/useIntentions';
 import { useNavBack } from '@/hooks/navigation/useNavBack';
+import { LoadingStatus } from '@/components/ui/LoadingStatus';
 
 const heroImage = require('@/assets/intentions/intention-hero.png');
 
@@ -78,9 +79,7 @@ export default function IntentionDetailScreen() {
         return (
             <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark">
                 <View className="flex-1 max-w-md mx-auto w-full items-center justify-center">
-                    <Text className="text-text-secondary-light dark:text-text-secondary-dark">
-                        Loading intention...
-                    </Text>
+                    <LoadingStatus label="Loading your intention" detail="Bringing your latest check-in into view." />
                 </View>
             </SafeAreaView>
         );

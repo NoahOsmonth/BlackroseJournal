@@ -1,6 +1,7 @@
 import React from 'react';
 import { View } from 'react-native';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { LoadingStatus } from '@/components/ui/LoadingStatus';
 
 function DaySkeleton() {
     return (
@@ -24,6 +25,7 @@ function DaySkeleton() {
 export function HistorySkeleton() {
     return (
         <View className="gap-6" accessibilityLabel="Loading history">
+            <LoadingStatus label="Loading your history" compact />
             <DaySkeleton />
             <DaySkeleton />
         </View>

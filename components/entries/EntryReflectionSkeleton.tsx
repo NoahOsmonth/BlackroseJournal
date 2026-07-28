@@ -2,11 +2,13 @@ import { View } from 'react-native';
 
 import { Skeleton } from '@/components/ui/Skeleton';
 import { SkeletonText } from '@/components/ui/SkeletonText';
+import { LoadingStatus } from '@/components/ui/LoadingStatus';
 
 /** Mirrors the loading content of app/entry-reflection.tsx. */
 export function EntryReflectionSkeleton() {
     return (
         <View className="gap-4 py-4" accessibilityLabel="Loading reflection">
+            <LoadingStatus label="Reflecting on your entry" compact />
             <View className="gap-4 p-5 rounded-2xl bg-surface-light dark:bg-surface-dark shadow-card">
                 <SkeletonText lines={4} accessibilityLabel="Loading reflection text" />
                 <View className="flex-row items-center justify-between pt-4 border-t border-divider-light dark:border-divider-dark">

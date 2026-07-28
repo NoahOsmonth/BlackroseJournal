@@ -3,13 +3,16 @@ import { View } from 'react-native';
 import Animated, {
     Easing,
     useAnimatedStyle,
+    useReducedMotion,
     useSharedValue,
     withDelay,
     withRepeat,
+    withSequence,
     withTiming,
 } from 'react-native-reanimated';
 
 type LoadingBarSize = 'sm' | 'md' | 'lg';
+type LoadingBarTone = 'muted' | 'primary';
 
 interface LoadingBarProps {
     /** Number of moving segments. Defaults to 3 (Discord/Facebook style). */
@@ -20,6 +23,8 @@ interface LoadingBarProps {
     accessibilityLabel?: string;
     /** Extra className for the track container. */
     className?: string;
+    /** Muted for ambient placeholders; primary for an active user action. */
+    tone?: LoadingBarTone;
 }
 
 const SIZE_MAP: Record<LoadingBarSize, { segment: string; track: string }> = {
@@ -33,24 +38,36 @@ const SEGMENT_RISE_MS = 420;
 const CYCLE_MS = SEGMENT_RISE_MS * 2 + SEGMENT_STAGGER_MS * 2;
 
 function LoadingSegment({
-    index,
     segmentClassName,
     delayMs,
+    tone,
 }: {
-    index: number;
     segmentClassName: string;
     delayMs: number;
+    tone: LoadingBarTone;
 }) {
     const progress = useSharedValue(0);
+    const reduceMotion = useReducedMotion();
 
     useEffect(() => {
+        if (reduceMotion) {
+            progress.value = 0.5;
+            return;
+        }
+
         progress.value = withDelay(
             delayMs,
             withRepeat(
-                withTiming(1, {
-                    duration: CYCLE_MS,
-                    easing: Easing.inOut(Easing.ease),
-                }),
+                withSequence(
+                    withTiming(1, {
+                        duration: CYCLE_MS / 2,
+                        easing: Easing.inOut(Easing.ease),
+                    }),
+                    withTiming(0, {
+                        duration: CYCLE_MS / 2,
+                        easing: Easing.inOut(Easing.ease),
+                    }),
+                ),
                 -1,
                 false
             )
@@ -58,13 +75,12 @@ function LoadingSegment({
         return () => {
             progress.value = 0;
         };
-    }, [progress, delayMs]);
+    }, [progress, delayMs, reduceMotion]);
 
     const animatedStyle = useAnimatedStyle(() => {
-        // progress 0 -> 0.5 bright, 0.5 -> 1 dim; smooth wave loop
-        const phase = (progress.value * 2) % 1;
-        const opacity = 0.25 + 0.75 * Math.sin(phase * Math.PI);
-        const scaleY = 0.7 + 0.3 * Math.sin(phase * Math.PI);
+        const intensity = Math.sin(progress.value * Math.PI);
+        const opacity = 0.25 + 0.75 * intensity;
+        const scaleY = 0.7 + 0.3 * intensity;
         return {
             opacity,
             transform: [{ scaleY }],
@@ -74,7 +90,7 @@ function LoadingSegment({
     return (
         <Animated.View
             style={animatedStyle}
-            className={`rounded-full bg-gray-400 dark:bg-gray-500 ${segmentClassName}`}
+            className={`rounded-full ${tone === 'primary' ? 'bg-primary dark:bg-primary-dark' : 'bg-text-secondary-light/60 dark:bg-text-secondary-dark/60'} ${segmentClassName}`}
         />
     );
 }
@@ -84,6 +100,7 @@ export function LoadingBar({
     size = 'md',
     accessibilityLabel = 'Loading',
     className = '',
+    tone = 'muted',
 }: LoadingBarProps) {
     const { segment, track } = SIZE_MAP[size];
     const segments = Array.from({ length: segmentCount }, (_, i) => i);
@@ -97,9 +114,9 @@ export function LoadingBar({
             {segments.map((index) => (
                 <LoadingSegment
                     key={index}
-                    index={index}
                     segmentClassName={segment}
                     delayMs={index * SEGMENT_STAGGER_MS}
+                    tone={tone}
                 />
             ))}
         </View>
