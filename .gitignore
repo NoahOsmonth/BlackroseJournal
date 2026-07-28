@@ -80,3 +80,6 @@ nul
 # Design probe caches / large vectors (never commit)
 .probe-cache/
 probes/artifacts/
+
+# Codex isolated implementation worktrees
+.worktrees/
