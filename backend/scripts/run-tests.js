@@ -26,13 +26,13 @@ const filtered = pattern
     : testFiles;
 
 if (filtered.length === 0) {
-    console.log(`No test files matched pattern: ${pattern || '(none)'}`);
-    process.exit(0);
+    console.error(`No test files matched pattern: ${pattern || '(none)'}`);
+    process.exit(pattern ? 1 : 0);
 }
 
 const proc = spawn(
-    path.join(__dirname, '..', 'node_modules', '.bin', 'tsx'),
-    ['--test', ...filtered],
+    process.execPath,
+    [path.join(__dirname, '..', 'node_modules', 'tsx', 'dist', 'cli.mjs'), '--test', ...filtered],
     { stdio: 'inherit' }
 );
 
