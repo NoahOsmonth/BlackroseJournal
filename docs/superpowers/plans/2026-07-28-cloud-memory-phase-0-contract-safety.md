@@ -683,124 +683,429 @@ git commit -m "feat(memory): define canonical authority and source contracts"
 
 ---
 
-### Task 2: Fail-Closed Per-User Memory Authority
+### Task 2: Fail-Closed Memory Route Derivation
 
 **Files:**
 - Create: `services/memory/cloud/memoryAuthority.ts`
-- Test: `__tests__/services/memoryAuthority.test.ts`
+- Test: `__tests__/services/memory/memoryAuthority.test.ts`
 
 **Interfaces:**
-- Consumes: untrusted `requestedState: unknown` and `flags: unknown`.
-- Produces: `resolveMemoryRuntime(requestedState, flags): MemoryRuntimeRoute`.
+- Consumes: `rawServerIssuedState: unknown`, an owner-state envelope obtained from the authenticated Task 6 memory-state route, and `rawCurrentBinding: unknown`, the current client session/endpoint/version binding.
+- Produces: `resolveMemoryRuntime(rawServerIssuedState, rawCurrentBinding): MemoryRuntimeRoute`.
+- This function is a pure client-side route-table evaluator. It performs structural validation and prevents accidental use of stale, cross-owner, cross-deployment, expired-session, or under-flagged state. It is **not** an authentication, authorization, signature-verification, or server-security boundary.
+- The names `ServerIssuedOwnerMemoryState` and `CurrentMemoryRuntimeBinding` describe required provenance at the call site; a structurally similar object does not prove that provenance.
+- Never populate either input from settings, environment variables, query parameters, request bodies, or an unkeyed cache. Cache server state only under `(ownerId, deploymentId, writerEpoch)`, retain the greatest accepted `authorityVersion` for that tuple, and clear it on sign-out or account change. Construct the current binding at invocation time from the current Supabase session and active endpoint profile; never persist or reuse that binding across sessions.
+- Task 5 must verify the Supabase access token server-side on every memory request, reject missing/invalid/expired identity with `401`, reject identity-provider unavailability with `503`, and derive the UUID owner ID without trusting client owner fields.
+- Task 6 must ignore client owner IDs, bind repository calls to `res.locals.memoryAuth.ownerId`, and return that backend-verified owner UUID together with the current deployment ID, writer epoch, authority version, authority state, and flags. Server repositories/RLS/RPCs enforce authorization regardless of this client decision.
+- Phase 0 does not wire this evaluator into visible-response or write authority. Local storage remains authoritative.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write the failing exhaustive route-table test**
+
+Create `__tests__/services/memory/memoryAuthority.test.ts`:
 
 ```ts
-import { resolveMemoryRuntime } from '../../services/memory/cloud/memoryAuthority';
+import {
+    resolveMemoryRuntime,
+    type MemoryRuntimeRoute,
+} from '../../../services/memory/cloud/memoryAuthority';
+import {
+    MEMORY_AUTHORITY_STATES,
+    type MemoryAuthorityState,
+    type MemoryFeatureFlags,
+} from '../../../shared/memory/contracts';
 
-const off = {
-    cloudSourceMirroring: false,
-    cloudProjectionBuild: false,
-    shadowRetrieval: false,
-    cloudReadAuthority: false,
-    cloudWriteAuthority: false,
-};
+const ownerA = '00000000-0000-4000-8000-00000000000a';
+const ownerB = '00000000-0000-4000-8000-00000000000b';
+const flagKeys = [
+    'cloudSourceMirroring',
+    'cloudProjectionBuild',
+    'shadowRetrieval',
+    'cloudReadAuthority',
+    'cloudWriteAuthority',
+] as const;
+
+const routes = {
+    LOCAL: {
+        effectiveState: 'LOCAL',
+        mirrorWrites: false,
+        runShadow: false,
+        readFromCloud: false,
+        writeToCloud: false,
+    },
+    MIRROR: {
+        effectiveState: 'MIRROR',
+        mirrorWrites: true,
+        runShadow: false,
+        readFromCloud: false,
+        writeToCloud: false,
+    },
+    SHADOW: {
+        effectiveState: 'SHADOW',
+        mirrorWrites: true,
+        runShadow: true,
+        readFromCloud: false,
+        writeToCloud: false,
+    },
+    CLOUD: {
+        effectiveState: 'CLOUD',
+        mirrorWrites: false,
+        runShadow: false,
+        readFromCloud: true,
+        writeToCloud: true,
+    },
+} as const satisfies Record<MemoryAuthorityState, MemoryRuntimeRoute>;
+
+function flagsFor(mask: number): MemoryFeatureFlags {
+    return Object.fromEntries(
+        flagKeys.map((key, index) => [key, Boolean(mask & (1 << index))]),
+    ) as unknown as MemoryFeatureFlags;
+}
+
+function serverState(
+    authorityState: MemoryAuthorityState,
+    featureFlags: unknown,
+    overrides: Readonly<Record<string, unknown>> = {},
+): Readonly<Record<string, unknown>> {
+    return {
+        ownerId: ownerA,
+        deploymentId: 'blackrose-primary',
+        writerEpoch: 11,
+        authorityVersion: 7,
+        authorityState,
+        featureFlags,
+        ...overrides,
+    };
+}
+
+function currentBinding(
+    overrides: Readonly<Record<string, unknown>> = {},
+): Readonly<Record<string, unknown>> {
+    return {
+        sessionOwnerId: ownerA,
+        sessionExpiresAtEpochSeconds: 2_000_000_000,
+        nowEpochSeconds: 1_800_000_000,
+        expectedDeploymentId: 'blackrose-primary',
+        expectedWriterEpoch: 11,
+        minimumAuthorityVersion: 7,
+        ...overrides,
+    };
+}
+
+function expectedRoute(
+    state: MemoryAuthorityState,
+    flags: MemoryFeatureFlags,
+): MemoryRuntimeRoute {
+    if (state === 'MIRROR' && flags.cloudSourceMirroring) return routes.MIRROR;
+    if (
+        state === 'SHADOW'
+        && flags.cloudSourceMirroring
+        && flags.cloudProjectionBuild
+        && flags.shadowRetrieval
+    ) {
+        return routes.SHADOW;
+    }
+    if (state === 'CLOUD' && flags.cloudReadAuthority && flags.cloudWriteAuthority) {
+        return routes.CLOUD;
+    }
+    return routes.LOCAL;
+}
 
 describe('resolveMemoryRuntime', () => {
-    it.each([null, 'shadow', 7, {}, 'CLOUD'])(
-        'fails malformed or under-flagged input closed to LOCAL: %p',
+    it.each(MEMORY_AUTHORITY_STATES)(
+        'evaluates every valid flag combination for %s',
         (state) => {
-            expect(resolveMemoryRuntime(state, off).effectiveState).toBe('LOCAL');
+            for (let mask = 0; mask < 32; mask += 1) {
+                const flags = flagsFor(mask);
+                expect(resolveMemoryRuntime(
+                    serverState(state, flags),
+                    currentBinding(),
+                )).toEqual(expectedRoute(state, flags));
+            }
         },
     );
 
-    it('requires all SHADOW prerequisites', () => {
-        expect(resolveMemoryRuntime('SHADOW', {
-            ...off,
-            cloudSourceMirroring: true,
-            shadowRetrieval: true,
-        }).effectiveState).toBe('LOCAL');
-        expect(resolveMemoryRuntime('SHADOW', {
-            ...off,
-            cloudSourceMirroring: true,
-            cloudProjectionBuild: true,
-            shadowRetrieval: true,
-        })).toMatchObject({ effectiveState: 'SHADOW', runShadow: true });
-    });
-
-    it('requires cloud read and write authority together', () => {
-        expect(resolveMemoryRuntime('CLOUD', {
-            ...off,
-            cloudReadAuthority: true,
-            cloudWriteAuthority: true,
-        }).effectiveState).toBe('CLOUD');
-        expect(resolveMemoryRuntime('CLOUD', {
-            ...off,
-            cloudReadAuthority: 'yes',
-            cloudWriteAuthority: true,
-        }).effectiveState).toBe('LOCAL');
+    it('returns independent objects with exact route shapes', () => {
+        const flags = flagsFor(31);
+        const first = resolveMemoryRuntime(serverState('CLOUD', flags), currentBinding());
+        const second = resolveMemoryRuntime(serverState('CLOUD', flags), currentBinding());
+        expect(first).toEqual(routes.CLOUD);
+        expect(second).toEqual(routes.CLOUD);
+        expect(first).not.toBe(second);
     });
 });
 ```
 
-- [ ] **Step 2: Run red**
+- [ ] **Step 2: Run the exhaustive test red**
 
 ```powershell
-npx jest --runInBand __tests__/services/memoryAuthority.test.ts
+npx jest --runInBand '__tests__/services/memory/memoryAuthority.test.ts'
 ```
 
 Expected: FAIL with missing module.
 
-- [ ] **Step 3: Implement exact runtime validation**
+- [ ] **Step 3: Add failing malformed-state and binding tests**
+
+Append inside the same `describe`:
+
+```ts
+it.each([
+    null,
+    'CLOUD',
+    serverState('CLOUD', { ...flagsFor(31), futureFlag: true }),
+    serverState('CLOUD', { ...flagsFor(31), cloudWriteAuthority: 'yes' }),
+    serverState('CLOUD', { cloudReadAuthority: true, cloudWriteAuthority: true }),
+    serverState('CLOUD', flagsFor(31), { ownerId: 'not-a-uuid' }),
+    serverState('CLOUD', flagsFor(31), { authorityState: 'cloud' }),
+    serverState('CLOUD', flagsFor(31), { authorityVersion: 0 }),
+    serverState('CLOUD', flagsFor(31), { writerEpoch: 0 }),
+    serverState('CLOUD', flagsFor(31), { unexpected: true }),
+])('fails malformed or extra-key server state closed to LOCAL: %#', (state) => {
+    expect(resolveMemoryRuntime(state, currentBinding())).toEqual(routes.LOCAL);
+});
+
+it.each([
+    null,
+    { sessionOwnerId: ownerA },
+    currentBinding({ sessionOwnerId: ownerB }),
+    currentBinding({ sessionOwnerId: 'not-a-uuid' }),
+    currentBinding({ sessionExpiresAtEpochSeconds: 1_800_000_000 }),
+    currentBinding({ expectedDeploymentId: 'other-deployment' }),
+    currentBinding({ expectedWriterEpoch: 10 }),
+    currentBinding({ minimumAuthorityVersion: 8 }),
+    currentBinding({ unexpected: true }),
+])('fails missing, expired, stale, or mismatched binding closed to LOCAL: %#', (binding) => {
+    expect(resolveMemoryRuntime(
+        serverState('CLOUD', flagsFor(31)),
+        binding,
+    )).toEqual(routes.LOCAL);
+});
+
+it('does not let a binding upgrade a server-issued LOCAL state', () => {
+    expect(resolveMemoryRuntime(
+        serverState('LOCAL', flagsFor(31)),
+        currentBinding(),
+    )).toEqual(routes.LOCAL);
+});
+```
+
+- [ ] **Step 4: Run the malformed-input tests red**
+
+```powershell
+npx jest --runInBand '__tests__/services/memory/memoryAuthority.test.ts'
+```
+
+Expected: FAIL with missing module.
+
+- [ ] **Step 5: Implement exact pure runtime validation**
+
+Create `services/memory/cloud/memoryAuthority.ts`:
 
 ```ts
 import {
     isMemoryAuthorityState,
     parseMemoryFeatureFlags,
     type MemoryAuthorityState,
+    type MemoryFeatureFlags,
 } from '../../../shared/memory/contracts';
 
-export interface MemoryRuntimeRoute {
-    effectiveState: MemoryAuthorityState;
-    mirrorWrites: boolean;
-    runShadow: boolean;
-    readFromCloud: boolean;
-    writeToCloud: boolean;
+export type MemoryRuntimeRoute =
+    | {
+        readonly effectiveState: 'LOCAL';
+        readonly mirrorWrites: false;
+        readonly runShadow: false;
+        readonly readFromCloud: false;
+        readonly writeToCloud: false;
+    }
+    | {
+        readonly effectiveState: 'MIRROR';
+        readonly mirrorWrites: true;
+        readonly runShadow: false;
+        readonly readFromCloud: false;
+        readonly writeToCloud: false;
+    }
+    | {
+        readonly effectiveState: 'SHADOW';
+        readonly mirrorWrites: true;
+        readonly runShadow: true;
+        readonly readFromCloud: false;
+        readonly writeToCloud: false;
+    }
+    | {
+        readonly effectiveState: 'CLOUD';
+        readonly mirrorWrites: false;
+        readonly runShadow: false;
+        readonly readFromCloud: true;
+        readonly writeToCloud: true;
+    };
+
+interface ServerIssuedOwnerMemoryState {
+    ownerId: string;
+    deploymentId: string;
+    writerEpoch: number;
+    authorityVersion: number;
+    authorityState: MemoryAuthorityState;
+    featureFlags: MemoryFeatureFlags;
 }
 
-const local = (): MemoryRuntimeRoute => ({
-    effectiveState: 'LOCAL',
-    mirrorWrites: false,
-    runShadow: false,
-    readFromCloud: false,
-    writeToCloud: false,
-});
+interface CurrentMemoryRuntimeBinding {
+    sessionOwnerId: string;
+    sessionExpiresAtEpochSeconds: number;
+    nowEpochSeconds: number;
+    expectedDeploymentId: string;
+    expectedWriterEpoch: number;
+    minimumAuthorityVersion: number;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const STATE_KEYS = [
+    'ownerId',
+    'deploymentId',
+    'writerEpoch',
+    'authorityVersion',
+    'authorityState',
+    'featureFlags',
+] as const;
+const BINDING_KEYS = [
+    'sessionOwnerId',
+    'sessionExpiresAtEpochSeconds',
+    'nowEpochSeconds',
+    'expectedDeploymentId',
+    'expectedWriterEpoch',
+    'minimumAuthorityVersion',
+] as const;
+
+function local(): MemoryRuntimeRoute {
+    return {
+        effectiveState: 'LOCAL',
+        mirrorWrites: false,
+        runShadow: false,
+        readFromCloud: false,
+        writeToCloud: false,
+    };
+}
+
+function isExactRecord(
+    value: unknown,
+    keys: readonly string[],
+): value is Record<string, unknown> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    const actual = Object.keys(value);
+    return actual.length === keys.length && keys.every((key) => actual.includes(key));
+}
+
+function isPositiveSafeInteger(value: unknown): value is number {
+    return typeof value === 'number'
+        && Number.isSafeInteger(value)
+        && value > 0;
+}
+
+function isDeploymentId(value: unknown): value is string {
+    return typeof value === 'string'
+        && value.length > 0
+        && value.trim() === value;
+}
+
+function parseServerState(value: unknown): ServerIssuedOwnerMemoryState | null {
+    if (!isExactRecord(value, STATE_KEYS)) return null;
+    const flags = parseMemoryFeatureFlags(value.featureFlags);
+    if (
+        typeof value.ownerId !== 'string'
+        || !UUID.test(value.ownerId)
+        || !isDeploymentId(value.deploymentId)
+        || !isPositiveSafeInteger(value.writerEpoch)
+        || !isPositiveSafeInteger(value.authorityVersion)
+        || !isMemoryAuthorityState(value.authorityState)
+        || !flags
+    ) {
+        return null;
+    }
+    return {
+        ownerId: value.ownerId,
+        deploymentId: value.deploymentId,
+        writerEpoch: value.writerEpoch,
+        authorityVersion: value.authorityVersion,
+        authorityState: value.authorityState,
+        featureFlags: flags,
+    };
+}
+
+function parseCurrentBinding(value: unknown): CurrentMemoryRuntimeBinding | null {
+    if (!isExactRecord(value, BINDING_KEYS)) return null;
+    if (
+        typeof value.sessionOwnerId !== 'string'
+        || !UUID.test(value.sessionOwnerId)
+        || typeof value.sessionExpiresAtEpochSeconds !== 'number'
+        || !Number.isSafeInteger(value.sessionExpiresAtEpochSeconds)
+        || value.sessionExpiresAtEpochSeconds <= 0
+        || typeof value.nowEpochSeconds !== 'number'
+        || !Number.isSafeInteger(value.nowEpochSeconds)
+        || value.nowEpochSeconds < 0
+        || value.sessionExpiresAtEpochSeconds <= value.nowEpochSeconds
+        || !isDeploymentId(value.expectedDeploymentId)
+        || !isPositiveSafeInteger(value.expectedWriterEpoch)
+        || !isPositiveSafeInteger(value.minimumAuthorityVersion)
+    ) {
+        return null;
+    }
+    return {
+        sessionOwnerId: value.sessionOwnerId,
+        sessionExpiresAtEpochSeconds: value.sessionExpiresAtEpochSeconds,
+        nowEpochSeconds: value.nowEpochSeconds,
+        expectedDeploymentId: value.expectedDeploymentId,
+        expectedWriterEpoch: value.expectedWriterEpoch,
+        minimumAuthorityVersion: value.minimumAuthorityVersion,
+    };
+}
+
+function bindingMatches(
+    state: ServerIssuedOwnerMemoryState,
+    binding: CurrentMemoryRuntimeBinding,
+): boolean {
+    return state.ownerId === binding.sessionOwnerId
+        && state.deploymentId === binding.expectedDeploymentId
+        && state.writerEpoch === binding.expectedWriterEpoch
+        && state.authorityVersion >= binding.minimumAuthorityVersion;
+}
 
 export function resolveMemoryRuntime(
-    requestedState: unknown,
-    rawFlags: unknown,
+    rawServerIssuedState: unknown,
+    rawCurrentBinding: unknown,
 ): MemoryRuntimeRoute {
-    const flags = parseMemoryFeatureFlags(rawFlags);
-    if (!flags || !isMemoryAuthorityState(requestedState) || requestedState === 'LOCAL') {
-        return local();
-    }
-    if (requestedState === 'MIRROR' && flags.cloudSourceMirroring) {
-        return { ...local(), effectiveState: 'MIRROR', mirrorWrites: true };
+    const state = parseServerState(rawServerIssuedState);
+    if (!state || state.authorityState === 'LOCAL') return local();
+
+    const binding = parseCurrentBinding(rawCurrentBinding);
+    if (!binding || !bindingMatches(state, binding)) return local();
+
+    const flags = state.featureFlags;
+    if (state.authorityState === 'MIRROR' && flags.cloudSourceMirroring) {
+        return {
+            effectiveState: 'MIRROR',
+            mirrorWrites: true,
+            runShadow: false,
+            readFromCloud: false,
+            writeToCloud: false,
+        };
     }
     if (
-        requestedState === 'SHADOW'
+        state.authorityState === 'SHADOW'
         && flags.cloudSourceMirroring
         && flags.cloudProjectionBuild
         && flags.shadowRetrieval
     ) {
         return {
-            ...local(),
             effectiveState: 'SHADOW',
             mirrorWrites: true,
             runShadow: true,
+            readFromCloud: false,
+            writeToCloud: false,
         };
     }
-    if (requestedState === 'CLOUD' && flags.cloudReadAuthority && flags.cloudWriteAuthority) {
+    if (
+        state.authorityState === 'CLOUD'
+        && flags.cloudReadAuthority
+        && flags.cloudWriteAuthority
+    ) {
         return {
             effectiveState: 'CLOUD',
             mirrorWrites: false,
@@ -813,17 +1118,50 @@ export function resolveMemoryRuntime(
 }
 ```
 
-- [ ] **Step 4: Verify, sabotage, and commit**
+- [ ] **Step 6: Verify both test families**
 
 ```powershell
-npx jest --runInBand __tests__/services/memoryAuthority.test.ts
+npx jest --runInBand '__tests__/services/memory/memoryAuthority.test.ts'
+npx tsc --noEmit
 ```
 
-Sabotage: remove `cloudProjectionBuild` from the SHADOW condition; confirm red; restore and rerun.
+Expected: PASS. The resolver imports no React, hook, storage, Supabase, environment, or network module.
+
+- [ ] **Step 7: Run two independent sabotages**
+
+First remove `flags.cloudProjectionBuild` from the SHADOW condition. Run:
 
 ```powershell
-git add services/memory/cloud/memoryAuthority.ts __tests__/services/memoryAuthority.test.ts
-git commit -m "feat(memory): resolve authority from validated runtime state"
+npx jest --runInBand '__tests__/services/memory/memoryAuthority.test.ts'
+```
+
+Expected: FAIL in the exhaustive SHADOW matrix. Restore the condition and confirm PASS.
+
+Then change the CLOUD condition from:
+
+```ts
+flags.cloudReadAuthority && flags.cloudWriteAuthority
+```
+
+to:
+
+```ts
+flags.cloudReadAuthority || flags.cloudWriteAuthority
+```
+
+Run:
+
+```powershell
+npx jest --runInBand '__tests__/services/memory/memoryAuthority.test.ts'
+```
+
+Expected: FAIL in the exhaustive CLOUD matrix. Restore `&&` and confirm PASS.
+
+- [ ] **Step 8: Commit**
+
+```powershell
+git add -- 'services/memory/cloud/memoryAuthority.ts' '__tests__/services/memory/memoryAuthority.test.ts'
+git commit -m "feat(memory): derive runtime route from bound owner state"
 ```
 
 ---
