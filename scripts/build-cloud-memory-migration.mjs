@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const canonicalRelative = 'backend/sql/migrations/0001_memory_foundation.sql';
 const overlayRelative = 'backend/sql/overlays/supabase/0001_memory_foundation.sql';
-const outputRelative = 'supabase/migrations/20260728112723_cloud_memory_foundation.sql';
+const outputRelative =
+  'supabase/migrations/20260728144157_cloud_memory_foundation_20260728112723.sql';
 const canonical = await readFile(path.join(root, canonicalRelative));
 const overlay = await readFile(path.join(root, overlayRelative));
 

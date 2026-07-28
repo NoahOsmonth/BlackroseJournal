@@ -234,7 +234,7 @@ backend/src/memory/gateway/postgrestGateway.ts
 backend/src/memory/routes/memoryRoutes.ts
 backend/src/memory/repositories/jobRepository.ts
 supabase/config.toml
-supabase/migrations/20260728112723_cloud_memory_foundation.sql
+supabase/migrations/20260728144157_cloud_memory_foundation_20260728112723.sql
 supabase/tests/cloud_memory_foundation.test.sql
 ```
 
@@ -350,7 +350,7 @@ current_setting('request.jwt.claim.owner_id', true)::uuid
 
 The Supabase overlay maps verified Supabase subject claims to the same owner UUID and uses only Supabase-specific grants/helpers. The additive Supabase migration contains the same canonical schema hashes and overlay version in `rosebud_schema_migrations`; it never edits an earlier applied migration.
 
-Move the Phase 0 canonical and overlay sources without changing their bytes, update `scripts/build-cloud-memory-migration.mjs` to read the new paths, regenerate into a temporary file, and prove the result byte-matches `supabase/migrations/20260728112723_cloud_memory_foundation.sql`. The applied Phase 0 migration is never rewritten. `20260728120938_memory_portability_authority.sql` contains only `0002`, `0003`, and their Supabase overlay additions.
+Move the Phase 0 canonical and overlay sources without changing their bytes, update `scripts/build-cloud-memory-migration.mjs` to read the new paths, regenerate into a temporary file, and prove the result byte-matches `supabase/migrations/20260728144157_cloud_memory_foundation_20260728112723.sql`. The historical byte-empty `20260728112723_cloud_memory_foundation.sql` and the applied Phase 0 migration are never rewritten. `20260728120938_memory_portability_authority.sql` contains only `0002`, `0003`, and their Supabase overlay additions.
 
 - [ ] **Step 4: Run real migrations**
 

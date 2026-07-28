@@ -10,9 +10,13 @@ const overlayPath = path.join(
   root,
   'backend/sql/overlays/supabase/0001_memory_foundation.sql',
 );
-const generatedPath = path.join(
+const historicalPlaceholderPath = path.join(
   root,
   'supabase/migrations/20260728112723_cloud_memory_foundation.sql',
+);
+const generatedPath = path.join(
+  root,
+  'supabase/migrations/20260728144157_cloud_memory_foundation_20260728112723.sql',
 );
 const generatorPath = path.join(root, 'scripts/build-cloud-memory-migration.mjs');
 const fkIndexCanonicalPath = path.join(
@@ -21,10 +25,14 @@ const fkIndexCanonicalPath = path.join(
 );
 const fkIndexSupabasePath = path.join(
   root,
-  'supabase/migrations/20260728145000_cloud_memory_fk_indexes.sql',
+  'supabase/migrations/20260728144711_cloud_memory_fk_indexes_20260728145000.sql',
 );
 
 describe('cloud memory migration contract', () => {
+  it('preserves the historical migration placeholder byte-for-byte', () => {
+    expect(fs.readFileSync(historicalPlaceholderPath).length).toBe(0);
+  });
+
   it('is byte-generated exactly from canonical SQL and the Supabase overlay', () => {
     const canonical = fs.readFileSync(canonicalPath);
     const overlay = fs.readFileSync(overlayPath);
@@ -145,7 +153,7 @@ describe('cloud memory migration contract', () => {
       'backend/sql/migrations/0001_memory_foundation.sql',
       'backend/sql/overlays/supabase/0001_memory_foundation.sql',
       'scripts/build-cloud-memory-migration.mjs',
-      'supabase/migrations/20260728112723_cloud_memory_foundation.sql',
+      'supabase/migrations/20260728144157_cloud_memory_foundation_20260728112723.sql',
     ]) {
       expect(gitAttributes).toContain(`${byteSensitivePath} text eol=lf`);
     }

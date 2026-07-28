@@ -35,10 +35,13 @@ Supabase Auth verifies the end-user bearer token. The backend derives
 query or request body.
 
 The portable canonical PostgreSQL migrations live in
-`backend/sql/migrations/`. Supabase adds its provider-specific RLS and Auth
-overlay in `supabase/migrations/20260728112723_cloud_memory_foundation.sql`;
-`20260728145000_cloud_memory_fk_indexes.sql` is the additive FK-index migration.
-Applied migrations are immutable.
+`backend/sql/migrations/`. The historical
+`20260728112723_cloud_memory_foundation.sql` placeholder remains byte-empty.
+Supabase adds its provider-specific RLS and Auth overlay in
+`20260728144157_cloud_memory_foundation_20260728112723.sql`;
+`20260728144711_cloud_memory_fk_indexes_20260728145000.sql` is the additive
+FK-index migration. These filenames match the hosted migration records. Applied
+migrations are immutable.
 
 All memory table privileges are revoked by default. Only explicitly allowlisted
 owner-scoped read and fenced job RPCs receive `execute` grants. Multi-table
