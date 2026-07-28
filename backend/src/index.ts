@@ -1,37 +1,56 @@
 import 'dotenv/config';
-import express from 'express';
-import cors from 'cors';
 import http from 'http';
+import type { RequestHandler } from 'express';
+import { createApp } from './app';
+import { createMemoryAuthMiddleware } from './auth/supabaseAuth';
 import { getServerConfig } from './config/serverConfig';
-import { loadConfig } from './config/ai';
-import { createAuthMiddleware } from './routes/auth';
-import { registerChatRoutes } from './routes/chatRoutes';
-import { registerAskRosebudRoutes } from './routes/askRosebudRoutes';
-import { registerHealthRoutes } from './routes/healthRoutes';
-import { registerInsightsRoutes } from './routes/insightsRoutes';
+import { readMemoryConfig } from './memory/config';
+import { createPostgrestGateway } from './memory/gateway/postgrestGateway';
+import {
+  createMemoryRepository,
+  type MemoryRepository,
+} from './memory/repositories/memoryRepository';
 import { registerChatWebSocket } from './ws/chatWebSocket';
 
-// Boot-time AI config validation. Throws a clear error if env vars are missing.
-loadConfig();
-
 const config = getServerConfig();
+const memoryConfig = readMemoryConfig(process.env);
 
-const app = express();
-app.use(express.json({ limit: '2mb' }));
+let memoryAuthMiddleware: RequestHandler;
+let memoryRepository: MemoryRepository;
+if (memoryConfig.ready) {
+  const gateway = createPostgrestGateway({
+    postgrestBaseUrl: memoryConfig.config.postgrestBaseUrl,
+    postgrestServerKey: memoryConfig.config.postgrestServerKey,
+    postgrestKeyKind: memoryConfig.config.postgrestKeyKind,
+  });
+  memoryAuthMiddleware = createMemoryAuthMiddleware({
+    config: memoryConfig.config.auth,
+  });
+  memoryRepository = createMemoryRepository(gateway);
+} else {
+  memoryAuthMiddleware = (_req, res) => {
+    res.status(503).json({
+      error: {
+        code: 'MEMORY_CONFIG_NOT_READY',
+        message: 'Memory service unavailable.',
+      },
+    });
+  };
+  const unavailable = async (): Promise<never> => {
+    throw new Error('MEMORY_CONFIG_NOT_READY');
+  };
+  memoryRepository = {
+    getBootstrap: unavailable,
+    getOwnerState: unavailable,
+    getSourceInventory: unavailable,
+  };
+}
 
-app.use(cors({
-  origin: config.allowedOrigins ?? true,
-  credentials: true,
-}));
-
-registerHealthRoutes(app);
-
-const auth = createAuthMiddleware(config.agentApiKey);
-app.use('/v1', auth);
-
-registerChatRoutes(app);
-registerAskRosebudRoutes(app);
-registerInsightsRoutes(app);
+const app = createApp({
+  serverConfig: config,
+  memoryAuthMiddleware,
+  memoryRepository,
+});
 
 const server = http.createServer(app);
 registerChatWebSocket(server, { expectedApiKey: config.agentApiKey });
