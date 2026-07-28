@@ -117,8 +117,9 @@ The cloud design is therefore not a remote copy of the existing atom store. It r
 |---|---|
 | Memory authority | Cloud-authoritative raw evidence and derived memory |
 | Mobile responsibility | Current conversation, encrypted draft/outbox, bounded cache, auth, controls |
-| Cloud platform | Supabase Postgres + full-text search + pgvector |
-| Application backend | Existing Node backend evolved into a modular monolith |
+| Initial cloud platform | Supabase Postgres + full-text search + pgvector |
+| Application backend | Existing Node backend evolved into a portable modular monolith |
+| Hosting portability | One active writer epoch; managed/private PostgREST gateway; verified cold/warm cutover and local-laptop recovery |
 | Background execution | Durable typed Postgres-backed jobs with bounded workers |
 | Truth model | Evidence-first and bitemporal |
 | Retrieval | Evidence-set planning, exhaustive-recent lane, progressive hybrid retrieval, RRF, reranking, and coverage verification |
@@ -134,6 +135,8 @@ The cloud design is therefore not a remote copy of the existing atom store. It r
 | Cost | Observed and attributed, never used to reduce answer or memory quality |
 | Migration | Mirror → rebuild → shadow → staged cutover |
 | Verification | Longitudinal evidence gates and progressive release |
+
+Backend/database portability, disaster recovery, and local survival are defined in the companion specification `docs/superpowers/specs/2026-07-28-rosebud-backend-database-portability-design.md`. That companion does not weaken any evidence, authority, deletion, or release invariant in this document.
 
 ### 5.1 Best-of synthesis, not framework transplant
 
