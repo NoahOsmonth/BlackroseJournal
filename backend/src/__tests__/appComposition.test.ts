@@ -111,6 +111,7 @@ describe('production app composition', () => {
         headers: { 'x-api-key': 'legacy-key' },
       });
       assert.equal(forbiddenMemory.status, 401);
+      assert.equal(forbiddenMemory.headers.get('cache-control'), 'no-store');
 
       const forbiddenLegacy = await fetch(`${baseUrl}/v1/chat/completions`, {
         method: 'POST',

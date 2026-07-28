@@ -58,11 +58,11 @@ export function registerMemoryRoutes(
   app: Application,
   deps: MemoryRoutesDeps,
 ): void {
-  app.use('/v1/memory', deps.authMiddleware);
   app.use('/v1/memory', (_req: Request, res: Response, next) => {
     res.setHeader('Cache-Control', 'no-store');
     next();
   });
+  app.use('/v1/memory', deps.authMiddleware);
 
   app.get('/v1/memory/bootstrap', async (_req: Request, res: Response) => {
     if (!ownerIdFrom(res)) {
