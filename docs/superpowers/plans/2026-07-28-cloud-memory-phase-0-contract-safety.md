@@ -2842,6 +2842,7 @@ git commit -m "feat(memory): add portable fenced PostgreSQL foundation"
 **Files:**
 - Modify: `supabase/tests/cloud_memory_foundation.test.sql`
 - Create: `backend/src/__tests__/localPostgrest.integration.test.ts`
+- Create: `backend/sql/tests/local_postgrest_lock_helper.sql`
 
 **Interfaces:**
 - Consumes: Task 3 schema and RPC signatures.
@@ -3398,23 +3399,8 @@ Run with values parsed without printing secrets:
 npx supabase db reset --local --no-seed
 $statusJson = npx supabase status -o json | ConvertFrom-Json
 $psql = 'C:\Program Files\PostgreSQL\17\bin\psql.exe'
-& $psql $statusJson.DB_URL -X -v ON_ERROR_STOP=1 -c @"
-update public.memory_deployment_authority
-set
-  mode = 'active',
-  writer_epoch = 1,
-  writer_lease_id = '00000000-0000-4000-8000-000000000077',
-  writer_lease_token_digest = encode(
-    sha256(convert_to('local-test-writer-token', 'UTF8')),
-    'hex'
-  ),
-  writer_lease_expires_at = clock_timestamp() + interval '1 hour',
-  writer_lease_issuer = 'phase0-node-integration',
-  writer_lease_key_id = 'phase0-test-key',
-  source_credential_fingerprint = 'sha256:local-source',
-  change_reason = 'Task 4 local integration'
-where singleton;
-"@
+& $psql $statusJson.DB_URL -X -v ON_ERROR_STOP=1 `
+  -f backend/sql/tests/local_postgrest_lock_helper.sql
 $env:SUPABASE_LOCAL_URL = $statusJson.API_URL
 $env:SUPABASE_LOCAL_SERVICE_ROLE_KEY = $statusJson.SERVICE_ROLE_KEY
 $env:RUN_SUPABASE_LOCAL_TESTS = '1'
@@ -3422,7 +3408,12 @@ npm --prefix backend test -- --testPathPattern=localPostgrest
 Remove-Item Env:SUPABASE_LOCAL_URL,Env:SUPABASE_LOCAL_SERVICE_ROLE_KEY,Env:RUN_SUPABASE_LOCAL_TESTS
 ```
 
-Expected: PASS with two different job IDs and lease tokens.
+The checked-in helper is test-only: it provisions the active local lease, truncates
+prior job rows, creates and grants the held-row lock helper, and requests a PostgREST
+schema reload. A clean database reset removes it.
+
+Expected: PASS with two different job IDs and lease tokens, denied direct table DML,
+and the locked high-priority row skipped in favor of the next eligible row.
 
 - [ ] **Step 4: Sabotage and commit**
 

@@ -2158,6 +2158,11 @@
     - Real local PostgREST: **2/2 passed**. Direct `service_role` table writes were denied,
       parallel workers received disjoint job IDs/lease tokens, and a locked high-priority job
       was skipped without delaying the next claim.
+    - The final clean-reset audit found that the plan's shortened PostgREST command provisioned
+      only the lease and omitted the test-only lock helper. The documented command now loads
+      `backend/sql/tests/local_postgrest_lock_helper.sql`, which provisions both, requests a
+      schema reload, and reproduces 2/2 from a clean reset. A final reset removed the helper
+      and returned local authority to maintenance.
     - Removing `FOR UPDATE SKIP LOCKED` initially exposed a weak concurrency assertion; a
       controlled held-row test was added. The actual sabotage then failed by waiting and
       claiming `skip-locked-high` instead of `skip-locked-next`; restoring the canonical
@@ -2168,7 +2173,8 @@
       failures, and the Docker shared-contract copy.
   - **Application verification**:
     - Focused cloud/memory Jest: **5 suites, 65 tests passed**.
-    - Full Jest: **192 suites passed, 6 skipped; 881 tests passed, 21 skipped; 0 failed**.
+    - Final full Jest after the forward-only correction: **192 suites passed, 6 skipped;
+      882 tests passed, 21 skipped; 0 failed**.
     - Backend: build passed; **14 suites, 45 tests passed** with the opt-in local PostgREST
       suite separately passing **2/2**.
     - `npx tsc --noEmit` passed. ESLint passed with **0 errors** and 72 existing warnings.
