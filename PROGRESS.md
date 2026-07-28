@@ -2128,12 +2128,18 @@
   - **Commits**:
     - `1a60717`, `76c9c8f`, `539daf1`, `13eb9fc`, `d96acab`, `abe3971`, `7833bc2`,
       `ca88909`, `3f24dd0`, `2cb3b9d`, `6e620ce`, `768bbd3`, `0228b3a`, `a667662`,
-      `8a12085`, `320cb73`, `76c8014`, `b2ec684`, and `54f879f`.
+      `8a12085`, `320cb73`, `76c8014`, `b2ec684`, `54f879f`, and `cf1836e`.
   - **Supabase/PostgreSQL**:
     - Project `blackrose` (`tovejzoqyduelgzsajru`) is `ACTIVE_HEALTHY`, PostgreSQL 17.6.
     - Hosted migration records:
       `20260728144157 cloud_memory_foundation_20260728112723` and
       `20260728144711 cloud_memory_fk_indexes_20260728145000`.
+    - Independent review found that the first implementation had populated the historical
+      byte-empty `20260728112723_cloud_memory_foundation.sql` placeholder. A failing contract
+      test reproduced the drift. Commit `cf1836e` restored the placeholder to its exact base
+      Git object, moved generated SQL to the hosted `20260728144157` filename, and aligned the
+      FK-index filename to hosted `20260728144711`. The old placeholder now has the same
+      `e69de29b...` empty-blob hash at branch base and `HEAD`.
     - Canonical/generated migration byte check passed. A clean local reset applied every
       migration; `supabase db lint --fail-on warning` reported no schema errors.
     - pgTAP: **53/53 passed**. It covers forced RLS isolation, explicit ACLs, writer
@@ -2161,7 +2167,7 @@
       RLS owner isolation, deletion verification, unknown legacy local dates, no-store auth
       failures, and the Docker shared-contract copy.
   - **Application verification**:
-    - Focused cloud/memory Jest: **5 suites, 64 tests passed**.
+    - Focused cloud/memory Jest: **5 suites, 65 tests passed**.
     - Full Jest: **192 suites passed, 6 skipped; 881 tests passed, 21 skipped; 0 failed**.
     - Backend: build passed; **14 suites, 45 tests passed** with the opt-in local PostgREST
       suite separately passing **2/2**.
@@ -2172,14 +2178,15 @@
   - **Heroku Eco deployment**:
     - App `blackrosejournal-api`, ID `297b095b-5207-4303-9b14-76609465aa75`, EU container
       stack, exactly `web=1:Eco`, no worker or add-on.
-    - Released commit `54f879f51a172fb9f96e13bc4d33e799d86bf1c6` as Schema-2 image
-      `sha256:72ae882240d1e915fb56f51e713edd5336f3a42796800ddb6678e2b2e47eb0fe`.
-      Heroku release `v7` / `61a60930-5c77-4492-9a6c-6e504c598f34` succeeded.
+    - Released corrected commit `cf1836ea6982ddfdc00f3c54ea64b25d27276142` as a
+      Linux/amd64 image with registry digest
+      `sha256:ead0ebfb4030990bd33e2f061bb67e2f70fb053be4131d8294d6b0adecf256a5`.
+      Heroku release `v8` / `62bd2bf0-024c-45ce-88ef-cca1e0cfad6d` succeeded.
     - `/health` is exact `200 {"status":"ok"}`; `/ready` is 200 with all four dependency
       booleans true. Missing/invalid JWTs return 401 + `no-store` +
       `MEMORY_AUTH_INVALID`.
     - A disposable confirmed Supabase user proved JWT-derived owner isolation, ignored a
       forged query owner, received `LOCAL` state with all flags false, an empty inventory, and
       a redacted bootstrap; the user was deleted in `finally`.
-    - Final 34-line app-log scan found zero exact-secret leaks, credential-pattern leaks,
+    - Final 45-line app-log scan found zero exact-secret leaks, credential-pattern leaks,
       error lines, or missing-listener evidence.
