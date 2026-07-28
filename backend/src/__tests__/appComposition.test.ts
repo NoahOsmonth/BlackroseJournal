@@ -66,6 +66,14 @@ describe('production app composition', () => {
         port: 0,
         allowedOrigins: null,
         agentApiKey: 'legacy-key',
+        readiness: {
+          getSnapshot: () => ({
+            ai: false,
+            supabaseAuth: false,
+            postgrestGateway: false,
+            deploymentAuthority: false,
+          }),
+        },
       },
       memoryAuthMiddleware,
       memoryRepository: repository,
@@ -83,7 +91,15 @@ describe('production app composition', () => {
       );
       assert.equal(state.status, 200);
       assert.equal(state.headers.get('cache-control'), 'no-store');
-      const stateBody = await state.json();
+      const stateBody = await state.json() as {
+        data: {
+          ownerId: string;
+          deploymentId: string;
+          writerEpoch: number;
+          authorityVersion: number;
+          authorityState: string;
+        };
+      };
       assert.equal(stateBody.data.ownerId, ownerId);
       assert.equal(stateBody.data.deploymentId, 'blackrose-primary');
       assert.equal(stateBody.data.writerEpoch, 7);
@@ -107,7 +123,14 @@ describe('production app composition', () => {
         headers: { authorization: 'Bearer valid-user-token' },
       });
       assert.equal(bootstrapResponse.headers.get('cache-control'), 'no-store');
-      const bootstrapBody = await bootstrapResponse.json();
+      const bootstrapBody = await bootstrapResponse.json() as {
+        data: {
+          writerLeaseId: string | null;
+          writerLeaseIssuer: string | null;
+          writerLeaseKeyId: string | null;
+          sourceCredentialFingerprint: string | null;
+        };
+      };
       assert.equal(bootstrapBody.data.writerLeaseId, '00000000-0000-4000-8000-000000000077');
       assert.equal(bootstrapBody.data.writerLeaseIssuer, 'rosebud-operator');
       assert.equal(bootstrapBody.data.writerLeaseKeyId, 'operator-key-1');
@@ -118,7 +141,10 @@ describe('production app composition', () => {
         headers: { authorization: 'Bearer valid-user-token' },
       });
       assert.equal(inventoryResponse.headers.get('cache-control'), 'no-store');
-      assert.equal((await inventoryResponse.json()).data.ownerId, ownerId);
+      const inventoryBody = await inventoryResponse.json() as {
+        data: { ownerId: string };
+      };
+      assert.equal(inventoryBody.data.ownerId, ownerId);
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => {
         if (error) reject(error); else resolve();

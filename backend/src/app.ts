@@ -23,7 +23,7 @@ export function createApp(deps: AppDeps): express.Application {
     credentials: true,
   }));
 
-  registerHealthRoutes(app);
+  registerHealthRoutes(app, deps.serverConfig.readiness);
   registerMemoryRoutes(app, {
     authMiddleware: deps.memoryAuthMiddleware,
     repository: deps.memoryRepository,

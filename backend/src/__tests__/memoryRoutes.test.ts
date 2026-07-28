@@ -101,7 +101,9 @@ describe('memory routes', () => {
       };
       await withServer(repository, async (baseUrl) => {
         const response = await fetch(`${baseUrl}/v1/memory/bootstrap`);
-        const body = await response.json();
+        const body = await response.json() as {
+          error: { code: string };
+        };
         assert.equal(response.status, 503);
         assert.equal(body.error.code, expected);
         assert.doesNotMatch(JSON.stringify(body), /private upstream/i);
@@ -122,10 +124,10 @@ describe('memory routes', () => {
     await withServer(repository, async (baseUrl) => {
       const response = await fetch(`${baseUrl}/v1/memory/state`);
       assert.equal(response.status, 503);
-      assert.equal(
-        (await response.json()).error.code,
-        'MEMORY_DATA_UNAVAILABLE',
-      );
+      const body = await response.json() as {
+        error: { code: string };
+      };
+      assert.equal(body.error.code, 'MEMORY_DATA_UNAVAILABLE');
     });
   });
 });
