@@ -2237,8 +2237,9 @@
       It found incomplete Phase 9 retirement proof, an obsolete authoritative
       phase map, pre-Phase-9 ownership of portability mechanisms, and bypassable
       delivery-table and safety validation.
-    - This entry records the repair wave only. A scoped independent re-review
-      follows; no result from that future re-review is claimed here.
+    - This entry records the repair wave only. At the time it was recorded, a
+      scoped independent re-review was pending; its later outcome is recorded
+      below.
   - **Retirement and sequencing gates repaired**:
     - Phase 9 now consumes signed Phase 1–8 completion evidence, including the
       completed Phase 8 operator-and-friend observation report.
@@ -2294,9 +2295,9 @@
       parser defects: statement-wide `no`/`without` exemptions could hide
       destructive Phase 8 actions, and the Phase 9 forced-`LOCAL` check only
       recognized sentences beginning with `Phase 9 failure`.
-    - This entry records the narrow TDD repair only. A second scoped
-      independent re-review follows; no result from that future re-review is
-      claimed here.
+    - This entry records the narrow TDD repair only. At the time it was
+      recorded, a second scoped independent re-review was pending; its later
+      outcome is recorded below.
   - **TDD evidence and repair**:
     - Three literal, independent real-process fixtures were added first for
       `delete complete local sources with no additional review`,
@@ -2332,3 +2333,16 @@
       non-discovered fixture module, and this progress evidence. It changes no
       runtime, schema/migration, dependency/lockfile, prototype, generated
       output, or deployment state.
+  - **Post-review outcome**:
+    - The independent whole-branch review at `c2bf4de` was not ready: it
+      reported 1 Critical, 4 Important, and 1 Minor/plan defect.
+    - The first scoped re-review of consolidated repair `515cc7b` addressed
+      5 of 6 findings; one additive safety-detector bypass remained.
+    - The second scoped independent re-review of narrow TDD repair `238cfe7`
+      returned **ADDRESSED** and ready, with no new Critical, Important, or
+      Minor issue.
+    - Fresh evidence at `238cfe7`: validator **35/35**; focused Jest **41/41**;
+      full Jest **193 passed / 6 skipped suites** and **917 passed / 21 skipped
+      tests**; typecheck clean; ESLint **0 errors / 72 existing warnings**;
+      design **0 errors / 3 existing warnings**; prohibited-path and diff
+      checks passed.
