@@ -44,7 +44,6 @@ This architecture is too large and too coupled to execute safely as one branch. 
 | Phase | Branch | Executable plan | Independently testable result |
 |---|---|---|---|
 | 0 | `codex/cloud-memory-phase-0` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-0-contract-safety.md` | Canonical contracts, owner-isolated source/ops schema, Supabase JWT auth, durable job primitive, read-only source inventory, benchmark registry, Heroku-ready backend |
-| 0P | `codex/cloud-memory-portability` | `docs/superpowers/plans/2026-07-28-cloud-memory-portability.md` | Externally signed writer leases, deletion-safe backup/restore, laptop modes, endpoint profiles, provider adapters, DR drills |
 | 1 | `codex/cloud-memory-phase-1-mirror` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-1-mirror-ingestion.md` | Encrypted offline outbox, chunked idempotent source upload, manifests, hash parity, local authority preserved |
 | 2 | `codex/cloud-memory-phase-2-truth` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-2-epistemic-truth.md` | Evidence spans, entities, aliases, bitemporal claims, episodes, preferences, dependencies, edit/delete cascades |
 | 3 | `codex/cloud-memory-phase-3-curation` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-3-curation-projections.md` | Versioned extraction, temporal digests, profile tree, open threads, search documents, embeddings, collision review |
@@ -52,9 +51,10 @@ This architecture is too large and too coupled to execute safely as one branch. 
 | 5 | `codex/cloud-memory-phase-5-orchestration` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-5-live-orchestration.md` | Temporal orientation blocks, exact-evidence windows, backend tools, Scout, deterministic orchestrator, Primary Rosebud streaming |
 | 6 | `codex/cloud-memory-phase-6-judgment` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-6-utilization-learning.md` | Utilization controller, scoped Preference Ledger, Outcome Observer, deep formulation, optional private differential firewall |
 | 7 | `codex/cloud-memory-phase-7-shadow` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-7-shadow-evaluation.md` | One-year fixtures, public benchmark adapters, shadow comparator, ablations, dashboards, kill switches |
-| 8 | `codex/cloud-memory-phase-8-cutover` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-8-cutover-retirement.md` | Operator/friend staged cutover, observation window, rollback drills, bounded local retirement |
+| 8 | `codex/cloud-memory-phase-8-cutover` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-8-cutover-retirement.md` | Staged CLOUD authority and observation with full local source retention |
+| 9 | `codex/cloud-memory-phase-9-portability` | `docs/superpowers/plans/2026-07-28-cloud-memory-portability.md` | Portability, disaster recovery, laptop modes, provider migration, and final local-retirement gate |
 
-Phase 0 and the portability/DR plan are authored in this checkpoint. Every later memory-behavior plan is written and reviewed immediately before its phase begins so it can use the verified interfaces and findings from preceding phases. No later phase starts from this roadmap alone.
+Phase 0 and the Phase 9 portability/DR plan are authored in this checkpoint. Every later memory-behavior plan is written and reviewed immediately before its phase begins so it can use the verified interfaces and findings from preceding phases. No later phase starts from this roadmap alone.
 
 ## Authority and Rollback Matrix
 
@@ -97,30 +97,6 @@ Gate:
 - two distinct authenticated users cannot read, update, reference, or claim each other's rows;
 - secret-bearing fields are absent from client bundles and logs;
 - Heroku build artifact boots and `/health` plus `/ready` behave correctly;
-- authority remains `LOCAL`.
-
-## Phase 0P — Portability and Disaster-Recovery Foundation
-
-Deliver:
-
-- provider-neutral database configuration and repository adapter boundary;
-- externally signed writer leases, transactional fencing, source credential revocation/read-only fencing, and maintenance-mode drain;
-- encrypted custom-format PostgreSQL backup, manifest, checksums, and verifier;
-- real Supabase-to-local and local-to-Supabase restore rehearsals into fresh empty targets;
-- separately retained hash-chained deletion receipts replayed after old-backup restore;
-- Heroku, Neon, AWS, GCP, Azure, Railway, generic PostgreSQL, and local destination runbooks;
-- Codex, Claude Code, Gemini CLI, GitHub Copilot, Cursor, Cline, and ChatGPT migration prompt wrappers;
-- Windows local-compute and local-data/runtime setup/start/health/backup/return scripts;
-- signed mobile endpoint profiles with deployment-ID, writer-epoch, and writer-lease validation;
-- Eco sleep/restart job-lease recovery drill.
-
-Gate:
-
-- corrupted checksum, stale/expired lease, deletion replay, missing extension, owner-count mismatch, and interrupted restore all fail closed;
-- a real logical dump restores into a real local PostgreSQL instance and passes schema/count/ownership checks;
-- one managed non-Supabase destination rehearsal passes before local heavy stores may retire;
-- the same backend artifact boots on Heroku and Windows;
-- no migration deletes a source or enables a second writer;
 - authority remains `LOCAL`.
 
 ## Phase 1 — MIRROR Ingestion
@@ -269,7 +245,7 @@ Gate:
 - cleared demo data and real provider E2E pass;
 - operator account completes shadow observation.
 
-## Phase 8 — CLOUD Cutover and Local Retirement
+## Phase 8 — Staged CLOUD Authority and Observation
 
 Deliver:
 
@@ -278,18 +254,46 @@ Deliver:
 - mobile endpoint profiles and signed bootstrap;
 - recent-cloud/simple-search rollback route;
 - observation window with parity and deletion monitoring;
-- bounded local caches and encrypted drafts/outbox only;
-- updated export, deletion, backup, and repository constitution;
-- rollback and disaster-recovery drills.
-- measured local-compute, local-data/runtime, and managed-provider recovery timings.
+- retain complete local memory sources read-only throughout observation;
+- do not claim provider-independent disaster recovery;
+- do not retire heavy local stores;
+- hand the healthy staged deployment to Phase 9 for recovery certification.
 
 Gate:
 
 - at least the operator and one isolated friend pass the full matrix;
 - no cross-user, deleted-source, stale-fact, diagnostic, or job-loss incident;
 - cloud-only turns survive advanced-route rollback;
-- local heavy stores retire without losing drafts or offline work;
 - final branch completion follows `superpowers:finishing-a-development-branch`.
+
+## Phase 9 — Portability, Disaster Recovery, and Local Retirement
+
+Deliver:
+
+- provider-neutral database configuration and repository adapter boundary;
+- externally signed writer leases, transactional fencing, source credential revocation/read-only fencing, and maintenance-mode drain;
+- encrypted custom-format PostgreSQL backup, manifest, checksums, and verifier;
+- real Supabase-to-local and local-to-Supabase restore rehearsals into fresh empty targets;
+- separately retained hash-chained deletion receipts replayed after old-backup restore;
+- Heroku, Neon, AWS, GCP, Azure, Railway, generic PostgreSQL, and local destination runbooks;
+- Codex, Claude Code, Gemini CLI, GitHub Copilot, Cursor, Cline, and ChatGPT migration prompt wrappers;
+- Windows local-compute and local-data/runtime setup/start/health/backup/return scripts;
+- signed mobile endpoint profiles with deployment-ID, writer-epoch, and writer-lease validation;
+- Eco sleep/restart job-lease recovery drill.
+
+Gate:
+
+- corrupted checksum, stale/expired lease, deletion replay, missing extension, owner-count mismatch, and interrupted restore all fail closed;
+- a real logical dump restores into a real local PostgreSQL instance and passes schema/count/ownership checks;
+- one managed non-Supabase destination rehearsal passes before local heavy stores may retire;
+- the same backend artifact boots on Heroku and Windows;
+- no migration deletes a source or enables a second writer;
+- authority remains `LOCAL`.
+
+Only Phase 9 may authorize retirement of heavy local memory stores. If any
+backup, restore, deletion-replay, alternate-provider, or laptop-recovery gate
+fails, Supabase may remain the active cloud service but full local sources stay
+retained.
 
 ## Cross-Phase Verification Ledger
 

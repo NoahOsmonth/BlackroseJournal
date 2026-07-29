@@ -1583,6 +1583,11 @@ Guard tests are replaced with stronger tests; they are not silently deleted.
 
 ## 26. Migration
 
+Phase 8 may stage CLOUD authority on the initial Supabase/Heroku deployment,
+but complete local sources remain read-only. Portability and disaster recovery
+are final Phase 9. Only a passing Phase 9 may close the observation window with
+heavy local-store retirement.
+
 ### 26.1 Memory authority state
 
 Per user:
@@ -1916,7 +1921,7 @@ The later execution plan must preserve these dependencies:
 10. Core cloud memory before optional differential.
 11. The full Memory Quality Constitution before retiring local memory.
 12. Operator account before any friend.
-13. Local retirement only after the observation window.
+13. Local retirement only after the observation window and a passing Phase 9.
 
 ## 31. Definition of architecture completion
 
@@ -1934,7 +1939,7 @@ The cloud-memory implementation is architecture-complete only when:
 - public benchmark matrix and full-year Rosebud probes meet gates;
 - real-provider E2E passes with cleared data;
 - operator and at least one isolated friend account pass staged rollout;
-- heavy local memory stores are retired without losing offline drafts/outbox;
+- heavy local memory stores are retired only after Phase 9 passes, without losing offline drafts/outbox;
 - repository rules and guard tests describe the new architecture accurately.
 
 ## 32. Planning handoff
