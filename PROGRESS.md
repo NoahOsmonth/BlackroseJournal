@@ -2285,3 +2285,50 @@
       real-process fixtures/tests only. It changes no application/backend
       runtime, schema/migration, dependency, lockfile, generated output, or
       deployment state.
+
+
+- **2026-07-29 (second final-review repair wave)**: Closed the additive
+  roadmap-safety bypasses found by the first scoped re-review.
+  - **Review status**:
+    - The first scoped re-review of repair commit `515cc7b` found two residual
+      parser defects: statement-wide `no`/`without` exemptions could hide
+      destructive Phase 8 actions, and the Phase 9 forced-`LOCAL` check only
+      recognized sentences beginning with `Phase 9 failure`.
+    - This entry records the narrow TDD repair only. A second scoped
+      independent re-review follows; no result from that future re-review is
+      claimed here.
+  - **TDD evidence and repair**:
+    - Three literal, independent real-process fixtures were added first for
+      `delete complete local sources with no additional review`,
+      `remove local sources without delay`, and
+      `If any recovery gate fails, memory authority must return to LOCAL`.
+      The unchanged validator produced the expected red result: **3 failed,
+      31 passed**. After adding the directly negated preservation case, red
+      remained isolated to those defects at **3 failed, 32 passed**.
+    - The validator now splits operative clauses, assesses each destructive
+      action independently, and treats `no`/`without` as safe only when bound
+      directly to that action. A negated action cannot exempt a later
+      affirmative action in the same statement.
+    - Phase 9 now rejects equivalent uppercase-`LOCAL` authority transitions
+      regardless of sentence start while accepting a directly negated
+      `must not return to LOCAL` prohibition.
+    - The first green attempt caught one real-roadmap false positive for the
+      adjectival compound `deleted-source`; narrowing that status-compound
+      case produced final validator green at **35/35**.
+  - **Fresh repaired verification**:
+    - Standalone roadmap validation passed.
+    - Focused roadmap/authority Jest: **3 suites passed, 41 tests passed,
+      0 failed**.
+    - Full Jest: **193 suites passed, 6 skipped; 917 tests passed, 21 skipped;
+      0 failed**.
+    - `npx tsc --noEmit --pretty false` passed with 0 errors.
+    - ESLint passed with **0 errors and 72 existing warnings**.
+    - Design check passed with **0 errors and 3 existing near-limit warnings**
+      across 177 scanned files.
+    - Both committed-range and working-tree-inclusive prohibited-path proofs
+      passed against base `251c9bbf2eac0c547f7db8fee00350e8d0d53002`;
+      `git diff --check` also passed.
+    - This narrow repair touches only the validator, its real-process test,
+      non-discovered fixture module, and this progress evidence. It changes no
+      runtime, schema/migration, dependency/lockfile, prototype, generated
+      output, or deployment state.

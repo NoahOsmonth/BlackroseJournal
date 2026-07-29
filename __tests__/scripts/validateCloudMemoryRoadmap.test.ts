@@ -22,6 +22,9 @@ import {
     approvedPlusForcedLocalPhaseNineRoadmap,
     blankResultRoadmap,
     branchlessPrimaryWithValidDecoyRoadmap,
+    conditionalForcedLocalPhaseNineRoadmap,
+    destructiveNoReviewPhaseEightRoadmap,
+    destructiveWithoutDelayPhaseEightRoadmap,
     duplicateAuthoritativeTableRoadmap,
     missingCloudOnlyTurnRoadmap,
     missingDeletionReplayRoadmap,
@@ -30,6 +33,7 @@ import {
     missingPriorPhaseEvidenceRoadmap,
     missingSourceParityRoadmap,
     missingZeroLossRoadmap,
+    negatedForcedLocalProhibitionRoadmap,
     nonSemanticDestructionExampleRoadmap,
     safePlusDestructivePhaseEightRoadmap,
     safetyOnlyInNonSemanticExampleRoadmap,
@@ -58,11 +62,12 @@ describe('validate-cloud-memory-roadmap', () => {
         fs.rmSync(fixtureRoot, { force: true, recursive: true });
     });
 
-    it('accepts the hand-authored final phase order and retirement boundary', () => {
-        writeFixture(fixtureRoot, validRoadmap);
-
+    it.each([
+        ['the hand-authored final phase order and retirement boundary', validRoadmap],
+        ['a directly negated forced-LOCAL prohibition', negatedForcedLocalProhibitionRoadmap],
+    ])('accepts %s', (_description, roadmap) => {
+        writeFixture(fixtureRoot, roadmap);
         const result = runValidator(fixtureRoot);
-
         expect(result.status).toBe(0);
     });
 
@@ -178,6 +183,17 @@ describe('validate-cloud-memory-roadmap', () => {
         expect(result.stderr).toMatch(/phase 8.*destruct|phase 8.*local/i);
     });
 
+    it.each([
+        ['delete complete local sources with no additional review', destructiveNoReviewPhaseEightRoadmap],
+        ['remove local sources without delay', destructiveWithoutDelayPhaseEightRoadmap],
+    ])('rejects the exact Phase 8 bypass: %s', (_sentence, roadmap) => {
+        writeFixture(fixtureRoot, roadmap);
+
+        const result = runValidator(fixtureRoot);
+
+        expect(result.status).not.toBe(0);
+    });
+
     it('ignores destructive examples and HTML comments during safety validation', () => {
         writeFixture(fixtureRoot, nonSemanticDestructionExampleRoadmap);
 
@@ -249,6 +265,14 @@ describe('validate-cloud-memory-roadmap', () => {
 
         expect(result.status).not.toBe(0);
         expect(result.stderr).toMatch(/forced.*local|authority.*local/i);
+    });
+
+    it('rejects a conditional forced-LOCAL transition beside the approved fallback', () => {
+        writeFixture(fixtureRoot, conditionalForcedLocalPhaseNineRoadmap);
+
+        const result = runValidator(fixtureRoot);
+
+        expect(result.status).not.toBe(0);
     });
 
     it.each([

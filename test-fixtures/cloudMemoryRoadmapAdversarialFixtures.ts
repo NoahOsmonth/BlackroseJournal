@@ -68,10 +68,34 @@ export const safePlusDestructivePhaseEightRoadmap = validRoadmap.replace(
 - delete complete local memory sources during Phase 8 observation;`,
 );
 
+export const destructiveNoReviewPhaseEightRoadmap = validRoadmap.replace(
+    '- do not perform irreversible local cleanup;',
+    `- do not perform irreversible local cleanup;
+- delete complete local sources with no additional review;`,
+);
+
+export const destructiveWithoutDelayPhaseEightRoadmap = validRoadmap.replace(
+    '- do not perform irreversible local cleanup;',
+    `- do not perform irreversible local cleanup;
+- remove local sources without delay;`,
+);
+
 export const approvedPlusForcedLocalPhaseNineRoadmap = validRoadmap.replace(
     '- zero cloud-only-turn, source-parity, or deletion loss is present.',
     `- zero cloud-only-turn, source-parity, or deletion loss is present.
 - a Phase 9 failure requires authority to remain LOCAL.`,
+);
+
+export const conditionalForcedLocalPhaseNineRoadmap = validRoadmap.replace(
+    '- zero cloud-only-turn, source-parity, or deletion loss is present.',
+    `- zero cloud-only-turn, source-parity, or deletion loss is present.
+- If any recovery gate fails, memory authority must return to LOCAL.`,
+);
+
+export const negatedForcedLocalProhibitionRoadmap = validRoadmap.replace(
+    '- zero cloud-only-turn, source-parity, or deletion loss is present.',
+    `- zero cloud-only-turn, source-parity, or deletion loss is present.
+- If any recovery gate fails, memory authority must not return to LOCAL.`,
 );
 
 export const nonSemanticDestructionExampleRoadmap = validRoadmap.replace(

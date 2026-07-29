@@ -238,23 +238,153 @@ function extractDeliverAndGate(section, phase) {
     ].join('\n');
 }
 
+function splitOperativeClauses(markdown) {
+    return markdown
+        .split(
+            /\r?\n|[.;](?=\s|$)|(?:,\s*|\s+)(?:but|however|yet|then)\b/i,
+        )
+        .map((clause) => clause.trim())
+        .filter(Boolean);
+}
+
+function isDirectlyNegatedDestructiveAction(clause, actionMatch) {
+    const action = actionMatch[0].toLowerCase();
+    const actionIndex = actionMatch.index ?? 0;
+    const prefix = clause.slice(0, actionIndex);
+    if (
+        /^(?:deleted|pruned|retired|discarded|erased|removed)$/.test(action) &&
+        clause[actionIndex + actionMatch[0].length] === '-'
+    ) {
+        return true;
+    }
+    const safeModifier =
+        '(?:be|perform|authorize|permit|ever|immediately|permanently|irreversibly|any|the|complete|irreversible|heavy|local|phone|device|memory|source|sources|store|stores)';
+    const directVerbNegation = new RegExp(
+        `\\b(?:(?:do|does|did|is|are|was|were|must|may|shall|will|can|could|should|would)\\s+not|cannot|can't|never)(?:\\s+${safeModifier}){0,6}\\s*$`,
+        'i',
+    );
+    if (directVerbNegation.test(prefix)) {
+        return true;
+    }
+
+    const nominalAction =
+        /^(?:deletion|pruning|retirement|discarding|erasing|removing|removal|cleanup|clean up)$/;
+    const directlyBoundNo = new RegExp(
+        `\\bno(?:\\s+${safeModifier}){0,5}\\s*$`,
+        'i',
+    );
+    if (nominalAction.test(action) && directlyBoundNo.test(prefix)) {
+        return true;
+    }
+
+    const passiveAction = /^(?:deleted|pruned|retired|discarded|erased|removed)$/;
+    const negatedLocalSubject = new RegExp(
+        `\\bno(?:\\s+${safeModifier}){1,6}\\s+(?:is|are|was|were|may\\s+be|can\\s+be|will\\s+be|must\\s+be)\\s*$`,
+        'i',
+    );
+    if (passiveAction.test(action) && negatedLocalSubject.test(prefix)) {
+        return true;
+    }
+
+    const withoutAction =
+        /^(?:deleting|deletion|pruning|retiring|retirement|discarding|erasing|removing|removal|cleanup|clean up)$/;
+    const directlyBoundWithout = new RegExp(
+        `\\bwithout(?:\\s+${safeModifier}){0,5}\\s*$`,
+        'i',
+    );
+    if (withoutAction.test(action) && directlyBoundWithout.test(prefix)) {
+        return true;
+    }
+
+    return new RegExp(
+        `\\bonly\\s+Phase\\s+9(?:\\s+may)?(?:\\s+(?:authorize|perform))?(?:\\s+${safeModifier}){0,5}\\s*$`,
+        'i',
+    ).test(prefix);
+}
+
 function containsAffirmativeLocalDestruction(markdown) {
     const destructiveAction =
-        /\b(?:delete|deletes|deleted|deleting|deletion|prune|prunes|pruned|pruning|retire|retires|retired|retiring|retirement|discard|discards|discarded|discarding|erase|erases|erased|erasing|remove|removes|removed|removing|cleanup|clean up)\b/i;
+        /\b(?:delete|deletes|deleted|deleting|deletion|prune|prunes|pruned|pruning|retire|retires|retired|retiring|retirement|discard|discards|discarded|discarding|erase|erases|erased|erasing|remove|removes|removed|removing|cleanup|clean up)\b/gi;
     const localTarget =
         /\b(?:local|phone|device|heavy stores?|memory stores?|source evidence|sources?)\b/i;
-    const prohibition =
-        /\b(?:do not|does not|must not|may not|cannot|can't|never|without|no|only Phase 9)\b/i;
 
-    return markdown
-        .split(/\r?\n|[.;](?=\s|$)/)
-        .map((statement) => statement.trim())
-        .some(
-            (statement) =>
-                destructiveAction.test(statement) &&
-                localTarget.test(statement) &&
-                !prohibition.test(statement),
-        );
+    return splitOperativeClauses(markdown).some(
+        (clause) =>
+            localTarget.test(clause) &&
+            [...clause.matchAll(destructiveAction)].some(
+                (actionMatch) =>
+                    !isDirectlyNegatedDestructiveAction(clause, actionMatch),
+            ),
+    );
+}
+
+function isDirectlyNegatedTransition(clause, actionIndex) {
+    const prefix = clause.slice(0, actionIndex);
+    return (
+        /\b(?:(?:do|does|did|is|are|was|were|must|may|shall|will|can|could|should|would)\s+not|cannot|can't|never)(?:\s+(?:be|ever|automatically|directly|immediately|forcibly)){0,3}\s*$/i.test(
+            prefix,
+        ) ||
+        /\bnot\s+to\s*$/i.test(prefix) ||
+        /\bwithout(?:\s+(?:ever|automatically|directly|immediately|forcibly)){0,3}\s*$/i.test(
+            prefix,
+        )
+    );
+}
+
+function containsForcedLocalAuthorityTransition(markdown) {
+    const transitionAction =
+        /\b(?:return|returns|returned|returning|revert|reverts|reverted|reverting|switch|switches|switched|switching|transition|transitions|transitioned|transitioning|move|moves|moved|moving|remain|remains|remained|remaining|become|becomes|became|set|sets|setting)\b/gi;
+    const coerciveAction =
+        /\b(?:require|requires|required|requiring|force|forces|forced|forcing|set|sets|setting|return|returns|returned|returning)\b/gi;
+
+    return splitOperativeClauses(markdown).some((clause) =>
+        [...clause.matchAll(/\bauthority\b/gi)].some((authorityMatch) => {
+            const authorityIndex = authorityMatch.index ?? 0;
+            const authorityEnd = authorityIndex + authorityMatch[0].length;
+            const localMatch = /\bLOCAL\b/.exec(clause.slice(authorityEnd));
+            if (localMatch === null) {
+                return false;
+            }
+
+            const localIndex = authorityEnd + localMatch.index;
+            const predicate = clause.slice(authorityEnd, localIndex);
+            const affirmativePredicate = [...predicate.matchAll(transitionAction)].some(
+                (actionMatch) =>
+                    !isDirectlyNegatedTransition(
+                        clause,
+                        authorityEnd + (actionMatch.index ?? 0),
+                    ),
+            );
+            if (affirmativePredicate) {
+                return true;
+            }
+            if (
+                /\b(?:must|shall|will)\s+(?!not\b)(?:be\s+)?$/i.test(predicate) ||
+                /\b(?:is|are|becomes?)\s*$/i.test(predicate)
+            ) {
+                return true;
+            }
+
+            return [...clause.slice(0, authorityIndex).matchAll(coerciveAction)].some(
+                (actionMatch) => {
+                    const actionEnd =
+                        (actionMatch.index ?? 0) + actionMatch[0].length;
+                    const bridge = clause.slice(actionEnd, authorityIndex);
+                    const bridgeWords = normalizeWhitespace(bridge)
+                        .split(' ')
+                        .filter(Boolean);
+                    return (
+                        bridgeWords.length <= 3 &&
+                        !/[,:;]/.test(bridge) &&
+                        !isDirectlyNegatedTransition(
+                            clause,
+                            actionMatch.index ?? 0,
+                        )
+                    );
+                },
+            );
+        }),
+    );
 }
 
 function parsePlanPath(cell) {
@@ -431,11 +561,7 @@ if (phaseNineSection.count !== 1) {
             violations.push(`Phase 9 retirement gate must state: “${statement}.”`);
         }
     }
-    if (
-        /\bphase 9 failure\b[^\n.;]{0,160}\b(?:require|requires|force|forces|set|sets|return|returns)\b[^\n.;]{0,160}\bauthority\b[^\n.;]{0,80}\bLOCAL\b/i.test(
-            phaseNineBlocks,
-        )
-    ) {
+    if (containsForcedLocalAuthorityTransition(phaseNineBlocks)) {
         violations.push('Phase 9 must reject any additive forced-LOCAL authority gate.');
     }
 }
