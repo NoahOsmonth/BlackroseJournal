@@ -142,6 +142,10 @@ visible-response authority remains `LOCAL`, cloud source upload is disabled, and
 existing on-device tools still supply the model. Never infer memory authority
 from deployment state or `EXPO_PUBLIC_DATA_PROVIDER`.
 
+The delivery order is Phase 0, Phases 1–8, then final Phase 9 portability/DR.
+Phase 8 may stage CLOUD authority, but full local sources remain read-only.
+Only Phase 9 may authorize local heavy-store retirement.
+
 Per-user memory authority and deployment writer authority are separate:
 
 - Per-user authority decides whether local or cloud memory may influence a

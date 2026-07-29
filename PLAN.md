@@ -7,9 +7,16 @@ current-state context. It is not the active cloud migration plan.
 
 The approved 2026-07-28 architecture is defined by:
 
+- [Cloud-memory master roadmap](docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md)
+- [Portability as the final memory phase](docs/superpowers/specs/2026-07-29-portability-final-phase-sequencing-design.md)
 - [Cloud-authoritative Rosebud memory design](docs/superpowers/specs/2026-07-28-cloud-authoritative-rosebud-memory-design.md)
 - [Backend and database portability design](docs/superpowers/specs/2026-07-28-rosebud-backend-database-portability-design.md)
 - [Phase 0 contract and safety execution plan](docs/superpowers/plans/2026-07-28-cloud-memory-phase-0-contract-safety.md)
+
+Phase 0 is complete and Phase 1 is next. Phases 1–8 deliver the cloud-memory
+behavior sequence; Phase 8 may stage CLOUD authority while retaining full local
+sources read-only. Final Phase 9 owns portability, disaster recovery, and the
+only gate that may authorize local heavy-store retirement.
 
 ## Goal
 Build a phone-local memory system for Rosebud that gives the AI durable,

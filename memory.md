@@ -17,7 +17,8 @@ credential fingerprint.
 The PostgreSQL foundation includes owner-scoped source watermarks and a deletion
 ledger so later migration can resume and invalidate derived data. Phase 0 does
 not claim deletion completion: verified erase-all, backup tombstone enforcement,
-and end-to-end deletion completion are Phase 0P portability work.
+and end-to-end deletion completion are final Phase 9 portability work and must
+pass before local heavy stores may retire.
 
 The executable quality contract lives in
 `benchmarks/memory/qualityConstitution.ts`. It versions the eight diagnostic

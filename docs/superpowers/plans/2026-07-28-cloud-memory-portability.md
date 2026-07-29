@@ -1,8 +1,8 @@
-# Cloud Memory Portability and Disaster-Recovery Implementation Plan
+# Cloud Memory Phase 9 Portability and Disaster-Recovery Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make Rosebud's authoritative PostgreSQL memory recoverable across Supabase, Heroku, a Windows laptop, and the documented managed PostgreSQL destinations while preserving one externally leased writer, deletion history, owner isolation, and verifiable rollback.
+**Goal:** After completed Phase 0 and Phases 1–8, make Rosebud's authoritative PostgreSQL memory recoverable across Supabase, Heroku, a Windows laptop, and the documented managed PostgreSQL destinations while preserving one externally leased writer, deletion history, owner isolation, and verifiable rollback. Phase 9 is the final delivery phase and the only phase that may authorize local heavy-store retirement.
 
 **Architecture:** Canonical application migrations live under `db/migrations/core`; Supabase and bare-PostgreSQL behavior is supplied by narrow overlays under `db/overlays`. The backend verifies Supabase sessions, exchanges them for short-lived internal PostgREST JWTs, and presents an externally signed writer lease to every mutating RPC. Portable tooling creates a snapshot-consistent, application-data-only, signed and encrypted backup set, restores only into a newly created marked database, replays the independent deletion ledger, verifies the destination, and performs cutover or rollback through fresh targets rather than merging into retained stale databases.
 
@@ -10,8 +10,10 @@
 
 ## Global Constraints
 
-- The approved source of truth is `docs/superpowers/specs/2026-07-28-rosebud-backend-database-portability-design.md`.
-- The current repository does not satisfy the Phase 0 gate. Task 1 must fail closed until the Phase 0 contracts, routes, jobs, migrations, Supabase local stack, and review evidence exist.
+- The approved portability source of truth is `docs/superpowers/specs/2026-07-28-rosebud-backend-database-portability-design.md`; the Phase 8/9 boundary is controlled by `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` and `docs/superpowers/specs/2026-07-29-portability-final-phase-sequencing-design.md`.
+- Phase 0 is complete, and Phases 1–8 execute before this plan. Task 1 revalidates the completed Phase 0 contracts, routes, jobs, migrations, Supabase local stack, and review evidence before any Phase 9 portability mutation, provider change, or retirement work begins.
+- Phase 8 may stage CLOUD authority, but it retains complete local memory sources read-only. Only Phase 9 may authorize local heavy-store retirement after every gate in this plan passes.
+- A Phase 9 failure blocks heavy local-store retirement and activation of any alternate provider or second writer; the healthy Supabase service may remain active under the user's current valid authority, and full local sources stay retained.
 - Exactly one unexpired externally signed writer lease may authorize mutations. A database-local epoch is not a sufficient fence.
 - Every mutating RPC checks deployment ID, decimal-string writer epoch converted to `bigint`, lease ID, SHA-256 lease-token digest, lease expiry, database mode, and source-credential fingerprint in the same transaction as the mutation.
 - Planned cutover revokes the source writer credential or applies provider-level read-only fencing before the final snapshot. Emergency cutover waits for the old external lease to expire unless independent fencing is proven.
@@ -213,7 +215,7 @@ git add .gitignore backend/scripts/run-tests.js backend/src/__tests__/testRunner
 git commit -m "test(memory): make portability evidence fail closed"
 ```
 
-### Task 1: Hard Phase 0 Completion Gate
+### Task 1: Revalidate Completed Phase 0 Evidence
 
 **Files:**
 - Create: `scripts/portability/assert-phase0-ready.mjs`
@@ -223,7 +225,7 @@ git commit -m "test(memory): make portability evidence fail closed"
 - `assert-phase0-ready.mjs --mode static|real --report-dir <absolute-path>` exits `78` for missing prerequisites and `1` for a failing required check.
 - Later tasks consume its signed-off `phase0-ready.json` report hash.
 
-- [ ] **Step 1: Write the failing gate test**
+- [ ] **Step 1: Write the Phase 0 evidence revalidation gate test**
 
 The static gate requires non-empty:
 
@@ -240,16 +242,16 @@ supabase/tests/cloud_memory_foundation.test.sql
 
 It also requires the Phase 0 report to prove two real Supabase-authenticated users with RLS isolation, transactional stale-epoch and expired-lease rejection, real job reclaim, exact deployment-artifact health, and an independent review with no critical/important issue. Internal gateway JWT evidence is intentionally excluded here because Task 4 creates it.
 
-- [ ] **Step 2: Run the current expected failure**
+- [ ] **Step 2: Revalidate the completed Phase 0 static evidence**
 
 ```powershell
 $evidence = Join-Path $env:LOCALAPPDATA "Rosebud\portability-evidence"
-node scripts/portability/run-with-evidence.mjs --operation 00000000-0000-4000-8000-000000000002 --phase phase0-current --expect fail --report-dir $evidence -- node scripts/portability/assert-phase0-ready.mjs --mode static --report-dir $evidence
+node scripts/portability/run-with-evidence.mjs --operation 00000000-0000-4000-8000-000000000002 --phase phase0-revalidation --expect pass --report-dir $evidence -- node scripts/portability/assert-phase0-ready.mjs --mode static --report-dir $evidence
 ```
 
-Expected: exit `78` naming missing paths only. This is the present repository's correct result. Stop portability execution and complete the Phase 0 plan before continuing.
+Expected: exit `0` with a signed-off `phase0-ready.json` report hash covering the recorded Phase 0 evidence. A missing or failing prerequisite still fails closed and stops Phase 9, but it does not reopen or resequence the completed Phase 0 delivery phase.
 
-- [ ] **Step 3: Run the exact real gate after Phase 0 is complete**
+- [ ] **Step 3: Revalidate the exact real Phase 0 gate**
 
 ```powershell
 npx supabase start
@@ -1072,7 +1074,7 @@ git commit -m "test(memory): prove leased portable disaster recovery"
 
 ## Completion Checkpoint
 
-Portability is complete only when:
+Phase 9 portability is complete only when:
 
 - Task 1's Phase 0 gate passes with real evidence.
 - The same canonical migration hashes run on Supabase and generic PostgreSQL.
@@ -1093,5 +1095,5 @@ Portability is complete only when:
 - Unsupported provider descriptors remain `experimental`.
 - No source database was automatically deleted.
 - No secret-bearing report or artifact is tracked.
-- Memory authority remains `LOCAL` until the separate MIRROR/SHADOW/CLOUD delivery gates authorize a change.
+- Phase 8's current valid per-user authority remains unchanged unless Phase 9 executes a separately fenced cutover; full local sources remain retained until every Phase 9 retirement gate passes.
 - Independent review has no unresolved critical or important issue.
