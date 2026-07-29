@@ -6,7 +6,7 @@
 
 **Architecture:** The active master roadmap contains exactly ten delivery phases in the order `0, 1, 2, 3, 4, 5, 6, 7, 8, 9`. Phase 8 stages CLOUD authority on the initial Supabase/Heroku deployment while retaining full local sources. Phase 9 contains the former Phase 0P portability scope and is the only phase that can authorize local retirement.
 
-**Tech Stack:** Markdown specifications and plans, TypeScript 5.9, Jest 29, Node.js filesystem APIs.
+**Tech Stack:** Markdown specifications and plans, TypeScript 5.9, Jest 29, Node.js filesystem and process APIs.
 
 ## Global Constraints
 
@@ -20,80 +20,46 @@
 
 ---
 
-### Task 1: Add a Failing Roadmap-Order Contract
+### Task 1: Add a Failing Roadmap Validator Contract
 
 **Files:**
-- Create: `__tests__/docs/cloudMemoryRoadmapOrder.test.ts`
+- Create: `__tests__/scripts/validateCloudMemoryRoadmap.test.ts`
 
 **Interfaces:**
-- Consumes: active roadmap and repository-constitution Markdown files.
-- Produces: a Jest contract that pins ten ordered phases, Phase 8 local retention, and final Phase 9 retirement authority.
+- Consumes: a repository root passed to the validator CLI.
+- Produces: fixture-based behavioral coverage for valid roadmaps, wrong phase order, premature retirement, and the active repository.
 
 - [ ] **Step 1: Write the failing test**
 
-```ts
-import fs from 'node:fs';
-import path from 'node:path';
+Create controlled temporary repository fixtures and invoke
+`node scripts/validate-cloud-memory-roadmap.mjs <fixture-root>` as a real
+process. Cover these behaviors with hand-written fixture text:
 
-const root = path.resolve(__dirname, '../..');
-const read = (relativePath: string): string =>
-  fs.readFileSync(path.join(root, relativePath), 'utf8');
+- a valid `0, 1, 2, 3, 4, 5, 6, 7, 8, 9` roadmap exits `0`;
+- a roadmap containing `0P` or out-of-order phases exits nonzero and names the
+  ordering defect;
+- Phase 8 retirement language or missing local retention exits nonzero;
+- missing Phase 9 exclusive retirement authority exits nonzero;
+- invoking the validator against the active repository exits `0`.
 
-describe('cloud memory roadmap order', () => {
-  const roadmap = read(
-    'docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md',
-  );
-
-  it('contains exactly ten ordered delivery phases with portability last', () => {
-    const phaseRows = [...roadmap.matchAll(
-      /^\| (0|[1-9]) \| `codex\/cloud-memory-[^`]+` \|/gm,
-    )].map((match) => match[1]);
-    expect(phaseRows).toEqual([
-      '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-    ]);
-    expect(roadmap).not.toMatch(/^\| 0P \|/m);
-    expect(roadmap).toContain('codex/cloud-memory-phase-9-portability');
-  });
-
-  it('retains full local sources in Phase 8 and gates retirement in Phase 9', () => {
-    const phase8 = roadmap.split('## Phase 8')[1]?.split('## Phase 9')[0] ?? '';
-    const phase9 = roadmap.split('## Phase 9')[1] ?? '';
-    expect(phase8).toMatch(/retain(s|ed)? (the )?full local/i);
-    expect(phase8).toMatch(/must not retire/i);
-    expect(phase9).toMatch(/only Phase 9 may authorize/i);
-    expect(phase9).toMatch(/local.*retire/i);
-  });
-
-  it('updates active repository guidance to the final Phase 9 name', () => {
-    for (const relativePath of [
-      'AGENTS.md',
-      'memory.md',
-      'PLAN.md',
-      'docs/superpowers/plans/2026-07-28-cloud-memory-phase-0-contract-safety.md',
-      'docs/superpowers/plans/2026-07-28-cloud-memory-portability.md',
-    ]) {
-      const contents = read(relativePath);
-      expect(contents).not.toMatch(/Phase 0P/);
-      expect(contents).toMatch(/Phase 9/);
-    }
-  });
-});
-```
+The test must not calculate expected values with validator helpers or mock the
+filesystem/process boundary.
 
 - [ ] **Step 2: Run the test and verify red**
 
 Run:
 
 ```powershell
-npx jest --runInBand __tests__/docs/cloudMemoryRoadmapOrder.test.ts
+npx jest --runInBand __tests__/scripts/validateCloudMemoryRoadmap.test.ts
 ```
 
-Expected: FAIL because the roadmap still contains `0P`, Phase 8 still owns local retirement, and the active guidance still names Phase 0P.
+Expected: FAIL because the validator executable does not exist yet and the
+active repository still contains `0P`.
 
 - [ ] **Step 3: Commit the red contract**
 
 ```powershell
-git add __tests__/docs/cloudMemoryRoadmapOrder.test.ts
+git add __tests__/scripts/validateCloudMemoryRoadmap.test.ts
 git commit -m "test(memory): pin portability as final phase"
 ```
 
@@ -102,6 +68,7 @@ git commit -m "test(memory): pin portability as final phase"
 ### Task 2: Resequence the Master Roadmap and Authoritative Design
 
 **Files:**
+- Create: `scripts/validate-cloud-memory-roadmap.mjs`
 - Modify: `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md`
 - Modify: `docs/superpowers/specs/2026-07-28-cloud-authoritative-rosebud-memory-design.md`
 
@@ -109,7 +76,25 @@ git commit -m "test(memory): pin portability as final phase"
 - Consumes: `docs/superpowers/specs/2026-07-29-portability-final-phase-sequencing-design.md`.
 - Produces: the authoritative ten-phase order and Phase 8/9 safety boundary.
 
-- [ ] **Step 1: Rewrite the delivery table**
+- [ ] **Step 1: Implement the roadmap validator**
+
+The zero-dependency CLI accepts an optional repository-root argument, defaulting
+to the current working directory. It must:
+
+- require exactly the ordered phase rows `0` through `9`;
+- reject `0P`;
+- require the Phase 9 portability branch;
+- require Phase 8 to retain complete local sources and forbid retirement;
+- require Phase 9 to be the exclusive local-retirement gate;
+- require active repository guidance to use `Phase 9` and contain no `Phase 0P`;
+- print every discovered contract violation to stderr and exit nonzero;
+- print a short success line and exit `0` when the contract is valid.
+
+The active guidance set is exactly `AGENTS.md`, `memory.md`, `PLAN.md`,
+`docs/superpowers/plans/2026-07-28-cloud-memory-phase-0-contract-safety.md`,
+and `docs/superpowers/plans/2026-07-28-cloud-memory-portability.md`.
+
+- [ ] **Step 2: Rewrite the delivery table**
 
 Replace the `0P` row and ordering so the table is exactly:
 
@@ -128,7 +113,7 @@ Replace the `0P` row and ordering so the table is exactly:
 
 Keep each row's existing exact plan filename for Phases 0–8.
 
-- [ ] **Step 2: Move the portability section after Phase 8**
+- [ ] **Step 3: Move the portability section after Phase 8**
 
 Rename it:
 
@@ -145,7 +130,7 @@ fails, Supabase may remain the active cloud service but full local sources stay
 retained.
 ```
 
-- [ ] **Step 3: Narrow Phase 8**
+- [ ] **Step 4: Narrow Phase 8**
 
 Rename it:
 
@@ -162,7 +147,7 @@ Replace local-retirement deliverables and gates with:
 - hand the healthy staged deployment to Phase 9 for recovery certification.
 ```
 
-- [ ] **Step 4: Update the authoritative design migration section**
+- [ ] **Step 5: Update the authoritative design migration section**
 
 In Section 26, state:
 
@@ -175,20 +160,20 @@ heavy local-store retirement.
 
 Update acceptance language near local retirement so it requires Phase 9.
 
-- [ ] **Step 5: Run the focused test**
+- [ ] **Step 6: Run the focused test**
 
 Run:
 
 ```powershell
-npx jest --runInBand __tests__/docs/cloudMemoryRoadmapOrder.test.ts
+npx jest --runInBand __tests__/scripts/validateCloudMemoryRoadmap.test.ts
 ```
 
 Expected: still FAIL only because the repository guidance files have not yet been updated.
 
-- [ ] **Step 6: Commit the authoritative order**
+- [ ] **Step 7: Commit the authoritative order**
 
 ```powershell
-git add docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md docs/superpowers/specs/2026-07-28-cloud-authoritative-rosebud-memory-design.md
+git add scripts/validate-cloud-memory-roadmap.mjs docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md docs/superpowers/specs/2026-07-28-cloud-authoritative-rosebud-memory-design.md
 git commit -m "docs(memory): move portability behind cloud observation"
 ```
 
@@ -252,7 +237,8 @@ State that Phase 0 is complete, Phases 1–8 execute before this plan, and Task 
 Run:
 
 ```powershell
-npx jest --runInBand __tests__/docs/cloudMemoryRoadmapOrder.test.ts
+npx jest --runInBand __tests__/scripts/validateCloudMemoryRoadmap.test.ts
+node scripts/validate-cloud-memory-roadmap.mjs .
 rg -n "Phase 0P|\\| 0P \\||before MIRROR is called complete" AGENTS.md memory.md PLAN.md docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md docs/superpowers/plans/2026-07-28-cloud-memory-phase-0-contract-safety.md docs/superpowers/plans/2026-07-28-cloud-memory-portability.md
 ```
 
@@ -281,7 +267,7 @@ git commit -m "docs(memory): make phase nine the retirement gate"
 Run:
 
 ```powershell
-npx jest --runInBand __tests__/docs/cloudMemoryRoadmapOrder.test.ts __tests__/docs/agentsMemoryGraph.test.ts __tests__/backend-local-only.test.ts
+npx jest --runInBand __tests__/scripts/validateCloudMemoryRoadmap.test.ts __tests__/docs/agentsMemoryGraph.test.ts __tests__/backend-local-only.test.ts
 npx tsc --noEmit
 npm run lint
 npm run check:design
