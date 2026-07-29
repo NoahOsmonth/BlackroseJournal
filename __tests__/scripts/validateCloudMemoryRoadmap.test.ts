@@ -17,7 +17,7 @@ import {
     validRoadmap,
     writeFixture,
     wrongPhaseNineBranchRoadmap,
-} from './fixtures/cloudMemoryRoadmapFixtures';
+} from '../../test-fixtures/cloudMemoryRoadmapFixtures';
 
 const repositoryRoot = path.resolve(__dirname, '..', '..');
 const validatorPath = path.join(repositoryRoot, 'scripts', 'validate-cloud-memory-roadmap.mjs');
