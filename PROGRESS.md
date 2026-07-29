@@ -2196,3 +2196,35 @@
       a redacted bootstrap; the user was deleted in `finally`.
     - Final 45-line app-log scan found zero exact-secret leaks, credential-pattern leaks,
       error lines, or missing-listener evidence.
+
+
+- **2026-07-29**: Cloud-memory roadmap final-phase portability resequencing verified.
+  - **Approved sequence and retirement boundary**:
+    - The user-approved delivery order is Phase 0, Phases 1–8, then Phase 9
+      (`0, 1–8, 9`).
+    - Phase 8 retains complete local memory sources throughout staged CLOUD authority and
+      observation; it cannot retire the heavy local stores.
+    - Phase 9 is the only local-retirement gate. Failed portability or recovery gates keep
+      full local sources retained and block alternate-provider activation or a second writer.
+  - **Fresh verification after the fixture correction**:
+    - Focused roadmap/authority Jest: **3 suites passed, 19 tests passed, 0 failed**.
+    - Full Jest: **193 suites passed, 6 skipped; 895 tests passed, 21 skipped; 0 failed**.
+    - `npx tsc --noEmit` passed with 0 errors.
+    - ESLint passed with **0 errors and 72 existing warnings**.
+    - Design check passed with **0 errors and 3 existing near-limit warnings** across
+      177 scanned files.
+    - The prohibited-file diff from base `251c9bbf2eac0c547f7db8fee00350e8d0d53002`
+      passed for both lockfiles, `supabase/migrations`, and `example-design`; `git diff --check`
+      also passed.
+    - This documentation, validator, and test-only resequencing makes **no runtime, migration,
+      dependency, or deployment change**.
+  - **Regression and independent review**:
+    - The first Task 4 full-suite run found that the Task 2 fixture helper lived under
+      `__tests__` and was therefore collected as an empty Jest suite. Commit `da2bbe6` moved
+      the helper out of Jest discovery; every required gate was then rerun fresh and passed.
+    - Independent task reviews approved Tasks 1–3. Task 1 and the original Task 2 work each
+      required one fix round before approval; the later narrow Task 2 fixture-location
+      correction also received scoped independent re-review approval. Task 3 was approved
+      without a finding.
+    - The independent final whole-branch review follows this evidence commit; no future review
+      result is claimed here.
