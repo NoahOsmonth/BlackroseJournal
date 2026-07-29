@@ -2341,7 +2341,9 @@
     - The second scoped independent re-review of narrow TDD repair `238cfe7`
       returned **ADDRESSED** and ready, with no new Critical, Important, or
       Minor issue.
-    - Fresh evidence at `238cfe7`: validator **35/35**; focused Jest **41/41**;
+    - Fresh post-review evidence for this evidence step: the validator CLI
+      passed, and the single validator Jest file passed **35/35**.
+    - Previously recorded broader evidence at `238cfe7`: focused Jest **41/41**;
       full Jest **193 passed / 6 skipped suites** and **917 passed / 21 skipped
       tests**; typecheck clean; ESLint **0 errors / 72 existing warnings**;
       design **0 errors / 3 existing warnings**; prohibited-path and diff
