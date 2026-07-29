@@ -1,191 +1,26 @@
+import { spawnSync, type SpawnSyncReturns } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { spawnSync, type SpawnSyncReturns } from 'child_process';
+
+import {
+    branchlessRoadmap,
+    deprecatedPhaseRoadmap,
+    missingDisasterRecoveryBoundaryRoadmap,
+    missingExclusiveRetirementRoadmap,
+    missingFailedGateRetentionRoadmap,
+    missingPhaseNineHandoffRoadmap,
+    missingRetentionRoadmap,
+    obsoleteLocalAuthorityGateRoadmap,
+    outOfOrderRoadmap,
+    prematureRetirementRoadmap,
+    validRoadmap,
+    writeFixture,
+    wrongPhaseNineBranchRoadmap,
+} from './fixtures/cloudMemoryRoadmapFixtures';
 
 const repositoryRoot = path.resolve(__dirname, '..', '..');
 const validatorPath = path.join(repositoryRoot, 'scripts', 'validate-cloud-memory-roadmap.mjs');
-
-const validRoadmap = `# Cloud Memory Roadmap
-
-| Phase | Delivery |
-| --- | --- |
-| 0 | Contracts |
-| 1 | MIRROR ingestion |
-| 2 | Truth |
-| 3 | Curation |
-| 4 | Retrieval |
-| 5 | Orchestration |
-| 6 | Judgment |
-| 7 | Shadow evaluation |
-| 8 | Staged CLOUD authority |
-| 9 | Portability and disaster recovery |
-
-## Phase 8 — Staged CLOUD Authority and Observation
-
-- retain complete local memory sources read-only throughout observation;
-- do not retire heavy local stores;
-
-## Phase 9 — Portability, Disaster Recovery, and Local Retirement
-
-Only Phase 9 may authorize retirement of heavy local memory stores.
-`;
-
-const deprecatedPhaseRoadmap = `# Cloud Memory Roadmap
-
-| Phase | Delivery |
-| --- | --- |
-| 0 | Contracts |
-| 0P | Deprecated portability |
-| 1 | MIRROR ingestion |
-| 2 | Truth |
-| 3 | Curation |
-| 4 | Retrieval |
-| 5 | Orchestration |
-| 6 | Judgment |
-| 7 | Shadow evaluation |
-| 8 | Staged CLOUD authority |
-| 9 | Portability and disaster recovery |
-
-## Phase 8 — Staged CLOUD Authority and Observation
-
-- retain complete local memory sources read-only throughout observation;
-- do not retire heavy local stores;
-
-## Phase 9 — Portability, Disaster Recovery, and Local Retirement
-
-Only Phase 9 may authorize retirement of heavy local memory stores.
-`;
-
-const outOfOrderRoadmap = `# Cloud Memory Roadmap
-
-| Phase | Delivery |
-| --- | --- |
-| 0 | Contracts |
-| 2 | Truth |
-| 1 | MIRROR ingestion |
-| 3 | Curation |
-| 4 | Retrieval |
-| 5 | Orchestration |
-| 6 | Judgment |
-| 7 | Shadow evaluation |
-| 8 | Staged CLOUD authority |
-| 9 | Portability and disaster recovery |
-
-## Phase 8 — Staged CLOUD Authority and Observation
-
-- retain complete local memory sources read-only throughout observation;
-- do not retire heavy local stores;
-
-## Phase 9 — Portability, Disaster Recovery, and Local Retirement
-
-Only Phase 9 may authorize retirement of heavy local memory stores.
-`;
-
-const prematureRetirementRoadmap = `# Cloud Memory Roadmap
-
-| Phase | Delivery |
-| --- | --- |
-| 0 | Contracts |
-| 1 | MIRROR ingestion |
-| 2 | Truth |
-| 3 | Curation |
-| 4 | Retrieval |
-| 5 | Orchestration |
-| 6 | Judgment |
-| 7 | Shadow evaluation |
-| 8 | Staged CLOUD authority |
-| 9 | Portability and disaster recovery |
-
-## Phase 8 — Staged CLOUD Authority and Observation
-
-- retain complete local memory sources read-only throughout observation;
-- retire heavy local stores after staged cloud authority;
-
-## Phase 9 — Portability, Disaster Recovery, and Local Retirement
-
-Only Phase 9 may authorize retirement of heavy local memory stores.
-`;
-
-const missingRetentionRoadmap = `# Cloud Memory Roadmap
-
-| Phase | Delivery |
-| --- | --- |
-| 0 | Contracts |
-| 1 | MIRROR ingestion |
-| 2 | Truth |
-| 3 | Curation |
-| 4 | Retrieval |
-| 5 | Orchestration |
-| 6 | Judgment |
-| 7 | Shadow evaluation |
-| 8 | Staged CLOUD authority |
-| 9 | Portability and disaster recovery |
-
-## Phase 8 — Staged CLOUD Authority and Observation
-
-- do not retire heavy local stores;
-
-## Phase 9 — Portability, Disaster Recovery, and Local Retirement
-
-Only Phase 9 may authorize retirement of heavy local memory stores.
-`;
-
-const missingExclusiveRetirementRoadmap = `# Cloud Memory Roadmap
-
-| Phase | Delivery |
-| --- | --- |
-| 0 | Contracts |
-| 1 | MIRROR ingestion |
-| 2 | Truth |
-| 3 | Curation |
-| 4 | Retrieval |
-| 5 | Orchestration |
-| 6 | Judgment |
-| 7 | Shadow evaluation |
-| 8 | Staged CLOUD authority |
-| 9 | Portability and disaster recovery |
-
-## Phase 8 — Staged CLOUD Authority and Observation
-
-- retain complete local memory sources read-only throughout observation;
-- do not retire heavy local stores;
-
-## Phase 9 — Portability, Disaster Recovery, and Local Retirement
-
-Phase 9 documents portability and disaster recovery.
-`;
-
-const activeGuidancePaths = [
-    'AGENTS.md',
-    'memory.md',
-    'PLAN.md',
-    'docs/superpowers/plans/2026-07-28-cloud-memory-phase-0-contract-safety.md',
-    'docs/superpowers/plans/2026-07-28-cloud-memory-portability.md',
-];
-
-function writeFixture(root: string, roadmap: string): void {
-    const roadmapPath = path.join(
-        root,
-        'docs',
-        'superpowers',
-        'plans',
-        '2026-07-28-cloud-memory-master-roadmap.md',
-    );
-
-    fs.mkdirSync(path.dirname(roadmapPath), { recursive: true });
-    fs.writeFileSync(roadmapPath, roadmap, 'utf8');
-
-    for (const relativePath of activeGuidancePaths) {
-        const guidancePath = path.join(root, relativePath);
-        fs.mkdirSync(path.dirname(guidancePath), { recursive: true });
-        fs.writeFileSync(
-            guidancePath,
-            'Phase 9 is the final portability and local-retirement gate.\n',
-            'utf8',
-        );
-    }
-}
 
 function runValidator(root: string): SpawnSyncReturns<string> {
     return spawnSync(process.execPath, [validatorPath, root], {
@@ -230,6 +65,18 @@ describe('validate-cloud-memory-roadmap', () => {
         expect(result.stderr).toMatch(/phase order/i);
     });
 
+    it.each([
+        ['a branchless delivery table', branchlessRoadmap],
+        ['the wrong Phase 9 portability branch', wrongPhaseNineBranchRoadmap],
+    ])('rejects %s', (_description, roadmap) => {
+        writeFixture(fixtureRoot, roadmap);
+
+        const result = runValidator(fixtureRoot);
+
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toMatch(/phase 9.*branch|delivery model/i);
+    });
+
     it('rejects Phase 8 premature local-store retirement language', () => {
         writeFixture(fixtureRoot, prematureRetirementRoadmap);
 
@@ -246,12 +93,42 @@ describe('validate-cloud-memory-roadmap', () => {
         expect(result.status).not.toBe(0);
     });
 
+    it.each([
+        ['provider-independent disaster-recovery prohibition', missingDisasterRecoveryBoundaryRoadmap],
+        ['handoff to Phase 9 recovery certification', missingPhaseNineHandoffRoadmap],
+    ])('rejects Phase 8 without the %s', (_description, roadmap) => {
+        writeFixture(fixtureRoot, roadmap);
+
+        const result = runValidator(fixtureRoot);
+
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toMatch(/phase 8/i);
+    });
+
     it('rejects a roadmap without Phase 9 exclusive retirement authority', () => {
         writeFixture(fixtureRoot, missingExclusiveRetirementRoadmap);
 
         const result = runValidator(fixtureRoot);
 
         expect(result.status).not.toBe(0);
+    });
+
+    it('rejects Phase 9 without failed-gate local-source retention', () => {
+        writeFixture(fixtureRoot, missingFailedGateRetentionRoadmap);
+
+        const result = runValidator(fixtureRoot);
+
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toMatch(/phase 9.*failed|failed.*gate/i);
+    });
+
+    it('rejects the obsolete Phase 9 LOCAL-authority gate', () => {
+        writeFixture(fixtureRoot, obsoleteLocalAuthorityGateRoadmap);
+
+        const result = runValidator(fixtureRoot);
+
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toMatch(/current valid authority/i);
     });
 
     it('accepts the active repository roadmap and guidance', () => {

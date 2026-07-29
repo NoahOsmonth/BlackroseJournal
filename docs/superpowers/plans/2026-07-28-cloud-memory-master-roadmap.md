@@ -288,7 +288,7 @@ Gate:
 - one managed non-Supabase destination rehearsal passes before local heavy stores may retire;
 - the same backend artifact boots on Heroku and Windows;
 - no migration deletes a source or enables a second writer;
-- authority remains `LOCAL`.
+- a Phase 9 failure blocks heavy local-store retirement and activation of any alternate provider or second writer; the healthy Supabase service may remain active under the user's current valid authority.
 
 Only Phase 9 may authorize retirement of heavy local memory stores. If any
 backup, restore, deletion-replay, alternate-provider, or laptop-recovery gate

@@ -1588,6 +1588,10 @@ but complete local sources remain read-only. Portability and disaster recovery
 are final Phase 9. Only a passing Phase 9 may close the observation window with
 heavy local-store retirement.
 
+A Phase 9 failure blocks heavy local-store retirement and activation of any
+alternate provider or second writer. The healthy Supabase service may remain
+active under the user's current valid authority.
+
 ### 26.1 Memory authority state
 
 Per user:

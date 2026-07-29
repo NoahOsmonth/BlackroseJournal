@@ -1,0 +1,143 @@
+import fs from 'fs';
+import path from 'path';
+
+const phaseRows = [
+    '| 0 | `codex/cloud-memory-phase-0` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-0-contract-safety.md` | Contracts |',
+    '| 1 | `codex/cloud-memory-phase-1-mirror` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-1-mirror-ingestion.md` | MIRROR ingestion |',
+    '| 2 | `codex/cloud-memory-phase-2-truth` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-2-epistemic-truth.md` | Truth |',
+    '| 3 | `codex/cloud-memory-phase-3-curation` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-3-curation-projections.md` | Curation |',
+    '| 4 | `codex/cloud-memory-phase-4-retrieval` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-4-evidence-retrieval.md` | Retrieval |',
+    '| 5 | `codex/cloud-memory-phase-5-orchestration` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-5-live-orchestration.md` | Orchestration |',
+    '| 6 | `codex/cloud-memory-phase-6-judgment` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-6-utilization-learning.md` | Judgment |',
+    '| 7 | `codex/cloud-memory-phase-7-shadow` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-7-shadow-evaluation.md` | Shadow evaluation |',
+    '| 8 | `codex/cloud-memory-phase-8-cutover` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-8-cutover-retirement.md` | Staged CLOUD authority |',
+    '| 9 | `codex/cloud-memory-phase-9-portability` | `docs/superpowers/plans/2026-07-28-cloud-memory-portability.md` | Portability and disaster recovery |',
+];
+
+const phaseEightSafety = `- retain complete local memory sources read-only throughout observation;
+- do not claim provider-independent disaster recovery;
+- do not retire heavy local stores;
+- hand the healthy staged deployment to Phase 9 for recovery certification.`;
+
+const phaseNineSafety = `Only Phase 9 may authorize retirement of heavy local memory stores. If any
+backup, restore, deletion-replay, alternate-provider, or laptop-recovery gate
+fails, Supabase may remain the active cloud service but full local sources stay
+retained.
+
+A Phase 9 failure blocks heavy local-store retirement and activation of any
+alternate provider or second writer; the healthy Supabase service may remain
+active under the user's current valid authority.`;
+
+export const validRoadmap = `# Cloud Memory Roadmap
+
+## Delivery Model
+
+| Phase | Branch | Executable plan | Independently testable result |
+|---|---|---|---|
+${phaseRows.join('\n')}
+
+## Phase 8 — Staged CLOUD Authority and Observation
+
+${phaseEightSafety}
+
+## Phase 9 — Portability, Disaster Recovery, and Local Retirement
+
+${phaseNineSafety}
+`;
+
+export const deprecatedPhaseRoadmap = validRoadmap.replace(
+    `${phaseRows[0]}\n`,
+    `${phaseRows[0]}\n| 0P | \`codex/cloud-memory-portability\` | \`docs/superpowers/plans/2026-07-28-cloud-memory-portability.md\` | Deprecated portability |\n`,
+);
+
+export const outOfOrderRoadmap = validRoadmap.replace(
+    `${phaseRows[1]}\n${phaseRows[2]}`,
+    `${phaseRows[2]}\n${phaseRows[1]}`,
+);
+
+export const branchlessRoadmap = validRoadmap.replace(
+    `| Phase | Branch | Executable plan | Independently testable result |
+|---|---|---|---|
+${phaseRows.join('\n')}`,
+    `| Phase | Delivery |
+|---|---|
+${phaseRows
+    .map((row, index) => `| ${index} | ${index === 9 ? 'Portability' : 'Phase'} |`)
+    .join('\n')}`,
+);
+
+export const wrongPhaseNineBranchRoadmap = validRoadmap.replace(
+    '`codex/cloud-memory-phase-9-portability`',
+    '`codex/cloud-memory-portability`',
+);
+
+export const prematureRetirementRoadmap = validRoadmap.replace(
+    '- do not retire heavy local stores;',
+    '- retire heavy local stores after staged cloud authority;',
+);
+
+export const missingRetentionRoadmap = validRoadmap.replace(
+    '- retain complete local memory sources read-only throughout observation;\n',
+    '',
+);
+
+export const missingDisasterRecoveryBoundaryRoadmap = validRoadmap.replace(
+    '- do not claim provider-independent disaster recovery;\n',
+    '',
+);
+
+export const missingPhaseNineHandoffRoadmap = validRoadmap.replace(
+    '- hand the healthy staged deployment to Phase 9 for recovery certification.\n',
+    '',
+);
+
+export const missingExclusiveRetirementRoadmap = validRoadmap.replace(
+    'Only Phase 9 may authorize retirement of heavy local memory stores. ',
+    '',
+);
+
+export const missingFailedGateRetentionRoadmap = validRoadmap.replace(
+    `If any
+backup, restore, deletion-replay, alternate-provider, or laptop-recovery gate
+fails, Supabase may remain the active cloud service but full local sources stay
+retained.`,
+    'All recovery gates are expected to pass.',
+);
+
+export const obsoleteLocalAuthorityGateRoadmap = validRoadmap.replace(
+    `A Phase 9 failure blocks heavy local-store retirement and activation of any
+alternate provider or second writer; the healthy Supabase service may remain
+active under the user's current valid authority.`,
+    'A Phase 9 failure requires authority to remain LOCAL.',
+);
+
+const activeGuidancePaths = [
+    'AGENTS.md',
+    'memory.md',
+    'PLAN.md',
+    'docs/superpowers/plans/2026-07-28-cloud-memory-phase-0-contract-safety.md',
+    'docs/superpowers/plans/2026-07-28-cloud-memory-portability.md',
+];
+
+export function writeFixture(root: string, roadmap: string): void {
+    const roadmapPath = path.join(
+        root,
+        'docs',
+        'superpowers',
+        'plans',
+        '2026-07-28-cloud-memory-master-roadmap.md',
+    );
+
+    fs.mkdirSync(path.dirname(roadmapPath), { recursive: true });
+    fs.writeFileSync(roadmapPath, roadmap, 'utf8');
+
+    for (const relativePath of activeGuidancePaths) {
+        const guidancePath = path.join(root, relativePath);
+        fs.mkdirSync(path.dirname(guidancePath), { recursive: true });
+        fs.writeFileSync(
+            guidancePath,
+            'Phase 9 is the final portability and local-retirement gate.\n',
+            'utf8',
+        );
+    }
+}
