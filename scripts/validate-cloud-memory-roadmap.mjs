@@ -11,6 +11,81 @@ const activeGuidancePaths = [
     'docs/superpowers/plans/2026-07-28-cloud-memory-phase-0-contract-safety.md',
     'docs/superpowers/plans/2026-07-28-cloud-memory-portability.md',
 ];
+const expectedPhaseRows = [
+    {
+        phase: '0',
+        branch: '`codex/cloud-memory-phase-0`',
+        plan: '`docs/superpowers/plans/2026-07-28-cloud-memory-phase-0-contract-safety.md`',
+    },
+    {
+        phase: '1',
+        branch: '`codex/cloud-memory-phase-1-mirror`',
+        plan: '`docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md`',
+    },
+    {
+        phase: '2',
+        branch: '`codex/cloud-memory-phase-2-truth`',
+        plan: '`docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md`',
+    },
+    {
+        phase: '3',
+        branch: '`codex/cloud-memory-phase-3-curation`',
+        plan: '`docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md`',
+    },
+    {
+        phase: '4',
+        branch: '`codex/cloud-memory-phase-4-retrieval`',
+        plan: '`docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md`',
+    },
+    {
+        phase: '5',
+        branch: '`codex/cloud-memory-phase-5-orchestration`',
+        plan: '`docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md`',
+    },
+    {
+        phase: '6',
+        branch: '`codex/cloud-memory-phase-6-judgment`',
+        plan: '`docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md`',
+    },
+    {
+        phase: '7',
+        branch: '`codex/cloud-memory-phase-7-shadow`',
+        plan: '`docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md`',
+    },
+    {
+        phase: '8',
+        branch: '`codex/cloud-memory-phase-8-cutover`',
+        plan: '`docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md`',
+    },
+    {
+        phase: '9',
+        branch: '`codex/cloud-memory-phase-9-portability`',
+        plan: '`docs/superpowers/plans/2026-07-28-cloud-memory-portability.md`',
+    },
+];
+const requiredHeader = [
+    'Phase',
+    'Branch',
+    'Executable plan',
+    'Independently testable result',
+];
+const requiredPhaseEightStatements = [
+    'retain complete local memory sources read-only throughout observation',
+    'do not claim provider-independent disaster recovery',
+    'do not retire heavy local stores',
+    'do not move the primary database to another provider',
+    'do not enable a second writer',
+    'do not perform irreversible local cleanup',
+    'hand the healthy staged deployment to Phase 9 for recovery certification',
+];
+const requiredPhaseNineGates = [
+    'completed signed Phase 1–8 evidence passes revalidation, including the completed Phase 8 operator-and-friend observation report',
+    'a current cloud snapshot restores into a fresh target, and retained phone/local sources independently rebuild/import into a separate fresh target',
+    'deletion receipts replay after an older-backup resurrection attempt and deleted evidence remains absent',
+    "exact source counts and hashes match each recovery path's signed source manifest, with owner isolation, writer fencing, and source parity intact",
+    'a cloud-only turn survives staged provider-native rollback and current-cloud-snapshot fresh-target recovery',
+    'zero cloud-only-turn, source-parity, or deletion loss is present',
+];
 const violations = [];
 
 function readRepositoryFile(relativePath) {
@@ -21,6 +96,35 @@ function readRepositoryFile(relativePath) {
         violations.push(`Unable to read ${relativePath}: ${detail}`);
         return '';
     }
+}
+
+function stripNonSemanticMarkdown(markdown) {
+    const withoutComments = markdown.replace(/<!--[\s\S]*?-->/g, '');
+    const semanticLines = [];
+    let fenceCharacter = null;
+    let fenceLength = 0;
+
+    for (const line of withoutComments.split(/\r?\n/)) {
+        const fenceMatch = line.match(/^\s*(`{3,}|~{3,})/);
+        if (fenceCharacter === null && fenceMatch) {
+            fenceCharacter = fenceMatch[1][0];
+            fenceLength = fenceMatch[1].length;
+            continue;
+        }
+        if (
+            fenceCharacter !== null &&
+            new RegExp(`^\\s*${fenceCharacter}{${fenceLength},}`).test(line)
+        ) {
+            fenceCharacter = null;
+            fenceLength = 0;
+            continue;
+        }
+        if (fenceCharacter === null) {
+            semanticLines.push(line);
+        }
+    }
+
+    return semanticLines.join('\n');
 }
 
 function extractLevelTwoSection(markdown, heading) {
@@ -44,60 +148,159 @@ function extractLevelTwoSection(markdown, heading) {
     };
 }
 
+function countPhaseSections(markdown, phase) {
+    const heading = new RegExp(`^##\\s+Phase\\s+${phase}\\b`, 'i');
+    return markdown
+        .split(/\r?\n/)
+        .filter((line) => heading.test(line.trim())).length;
+}
+
 function parseTableRow(line) {
-    if (!line.startsWith('|') || !line.endsWith('|')) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('|') || !trimmed.endsWith('|')) {
         return [];
     }
-    return line
+    return trimmed
         .slice(1, -1)
         .split('|')
         .map((cell) => cell.trim());
 }
 
-function extractPhaseTable(deliveryModel) {
-    const lines = deliveryModel.split(/\r?\n/);
-    const requiredHeader =
-        '| Phase | Branch | Executable plan | Independently testable result |';
-    const headerIndex = lines.findIndex((line) => line.trim() === requiredHeader);
-    if (headerIndex === -1) {
-        return { headerFound: false, rows: [] };
-    }
-    if (!/^\|\s*-+\s*\|\s*-+\s*\|\s*-+\s*\|\s*-+\s*\|$/.test(lines[headerIndex + 1])) {
-        return { headerFound: true, rows: [] };
+function isTableDivider(line, columnCount) {
+    const cells = parseTableRow(line);
+    return (
+        cells.length === columnCount &&
+        cells.every((cell) => /^:?-{3,}:?$/.test(cell))
+    );
+}
+
+function extractMarkdownTables(markdown) {
+    const lines = markdown.split(/\r?\n/);
+    const tables = [];
+
+    for (let index = 0; index < lines.length - 1; index += 1) {
+        const header = parseTableRow(lines[index]);
+        if (header.length === 0 || !isTableDivider(lines[index + 1], header.length)) {
+            continue;
+        }
+
+        const rows = [];
+        let rowIndex = index + 2;
+        while (rowIndex < lines.length) {
+            const row = parseTableRow(lines[rowIndex]);
+            if (row.length === 0) {
+                break;
+            }
+            rows.push(row);
+            rowIndex += 1;
+        }
+        tables.push({ header, rows });
+        index = rowIndex - 1;
     }
 
-    const rows = [];
-    let index = headerIndex + 2;
-    while (index < lines.length && lines[index].startsWith('|')) {
-        rows.push(parseTableRow(lines[index]));
-        index += 1;
-    }
-
-    return { headerFound: true, rows };
+    return tables;
 }
 
 function normalizeWhitespace(value) {
     return value.replace(/\s+/g, ' ').trim();
 }
 
-const roadmap = readRepositoryFile(roadmapRelativePath);
+function extractDeliverAndGate(section, phase) {
+    const lines = section.split(/\r?\n/);
+    const deliverIndexes = lines
+        .map((line, index) => (line.trim() === 'Deliver:' ? index : -1))
+        .filter((index) => index !== -1);
+    const gateIndexes = lines
+        .map((line, index) => (line.trim() === 'Gate:' ? index : -1))
+        .filter((index) => index !== -1);
+
+    if (
+        deliverIndexes.length !== 1 ||
+        gateIndexes.length !== 1 ||
+        deliverIndexes[0] >= gateIndexes[0]
+    ) {
+        violations.push(
+            `Phase ${phase} must contain one ordered Deliver: block and one Gate: block.`,
+        );
+        return '';
+    }
+
+    const followingBlock = lines.findIndex(
+        (line, index) =>
+            index > gateIndexes[0] &&
+            /^[A-Z][A-Za-z0-9 /-]{0,60}:$/.test(line.trim()),
+    );
+    const gateEnd = followingBlock === -1 ? lines.length : followingBlock;
+
+    return [
+        ...lines.slice(deliverIndexes[0] + 1, gateIndexes[0]),
+        ...lines.slice(gateIndexes[0] + 1, gateEnd),
+    ].join('\n');
+}
+
+function containsAffirmativeLocalDestruction(markdown) {
+    const destructiveAction =
+        /\b(?:delete|deletes|deleted|deleting|deletion|prune|prunes|pruned|pruning|retire|retires|retired|retiring|retirement|discard|discards|discarded|discarding|erase|erases|erased|erasing|remove|removes|removed|removing|cleanup|clean up)\b/i;
+    const localTarget =
+        /\b(?:local|phone|device|heavy stores?|memory stores?|source evidence|sources?)\b/i;
+    const prohibition =
+        /\b(?:do not|does not|must not|may not|cannot|can't|never|without|no|only Phase 9)\b/i;
+
+    return markdown
+        .split(/\r?\n|[.;](?=\s|$)/)
+        .map((statement) => statement.trim())
+        .some(
+            (statement) =>
+                destructiveAction.test(statement) &&
+                localTarget.test(statement) &&
+                !prohibition.test(statement),
+        );
+}
+
+function parsePlanPath(cell) {
+    const match = cell.match(/^`([^`]+)`$/);
+    return match ? match[1] : null;
+}
+
+function isPathInsideRoot(absolutePath) {
+    const relative = path.relative(repositoryRoot, absolutePath);
+    return (
+        relative !== '' &&
+        relative !== '..' &&
+        !relative.startsWith(`..${path.sep}`) &&
+        !path.isAbsolute(relative)
+    );
+}
+
+const roadmapRaw = readRepositoryFile(roadmapRelativePath);
+const roadmap = stripNonSemanticMarkdown(roadmapRaw);
 const deliveryModel = extractLevelTwoSection(roadmap, '## Delivery Model');
 if (deliveryModel.count !== 1) {
     violations.push('Roadmap must contain exactly one level-two Delivery Model section.');
 }
-const phaseTable = extractPhaseTable(deliveryModel.markdown);
-if (!phaseTable.headerFound) {
+
+const deliveryTables = extractMarkdownTables(deliveryModel.markdown).filter(
+    (table) => table.header[0]?.toLowerCase() === 'phase',
+);
+if (deliveryTables.length !== 1) {
     violations.push(
-        'Delivery Model must use the authoritative Phase, Branch, Executable plan, and Independently testable result table.',
+        `Delivery Model must contain exactly one structurally authoritative Phase table; found ${deliveryTables.length}.`,
     );
 }
-const discoveredPhases = phaseTable.rows
-    .map((row) => row[0])
-    .filter((phase) => phase !== undefined);
-const expectedPhases = Array.from({ length: 10 }, (_, index) => String(index));
-
+const phaseTable = deliveryTables[0] ?? { header: [], rows: [] };
 if (
-    phaseTable.rows.some((row) => row.length !== 4) ||
+    phaseTable.header.length !== requiredHeader.length ||
+    phaseTable.header.some((cell, index) => cell !== requiredHeader[index])
+) {
+    violations.push(
+        'Delivery Model authoritative table must use Phase, Branch, Executable plan, and Independently testable result columns.',
+    );
+}
+
+const discoveredPhases = phaseTable.rows.map((row) => row[0] ?? '');
+const expectedPhases = expectedPhaseRows.map(({ phase }) => phase);
+if (
+    phaseTable.rows.some((row) => row.length !== requiredHeader.length) ||
     discoveredPhases.length !== expectedPhases.length ||
     discoveredPhases.some((phase, index) => phase !== expectedPhases[index])
 ) {
@@ -108,15 +311,53 @@ if (
     );
 }
 
-if (/\bPhase\s+0P\b|\|\s*0P\s*\|/i.test(roadmap)) {
-    violations.push('Phase order must not contain the deprecated Phase 0P label.');
+for (const expected of expectedPhaseRows) {
+    const row = phaseTable.rows.find((candidate) => candidate[0] === expected.phase);
+    if (!row) {
+        continue;
+    }
+    if (row[1] !== expected.branch) {
+        violations.push(
+            `Phase ${expected.phase} Branch mapping must be ${expected.branch}; found ${row[1] || 'blank'}.`,
+        );
+    }
+    if (row[2] !== expected.plan) {
+        violations.push(
+            `Phase ${expected.phase} Plan mapping must be ${expected.plan}; found ${row[2] || 'blank'}.`,
+        );
+    }
+    if (!row[3]?.trim()) {
+        violations.push(`Phase ${expected.phase} Result cell must be nonempty.`);
+    }
+
+    const planPath = parsePlanPath(row[2] ?? '');
+    if (planPath === null) {
+        violations.push(`Phase ${expected.phase} Plan must be a linked repository path.`);
+        continue;
+    }
+    const absolutePlanPath = path.resolve(repositoryRoot, planPath);
+    if (!isPathInsideRoot(absolutePlanPath)) {
+        violations.push(
+            `Phase ${expected.phase} Plan must resolve under the supplied repository root.`,
+        );
+    } else if (!fs.existsSync(absolutePlanPath) || !fs.statSync(absolutePlanPath).isFile()) {
+        violations.push(
+            `Phase ${expected.phase} Plan does not exist under the supplied repository root: ${planPath}.`,
+        );
+    }
+
+    if (
+        planPath === roadmapRelativePath &&
+        countPhaseSections(roadmap, expected.phase) !== 1
+    ) {
+        violations.push(
+            `Phase ${expected.phase} roadmap Plan mapping requires exactly one level-two Phase ${expected.phase} section.`,
+        );
+    }
 }
 
-const phaseNineRow = phaseTable.rows.find((row) => row[0] === '9') ?? [];
-if (phaseNineRow[1] !== '`codex/cloud-memory-phase-9-portability`') {
-    violations.push(
-        'Phase 9 must use branch `codex/cloud-memory-phase-9-portability`.',
-    );
+if (/\bPhase\s+0P\b|\|\s*0P\s*\|/i.test(roadmap)) {
+    violations.push('Phase order must not contain the deprecated Phase 0P label.');
 }
 
 const phaseEightSection = extractLevelTwoSection(
@@ -132,45 +373,19 @@ if (phaseEightSection.count !== 1) {
         'Roadmap must contain exactly one Phase 8 “Staged CLOUD Authority and Observation” section.',
     );
 } else {
-    const phaseEight = phaseEightSection.markdown;
-    if (
-        !/retain complete local memory sources read-only throughout observation/i.test(
-            phaseEight,
-        )
-    ) {
-        violations.push(
-            'Phase 8 must retain complete local memory sources read-only throughout observation.',
-        );
+    const phaseEightBlocks = extractDeliverAndGate(
+        phaseEightSection.markdown,
+        '8',
+    );
+    const normalizedPhaseEight = normalizeWhitespace(phaseEightBlocks).toLowerCase();
+    for (const statement of requiredPhaseEightStatements) {
+        if (!normalizedPhaseEight.includes(statement.toLowerCase())) {
+            violations.push(`Phase 8 must state: “${statement}.”`);
+        }
     }
-    if (!/do not retire heavy local stores/i.test(phaseEight)) {
-        violations.push('Phase 8 must forbid retirement of heavy local stores.');
-    }
-    if (!/do not claim provider-independent disaster recovery/i.test(phaseEight)) {
+    if (containsAffirmativeLocalDestruction(phaseEightBlocks)) {
         violations.push(
-            'Phase 8 must not claim provider-independent disaster recovery.',
-        );
-    }
-    if (
-        !/hand the healthy staged deployment to Phase 9 for recovery certification/i.test(
-            phaseEight,
-        )
-    ) {
-        violations.push(
-            'Phase 8 must hand the healthy staged deployment to Phase 9 for recovery certification.',
-        );
-    }
-
-    const prematureRetirement = phaseEight
-        .split(/\r?\n/)
-        .some(
-            (line) =>
-                /retir(?:e|ement|ing|ed).*(?:local|stores)|(?:local|stores).*retir(?:e|ement|ing|ed)/i.test(
-                    line,
-                ) && !/\bdo not retire heavy local stores\b/i.test(line),
-        );
-    if (prematureRetirement) {
-        violations.push(
-            'Phase 8 contains premature local-retirement authorization.',
+            'Phase 8 contains additive destructive local-source language.',
         );
     }
 }
@@ -180,9 +395,10 @@ if (phaseNineSection.count !== 1) {
         'Roadmap must contain exactly one Phase 9 “Portability, Disaster Recovery, and Local Retirement” section.',
     );
 } else {
-    const phaseNine = normalizeWhitespace(phaseNineSection.markdown);
+    const phaseNineBlocks = extractDeliverAndGate(phaseNineSection.markdown, '9');
+    const normalizedPhaseNine = normalizeWhitespace(phaseNineBlocks);
     if (
-        !phaseNine.includes(
+        !normalizedPhaseNine.includes(
             'Only Phase 9 may authorize retirement of heavy local memory stores.',
         )
     ) {
@@ -191,7 +407,7 @@ if (phaseNineSection.count !== 1) {
         );
     }
     if (
-        !phaseNine.includes(
+        !normalizedPhaseNine.includes(
             'If any backup, restore, deletion-replay, alternate-provider, or laptop-recovery gate fails, Supabase may remain the active cloud service but full local sources stay retained.',
         )
     ) {
@@ -200,7 +416,7 @@ if (phaseNineSection.count !== 1) {
         );
     }
     if (
-        !phaseNine
+        !normalizedPhaseNine
             .toLowerCase()
             .includes(
                 "a phase 9 failure blocks heavy local-store retirement and activation of any alternate provider or second writer; the healthy supabase service may remain active under the user's current valid authority.",
@@ -209,6 +425,18 @@ if (phaseNineSection.count !== 1) {
         violations.push(
             "Phase 9 failure handling must preserve the user's current valid authority while blocking retirement and alternate writers.",
         );
+    }
+    for (const statement of requiredPhaseNineGates) {
+        if (!normalizedPhaseNine.toLowerCase().includes(statement.toLowerCase())) {
+            violations.push(`Phase 9 retirement gate must state: “${statement}.”`);
+        }
+    }
+    if (
+        /\bphase 9 failure\b[^\n.;]{0,160}\b(?:require|requires|force|forces|set|sets|return|returns)\b[^\n.;]{0,160}\bauthority\b[^\n.;]{0,80}\bLOCAL\b/i.test(
+            phaseNineBlocks,
+        )
+    ) {
+        violations.push('Phase 9 must reject any additive forced-LOCAL authority gate.');
     }
 }
 
@@ -221,7 +449,7 @@ if (
 }
 
 for (const relativePath of activeGuidancePaths) {
-    const guidance = readRepositoryFile(relativePath);
+    const guidance = stripNonSemanticMarkdown(readRepositoryFile(relativePath));
     if (!/\bPhase\s+9\b/i.test(guidance)) {
         violations.push(`${relativePath} must use Phase 9 guidance.`);
     }

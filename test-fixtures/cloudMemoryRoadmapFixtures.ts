@@ -3,21 +3,31 @@ import path from 'path';
 
 const phaseRows = [
     '| 0 | `codex/cloud-memory-phase-0` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-0-contract-safety.md` | Contracts |',
-    '| 1 | `codex/cloud-memory-phase-1-mirror` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-1-mirror-ingestion.md` | MIRROR ingestion |',
-    '| 2 | `codex/cloud-memory-phase-2-truth` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-2-epistemic-truth.md` | Truth |',
-    '| 3 | `codex/cloud-memory-phase-3-curation` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-3-curation-projections.md` | Curation |',
-    '| 4 | `codex/cloud-memory-phase-4-retrieval` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-4-evidence-retrieval.md` | Retrieval |',
-    '| 5 | `codex/cloud-memory-phase-5-orchestration` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-5-live-orchestration.md` | Orchestration |',
-    '| 6 | `codex/cloud-memory-phase-6-judgment` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-6-utilization-learning.md` | Judgment |',
-    '| 7 | `codex/cloud-memory-phase-7-shadow` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-7-shadow-evaluation.md` | Shadow evaluation |',
-    '| 8 | `codex/cloud-memory-phase-8-cutover` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-8-cutover-retirement.md` | Staged CLOUD authority |',
+    '| 1 | `codex/cloud-memory-phase-1-mirror` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | MIRROR ingestion |',
+    '| 2 | `codex/cloud-memory-phase-2-truth` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Truth |',
+    '| 3 | `codex/cloud-memory-phase-3-curation` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Curation |',
+    '| 4 | `codex/cloud-memory-phase-4-retrieval` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Retrieval |',
+    '| 5 | `codex/cloud-memory-phase-5-orchestration` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Orchestration |',
+    '| 6 | `codex/cloud-memory-phase-6-judgment` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Judgment |',
+    '| 7 | `codex/cloud-memory-phase-7-shadow` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Shadow evaluation |',
+    '| 8 | `codex/cloud-memory-phase-8-cutover` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Staged CLOUD authority |',
     '| 9 | `codex/cloud-memory-phase-9-portability` | `docs/superpowers/plans/2026-07-28-cloud-memory-portability.md` | Portability and disaster recovery |',
 ];
 
 const phaseEightSafety = `- retain complete local memory sources read-only throughout observation;
 - do not claim provider-independent disaster recovery;
 - do not retire heavy local stores;
+- do not move the primary database to another provider;
+- do not enable a second writer;
+- do not perform irreversible local cleanup;
 - hand the healthy staged deployment to Phase 9 for recovery certification.`;
+
+const phaseNineRetirementGates = `- completed signed Phase 1–8 evidence passes revalidation, including the completed Phase 8 operator-and-friend observation report;
+- a current cloud snapshot restores into a fresh target, and retained phone/local sources independently rebuild/import into a separate fresh target;
+- deletion receipts replay after an older-backup resurrection attempt and deleted evidence remains absent;
+- exact source counts and hashes match each recovery path's signed source manifest, with owner isolation, writer fencing, and source parity intact;
+- a cloud-only turn survives staged provider-native rollback and current-cloud-snapshot fresh-target recovery;
+- zero cloud-only-turn, source-parity, or deletion loss is present.`;
 
 const phaseNineSafety = `Only Phase 9 may authorize retirement of heavy local memory stores. If any
 backup, restore, deletion-replay, alternate-provider, or laptop-recovery gate
@@ -36,11 +46,53 @@ export const validRoadmap = `# Cloud Memory Roadmap
 |---|---|---|---|
 ${phaseRows.join('\n')}
 
+## Phase 1 — MIRROR Ingestion
+
+Phase 1 contract.
+
+## Phase 2 — Epistemic Truth and Deletion
+
+Phase 2 contract.
+
+## Phase 3 — Versioned Curation and Projections
+
+Phase 3 contract.
+
+## Phase 4 — Evidence-Set Planning and Retrieval
+
+Phase 4 contract.
+
+## Phase 5 — Live Context and Orchestration
+
+Phase 5 contract.
+
+## Phase 6 — Conversational Judgment and Learning
+
+Phase 6 contract.
+
+## Phase 7 — SHADOW Evaluation and Operations
+
+Phase 7 contract.
+
 ## Phase 8 — Staged CLOUD Authority and Observation
+
+Deliver:
 
 ${phaseEightSafety}
 
+Gate:
+
+- the staged observation window remains open until Phase 9 recovery certification.
+
 ## Phase 9 — Portability, Disaster Recovery, and Local Retirement
+
+Deliver:
+
+- portable recovery, signed endpoint migration profiles, and deletion replay.
+
+Gate:
+
+${phaseNineRetirementGates}
 
 ${phaseNineSafety}
 `;
@@ -119,6 +171,11 @@ const activeGuidancePaths = [
     'docs/superpowers/plans/2026-07-28-cloud-memory-portability.md',
 ];
 
+const linkedPlanPaths = [
+    'docs/superpowers/plans/2026-07-28-cloud-memory-phase-0-contract-safety.md',
+    'docs/superpowers/plans/2026-07-28-cloud-memory-portability.md',
+];
+
 export function writeFixture(root: string, roadmap: string): void {
     const roadmapPath = path.join(
         root,
@@ -139,5 +196,13 @@ export function writeFixture(root: string, roadmap: string): void {
             'Phase 9 is the final portability and local-retirement gate.\n',
             'utf8',
         );
+    }
+
+    for (const relativePath of linkedPlanPaths) {
+        const planPath = path.join(root, relativePath);
+        fs.mkdirSync(path.dirname(planPath), { recursive: true });
+        if (!fs.existsSync(planPath)) {
+            fs.writeFileSync(planPath, '# Literal fixture plan\n', 'utf8');
+        }
     }
 }

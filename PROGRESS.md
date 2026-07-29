@@ -2228,3 +2228,60 @@
       without a finding.
     - The independent final whole-branch review follows this evidence commit; no future review
       result is claimed here.
+
+
+- **2026-07-29 (final-review repair wave)**: Cloud-memory roadmap portability
+  resequencing gaps repaired after the first whole-branch final review.
+  - **Review status**:
+    - The first final whole-branch review of `c2bf4de` was **not merge-ready**.
+      It found incomplete Phase 9 retirement proof, an obsolete authoritative
+      phase map, pre-Phase-9 ownership of portability mechanisms, and bypassable
+      delivery-table and safety validation.
+    - This entry records the repair wave only. A scoped independent re-review
+      follows; no result from that future re-review is claimed here.
+  - **Retirement and sequencing gates repaired**:
+    - Phase 9 now consumes signed Phase 1–8 completion evidence, including the
+      completed Phase 8 operator-and-friend observation report.
+    - Retirement additionally requires independent fresh-target recovery from
+      a current cloud snapshot and retained phone/local sources, explicit
+      old-backup resurrection plus deletion replay, exact per-path source
+      counts/hashes, owner isolation, writer fencing, cloud-only-turn
+      preservation, and a zero-loss verdict.
+    - Any failed Phase 9 checkpoint keeps Phase 9 incomplete, retains complete
+      local sources, permits the healthy Supabase service to remain under the
+      user's current valid authority, and forbids an alternate provider or
+      second writer.
+    - Authoritative Section 26 now maps delivery phases exactly as
+      `0, 1, 2, 3, 4, 5, 6, 7, 8, 9` and separates conceptual authority states
+      from delivery numbering.
+    - Phase 1 retains complete local sources and immediately makes a mirror
+      ineligible on local tombstone without requiring portable backup. Phase 2
+      emits deletion-ledger/eligibility inputs; old-backup replay remains Phase
+      9. Phase 8 stays on the fixed initial Supabase/Heroku endpoint with one
+      writer, provider-native rollback, no signed migration endpoint profile,
+      and no irreversible cleanup.
+  - **Validator TDD evidence**:
+    - The pre-repair validator baseline passed **13/13** tests.
+    - New real-process additive/decoy/mapping/recovery fixtures produced the
+      expected red run: **17 failed, 13 passed**.
+    - After the minimal structural and semantic implementation, the focused
+      validator suite passed **31/31** tests. Fixtures remain outside Jest
+      discovery, use no mocks or source-grep assertions, and all test/helper
+      files remain at or below 300 lines.
+  - **Fresh post-repair verification before this evidence-only append**:
+    - Focused roadmap/authority Jest: **3 suites passed, 37 tests passed,
+      0 failed**.
+    - Standalone roadmap validator passed.
+    - Full Jest: **193 suites passed, 6 skipped; 913 tests passed, 21 skipped;
+      0 failed**.
+    - `npx tsc --noEmit` passed with 0 errors.
+    - ESLint passed with **0 errors and 72 existing warnings**.
+    - Design check passed with **0 errors and 3 existing near-limit warnings**
+      across 177 scanned files.
+    - Both lockfiles, `supabase/migrations`, and `example-design` remained
+      unchanged from base `251c9bbf2eac0c547f7db8fee00350e8d0d53002`;
+      `git diff --check` passed.
+    - The repair changes documentation, the zero-dependency validator, and its
+      real-process fixtures/tests only. It changes no application/backend
+      runtime, schema/migration, dependency, lockfile, generated output, or
+      deployment state.

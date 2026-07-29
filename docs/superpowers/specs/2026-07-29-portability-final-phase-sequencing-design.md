@@ -42,8 +42,11 @@ Local source evidence remains complete and read-only after a user's Phase 8
 cutover. Encrypted drafts and the offline outbox also remain on the device.
 Before Phase 9, rollback means disabling advanced cloud routes or returning a
 pre-cutover user to local response authority while the local evidence is still
-intact. The system must not claim provider-independent recovery, verified old
-backup deletion replay, or safe local retirement before Phase 9.
+intact. After Phase 8 has accepted cloud-only turns, staged rollback stays on
+the fixed initial Supabase/Heroku endpoint and uses recent cloud sessions plus
+verified simple search; it does not force authority to `LOCAL`. The system must
+not claim provider-independent recovery, signed migration endpoint profiles,
+verified old-backup deletion replay, or safe local retirement before Phase 9.
 
 ## Phase Boundary Changes
 
@@ -52,7 +55,9 @@ backup deletion replay, or safe local retirement before Phase 9.
 Phase 1 may upload exact journal and check-in sources into the single Supabase
 primary. Local memory remains response authority. A local tombstone must remove
 the corresponding cloud mirror from retrieval eligibility, but portable backup
-purge receipts and cross-provider replay are deferred to Phase 9.
+purge receipts and cross-provider replay are deferred to Phase 9. Complete
+phone/local sources remain retained, and Phase 1 has no portable-backup
+prerequisite.
 
 ### Phases 2–7
 
@@ -60,6 +65,9 @@ Truth, deletion eligibility, curation, retrieval, orchestration, judgment, and
 shadow evaluation continue in their existing order. They may depend on the
 Phase 0 database fences, but must not depend on an alternate database provider,
 a generic PostgREST sidecar, a laptop data runtime, or a portable backup set.
+Phase 2 produces the deletion-ledger and retrieval-eligibility inputs consumed
+later; old-backup resurrection prevention through deletion replay belongs to
+Phase 9.
 
 Every phase continues to use real PostgreSQL, PostgREST, Supabase Auth, live
 provider, and running-app tests where its behavior requires them. Moving Phase
@@ -72,7 +80,8 @@ Phase 8 may:
 - grant per-user CLOUD response authority on the initial deployment;
 - run operator, empty-account, friend, and invited-cohort observation;
 - prove cloud-only turns survive advanced-route disablement;
-- retain the recent-cloud/simple-search fallback;
+- retain the staged provider-native recent-cloud/simple-search fallback on the
+  fixed initial Supabase/Heroku endpoint;
 - exercise Supabase-native operational snapshots as an interim measure.
 
 Phase 8 may not:
@@ -82,6 +91,7 @@ Phase 8 may not:
 - claim provider-independent disaster recovery;
 - move the primary database to another provider;
 - enable a second writer;
+- deliver or activate signed migration endpoint profiles;
 - close the observation window with irreversible local cleanup.
 
 Phase 8 completes when the staged cohort is healthy and the system is ready for
@@ -104,18 +114,24 @@ Phase 9 contains the former Phase 0P scope:
 Only Phase 9 may authorize retirement of heavy local memory stores. That
 authorization requires all existing portability gates plus:
 
-1. Phase 8's observation window is complete for the operator and one isolated
-   friend.
-2. A current cloud snapshot and a retained local source can each recover the
-   required evidence into fresh targets.
-3. Deletions remain absent after restoring an older backup.
-4. The same backend artifact passes Heroku and Windows health checks.
-5. At least one non-Supabase managed destination rehearsal passes.
-6. No cross-owner, stale-writer, source-parity, or cloud-only-turn loss is
-   present.
+1. Completed signed Phase 1–8 evidence passes revalidation, including the
+   completed Phase 8 operator-and-friend observation report.
+2. A current cloud snapshot restores into one fresh target, and retained
+   phone/local sources independently rebuild/import into a separate fresh
+   target.
+3. Deletion receipts replay after an older-backup resurrection attempt and
+   deleted evidence remains absent.
+4. Exact source counts and hashes match each recovery path's signed source
+   manifest, with owner isolation, writer fencing, and source parity intact.
+5. A cloud-only turn survives staged provider-native rollback and
+   current-cloud-snapshot fresh-target recovery.
+6. The same backend artifact passes Heroku and Windows health checks.
+7. At least one non-Supabase managed destination rehearsal passes.
+8. Zero cloud-only-turn, source-parity, or deletion loss is present.
 
-If any gate fails, cloud service may continue on Supabase, but local full-memory
-sources remain retained and Phase 9 remains incomplete.
+If any gate fails, Phase 9 remains incomplete, the healthy Supabase service may
+remain active under the user's current valid authority, complete local sources
+remain retained, and no alternate provider or second writer may activate.
 
 ## Naming and Documentation
 

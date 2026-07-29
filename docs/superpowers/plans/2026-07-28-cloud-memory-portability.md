@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - The approved portability source of truth is `docs/superpowers/specs/2026-07-28-rosebud-backend-database-portability-design.md`; the Phase 8/9 boundary is controlled by `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` and `docs/superpowers/specs/2026-07-29-portability-final-phase-sequencing-design.md`.
-- Phase 0 is complete, and Phases 1–8 execute before this plan. Task 1 revalidates the completed Phase 0 contracts, routes, jobs, migrations, Supabase local stack, and review evidence before any Phase 9 portability mutation, provider change, or retirement work begins.
+- Phase 0 is complete, and Phases 1–8 execute before this plan. Task 1 revalidates signed completion evidence for every completed Phase 0–8 gate, including the completed Phase 8 operator-and-friend observation report, before any Phase 9 portability mutation, provider change, or retirement work begins.
 - Phase 8 may stage CLOUD authority, but it retains complete local memory sources read-only. Only Phase 9 may authorize local heavy-store retirement after every gate in this plan passes.
 - A Phase 9 failure blocks heavy local-store retirement and activation of any alternate provider or second writer; the healthy Supabase service may remain active under the user's current valid authority, and full local sources stay retained.
 - Exactly one unexpired externally signed writer lease may authorize mutations. A database-local epoch is not a sufficient fence.
@@ -48,6 +48,7 @@
 - Create `scripts/portability/Bootstrap-RosebudTools.ps1`.
 - Create `scripts/portability/run-with-evidence.mjs`.
 - Create `scripts/portability/assert-phase0-ready.mjs`.
+- Create `scripts/portability/assert-prior-phases-ready.mjs`.
 - Create `scripts/portability/safe-target.mjs`.
 
 ### Database
@@ -215,17 +216,20 @@ git add .gitignore backend/scripts/run-tests.js backend/src/__tests__/testRunner
 git commit -m "test(memory): make portability evidence fail closed"
 ```
 
-### Task 1: Revalidate Completed Phase 0 Evidence
+### Task 1: Revalidate Completed Phase 0–8 Evidence
 
 **Files:**
 - Create: `scripts/portability/assert-phase0-ready.mjs`
+- Create: `scripts/portability/assert-prior-phases-ready.mjs`
 - Test: `__tests__/services/phase0PortabilityGate.test.ts`
+- Test: `__tests__/services/priorPhasePortabilityGate.test.ts`
 
 **Interfaces:**
 - `assert-phase0-ready.mjs --mode static|real --report-dir <absolute-path>` exits `78` for missing prerequisites and `1` for a failing required check.
-- Later tasks consume its signed-off `phase0-ready.json` report hash.
+- `assert-prior-phases-ready.mjs --phase-evidence-manifest <absolute-path> --report-dir <absolute-path>` verifies a signed manifest of immutable Phase 0–8 report IDs/hashes and emits `prior-phases-ready.json`.
+- Later tasks consume both the signed-off Phase 0 evidence and the signed `prior-phases-ready.json` report hash.
 
-- [ ] **Step 1: Write the Phase 0 evidence revalidation gate test**
+- [ ] **Step 1: Write the Phase 0 and prior-phase evidence revalidation gate tests**
 
 The static gate requires non-empty:
 
@@ -241,6 +245,16 @@ supabase/tests/cloud_memory_foundation.test.sql
 ```
 
 It also requires the Phase 0 report to prove two real Supabase-authenticated users with RLS isolation, transactional stale-epoch and expired-lease rejection, real job reclaim, exact deployment-artifact health, and an independent review with no critical/important issue. Internal gateway JWT evidence is intentionally excluded here because Task 4 creates it.
+
+The aggregate prior-phase gate independently requires one signed immutable
+completion record for each Phase 0 through Phase 8. Every record names its
+phase, branch, commit, migration/contract/schema/model/prompt versions, focused
+red/green and sabotage report IDs/hashes, full required gate totals, and
+independent-review result. The Phase 8 record additionally references the
+completed operator-and-friend observation report, its observation-window
+timestamps, the fixed initial Supabase/Heroku deployment ID, and its sole
+writer identity. Missing, duplicated, out-of-order, unsigned, hash-mismatched,
+or unresolved-critical/important evidence fails closed.
 
 - [ ] **Step 2: Revalidate the completed Phase 0 static evidence**
 
@@ -264,13 +278,27 @@ npm --prefix backend test -- --testPathPattern=memory
 node scripts/portability/assert-phase0-ready.mjs --mode real --report-dir $evidence
 ```
 
-No later task may start unless the final command exits `0`.
+The Phase 0 prerequisite is not sufficient by itself; no later task may start
+unless this final command and Step 4's aggregate Phase 0–8 command both exit
+`0`.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Revalidate signed Phase 1–8 completion and observation evidence**
 
 ```powershell
-git add scripts/portability/assert-phase0-ready.mjs __tests__/services/phase0PortabilityGate.test.ts
-git commit -m "test(memory): gate portability on phase zero"
+node scripts/portability/run-with-evidence.mjs --operation 00000000-0000-4000-8000-000000000003 --phase prior-phase-revalidation --expect pass --report-dir $evidence -- node scripts/portability/assert-prior-phases-ready.mjs --phase-evidence-manifest $env:ROSEBUD_PRIOR_PHASE_EVIDENCE_MANIFEST --report-dir $evidence
+```
+
+The command verifies the external evidence-signing key, every Phase 0–8 report
+ID/hash, and the completed Phase 8 operator-and-friend observation report. Any
+failure keeps Phase 9 incomplete, retains complete local sources, leaves the
+healthy Supabase service eligible to remain active under the user's current
+valid authority, and forbids an alternate provider or second writer.
+
+- [ ] **Step 5: Commit**
+
+```powershell
+git add scripts/portability/assert-phase0-ready.mjs scripts/portability/assert-prior-phases-ready.mjs __tests__/services/phase0PortabilityGate.test.ts __tests__/services/priorPhasePortabilityGate.test.ts
+git commit -m "test(memory): gate portability on prior phases"
 ```
 
 ### Task 2: Canonical Core Migrations and Supabase/Generic Overlays
@@ -1008,10 +1036,20 @@ git commit -m "docs(memory): define evidenced portability targets"
 **Interfaces:**
 - Real reports are written to an absolute external report directory and referenced only by ID/hash.
 - The drill runner refuses production data and requires an exact live deployment ID, database fingerprint, operation UUID, and `ROSEBUD_PORTABILITY_DRILL=1`.
+- The final signed retirement verdict binds every consumed report ID/hash and fails unless both independent recovery paths, deletion replay, source parity, and cloud-only-turn preservation pass with zero loss.
 
 - [ ] **Step 1: Write failing drill-runner tests**
 
-Require report IDs for Phase 0, schema/overlay, internal JWT, source fencing, backup, deletion export/replay, restore, API, canary, endpoint, restart, rollback, recall, and sabotage. Verify no report path is inside Git and all configured sentinel secrets are absent from stored report JSON.
+Require signed report IDs/hashes for Phase 0 and every Phase 1–8 completion
+record, the completed Phase 8 operator-and-friend observation report,
+schema/overlay, internal JWT, source fencing, backup, deletion export/replay,
+restore, API, canary, endpoint, restart, rollback, recall, and sabotage. Also
+require distinct IDs/hashes for current-cloud-snapshot fresh-target recovery,
+retained-local-source fresh-target rebuild/import, old-backup resurrection and
+deletion replay, exact source-count/hash and owner/writer parity,
+cloud-only-turn staged-rollback/recovery preservation, and the zero-loss
+retirement verdict. Verify no report path is inside Git and all configured
+sentinel secrets are absent from stored report JSON.
 
 - [ ] **Step 2: Run the complete local gate**
 
@@ -1046,15 +1084,38 @@ Deploy the exact commit and slug containing the verified PostgREST binary. Verif
 
 Use an isolated fresh Heroku Postgres or Neon database. Apply core plus generic overlay, start private PostgREST, prove internal-JWT claims and forced RLS with two users, restore the encrypted fixture, replay deletions, verify, switch a test endpoint with migration authorization, write/read canaries, snapshot destination, roll back into a third fresh database, and retain all old databases read-only through the rollback window.
 
-- [ ] **Step 5: Run local data/runtime and cloud-return proof**
+- [ ] **Step 5: Run independent fresh-target recovery and retirement proof**
+
+Against cleared fixture/application data, first record an exact signed manifest
+of the retained phone/local sources. After staged CLOUD authority, commit a
+distinguishable cloud-only turn and prove it survives Phase 8's provider-native
+advanced-route rollback on the fixed Supabase/Heroku endpoint.
+
+Create two unrelated empty targets and never merge them:
+
+1. restore a current cloud snapshot into the first fresh target, replay the
+   independent deletion ledger, and prove the cloud-only turn survives;
+2. rebuild/import the retained phone/local sources into the second fresh target
+   without using the cloud snapshot or its restored database.
+
+For each path, compare exact per-owner source counts and canonical source hashes
+to that path's signed source manifest, prove owner isolation and transactional
+writer fencing, and record the intended coverage difference for post-cutover
+cloud-only sources. Separately restore an older backup containing a
+subsequently deleted source, attempt to resurrect it, replay deletion receipts,
+and prove the source and every dependent projection remain absent or
+ineligible. The final signed verdict fails on any cloud-only-turn,
+source-parity, or deletion loss.
+
+- [ ] **Step 6: Run local data/runtime and cloud-return proof**
 
 Use cleared fixture/application storage. Start the Windows backend and local PostgreSQL through HTTPS, activate its signed profile, finish one journal through the running app, verify the persisted source and digest, restart laptop services, ask a recall question, and paste the verbatim assistant reply. Then fence local, back up, restore into a fresh Supabase target, replay deletions, switch with signed handoff, and verify read/write.
 
-- [ ] **Step 6: Measure RTO/RPO correctly**
+- [ ] **Step 7: Measure RTO/RPO correctly**
 
 RTO starts at the first documented recovery command and ends after authenticated read/write probes pass. RPO is the interval between the newest recovered committed mutation and the fencing instant. Store phase timestamps in the signed report and replace estimates in `ops/portability/README.md`.
 
-- [ ] **Step 7: Independent review and final verification**
+- [ ] **Step 8: Independent review and final verification**
 
 Review the full branch against the current spec. Fix every critical/important finding, rerun affected real reports, and perform a scoped re-review. Confirm no backup, report, key, lease, dump, JWT, or connection URL is tracked:
 
@@ -1065,7 +1126,7 @@ git diff --check
 git status --short
 ```
 
-- [ ] **Step 8: Commit durable non-secret records**
+- [ ] **Step 9: Commit durable non-secret records**
 
 ```powershell
 git add ops/portability/README.md ops/portability/support-evidence.json PROGRESS.md scripts/portability/run-cloud-drill.mjs __tests__/services/cloudDrillRunner.test.ts
@@ -1076,17 +1137,20 @@ git commit -m "test(memory): prove leased portable disaster recovery"
 
 Phase 9 portability is complete only when:
 
-- Task 1's Phase 0 gate passes with real evidence.
+- Task 1's signed Phase 0–8 gate passes, including the completed Phase 8 operator-and-friend observation report.
 - The same canonical migration hashes run on Supabase and generic PostgreSQL.
 - The same backend build runs on Heroku and Windows.
 - Generic PostgREST proves internal-JWT claim propagation, local JWKS overlap rotation, private binding, and non-bypass forced RLS.
 - Every mutation rejects stale epoch, expired lease, wrong lease token, wrong database, and wrong source credential transactionally.
 - Snapshot-consistent signed/encrypted backup and independent deletion export pass with real tools.
 - Interrupted restore restarts in a new marked database.
-- Deletion replay prevents deleted evidence from returning after an older backup restore.
+- A current cloud snapshot restores into a fresh target, and retained phone/local sources independently rebuild/import into a separate fresh target.
+- Deletion replay prevents deleted evidence from returning during an explicit older-backup resurrection attempt.
+- Exact per-owner source counts and canonical hashes match each recovery path's signed source manifest; owner isolation, transactional writer fencing, and source parity pass.
 - Planned cutover independently fences the source before final backup.
 - Emergency cutover waits for old lease expiry unless provider fencing is proven.
 - Rollback restores the full destination snapshot into a fresh target and preserves destination-era writes.
+- A distinguishable cloud-only turn survives staged provider-native rollback and current-cloud-snapshot fresh-target recovery.
 - Signed endpoint switching changes the actual memory transport and rejects unauthorized conflicting writers.
 - Daily/weekly/monthly scheduling, missed-work catch-up, two-copy offsite verification, and 14/8/12 retention pass.
 - Supabase-to-local, local-to-Supabase, and one non-Supabase managed-provider rehearsal have signed redacted report IDs/hashes.
@@ -1095,5 +1159,11 @@ Phase 9 portability is complete only when:
 - Unsupported provider descriptors remain `experimental`.
 - No source database was automatically deleted.
 - No secret-bearing report or artifact is tracked.
+- The signed retirement verdict reports zero cloud-only-turn, source-parity, or deletion loss.
 - Phase 8's current valid per-user authority remains unchanged unless Phase 9 executes a separately fenced cutover; full local sources remain retained until every Phase 9 retirement gate passes.
 - Independent review has no unresolved critical or important issue.
+
+If any checkpoint fails, Phase 9 remains incomplete, the healthy Supabase
+service may remain active under the user's current valid authority, complete
+local sources remain retained, and no alternate provider or second writer may
+activate.

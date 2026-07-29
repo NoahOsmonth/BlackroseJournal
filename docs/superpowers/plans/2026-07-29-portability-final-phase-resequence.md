@@ -24,6 +24,8 @@
 
 **Files:**
 - Create: `__tests__/scripts/validateCloudMemoryRoadmap.test.ts`
+- Create: `test-fixtures/cloudMemoryRoadmapFixtures.ts`
+- Create: `test-fixtures/cloudMemoryRoadmapAdversarialFixtures.ts`
 
 **Interfaces:**
 - Consumes: a repository root passed to the validator CLI.
@@ -38,8 +40,24 @@ process. Cover these behaviors with hand-written fixture text:
 - a valid `0, 1, 2, 3, 4, 5, 6, 7, 8, 9` roadmap exits `0`;
 - a roadmap containing `0P` or out-of-order phases exits nonzero and names the
   ordering defect;
+- a branchless primary delivery table cannot be bypassed by a later
+  valid-looking decoy, and duplicate authoritative tables fail;
+- every Phase 0–9 Branch and Plan mapping is exact, every Result is nonempty,
+  every linked plan exists under the supplied root, and each Phase 1–8
+  roadmap-mapped row has one unique level-two `## Phase N` section;
 - Phase 8 retirement language or missing local retention exits nonzero;
+- Phase 8 requires the canonical retention/no-DR/no-retirement/handoff,
+  no-provider-move, no-second-writer, and no-irreversible-cleanup statements
+  inside its Deliver/Gate blocks;
+- fenced examples and HTML comments do not satisfy or violate semantic gates,
+  while additive local deletion/pruning/retirement/discard/erase/remove/cleanup
+  language fails even beside the safe statements;
 - missing Phase 9 exclusive retirement authority exits nonzero;
+- Phase 9 rejects additive forced-`LOCAL` authority text and requires signed
+  prior-phase/observation evidence, independent cloud-snapshot and
+  retained-local fresh-target recovery, old-backup deletion replay, exact
+  source-count/hash owner/writer parity, cloud-only-turn preservation, and a
+  zero-loss retirement verdict;
 - invoking the validator against the active repository exits `0`.
 
 The test must not calculate expected values with validator helpers or mock the
@@ -83,9 +101,16 @@ to the current working directory. It must:
 
 - require exactly the ordered phase rows `0` through `9`;
 - reject `0P`;
-- require the Phase 9 portability branch;
-- require Phase 8 to retain complete local sources and forbid retirement;
-- require Phase 9 to be the exclusive local-retirement gate;
+- locate exactly one structurally authoritative delivery table rather than
+  accepting a later decoy;
+- validate every exact Phase, Branch, and Plan mapping, every nonempty Result,
+  linked-plan containment/existence, and unique mapped Phase 1–8 section;
+- strip fenced examples and HTML comments before semantic validation;
+- require Phase 8's canonical retention/handoff/prohibition set and reject any
+  additive destructive local-source statement;
+- require Phase 9 to be the exclusive local-retirement gate, reject additive
+  forced-`LOCAL` authority, and require every signed evidence, dual recovery,
+  deletion replay, parity, cloud-only-turn, and zero-loss retirement gate;
 - require active repository guidance to use `Phase 9` and contain no `Phase 0P`;
 - print every discovered contract violation to stderr and exit nonzero;
 - print a short success line and exit `0` when the contract is valid.
@@ -100,18 +125,28 @@ Replace the `0P` row and ordering so the table is exactly:
 
 ```markdown
 | 0 | `codex/cloud-memory-phase-0` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-0-contract-safety.md` | Canonical contracts, owner-isolated source/ops schema, Supabase JWT auth, durable job primitive, read-only source inventory, benchmark registry, Heroku-ready backend |
-| 1 | `codex/cloud-memory-phase-1-mirror` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-1-mirror-ingestion.md` | Encrypted offline outbox, chunked idempotent source upload, manifests, hash parity, local authority preserved |
-| 2 | `codex/cloud-memory-phase-2-truth` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-2-epistemic-truth.md` | Evidence spans, entities, aliases, bitemporal claims, episodes, preferences, dependencies, edit/delete cascades |
-| 3 | `codex/cloud-memory-phase-3-curation` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-3-curation-projections.md` | Versioned extraction, temporal digests, profile tree, open threads, search documents, embeddings, collision review |
-| 4 | `codex/cloud-memory-phase-4-retrieval` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-4-evidence-retrieval.md` | Target planning, exact-recent lane, lexical/vector/entity/temporal/graph candidates, RRF, reranking, coverage verification |
-| 5 | `codex/cloud-memory-phase-5-orchestration` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-5-live-orchestration.md` | Temporal orientation blocks, exact-evidence windows, backend tools, Scout, deterministic orchestrator, Primary Rosebud streaming |
-| 6 | `codex/cloud-memory-phase-6-judgment` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-6-utilization-learning.md` | Utilization controller, scoped Preference Ledger, Outcome Observer, deep formulation, optional private differential firewall |
-| 7 | `codex/cloud-memory-phase-7-shadow` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-7-shadow-evaluation.md` | One-year fixtures, public benchmark adapters, shadow comparator, ablations, dashboards, kill switches |
-| 8 | `codex/cloud-memory-phase-8-cutover` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-8-cutover-retirement.md` | Staged CLOUD authority and observation with full local source retention |
+| 1 | `codex/cloud-memory-phase-1-mirror` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Encrypted offline outbox, chunked idempotent source upload, manifests, hash parity, local authority preserved |
+| 2 | `codex/cloud-memory-phase-2-truth` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Evidence spans, entities, aliases, bitemporal claims, episodes, preferences, dependencies, edit/delete cascades |
+| 3 | `codex/cloud-memory-phase-3-curation` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Versioned extraction, temporal digests, profile tree, open threads, search documents, embeddings, collision review |
+| 4 | `codex/cloud-memory-phase-4-retrieval` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Target planning, exact-recent lane, lexical/vector/entity/temporal/graph candidates, RRF, reranking, coverage verification |
+| 5 | `codex/cloud-memory-phase-5-orchestration` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Temporal orientation blocks, exact-evidence windows, backend tools, Scout, deterministic orchestrator, Primary Rosebud streaming |
+| 6 | `codex/cloud-memory-phase-6-judgment` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Utilization controller, scoped Preference Ledger, Outcome Observer, deep formulation, optional private differential firewall |
+| 7 | `codex/cloud-memory-phase-7-shadow` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | One-year fixtures, public benchmark adapters, shadow comparator, ablations, dashboards, kill switches |
+| 8 | `codex/cloud-memory-phase-8-cutover` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Staged CLOUD authority and observation with full local source retention |
 | 9 | `codex/cloud-memory-phase-9-portability` | `docs/superpowers/plans/2026-07-28-cloud-memory-portability.md` | Portability, disaster recovery, laptop modes, provider migration, and final local-retirement gate |
 ```
 
-Keep each row's existing exact plan filename for Phases 0–8.
+Keep the dedicated Phase 0 and Phase 9 plan pointers. Phases 1–8 point to the
+existing master roadmap until each phase begins; its unique `## Phase N`
+section is the authoritative phase contract. That phase's first planning step
+creates and reviews a dedicated executable plan, then updates the table pointer
+before implementation.
+
+In the phase sections, keep Phase 1's complete local sources and immediate
+mirror ineligibility on local tombstone without requiring portable backup.
+Phase 2 produces deletion-ledger/eligibility inputs, while old-backup replay
+enforcement remains Phase 9. Distinguish staged provider-native rollback on the
+fixed initial endpoint from Phase 9 portable recovery.
 
 - [ ] **Step 3: Move the portability section after Phase 8**
 
@@ -130,6 +165,17 @@ fails, Supabase may remain the active cloud service but full local sources stay
 retained.
 ```
 
+The Phase 9 Gate must also require:
+
+```markdown
+- completed signed Phase 1–8 evidence passes revalidation, including the completed Phase 8 operator-and-friend observation report;
+- a current cloud snapshot restores into a fresh target, and retained phone/local sources independently rebuild/import into a separate fresh target;
+- deletion receipts replay after an older-backup resurrection attempt and deleted evidence remains absent;
+- exact source counts and hashes match each recovery path's signed source manifest, with owner isolation, writer fencing, and source parity intact;
+- a cloud-only turn survives staged provider-native rollback and current-cloud-snapshot fresh-target recovery;
+- zero cloud-only-turn, source-parity, or deletion loss is present;
+```
+
 - [ ] **Step 4: Narrow Phase 8**
 
 Rename it:
@@ -144,21 +190,28 @@ Replace local-retirement deliverables and gates with:
 - retain complete local memory sources read-only throughout observation;
 - do not claim provider-independent disaster recovery;
 - do not retire heavy local stores;
+- do not move the primary database to another provider;
+- do not enable a second writer;
+- do not perform irreversible local cleanup;
 - hand the healthy staged deployment to Phase 9 for recovery certification.
 ```
 
+Phase 8 uses the fixed initial Supabase/Heroku endpoint and staged
+provider-native recent-cloud/simple-search rollback. It must not deliver signed
+migration endpoint profiles.
+
 - [ ] **Step 5: Update the authoritative design migration section**
 
-In Section 26, state:
+Rewrite Section 26 so delivery phases map exactly to master-roadmap phases
+`0, 1, 2, 3, 4, 5, 6, 7, 8, 9`. Explicitly identify `LOCAL`, `MIRROR`,
+`SHADOW`, and `CLOUD` as conceptual per-user authority states rather than a
+second delivery numbering scheme; remove the obsolete “Phase 2 rebuild” and
+“Phase 3 SHADOW” map.
 
-```markdown
-Phase 8 may stage CLOUD authority on the initial Supabase/Heroku deployment,
-but complete local sources remain read-only. Portability and disaster recovery
-are final Phase 9. Only a passing Phase 9 may close the observation window with
-heavy local-store retirement.
-```
-
-Update acceptance language near local retirement so it requires Phase 9.
+Section 26 must separate pre-Phase-9 provider-native rollback on the fixed
+Supabase/Heroku endpoint from final Phase 9 portable recovery, signed endpoint
+migration, and deletion replay. Every local removal/cleanup authorization must
+require both a formally closed observation window and a passing Phase 9.
 
 - [ ] **Step 6: Run the focused test**
 
@@ -230,7 +283,14 @@ Change the title to:
 # Cloud Memory Phase 9 Portability and Disaster-Recovery Implementation Plan
 ```
 
-State that Phase 0 is complete, Phases 1–8 execute before this plan, and Task 1 revalidates all prior phase evidence rather than claiming the repository currently fails Phase 0. Preserve every real backup, restore, deletion, writer-fence, provider, laptop, and rollback test.
+State that Phase 0 is complete, Phases 1–8 execute before this plan, and Task 1
+revalidates signed completion evidence for every Phase 0–8 gate, including the
+completed Phase 8 operator-and-friend observation report. Task 13 must consume
+distinct signed report IDs/hashes for current-cloud-snapshot fresh-target
+recovery, retained-local-source fresh-target rebuild/import, old-backup
+deletion replay, exact count/hash owner/writer parity, cloud-only-turn
+preservation, and the zero-loss retirement verdict. Preserve every real backup,
+restore, deletion, writer-fence, provider, laptop, and rollback test.
 
 - [ ] **Step 5: Run the contract test and reference scan**
 
@@ -287,7 +347,23 @@ git diff --check
 
 Expected: both commands exit `0`.
 
-- [ ] **Step 3: Append the result to `PROGRESS.md`**
+- [ ] **Step 3: Request independent whole-branch review**
+
+The reviewer must inspect the full branch diff and report:
+
+- any remaining `0P-before-MIRROR` contradiction;
+- any Phase 8 path that permits local retirement, provider movement, a second
+  writer, signed migration endpoint profiles, or irreversible cleanup;
+- any Phase 9 gate weakened or lost;
+- any bypass in delivery-table or safety validation;
+- any runtime, migration, lockfile, or unrelated-file change.
+
+- [ ] **Step 4: Repair findings and rerun affected fresh gates**
+
+Fix every critical or important finding. Repeat Steps 1–2 and every narrower
+gate affected by the repair before recording evidence.
+
+- [ ] **Step 5: Append prior-review and repair evidence to `PROGRESS.md`**
 
 Record:
 
@@ -296,22 +372,20 @@ Record:
 - Phase 9 is the only retirement gate;
 - focused and full test totals;
 - no runtime, migration, dependency, or deployment change;
-- independent review outcome.
+- the completed independent review outcome;
+- every repaired gate and the fresh post-repair totals;
+- that a scoped re-review follows, without claiming its future result.
 
-- [ ] **Step 4: Commit the evidence**
+- [ ] **Step 6: Commit the repair evidence**
 
 ```powershell
 git add PROGRESS.md
 git commit -m "docs(progress): record final-phase portability order"
 ```
 
-- [ ] **Step 5: Request independent review**
+- [ ] **Step 7: Request scoped re-review and record it separately**
 
-The reviewer must inspect the full branch diff and report:
-
-- any remaining `0P-before-MIRROR` contradiction;
-- any Phase 8 path that permits local retirement;
-- any Phase 9 gate weakened or lost;
-- any runtime, migration, lockfile, or unrelated-file change.
-
-Expected: no P0/P1/P2 finding before integration.
+The scoped reviewer inspects the repaired diff and fresh evidence. Only after
+that review actually completes may a separate post-review `PROGRESS.md` update
+state its result. Integration still requires no unresolved critical or
+important finding.

@@ -25,7 +25,7 @@
 - All user-data tables contain `owner_id`, enable RLS, index `owner_id`, and use explicit grants.
 - Never edit `supabase/migrations/202601240001_init.sql`; every schema change is additive in a new CLI-generated migration.
 - Keep `LOCAL` authoritative until per-user `MIRROR`, `SHADOW`, and `CLOUD` gates pass.
-- Never remove local source evidence, local fallback, or offline drafts/outbox before the observation window closes.
+- Never remove local source evidence or local fallback until the observation window is closed and Phase 9 passes. Offline drafts/outbox are retained in every phase.
 - Current user-authored evidence is the only autobiographical truth source. Assistant text, summaries, preferences, hypotheses, and external pages cannot authorize user facts.
 - A source edit or tombstone immediately removes retrieval eligibility and invalidates every dependent projection.
 - The normal route targets two model calls. Deep routes are bounded by evidence sufficiency, latency, permissions, and model health—not cost.
@@ -44,17 +44,22 @@ This architecture is too large and too coupled to execute safely as one branch. 
 | Phase | Branch | Executable plan | Independently testable result |
 |---|---|---|---|
 | 0 | `codex/cloud-memory-phase-0` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-0-contract-safety.md` | Canonical contracts, owner-isolated source/ops schema, Supabase JWT auth, durable job primitive, read-only source inventory, benchmark registry, Heroku-ready backend |
-| 1 | `codex/cloud-memory-phase-1-mirror` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-1-mirror-ingestion.md` | Encrypted offline outbox, chunked idempotent source upload, manifests, hash parity, local authority preserved |
-| 2 | `codex/cloud-memory-phase-2-truth` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-2-epistemic-truth.md` | Evidence spans, entities, aliases, bitemporal claims, episodes, preferences, dependencies, edit/delete cascades |
-| 3 | `codex/cloud-memory-phase-3-curation` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-3-curation-projections.md` | Versioned extraction, temporal digests, profile tree, open threads, search documents, embeddings, collision review |
-| 4 | `codex/cloud-memory-phase-4-retrieval` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-4-evidence-retrieval.md` | Target planning, exact-recent lane, lexical/vector/entity/temporal/graph candidates, RRF, reranking, coverage verification |
-| 5 | `codex/cloud-memory-phase-5-orchestration` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-5-live-orchestration.md` | Temporal orientation blocks, exact-evidence windows, backend tools, Scout, deterministic orchestrator, Primary Rosebud streaming |
-| 6 | `codex/cloud-memory-phase-6-judgment` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-6-utilization-learning.md` | Utilization controller, scoped Preference Ledger, Outcome Observer, deep formulation, optional private differential firewall |
-| 7 | `codex/cloud-memory-phase-7-shadow` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-7-shadow-evaluation.md` | One-year fixtures, public benchmark adapters, shadow comparator, ablations, dashboards, kill switches |
-| 8 | `codex/cloud-memory-phase-8-cutover` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-8-cutover-retirement.md` | Staged CLOUD authority and observation with full local source retention |
+| 1 | `codex/cloud-memory-phase-1-mirror` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Encrypted offline outbox, chunked idempotent source upload, manifests, hash parity, local authority preserved |
+| 2 | `codex/cloud-memory-phase-2-truth` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Evidence spans, entities, aliases, bitemporal claims, episodes, preferences, dependencies, edit/delete cascades |
+| 3 | `codex/cloud-memory-phase-3-curation` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Versioned extraction, temporal digests, profile tree, open threads, search documents, embeddings, collision review |
+| 4 | `codex/cloud-memory-phase-4-retrieval` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Target planning, exact-recent lane, lexical/vector/entity/temporal/graph candidates, RRF, reranking, coverage verification |
+| 5 | `codex/cloud-memory-phase-5-orchestration` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Temporal orientation blocks, exact-evidence windows, backend tools, Scout, deterministic orchestrator, Primary Rosebud streaming |
+| 6 | `codex/cloud-memory-phase-6-judgment` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Utilization controller, scoped Preference Ledger, Outcome Observer, deep formulation, optional private differential firewall |
+| 7 | `codex/cloud-memory-phase-7-shadow` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | One-year fixtures, public benchmark adapters, shadow comparator, ablations, dashboards, kill switches |
+| 8 | `codex/cloud-memory-phase-8-cutover` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Staged CLOUD authority and observation with full local source retention |
 | 9 | `codex/cloud-memory-phase-9-portability` | `docs/superpowers/plans/2026-07-28-cloud-memory-portability.md` | Portability, disaster recovery, laptop modes, provider migration, and final local-retirement gate |
 
-Phase 0 and the Phase 9 portability/DR plan are authored in this checkpoint. Every later memory-behavior plan is written and reviewed immediately before its phase begins so it can use the verified interfaces and findings from preceding phases. No later phase starts from this roadmap alone.
+Phase 0 and the Phase 9 portability/DR plan are authored in this checkpoint.
+Rows 1–8 deliberately point to this master roadmap: until one of those phases
+begins, its unique `## Phase N` section is the authoritative phase contract.
+That phase's first planning step creates and reviews a dedicated executable
+plan, then updates its table pointer before implementation. No later phase
+starts from this roadmap alone.
 
 ## Authority and Rollback Matrix
 
@@ -63,7 +68,7 @@ Phase 0 and the Phase 9 portability/DR plan are authored in this checkpoint. Eve
 | `LOCAL` | Phone | Existing local memory | Contract/schema validation only | No data-path change |
 | `MIRROR` | Phone | Existing local memory | Idempotent raw source copy and projection rebuild | Stop mirroring; discard/rebuild cloud projections |
 | `SHADOW` | Phone | Existing local memory | Silent cloud evidence briefs and comparisons | Disable shadow; retain mirrored evidence |
-| `CLOUD` | Active externally signed writer lease through backend | Cloud recent evidence plus verified retrieval | Full cloud orchestration | Fence writes, snapshot the complete destination, restore into a fresh target, replay deletions, issue a new lease |
+| `CLOUD` | Active externally signed writer lease through backend | Cloud recent evidence plus verified retrieval | Full cloud orchestration | Before Phase 9, keep the fixed Supabase/Heroku endpoint and disable advanced routes in favor of recent cloud sessions plus verified simple search; in Phase 9, fence writes, snapshot the complete destination, restore into a fresh target, replay deletions, and issue a new lease |
 
 The existing `EXPO_PUBLIC_DATA_PROVIDER` flag continues to control general application-data synchronization. It never selects memory authority.
 Database location and memory-authority state are separate. A user may remain in `LOCAL`, `MIRROR`, or `SHADOW` while the cloud database is rehearsed or moved. No database cutover alone grants cloud response authority.
@@ -110,14 +115,17 @@ Deliver:
 - retry-safe `(owner_id, client_event_id)` acceptance;
 - bounded batch size and resumable cursors;
 - source count/hash parity report;
-- per-user transition from `LOCAL` to `MIRROR`.
-- a pre-import verified backup and manifest tied to the current writer lease and deletion high-watermark.
+- per-user transition from `LOCAL` to `MIRROR`;
+- complete phone/local sources retained without a Phase 1 portable-backup requirement;
+- immediate cloud-mirror retrieval ineligibility when the owning local source is tombstoned.
 
 Gate:
 
 - repeated upload produces no duplicates;
 - interrupted upload resumes without loss;
 - original authored time, timezone, role, order, and exact content survive;
+- a local tombstone immediately makes its cloud mirror retrieval-ineligible;
+- complete phone/local sources remain retained;
 - cloud hints never become truth;
 - visible responses remain local-memory controlled.
 
@@ -132,7 +140,8 @@ Deliver:
 - open threads, interaction preferences/outcomes, and bounded hypotheses;
 - dependency graph and source-to-projection lineage;
 - synchronous edit/tombstone eligibility invalidation;
-- deletion verifier and restore-time tombstone enforcement.
+- deletion-ledger and retrieval-eligibility inputs for later portable replay;
+- no old-backup deletion-replay enforcement, which belongs to Phase 9.
 
 Gate:
 
@@ -251,12 +260,15 @@ Deliver:
 
 - staged per-user transitions: operator, empty test account, one friend, invited cohort;
 - cloud source write authority;
-- mobile endpoint profiles and signed bootstrap;
-- recent-cloud/simple-search rollback route;
+- the fixed initial Supabase/Heroku endpoint established by Phase 0, without signed migration endpoint profiles;
+- staged provider-native rollback on that fixed endpoint through the recent-cloud/simple-search route;
 - observation window with parity and deletion monitoring;
 - retain complete local memory sources read-only throughout observation;
 - do not claim provider-independent disaster recovery;
 - do not retire heavy local stores;
+- do not move the primary database to another provider;
+- do not enable a second writer;
+- do not perform irreversible local cleanup;
 - hand the healthy staged deployment to Phase 9 for recovery certification.
 
 Gate:
@@ -264,6 +276,7 @@ Gate:
 - at least the operator and one isolated friend pass the full matrix;
 - no cross-user, deleted-source, stale-fact, diagnostic, or job-loss incident;
 - cloud-only turns survive advanced-route rollback;
+- the initial Supabase/Heroku endpoint remains fixed with one writer and no irreversible cleanup;
 - final branch completion follows `superpowers:finishing-a-development-branch`.
 
 ## Phase 9 — Portability, Disaster Recovery, and Local Retirement
@@ -283,6 +296,12 @@ Deliver:
 
 Gate:
 
+- completed signed Phase 1–8 evidence passes revalidation, including the completed Phase 8 operator-and-friend observation report;
+- a current cloud snapshot restores into a fresh target, and retained phone/local sources independently rebuild/import into a separate fresh target;
+- deletion receipts replay after an older-backup resurrection attempt and deleted evidence remains absent;
+- exact source counts and hashes match each recovery path's signed source manifest, with owner isolation, writer fencing, and source parity intact;
+- a cloud-only turn survives staged provider-native rollback and current-cloud-snapshot fresh-target recovery;
+- zero cloud-only-turn, source-parity, or deletion loss is present;
 - corrupted checksum, stale/expired lease, deletion replay, missing extension, owner-count mismatch, and interrupted restore all fail closed;
 - a real logical dump restores into a real local PostgreSQL instance and passes schema/count/ownership checks;
 - one managed non-Supabase destination rehearsal passes before local heavy stores may retire;

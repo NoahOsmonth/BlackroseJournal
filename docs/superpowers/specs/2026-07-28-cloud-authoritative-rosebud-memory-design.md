@@ -40,7 +40,7 @@ The memory substrate is an evidence constitution rather than one ranked list. Im
 
 The background system uses durable typed jobs rather than an always-running autonomous swarm. Cheap capture occurs on every accepted message. Session curation, reconciliation, embeddings, temporal summaries, outcome observation, pattern review, and period rollups run at lifecycle boundaries or in the background. Jobs are idempotent, retryable, traceable, replayable, version-fenced, and visible when dead-lettered.
 
-The migration will proceed through LOCAL, MIRROR, SHADOW, and CLOUD authority states on a per-user basis. Existing local evidence remains intact while the cloud imports, rebuilds, and shadow-compares its results. The phone’s heavy local memory stores are retired only after source parity, longitudinal recall, deletion, live-provider E2E, and human conversational-quality gates pass.
+The migration will proceed through LOCAL, MIRROR, SHADOW, and CLOUD authority states on a per-user basis. Existing local evidence remains intact while the cloud imports, rebuilds, and shadow-compares its results. The phone’s heavy local memory stores are retired only after source parity, longitudinal recall, deletion, live-provider E2E, and human conversational-quality gates pass, the observation window is formally closed, and Phase 9 passes.
 
 ## 2. Why the current architecture is insufficient
 
@@ -1554,7 +1554,8 @@ During CLOUD:
 
 ### 25.3 Legacy local stores
 
-The following become migration-only/read-only and are eventually retired:
+The following become migration-only/read-only and may be retired only after the
+Phase 8 observation window is formally closed and Phase 9 passes:
 
 - `@rosebud_local_memory`
 - `@rosebud_identity_profile`
@@ -1583,14 +1584,21 @@ Guard tests are replaced with stronger tests; they are not silently deleted.
 
 ## 26. Migration
 
-Phase 8 may stage CLOUD authority on the initial Supabase/Heroku deployment,
-but complete local sources remain read-only. Portability and disaster recovery
-are final Phase 9. Only a passing Phase 9 may close the observation window with
-heavy local-store retirement.
+The exact delivery order is `0, 1, 2, 3, 4, 5, 6, 7, 8, 9`. The per-user
+authority states below are conceptual runtime states, not a second set of
+delivery-phase numbers.
 
-A Phase 9 failure blocks heavy local-store retirement and activation of any
-alternate provider or second writer. The healthy Supabase service may remain
-active under the user's current valid authority.
+Phase 8 may stage CLOUD authority only on the fixed initial Supabase/Heroku
+deployment. Complete local sources remain read-only, the provider and sole
+writer remain fixed, and Phase 8 does not deliver signed migration endpoint
+profiles. Portability, disaster recovery, deletion replay after old-backup
+restore, and endpoint migration are final Phase 9 responsibilities.
+
+Heavy local-store removal or cleanup requires both a formally closed Phase 8
+observation window and a passing Phase 9. A Phase 9 failure blocks heavy
+local-store retirement and activation of any alternate provider or second
+writer. The healthy Supabase service may remain active under the user's current
+valid authority, and complete local sources remain retained.
 
 ### 26.1 Memory authority state
 
@@ -1601,45 +1609,32 @@ Per user:
 - `SHADOW`
 - `CLOUD`
 
-This is separate from the existing general `EXPO_PUBLIC_DATA_PROVIDER` application-data flag. Memory authority is a runtime per-user migration state, not only a build-time environment choice.
+This is separate from the existing general `EXPO_PUBLIC_DATA_PROVIDER`
+application-data flag. Memory authority is a runtime per-user migration state,
+not a build-time phase selector. In particular, `SHADOW` is the authority state
+exercised by delivery Phase 7; it is not delivery Phase 3.
 
-### 26.2 Phase 0: contract and safety
+### 26.2 Exact delivery-phase map
 
-- Define canonical IDs and source schemas.
-- Add cloud migrations and RLS.
-- Add backend Supabase JWT verification.
-- Add two-user isolation tests.
-- Add durable jobs and trace foundation.
-- Build source inventory/export without changing authority.
+| Phase | Delivery contract |
+|---|---|
+| 0 | Contract and Safety Foundation: canonical IDs/sources, schema/RLS, Supabase JWT verification, two-user isolation, durable jobs/traces, deployment/writer fences, and read-only local inventory with authority unchanged |
+| 1 | MIRROR Ingestion: bounded idempotent upload with stable IDs, hashes, manifests, exact timestamps, complete local-source retention, local response authority, and immediate cloud-mirror ineligibility on local tombstone; no portable-backup prerequisite |
+| 2 | Epistemic Truth and Deletion: evidence spans, entities/aliases, bitemporal claims, episodes, preferences, dependencies, synchronous eligibility invalidation, and deletion-ledger inputs; old-backup replay enforcement remains deferred to Phase 9 |
+| 3 | Versioned Curation and Projections: version-fenced extraction, digests, profile/open-thread projections, search documents, embeddings, supersession, contradiction handling, and rebuild/audit |
+| 4 | Evidence-Set Planning and Retrieval: exact-recent, lexical, vector, entity, temporal, graph, fusion, reranking, coverage, contradiction, freshness, and insufficient-evidence behavior |
+| 5 | Live Context and Orchestration: temporal packs, exact-evidence windows, backend history tools, Scout, deterministic orchestration, Primary Rosebud, streaming, and traceability |
+| 6 | Conversational Judgment and Learning: utilization decisions, preference/outcome learning, response contracts, formulation, and the optional private-differential firewall |
+| 7 | SHADOW Evaluation and Operations: silent evidence briefs beside local visible responses, longitudinal fixtures, benchmark/ablation gates, dashboards, kill switches, and operator observation |
+| 8 | Staged CLOUD Authority and Observation: operator, empty account, friend, and invited-cohort rollout on the fixed initial Supabase/Heroku endpoint while complete local sources remain retained |
+| 9 | Portability, Disaster Recovery, and Local Retirement: signed portable backups, deletion replay, fresh-target recovery/cutover/rollback, alternate-provider and Windows rehearsals, signed migration endpoint profiles, and the only heavy-local-store retirement gate |
 
-### 26.3 Phase 1: MIRROR
+Local derived atoms, digests, and rollups may be uploaded during Phase 1 as
+comparison hints but are never accepted as cloud truth. Phases 2–7 may consume
+the Phase 0 deployment/writer fences; they do not consume Phase 9 portable
+backup, alternate-provider, or endpoint-migration mechanisms.
 
-- Upload journal entries, check-ins, and exact message sources in bounded chunks.
-- Use stable IDs, hashes, schema versions, and import manifests.
-- Preserve original timestamps and timezones.
-- Retry idempotently.
-- Keep local authoritative.
-
-Local derived atoms/digests/rollups may be uploaded as comparison hints but are not accepted as cloud truth.
-
-### 26.4 Phase 2: rebuild
-
-- Build cloud evidence spans.
-- Resolve candidate entities and aliases.
-- Build claims, episodes, open threads, preferences, digests, search documents, embeddings, and rollups with explicit epistemic roles.
-- Build supersession chains, claim-centered bundles, exact-source neighborhoods, and graph relationships.
-- Detect date ambiguity, stale facts, duplicates, and unsupported patterns.
-- Produce a migration findings report.
-
-### 26.5 Phase 3: SHADOW
-
-For the same real turns:
-
-- Local path controls the visible response.
-- Cloud path builds a silent evidence brief.
-- Comparator measures target coverage, relevant hits, missed evidence, revision-chain correctness, stale facts, inappropriate preference use, sensitive over-recall, latency, and source provenance.
-
-### 26.6 Cutover gates
+### 26.3 Phase 7 and Phase 8 cutover gates
 
 All must pass:
 
@@ -1654,20 +1649,49 @@ All must pass:
 - human review of verbatim replies;
 - acceptable first-token and completion latency for normal and deep routes; cost is recorded but is not a cutover quality gate.
 
-### 26.7 Staged CLOUD authority
+### 26.4 Phase 8 staged CLOUD authority
 
 1. Operator account.
 2. Fresh empty test account.
 3. One trusted friend.
 4. Small invited cohort.
 
-Local full-memory data remains read-only during an observation window. Heavy local stores are removed only after the window closes.
+Local full-memory data remains read-only during the observation window. Phase 8
+does not move the provider, enable a second writer, activate a signed migration
+endpoint profile, claim provider-independent recovery, or perform irreversible
+local cleanup. Heavy local stores may be removed only after the observation
+window is formally closed and Phase 9 passes.
 
-### 26.8 Rollback
+### 26.5 Staged provider-native rollback before Phase 9
 
-Before CLOUD, return to LOCAL and rebuild/discard cloud projections freely.
+Before CLOUD, a user may return to `LOCAL` while their complete local evidence
+is current; MIRROR/SHADOW routes may be disabled and rebuildable cloud
+projections may be discarded.
 
-After CLOUD has accepted new conversations, cloud remains data authority. Rollback disables advanced retrieval, specialists, or new curation versions and falls back to recent cloud sessions plus simple verified search. It does not pretend an old local snapshot contains new cloud-only messages.
+After Phase 8 CLOUD authority has accepted new conversations, cloud remains
+source authority on the fixed initial Supabase/Heroku endpoint. Staged rollback
+disables advanced retrieval, specialists, or new curation versions and falls
+back to recent cloud sessions plus simple verified search. It does not force
+authority to `LOCAL`, move providers, issue a migration endpoint profile, or
+pretend an old local snapshot contains cloud-only messages.
+
+### 26.6 Phase 9 portable recovery and rollback
+
+Phase 9 separately proves snapshot-consistent signed backup, independent
+deletion-ledger replay after an older-backup resurrection attempt, fresh-target
+restore, provider fencing, signed endpoint migration, and rollback from a
+complete current-authority snapshot into another fresh target. It also proves a
+separate fresh-target rebuild/import from retained phone/local sources, exact
+source count/hash parity against each path's signed manifest, owner isolation,
+writer fencing, and preservation of a cloud-only turn through staged rollback
+and current-cloud-snapshot recovery.
+
+Only after completed signed Phase 1–8 evidence (including the completed Phase 8
+operator-and-friend observation report) and every Phase 9 recovery gate pass
+may the closed observation window authorize heavy local-store retirement. Any
+cloud-only-turn, source-parity, or deletion loss keeps Phase 9 incomplete,
+retains complete local sources, and forbids an alternate provider or second
+writer from activating.
 
 ## 27. Verification strategy
 
@@ -1943,12 +1967,12 @@ The cloud-memory implementation is architecture-complete only when:
 - public benchmark matrix and full-year Rosebud probes meet gates;
 - real-provider E2E passes with cleared data;
 - operator and at least one isolated friend account pass staged rollout;
-- heavy local memory stores are retired only after Phase 9 passes, without losing offline drafts/outbox;
+- heavy local memory stores are retired only after the observation window is formally closed and Phase 9 passes, without losing offline drafts/outbox;
 - repository rules and guard tests describe the new architecture accurately.
 
 ## 32. Planning handoff
 
-The implementation plan should decompose this design into small test-driven phases with explicit file paths, migrations, APIs, tests, sabotage steps, live E2E checkpoints, per-user authority gates, and rollback instructions. It must not combine the whole migration into one feature branch or remove local fallback before the shadow gates pass.
+The implementation plan should decompose this design into small test-driven phases with explicit file paths, migrations, APIs, tests, sabotage steps, live E2E checkpoints, per-user authority gates, and rollback instructions. It must not combine the whole migration into one feature branch or remove local fallback before the observation window is formally closed and Phase 9 passes.
 
 ## 33. References informing the design
 
