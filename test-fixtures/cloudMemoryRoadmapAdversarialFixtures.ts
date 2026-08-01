@@ -286,3 +286,21 @@ export const oneGlobalReceiptPhaseOnePlan = validPhaseOnePlan.replace(
     `its original receipt.
 The owner has one global completion receipt forever across all generations.`,
 );
+
+export const phaseOneRequirementOnlyInHtmlCommentPlan = validPhaseOnePlan.replace(
+    'Manifest omission is always a no-op.',
+    '<!-- Manifest omission is always a no-op. -->',
+);
+
+export const phaseOneRequirementOnlyInFencePlan = validPhaseOnePlan.replace(
+    'Manifest omission is always a no-op.',
+    `~~~markdown
+Manifest omission is always a no-op.
+~~~`,
+);
+
+export const directlyNegatedCumulativeUnionPhaseOnePlan = validPhaseOnePlan.replace(
+    'Completion carries prior verified rows forward transactionally.',
+    `Completion carries prior verified rows forward transactionally.
+The server's current owner view is not the cumulative union.`,
+);

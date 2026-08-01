@@ -29,6 +29,7 @@ import {
     destructiveNoReviewPhaseEightRoadmap,
     destructiveWithoutDelayPhaseEightRoadmap,
     deviceScopedTombstonesPhaseOnePlan,
+    directlyNegatedCumulativeUnionPhaseOnePlan,
     duplicateAuthoritativeTableRoadmap,
     exactNewestManifestMembershipPhaseOnePlan,
     extendedWatermarkPhaseOnePlan,
@@ -48,6 +49,8 @@ import {
     nonSemanticDestructionExampleRoadmap,
     omissionDeletesPriorRowsPhaseOnePlan,
     oneGlobalReceiptPhaseOnePlan,
+    phaseOneRequirementOnlyInFencePlan,
+    phaseOneRequirementOnlyInHtmlCommentPlan,
     phaseOneReadAuthorityNotLocalPlan,
     safePlusDestructivePhaseEightRoadmap,
     safetyOnlyInNonSemanticExampleRoadmap,
@@ -346,6 +349,27 @@ describe('validate-cloud-memory-roadmap', () => {
 
         expect(result.status).not.toBe(0);
         expect(result.stderr).toMatch(error);
+    });
+
+    it.each([
+        ['an HTML comment', phaseOneRequirementOnlyInHtmlCommentPlan, /manifest omission/i],
+        ['a fenced code block', phaseOneRequirementOnlyInFencePlan, /manifest omission/i],
+    ])('does not accept a Phase 1 requirement found only in %s', (_description, phaseOnePlan, error) => {
+        writeFixture(fixtureRoot, validRoadmap, phaseOnePlan);
+
+        const result = runValidator(fixtureRoot);
+
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toMatch(error);
+    });
+
+    it('rejects a direct Phase 1 cumulative-union negation', () => {
+        writeFixture(fixtureRoot, validRoadmap, directlyNegatedCumulativeUnionPhaseOnePlan);
+
+        const result = runValidator(fixtureRoot);
+
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toMatch(/contradicts.*cumulative owner union/i);
     });
 
     it('accepts the valid Phase 1 plan fixture', () => {
