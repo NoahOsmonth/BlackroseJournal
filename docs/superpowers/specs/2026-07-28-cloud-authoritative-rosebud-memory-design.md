@@ -14,7 +14,7 @@
 
 ## 1. Executive summary
 
-Rosebud will move from a phone-local memory system to a cloud-authoritative memory platform. The cloud will own completed conversations, message evidence, changing facts, people and aliases, episodes, open threads, interaction preferences, source-linked summaries, search indexes, embeddings, rollups, background jobs, and deletion state. The phone will retain the current rendered conversation, encrypted offline drafts and outbox events, a bounded cache, authentication state, and user-facing memory controls.
+Rosebud will move from a phone-local memory system to a cloud-authoritative memory platform. The cloud will own completed conversations, message evidence, changing facts, people and aliases, episodes, open threads, interaction preferences, source-linked summaries, search indexes, embeddings, rollups, background jobs, and deletion state. The phone will retain the current rendered conversation, local drafts, a plaintext metadata-only outbox that never duplicates source prose or credentials, a bounded cache, authentication state, and user-facing memory controls.
 
 The design is evidence-first. Exact user-authored messages are the authoritative source. Facts and relationships are temporal claims with explicit validity, observation time, confidence, evidence, counterevidence, and lifecycle status. Embeddings, digests, rollups, graph edges, user summaries, and patterns are rebuildable projections rather than permanent truth. Assistant-authored text and repeated model interpretations can never become evidence about the user.
 
@@ -116,7 +116,7 @@ The cloud design is therefore not a remote copy of the existing atom store. It r
 | Concern | Decision |
 |---|---|
 | Memory authority | Cloud-authoritative raw evidence and derived memory |
-| Mobile responsibility | Current conversation, encrypted draft/outbox, bounded cache, auth, controls |
+| Mobile responsibility | Current conversation, local drafts, plaintext metadata-only content-free outbox, bounded cache, auth, controls |
 | Initial cloud platform | Supabase Postgres + full-text search + pgvector |
 | Application backend | Existing Node backend evolved into a portable modular monolith |
 | Hosting portability | One active writer epoch; managed/private PostgREST gateway; verified cold/warm cutover and local-laptop recovery |
@@ -232,13 +232,29 @@ The backend remains one deployable service initially. “Scout,” “Curator,�
 The phone owns:
 
 - Current rendered conversation state.
-- Encrypted draft text and attachments not yet accepted by the server.
-- A serialized, encrypted network outbox with stable client event IDs.
+- Local draft text and attachments not yet accepted by the server, using the
+  app's existing storage posture.
+- A serialized plaintext metadata-only network outbox with stable client event
+  IDs. It may contain opaque owner/source IDs, timing, retry/error, parity, and
+  tombstone activity, so it is data-minimized rather than confidential at rest.
+  It must never contain journal/check-in prose, titles, summaries, reasoning,
+  prompts, bearer tokens, passwords, or server credentials.
 - A bounded recent-response and context cache.
 - Authentication session state.
 - Network and sync status.
 - User-facing memory, preference, privacy, export, and deletion controls.
 - A read-only migration snapshot during the cutover observation window.
+
+During Phase 1 MIRROR, complete local sources remain authoritative and retained.
+The source owner persists only the current canonical source, compact monotonic
+revision counters, and permanent content-free deletion commitments. It does not
+retain a second plaintext chain of intermediate revisions. Cloud ingestion may
+accept a version-fenced jump from the last verified server revision to the
+current local revision, but must label the observed snapshot as first-observed,
+contiguous, or coalesced-gap and must never invent missing intermediate prose.
+Deletion commitments survive acknowledgement and legacy-provider toggles until
+the final Phase 9 portability/deletion-replay program permits a stronger
+retirement rule.
 
 The phone does not own after cutover:
 
@@ -1457,7 +1473,7 @@ Backups honor tombstones on restore. During the small-deployment phase, deletion
 
 | Failure | Required behavior |
 |---|---|
-| Phone offline before accept | Keep encrypted draft/outbox; show unsynced state; retry same event ID |
+| Phone offline before accept | Keep the local draft and content-free metadata outbox; show unsynced state; retry the same event ID |
 | Duplicate client submission | Return existing accepted message |
 | Backend unavailable | Journaling remains available offline; AI response waits rather than inventing memory |
 | Database write failure | Do not acknowledge durability or begin response |

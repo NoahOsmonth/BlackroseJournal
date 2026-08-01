@@ -39,7 +39,8 @@ fingerprint, RLS, owner-scoped RPCs, and durable jobs. No second writable
 database is introduced before Phase 9.
 
 Local source evidence remains complete and read-only after a user's Phase 8
-cutover. Encrypted drafts and the offline outbox also remain on the device.
+cutover. Local drafts and the plaintext metadata-only, content-free offline
+outbox also remain on the device.
 Before Phase 9, rollback means disabling advanced cloud routes or returning a
 pre-cutover user to local response authority while the local evidence is still
 intact. After Phase 8 has accepted cloud-only turns, staged rollback stays on

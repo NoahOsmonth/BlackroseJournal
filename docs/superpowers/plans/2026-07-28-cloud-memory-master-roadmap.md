@@ -4,7 +4,7 @@
 
 **Goal:** Replace Rosebud's phone-authoritative long-term memory with an evidence-first, cloud-authoritative memory platform orchestrated by one portable Node backend, while preserving local authority, provider independence, and rollback until every longitudinal quality gate passes.
 
-**Architecture:** The Expo app retains the current conversation, encrypted offline drafts/outbox, authentication, bounded caches, endpoint profiles, and user controls. A provider-neutral Node modular monolith runs on Heroku or a prepared Windows laptop, authenticates Supabase user sessions, persists owner-scoped evidence through repository interfaces, runs typed memory workflows, and streams the only user-facing Rosebud response. Supabase is the initial PostgreSQL/Auth provider; verified backup, deletion replay, externally signed writer leases, and provider overlays allow controlled migration to another managed or local PostgreSQL target.
+**Architecture:** The Expo app retains the current conversation, local drafts, a content-free durable memory-mirror outbox, authentication, bounded caches, endpoint profiles, and user controls. The outbox persists only opaque source references and sync bookkeeping; source content is read from the still-authoritative local stores only for authenticated HTTPS upload. A provider-neutral Node modular monolith runs on Heroku or a prepared Windows laptop, authenticates Supabase user sessions, persists owner-scoped evidence through repository interfaces, runs typed memory workflows, and streams the only user-facing Rosebud response. Supabase is the initial PostgreSQL/Auth provider; verified backup, deletion replay, externally signed writer leases, and provider overlays allow controlled migration to another managed or local PostgreSQL target.
 
 **Tech Stack:** Expo SDK 54, React Native 0.81, TypeScript 5.9, Node.js 24 LTS on Heroku/Windows, Express 4, Supabase Postgres/Auth/managed PostgREST, checksum-pinned PostgREST 14.16 for generic PostgreSQL, PostgreSQL full-text search, pgvector HNSW, Jest, Node test runner, pgTAP, Playwright.
 
@@ -44,7 +44,7 @@ This architecture is too large and too coupled to execute safely as one branch. 
 | Phase | Branch | Executable plan | Independently testable result |
 |---|---|---|---|
 | 0 | `codex/cloud-memory-phase-0` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-0-contract-safety.md` | Canonical contracts, owner-isolated source/ops schema, Supabase JWT auth, durable job primitive, read-only source inventory, benchmark registry, Heroku-ready backend |
-| 1 | `codex/cloud-memory-phase-1-mirror` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Encrypted offline outbox, chunked idempotent source upload, manifests, hash parity, local authority preserved |
+| 1 | `codex/cloud-memory-phase-1-mirror` | `docs/superpowers/plans/2026-07-29-cloud-memory-phase-1-mirror-ingestion.md` | Content-free durable outbox, chunked idempotent source upload, manifests, hash parity, local authority preserved |
 | 2 | `codex/cloud-memory-phase-2-truth` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Evidence spans, entities, aliases, bitemporal claims, episodes, preferences, dependencies, edit/delete cascades |
 | 3 | `codex/cloud-memory-phase-3-curation` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Versioned extraction, temporal digests, profile tree, open threads, search documents, embeddings, collision review |
 | 4 | `codex/cloud-memory-phase-4-retrieval` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Target planning, exact-recent lane, lexical/vector/entity/temporal/graph candidates, RRF, reranking, coverage verification |
@@ -54,12 +54,12 @@ This architecture is too large and too coupled to execute safely as one branch. 
 | 8 | `codex/cloud-memory-phase-8-cutover` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Staged CLOUD authority and observation with full local source retention |
 | 9 | `codex/cloud-memory-phase-9-portability` | `docs/superpowers/plans/2026-07-28-cloud-memory-portability.md` | Portability, disaster recovery, laptop modes, provider migration, and final local-retirement gate |
 
-Phase 0 and the Phase 9 portability/DR plan are authored in this checkpoint.
-Rows 1–8 deliberately point to this master roadmap: until one of those phases
-begins, its unique `## Phase N` section is the authoritative phase contract.
-That phase's first planning step creates and reviews a dedicated executable
-plan, then updates its table pointer before implementation. No later phase
-starts from this roadmap alone.
+Phase 0, Phase 1, and the Phase 9 portability/DR plan now have dedicated
+execution plans. Rows 2–8 deliberately point to this master roadmap: until one
+of those phases begins, its unique `## Phase N` section is the authoritative
+phase contract. That phase's first planning step creates and reviews a dedicated
+executable plan, then updates its table pointer before implementation. No later
+phase starts from this roadmap alone.
 
 ## Authority and Rollback Matrix
 
@@ -108,7 +108,9 @@ Gate:
 
 Deliver:
 
-- encrypted, schema-versioned, serialized mobile outbox;
+- content-free, schema-versioned, serialized mobile outbox containing only
+  owner-bound opaque source references, cursors, retry state, parity metadata,
+  and tombstone delivery state sourced from atomic owner-key tombstone ledgers;
 - chunked upload protocol for journal and check-in conversations/messages;
 - server-side SHA-256 canonical hashes;
 - import manifests and per-chunk idempotency;

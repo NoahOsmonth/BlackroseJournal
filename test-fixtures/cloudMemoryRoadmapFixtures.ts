@@ -3,7 +3,7 @@ import path from 'path';
 
 const phaseRows = [
     '| 0 | `codex/cloud-memory-phase-0` | `docs/superpowers/plans/2026-07-28-cloud-memory-phase-0-contract-safety.md` | Contracts |',
-    '| 1 | `codex/cloud-memory-phase-1-mirror` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | MIRROR ingestion |',
+    '| 1 | `codex/cloud-memory-phase-1-mirror` | `docs/superpowers/plans/2026-07-29-cloud-memory-phase-1-mirror-ingestion.md` | MIRROR ingestion |',
     '| 2 | `codex/cloud-memory-phase-2-truth` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Truth |',
     '| 3 | `codex/cloud-memory-phase-3-curation` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Curation |',
     '| 4 | `codex/cloud-memory-phase-4-retrieval` | `docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md` | Retrieval |',
@@ -37,6 +37,32 @@ retained.
 A Phase 9 failure blocks heavy local-store retirement and activation of any
 alternate provider or second writer; the healthy Supabase service may remain
 active under the user's current valid authority.`;
+
+export const validPhaseOnePlan = `# Phase 1 MIRROR Ingestion Plan
+
+## 1. Authority
+
+Phase 1 visible-response read authority remains LOCAL for every enrolled owner.
+Keep Phases 2-8 mapped to the master roadmap and Phase 9 last.
+
+## 5.1 Additive schema
+
+Add memory_import_completion_permits for short-lived completion permits.
+
+## 4.2 Cursor authority
+
+The mirror sequencing authority is the per-source/per-message revision cursors.
+The Phase 0 memory_source_watermarks table is reused only for legacy client
+sequencing and is not the mirror sequencing authority.
+
+## 7.4 Two-device same-owner reconciliation
+
+Phase 1 supports two independent devices for the same owner. The server allows
+only one active manifest per owner across all devices. Uploads use revision CAS
+with previousAcceptedRevision. Both devices converge on one completion receipt.
+No accepted revision is lost: no lost accepted revisions. Tombstones are
+owner-scoped: no cross-device resurrection.
+`;
 
 export const validRoadmap = `# Cloud Memory Roadmap
 
@@ -173,10 +199,15 @@ const activeGuidancePaths = [
 
 const linkedPlanPaths = [
     'docs/superpowers/plans/2026-07-28-cloud-memory-phase-0-contract-safety.md',
+    'docs/superpowers/plans/2026-07-29-cloud-memory-phase-1-mirror-ingestion.md',
     'docs/superpowers/plans/2026-07-28-cloud-memory-portability.md',
 ];
 
-export function writeFixture(root: string, roadmap: string): void {
+export function writeFixture(
+    root: string,
+    roadmap: string,
+    phaseOnePlan: string = validPhaseOnePlan,
+): void {
     const roadmapPath = path.join(
         root,
         'docs',
@@ -201,7 +232,9 @@ export function writeFixture(root: string, roadmap: string): void {
     for (const relativePath of linkedPlanPaths) {
         const planPath = path.join(root, relativePath);
         fs.mkdirSync(path.dirname(planPath), { recursive: true });
-        if (!fs.existsSync(planPath)) {
+        if (relativePath.includes('2026-07-29-cloud-memory-phase-1-mirror-ingestion')) {
+            fs.writeFileSync(planPath, phaseOnePlan, 'utf8');
+        } else if (!fs.existsSync(planPath)) {
             fs.writeFileSync(planPath, '# Literal fixture plan\n', 'utf8');
         }
     }

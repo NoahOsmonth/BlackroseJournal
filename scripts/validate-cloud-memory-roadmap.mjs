@@ -4,6 +4,8 @@ import path from 'node:path';
 const repositoryRoot = path.resolve(process.argv[2] ?? process.cwd());
 const roadmapRelativePath =
     'docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md';
+const phaseOnePlanRelativePath =
+    'docs/superpowers/plans/2026-07-29-cloud-memory-phase-1-mirror-ingestion.md';
 const activeGuidancePaths = [
     'AGENTS.md',
     'memory.md',
@@ -20,7 +22,7 @@ const expectedPhaseRows = [
     {
         phase: '1',
         branch: '`codex/cloud-memory-phase-1-mirror`',
-        plan: '`docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md`',
+        plan: '`docs/superpowers/plans/2026-07-29-cloud-memory-phase-1-mirror-ingestion.md`',
     },
     {
         phase: '2',
@@ -85,6 +87,18 @@ const requiredPhaseNineGates = [
     "exact source counts and hashes match each recovery path's signed source manifest, with owner isolation, writer fencing, and source parity intact",
     'a cloud-only turn survives staged provider-native rollback and current-cloud-snapshot fresh-target recovery',
     'zero cloud-only-turn, source-parity, or deletion loss is present',
+];
+const requiredPhaseOnePlanStatements = [
+    'memory_import_completion_permits',
+    'reused only for legacy client sequencing',
+    'not the mirror sequencing authority',
+    'two independent devices for the same owner',
+    'one active manifest',
+    'revision cas',
+    'one completion receipt',
+    'no lost accepted revisions',
+    'no cross-device resurrection',
+    'read authority remains LOCAL',
 ];
 const violations = [];
 
@@ -572,6 +586,19 @@ if (
     phaseEightSection.start > phaseNineSection.start
 ) {
     violations.push('Phase 9 must follow Phase 8.');
+}
+
+const phaseOnePlan = stripNonSemanticMarkdown(
+    readRepositoryFile(phaseOnePlanRelativePath),
+);
+const normalizedPhaseOnePlan = normalizeWhitespace(phaseOnePlan).toLowerCase();
+for (const statement of requiredPhaseOnePlanStatements) {
+    if (!normalizedPhaseOnePlan.includes(statement.toLowerCase())) {
+        violations.push(`Phase 1 plan must state: "${statement}."`);
+    }
+}
+if (!normalizedPhaseOnePlan.includes('phase 9 last')) {
+    violations.push('Phase 1 plan must keep Phase 9 last.');
 }
 
 for (const relativePath of activeGuidancePaths) {
