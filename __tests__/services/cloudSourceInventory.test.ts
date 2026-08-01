@@ -56,6 +56,7 @@ describe('buildMemorySourceInventory', () => {
         const entries = [
             entry({
                 id: 'journal-b',
+                sourceRevision: 4,
                 createdAt: Date.parse('2026-07-03T02:00:00-04:00'),
                 messages: [
                     message(
@@ -68,6 +69,7 @@ describe('buildMemorySourceInventory', () => {
             }),
             entry({
                 id: 'journal-a',
+                sourceRevision: 2,
                 createdAt: Date.parse('2026-07-02T18:00:00+08:00'),
                 messages: [
                     message(
@@ -134,6 +136,7 @@ describe('buildMemorySourceInventory', () => {
             weekStartsOn: null,
             temporalProvenance: 'legacy_unknown',
             clientSchemaVersion: 1,
+            sourceRevision: 2,
         });
         expect(inventory.messages[0]).toMatchObject({
             authoredAt: '2026-07-02T10:01:02.345Z',
@@ -181,6 +184,48 @@ describe('buildMemorySourceInventory', () => {
         expect(JSON.stringify({ entries, checkIns })).toBe(before);
         expect(first.messages.map((item) => item.sequence)).toEqual([0, 1]);
         expect(first.messages.map((item) => item.content)).toEqual(['two', 'one']);
+    });
+
+    it('retains captured message time and supplied positive revisions without reordering turns', () => {
+        const inventory = buildMemorySourceInventory({
+            entries: [entry({
+                id: 'captured',
+                sourceRevision: 3,
+                messages: [{
+                    id: 'later-id',
+                    role: 'assistant',
+                    content: 'first in array',
+                    timestamp: Date.parse('2026-07-01T00:00:05.000Z'),
+                    authoredTimezone: 'Asia/Manila',
+                    localDate: '2026-07-01',
+                    temporalProvenance: 'captured',
+                    revision: 4,
+                }, {
+                    id: 'earlier-id',
+                    role: 'user',
+                    content: 'second in array',
+                    timestamp: Date.parse('2026-07-01T00:00:01.000Z'),
+                    authoredTimezone: 'Asia/Manila',
+                    localDate: '2026-07-01',
+                    temporalProvenance: 'captured',
+                    revision: 2,
+                }],
+            })],
+            checkIns: [],
+            generatedAt,
+        });
+
+        expect(inventory.conversations[0].sourceRevision).toBe(3);
+        expect(inventory.messages.map((item) => item.content)).toEqual([
+            'first in array',
+            'second in array',
+        ]);
+        expect(inventory.messages.map((item) => item.revision)).toEqual([4, 2]);
+        expect(inventory.messages[0]).toMatchObject({
+            authoredTimezone: 'Asia/Manila',
+            localDate: '2026-07-01',
+            temporalProvenance: 'captured',
+        });
     });
 
     it('keeps completed message-less check-ins and handles an empty inventory', () => {
@@ -246,6 +291,20 @@ describe('buildMemorySourceInventory', () => {
             expect(error).toBeInstanceOf(MemorySourceInventoryError);
             expect(String(error)).not.toContain('content');
         }
+    });
+
+    it.each([
+        entry({ id: 'zero-source-revision', sourceRevision: 0 }),
+        entry({
+            id: 'zero-message-revision',
+            messages: [{ id: 'm', role: 'user', content: 'redacted', timestamp: 1, revision: 0 }],
+        }),
+    ])('rejects non-positive revisions without source content', (invalidEntry) => {
+        expect(() => buildMemorySourceInventory({
+            entries: [invalidEntry],
+            checkIns: [],
+            generatedAt,
+        })).toThrow(expect.objectContaining({ code: 'INVALID_REVISION' }));
     });
 
     it.each([

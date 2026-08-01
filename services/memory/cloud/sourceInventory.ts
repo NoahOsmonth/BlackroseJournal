@@ -15,6 +15,7 @@ import {
 export type MemorySourceInventoryErrorCode =
     | 'INVALID_ID'
     | 'INVALID_TIMESTAMP'
+    | 'INVALID_REVISION'
     | 'DUPLICATE_CANONICAL_ID';
 
 export class MemorySourceInventoryError extends Error {
@@ -35,6 +36,7 @@ interface LegacyConversationInput {
     sourceRecordId: string;
     createdAt: number;
     messages: JournalEntry['messages'];
+    sourceRevision?: number;
 }
 
 interface InventoryParts {
@@ -75,6 +77,38 @@ function timestamp(value: number | Date): string {
     }
 }
 
+function revision(value: unknown): number {
+    if (value === undefined) return 1;
+    if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
+        return invalid('INVALID_REVISION');
+    }
+    return value;
+}
+
+function temporalMetadata(message: JournalEntry['messages'][number]): Pick<
+    CanonicalMessageSource,
+    'authoredTimezone' | 'localDate' | 'temporalProvenance'
+> {
+    if (
+        message.temporalProvenance === 'captured'
+        && typeof message.authoredTimezone === 'string'
+        && message.authoredTimezone.length > 0
+        && typeof message.localDate === 'string'
+        && /^\d{4}-\d{2}-\d{2}$/.test(message.localDate)
+    ) {
+        return {
+            authoredTimezone: message.authoredTimezone,
+            localDate: message.localDate,
+            temporalProvenance: 'captured',
+        };
+    }
+    return {
+        authoredTimezone: null,
+        localDate: null,
+        temporalProvenance: 'legacy_unknown',
+    };
+}
+
 function mapLegacyConversation(
     source: LegacyConversationInput,
 ): InventoryParts {
@@ -93,6 +127,7 @@ function mapLegacyConversation(
         weekStartsOn: null,
         temporalProvenance: 'legacy_unknown',
         clientSchemaVersion: MEMORY_CONTRACT_VERSION,
+        sourceRevision: revision(source.sourceRevision),
     };
     const messages = source.messages.map((rawMessage, sequence) => {
         const id = canonicalId(
@@ -106,11 +141,9 @@ function mapLegacyConversation(
             role: rawMessage.role,
             sequence,
             authoredAt: timestamp(rawMessage.timestamp),
-            authoredTimezone: null,
-            localDate: null,
-            temporalProvenance: 'legacy_unknown',
+            ...temporalMetadata(rawMessage),
             content: rawMessage.content,
-            revision: 1,
+            revision: revision(rawMessage.revision),
             status: 'active',
         } satisfies CanonicalMessageSource;
     });
@@ -136,6 +169,7 @@ export function buildMemorySourceInventory(
             sourceRecordId: entry.id,
             createdAt: entry.createdAt,
             messages: entry.messages,
+            sourceRevision: entry.sourceRevision,
         }));
     const checkInSources: LegacyConversationInput[] = input.checkIns
         .filter((checkIn) => checkIn.status === 'completed')
@@ -144,6 +178,7 @@ export function buildMemorySourceInventory(
             sourceRecordId: checkIn.id,
             createdAt: checkIn.createdAt,
             messages: checkIn.messages ?? [],
+            sourceRevision: checkIn.sourceRevision,
         }));
     const parts = [...journalSources, ...checkInSources]
         .map(mapLegacyConversation);

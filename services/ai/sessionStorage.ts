@@ -12,6 +12,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Message } from './chatTypes';
+import { normalizeTemporalMessageMetadata } from './messageTemporalMetadata';
 
 export type ChatSessionMode =
     | 'freeform'
@@ -87,7 +88,11 @@ function sanitizeMessage(value: unknown): Message | null {
         role: value.role,
         content: value.content,
         reasoning: typeof value.reasoning === 'string' ? value.reasoning : undefined,
-        timestamp: toPositiveInteger(value.timestamp) ?? Date.now(),
+        ...normalizeTemporalMessageMetadata({
+            ...value,
+            timestamp: toPositiveInteger(value.timestamp) ?? Date.now(),
+        }),
+        revision: toPositiveInteger(value.revision),
     };
 }
 

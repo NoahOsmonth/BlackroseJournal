@@ -100,6 +100,8 @@ export interface CanonicalConversationSource {
   weekStartsOn: 0 | 1 | null;
   temporalProvenance: TemporalProvenance;
   clientSchemaVersion: 1;
+  /** Current positive source revision. Legacy records begin at one. */
+  sourceRevision: number;
 }
 
 export interface CanonicalMessageSource {

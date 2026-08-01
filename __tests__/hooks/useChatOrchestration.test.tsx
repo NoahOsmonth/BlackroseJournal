@@ -193,6 +193,9 @@ describe('useChatOrchestration initialPrompt + flow', () => {
                 expect.objectContaining({
                     role: 'assistant',
                     content: expect.stringContaining("Let's gently look back"),
+                    authoredTimezone: expect.any(String),
+                    localDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+                    temporalProvenance: 'captured',
                 }),
             ],
             expect.any(String)

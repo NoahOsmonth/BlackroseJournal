@@ -22,6 +22,7 @@ import { InlineTypingInputRef } from '../../../components/InlineTypingInput';
 import { DAILY_PROMPTS, DailyPrompt, PromptPeriod } from '../../../constants/dailyPrompts';
 import { DirectConfigError } from '../../../services/ai/directConfig';
 import { Message, useChat } from '../../../services/ai';
+import { createTemporalMessage } from '../../../services/ai/messageTemporalMetadata';
 import { resolveGenerationSettings } from '../../../services/ai/generationSettings';
 import {
     ChatSessionMode,
@@ -326,12 +327,11 @@ export function useChatOrchestration({
         }
         hasInitialized.current = true;
         clearError();
-        const openerMessage: Message = {
+        const openerMessage: Message = createTemporalMessage({
             id: `opener-${Date.now()}`,
             role: 'assistant',
             content: staticOpeningMessage,
-            timestamp: Date.now(),
-        };
+        });
         setMessages([openerMessage]);
         setChatMessages([openerMessage], resolvedSystemPrompt ?? initialPrompt?.systemPrompt);
         setStreamingMessage(null);
@@ -371,25 +371,23 @@ export function useChatOrchestration({
                 scrollToBottom();
             },
             (fullContent, fullReasoning) => {
-                setMessages([{
+                setMessages([createTemporalMessage({
                     id: tempStreamingId,
                     role: 'assistant',
                     content: fullContent,
                     reasoning: fullReasoning,
-                    timestamp: Date.now(),
-                }]);
+                })]);
                 setStreamingMessage(null);
                 setIsLoading(false);
                 scrollToBottom();
                 focusInput();
             },
             (error) => {
-                setMessages([{
+                setMessages([createTemporalMessage({
                     id: tempStreamingId,
                     role: 'assistant',
                     content: effectiveInitialPrompt.triggerText,
-                    timestamp: Date.now(),
-                }]);
+                })]);
                 handleAiError(error);
             }
         );
@@ -424,13 +422,12 @@ export function useChatOrchestration({
                     scrollToBottom();
                 },
                 (fullContent, fullReasoning) => {
-                    setMessages([{
-                        id: tempStreamingId,
-                        role: 'assistant',
-                        content: fullContent,
-                        reasoning: fullReasoning,
-                        timestamp: Date.now(),
-                    }]);
+                setMessages([createTemporalMessage({
+                    id: tempStreamingId,
+                    role: 'assistant',
+                    content: fullContent,
+                    reasoning: fullReasoning,
+                })]);
                     setStreamingMessage(null);
                     setIsLoading(false);
                     scrollToBottom();
@@ -438,12 +435,11 @@ export function useChatOrchestration({
                 },
                 (error) => {
                     // Fallback: show the prompt's AI follow-up text as the initial message
-                    setMessages([{
+                    setMessages([createTemporalMessage({
                         id: tempStreamingId,
                         role: 'assistant',
                         content: currentPrompt.aiFollowUp,
-                        timestamp: Date.now(),
-                    }]);
+                    })]);
                     handleAiError(error);
                 }
             );
@@ -453,12 +449,11 @@ export function useChatOrchestration({
     const handleSendMessage = useCallback(async (text: string) => {
         Keyboard.dismiss();
 
-        const userMessage: Message = {
+        const userMessage: Message = createTemporalMessage({
             id: Date.now().toString(),
             role: 'user',
             content: text,
-            timestamp: Date.now(),
-        };
+        });
 
         clearError();
         setMessages(prev => [...prev, userMessage]);
@@ -485,13 +480,12 @@ export function useChatOrchestration({
                 (fullContent, fullReasoning) => {
                     setMessages(prev => [
                         ...prev,
-                        {
+                        createTemporalMessage({
                             id: tempStreamingId,
                             role: 'assistant',
                             content: fullContent,
                             reasoning: fullReasoning,
-                            timestamp: Date.now(),
-                        },
+                        }),
                     ]);
                     setStreamingMessage(null);
                     setIsLoading(false);
@@ -529,13 +523,12 @@ export function useChatOrchestration({
                 (fullContent, fullReasoning) => {
                     setMessages(prev => [
                         ...prev,
-                        {
+                        createTemporalMessage({
                             id: tempStreamingId,
                             role: 'assistant',
                             content: fullContent,
                             reasoning: fullReasoning,
-                            timestamp: Date.now(),
-                        },
+                        }),
                     ]);
                     setStreamingMessage(null);
                     setIsLoading(false);
