@@ -40,28 +40,58 @@ active under the user's current valid authority.`;
 
 export const validPhaseOnePlan = `# Phase 1 MIRROR Ingestion Plan
 
-## 1. Authority
+## 1. Fixed Phase Boundary
 
 Phase 1 visible-response read authority remains LOCAL for every enrolled owner.
-Keep Phases 2-8 mapped to the master roadmap and Phase 9 last.
+Phase 1 source prose is upload-only. No server-to-client source-content download
+is added. Keep Phases 2-8 mapped to the master roadmap and Phase 9 last.
 
-## 5.1 Additive schema
-
-Add memory_import_completion_permits for short-lived completion permits.
-
-## 4.2 Cursor authority
+### 4.2 Stable identity
 
 The mirror sequencing authority is the per-source/per-message revision cursors.
 The Phase 0 memory_source_watermarks table is reused only for legacy client
-sequencing and is not the mirror sequencing authority.
+sequencing and is not the mirror sequencing authority. Tombstones are keyed by
+owner plus stable source/message identity. No cross-dataset logical equivalence
+is inferred from prose or model output.
 
-## 7.4 Two-device same-owner reconciliation
+### 5.1 Additive schema
 
-Phase 1 supports two independent devices for the same owner. The server allows
-only one active manifest per owner across all devices. Uploads use revision CAS
-with previousAcceptedRevision. Both devices converge on one completion receipt.
-No accepted revision is lost: no lost accepted revisions. Tombstones are
-owner-scoped: no cross-device resurrection.
+Add memory_import_completion_permits for short-lived completion permits. Use
+additive Phase 1 schema only. A partial unique index permits only one active
+manifest per owner across all devices. Keep current_source_manifest_id only as
+last-applied-manifest audit metadata; it must not define read membership. Add an
+owner-current-source-set version/receipt/count/hash contract whose current
+eligible rows are authoritative for the mirrored owner union.
+
+### 5.3 Atomic chunk acceptance
+
+Apply source/message revision CAS under row locks. A stale shared-source
+snapshot cannot overwrite accepted revisions. Disjoint sources merge
+independently.
+
+### 5.5 Atomic completion and transition
+
+A manifest is an atomic, device-observed mutation/reconciliation generation,
+not a replacement snapshot of the owner's entire archive. The server's current
+owner view is the cumulative union of current verified source/message revisions
+accepted from every completed manifest, minus explicit owner-scoped higher
+tombstones. Completion carries prior verified rows forward transactionally.
+Manifest omission is always a no-op. Only an explicit higher stable-ID tombstone
+removes eligibility. A completion receipt is unique and idempotent per logical
+manifest completion. Each successful completion advances a monotonic owner
+source-set version and returns the resulting owner-union receipt. Different
+generations produce distinct receipts while retries of one generation return
+its original receipt.
+
+### 7.4 Two-device same-owner reconciliation
+
+Phase 1 supports two independent devices for the same owner. They may start
+with shared stable IDs and create disjoint local additions while offline. Device
+B can complete without possessing A-only prose because the server carries A's
+verified rows into the owner union. Both devices converge on B's latest
+owner-union receipt/version. Every accepted A and B revision remains visible in
+the resulting current view. Tombstones are owner-scoped: no cross-device
+resurrection.
 `;
 
 export const validRoadmap = `# Cloud Memory Roadmap

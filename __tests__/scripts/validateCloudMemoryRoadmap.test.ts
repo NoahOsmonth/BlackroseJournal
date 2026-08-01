@@ -14,6 +14,7 @@ import {
     obsoleteLocalAuthorityGateRoadmap,
     outOfOrderRoadmap,
     prematureRetirementRoadmap,
+    validPhaseOnePlan,
     validRoadmap,
     writeFixture,
     wrongPhaseNineBranchRoadmap,
@@ -23,9 +24,15 @@ import {
     blankResultRoadmap,
     branchlessPrimaryWithValidDecoyRoadmap,
     conditionalForcedLocalPhaseNineRoadmap,
+    cloudVisibleReadsPhaseOnePlan,
+    crossDeviceResurrectionPhaseOnePlan,
     destructiveNoReviewPhaseEightRoadmap,
     destructiveWithoutDelayPhaseEightRoadmap,
+    deviceScopedTombstonesPhaseOnePlan,
     duplicateAuthoritativeTableRoadmap,
+    exactNewestManifestMembershipPhaseOnePlan,
+    extendedWatermarkPhaseOnePlan,
+    lostAcceptedRevisionsPhaseOnePlan,
     missingCloudOnlyTurnRoadmap,
     missingDeletionReplayRoadmap,
     missingDualRecoveryRoadmap,
@@ -33,11 +40,23 @@ import {
     missingPriorPhaseEvidenceRoadmap,
     missingSourceParityRoadmap,
     missingZeroLossRoadmap,
+    multipleActiveOwnerManifestsPhaseOnePlan,
     negatedForcedLocalProhibitionRoadmap,
+    noActiveManifestSerializationPhaseOnePlan,
+    noCompletionReceiptConvergencePhaseOnePlan,
+    noRevisionCasPhaseOnePlan,
     nonSemanticDestructionExampleRoadmap,
+    omissionDeletesPriorRowsPhaseOnePlan,
+    oneGlobalReceiptPhaseOnePlan,
+    phaseOneReadAuthorityNotLocalPlan,
     safePlusDestructivePhaseEightRoadmap,
     safetyOnlyInNonSemanticExampleRoadmap,
     safetyOnlyInLaterNotesRoadmap,
+    singleDevicePhaseOnePlan,
+    sourceContentDownloadPhaseOnePlan,
+    staleCasOverwritePhaseOnePlan,
+    unnamedCompletionPermitsPhaseOnePlan,
+    wholeOwnerInventoryRequiredPhaseOnePlan,
     wrongNonPhaseNineBranchRoadmap,
     wrongPlanLinkRoadmap,
 } from '../../test-fixtures/cloudMemoryRoadmapAdversarialFixtures';
@@ -289,6 +308,52 @@ describe('validate-cloud-memory-roadmap', () => {
 
         expect(result.status).not.toBe(0);
         expect(result.stderr).toMatch(/phase 9.*gate|retirement.*gate/i);
+    });
+
+    it.each([
+        ['named completion permits', unnamedCompletionPermitsPhaseOnePlan, /completion permit/i],
+        ['legacy-only watermarks', extendedWatermarkPhaseOnePlan, /sequencing authority|watermark/i],
+        ['two-device support', singleDevicePhaseOnePlan, /two independent devices/i],
+        ['one active owner manifest', noActiveManifestSerializationPhaseOnePlan, /one active manifest/i],
+        ['revision CAS', noRevisionCasPhaseOnePlan, /revision cas/i],
+        ['latest union-receipt convergence', noCompletionReceiptConvergencePhaseOnePlan, /owner-union receipt\/version/i],
+        ['all accepted revisions', lostAcceptedRevisionsPhaseOnePlan, /accepted.*revision/i],
+        ['owner-scoped tombstones', crossDeviceResurrectionPhaseOnePlan, /owner-scoped|resurrection/i],
+        ['LOCAL visible-response reads', phaseOneReadAuthorityNotLocalPlan, /read authority.*local/i],
+    ])('rejects a Phase 1 plan missing %s', (_description, phaseOnePlan, error) => {
+        writeFixture(fixtureRoot, validRoadmap, phaseOnePlan);
+
+        const result = runValidator(fixtureRoot);
+
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toMatch(error);
+    });
+
+    it.each([
+        ['exact newest-manifest membership', exactNewestManifestMembershipPhaseOnePlan, /cumulative owner union/i],
+        ['whole-owner inventory from one device', wholeOwnerInventoryRequiredPhaseOnePlan, /manifest omission/i],
+        ['omission deleting prior rows', omissionDeletesPriorRowsPhaseOnePlan, /manifest omission/i],
+        ['source-content download', sourceContentDownloadPhaseOnePlan, /upload-only|source-content download/i],
+        ['multiple active owner manifests', multipleActiveOwnerManifestsPhaseOnePlan, /one active manifest/i],
+        ['stale-CAS overwrite', staleCasOverwritePhaseOnePlan, /revision cas/i],
+        ['device-scoped tombstones', deviceScopedTombstonesPhaseOnePlan, /owner-scoped tombstone/i],
+        ['cloud-visible reads', cloudVisibleReadsPhaseOnePlan, /read authority.*local/i],
+        ['one global receipt', oneGlobalReceiptPhaseOnePlan, /completion receipt/i],
+    ])('rejects the Phase 1 contradiction: %s', (_description, phaseOnePlan, error) => {
+        writeFixture(fixtureRoot, validRoadmap, phaseOnePlan);
+
+        const result = runValidator(fixtureRoot);
+
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toMatch(error);
+    });
+
+    it('accepts the valid Phase 1 plan fixture', () => {
+        writeFixture(fixtureRoot, validRoadmap, validPhaseOnePlan);
+
+        const result = runValidator(fixtureRoot);
+
+        expect(result.status).toBe(0);
     });
 
     it('accepts the active repository roadmap and guidance', () => {

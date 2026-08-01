@@ -38,6 +38,10 @@ Playwright, and the connected Supabase management tools.
 Phase 1 delivers only exact source mirroring and its operational safety
 boundary.
 
+Phase 1 visible-response read authority remains LOCAL for every enrolled owner.
+Phase 1 source prose is upload-only. No server-to-client source-content download
+is added. Keep Phases 2–8 mapped to the master roadmap and Phase 9 last.
+
 It may:
 
 - mirror completed journal entries and completed intention check-ins;
@@ -236,9 +240,10 @@ Every mutation also enforces database-time, transaction-local backpressure:
   owner; crossing the cap blocks further mirror work without dropping local
   data;
 - no more than 4,096 compact historical verified/cancelled receipts plus one
-  current full membership, one active/prepared membership, and one immediately
-  prior cleanup-pending membership per owner; Phase 1 blocks additional
-  mirroring rather than evicting idempotency evidence.
+  active/prepared manifest membership per owner; the owner-current-source-set
+  row and its eligible source/message rows are current state, not historical
+  manifest membership. Phase 1 blocks additional mirroring rather than evicting
+  idempotency evidence.
 
 Cancellation atomically preserves a compact idempotent manifest cancellation
 receipt but removes that manifest's unverified staged membership/revision rows,
@@ -246,11 +251,11 @@ staged-only conversation/message identities with no verified revision or other
 manifest membership, and staged watermark state while preserving the last
 verified watermark.
 Heavy validation stores at most 160 compact ordered chunk hash/count receipts
-plus final inventory/parity fields and removes chunk rows. Verified completion
-keeps only the new current manifest's exact import-item membership; a fenced
-cleanup compacts the formerly current membership before the next begin. A later
-identical chunk retry is reconstructed from the compact receipt; changed input
-conflicts.
+plus final mutation/parity fields and removes chunk rows. Verified completion
+applies that manifest's accepted mutations to the cumulative owner source set,
+stores the resulting version/receipt/count/hash, and compacts the completed
+manifest's import-item membership. A later identical chunk retry is
+reconstructed from the compact receipt; changed input conflicts.
 Permit preparation atomically deletes expired unused permits and completed
 manifests may delete their consumed permits after the durable completion
 receipt exists. These maintenance actions never remove verified source
@@ -297,6 +302,12 @@ cannot allocate owner/import rows or consume Eco work.
   stored as `coalesced_gap` with the missing numeric interval; an adjacent
   update is `contiguous`. Missing intermediate prose is never invented.
 - `(owner_id, client_event_id)` remains retry-safe unique identity.
+- Tombstones are keyed by owner plus stable source/message identity. A higher
+  tombstone dominates every device and restore holding an older revision; the
+  server never infers a deletion or identity match from ordinary omission.
+- No cross-dataset logical equivalence is inferred from prose or model output.
+  Stable source/message IDs and explicit owner-scoped tombstones are the only
+  identity and deletion authority.
 - Manifest ID is deterministic from owner, server-issued dataset ID, contract
   version, and a persisted import generation greater than both the local and
   server-reported greatest generation. It contains no source text and cannot be
@@ -409,7 +420,8 @@ Add:
   service-role table mutation;
 - a server-issued dataset ID and greatest completed/import generation for each
   owner;
-- an owner `current_source_manifest_id` pointer and manifest `prepared` state;
+- an owner `current_source_manifest_id` value retained only as
+  last-applied-manifest audit metadata plus manifest `prepared` state;
 - `memory_conversation_revisions` for immutable, source-revision-scoped
   conversation metadata;
 - additive role/sequence/status/source-revision fields on
@@ -417,24 +429,31 @@ Add:
   content alone;
 - first-observed/contiguous/coalesced-gap provenance plus nullable numeric gap
   bounds on conversation and message revision rows;
-- `memory_import_items` for exact owner/manifest/chunk/source membership and
-  stored hashes;
+- `memory_import_items` for exact owner/manifest/chunk mutation membership and
+  stored hashes while a manifest is active/prepared;
 - positive current `source_revision` on mirrored conversations and the fields
   required to reject stale source/message revisions;
 - explicit `staged/eligible/deleted` mirror eligibility on conversations and
   messages; newly accepted rows remain `staged` until verified completion;
-- current-source/parity views that resolve only the owner's pointed verified
-  manifest membership and are overridden by accepted deletion commitments;
+- an owner-current-source-set version/receipt/count/hash contract advanced once
+  per successful logical manifest completion. Current eligible rows are
+  authoritative for the mirrored owner union;
+- current-source/parity views that resolve those eligible current rows minus
+  accepted higher owner-scoped tombstones. `current_source_manifest_id` must not
+  define read membership;
 - owner-first indexes for active import, chunk cursor, membership, eligible
   source inventory, and deletion lookup;
-- a partial unique index enforcing at most one active
-  `created/uploading/receiving` manifest per owner;
+- a partial unique index enforcing only one active manifest per owner across
+  `created/uploading/receiving/prepared` states;
 - `memory_import_completion_permits` for short-lived,
   owner/manifest/generation/authority-version-bound completion permits issued
   from database time;
 - composite owner foreign keys everywhere;
 - forced RLS and explicit grants on the new table;
 - no direct mutation grant to `anon`, `authenticated`, or `service_role`.
+
+Use additive Phase 1 schema only: do not rewrite or edit any applied Phase 0
+schema or migration to introduce this owner-current-source-set contract.
 
 ### 5.2 Unique non-overloaded RPCs
 
@@ -505,11 +524,13 @@ For a stable source/message identity:
   jumps are `coalesced_gap` with exact missing revision-number bounds. The
   server records only observed canonical snapshots and never synthesizes
   missing content;
-- individual chunks never infer omission. At verified completion, the RPC takes
-  the complete union of unique message membership across every accepted chunk
-  for each conversation, derives staged omission markers against the last
-  verified view, and atomically changes genuinely absent messages to `deleted`;
-  cancel/failure leaves the last verified current view byte-identical;
+- apply source/message revision CAS under row locks. A stale shared-source
+  snapshot cannot overwrite accepted revisions, while disjoint sources merge
+  independently without contending on unrelated source/message rows;
+- individual chunks and completed manifests never infer deletion from omission.
+  Manifest omission is a no-op; cancel/failure leaves the last verified current
+  rows byte-identical, and only an explicit accepted higher stable-ID tombstone
+  removes eligibility;
 - role, sequence, timestamp, timezone/local date, content, and status changes
   are all revision-worthy;
 - sequence reorder uses a lock plus a collision-safe two-step temporary ordinal
@@ -538,11 +559,14 @@ generation reconciles from the current local snapshot.
 6. set matching message revisions/evidence eligibility to `deleted`;
 7. ensure future imports cannot make that source eligible;
 8. enqueue the existing `verify_deletion` job idempotently;
-9. persist and return a stable receipt containing the original counts proving
-   what became ineligible.
+9. advance the owner-current-source-set version and persist its resulting
+   eligible source/message count/hash/receipt;
+10. persist and return a stable tombstone receipt containing the original
+    ineligibility counts and resulting owner-union receipt.
 
-An identical tombstone retry returns that original receipt and counts. The same
-event/revision with changed immutable fields conflicts. A tombstone revision
+An identical tombstone retry returns those original receipts/counts without
+advancing the source-set version again. The same event/revision with changed
+immutable fields conflicts. A tombstone revision
 is accepted as first observed only when no cloud source revision exists and
 `previousAcceptedRevision` is null; otherwise it must be higher than the locked
 current source revision and name that revision as `previousAcceptedRevision`.
@@ -559,15 +583,17 @@ chunks.
 ### 5.5 Atomic completion and transition
 
 `memory_validate_source_import_v1` performs the heavy, retryable work before the
-short completion permit exists. It locks the owner/manifest, requires all chunks,
-validates the complete union/counts/hashes/inventory/revision fences, computes
-the compact ordered chunk/parity receipt, marks the manifest `prepared`, and
-deletes bulky chunk rows while retaining that prepared manifest's exact
-`memory_import_items` membership. It never changes owner authority/current
-manifest, never makes staging eligible, and may use a separately bounded
-30-second backend/database deadline. The client does not hold the local source
-mutation gate during this step; it cancels/restarts if the local generation
-drifts before permit issuance.
+short completion permit exists. A manifest is an atomic, device-observed
+mutation/reconciliation generation, not a replacement snapshot of the owner's
+entire archive. Validation locks the owner/manifest, requires every declared
+chunk for that generation, validates that mutation set's counts, hashes,
+membership, and revision fences, computes the compact ordered chunk receipt,
+marks the manifest `prepared`, and deletes bulky chunk rows while retaining the
+prepared `memory_import_items`. It never requires a complete owner inventory,
+changes owner authority/current source rows, or makes staging eligible. It may
+use a separately bounded 30-second backend/database deadline. The client does
+not hold the local source mutation gate during this step; it cancels/restarts if
+the local generation drifts before permit issuance.
 
 `memory_prepare_source_completion_v1` is then a small database-time operation:
 it accepts only the prepared manifest and issues the short-lived permit after
@@ -577,7 +603,8 @@ gate and rechecks the generation immediately before calling it.
 `memory_complete_source_import_v1` must:
 
 - lock the owner and manifest in the same stable order used by enroll, cancel,
-  chunk, and tombstone mutations;
+  chunk, and tombstone mutations, then lock the touched current source/message
+  rows and owner-current-source-set row in stable identity order;
 - after writer/auth checks, first detect an already-verified manifest: identical
   immutable completion input returns its stored receipt even if the old permit
   is consumed/expired; changed input conflicts and never re-promotes;
@@ -587,22 +614,32 @@ gate and rechecks the generation immediately before calling it.
   same successful transaction;
 - compare-and-set the expected owner authority version and require the manifest
   to be that owner's only active manifest;
-- require the manifest still has the exact immutable prepared counts/hashes/
-  full-source inventory receipt and membership fingerprint validated above;
-- recheck that no accepted tombstone/writer/owner/authority change invalidated
-  the prepared receipt. For every previously eligible cloud conversation, the
-  prepared union contains the same source at its current-or-higher revision or
-  a higher tombstone; omission remains `SOURCE_INVENTORY_INCOMPLETE`;
+- require the manifest still has the exact immutable prepared mutation counts,
+  hashes, chunk receipt, and membership fingerprint validated above;
+- recheck source/message revision CAS and accepted owner-scoped tombstones for
+  every touched stable ID. A stale shared-source snapshot conflicts and cannot
+  overwrite an accepted revision; a disjoint source applies independently;
 - return the original receipt for an identical retry and conflict if a verified
   manifest identity is reused with changed completion inputs;
-- mark the manifest `verified` with counts, hash, and timestamp;
-- atomically mark the prepared manifest verified and switch only the owner's
-  `current_source_manifest_id` to it. Current conversation/message/parity views
-  resolve exactly that pointed manifest's membership/revisions, so the pointer
-  switch makes all fields/omissions current together without 20,000 row updates;
-- retain the new current manifest's import items, bounded compact chunk/
-  inventory receipt, and verified revisions; leave cancelled/foreign
-  generations ineligible;
+- apply the manifest's accepted current source/message revisions. The server's
+  current owner view is the cumulative union of current verified source/message
+  revisions accepted from every completed manifest, minus explicit
+  owner-scoped higher tombstones;
+- carry prior verified rows forward transactionally by leaving untouched
+  eligible rows in the owner set while applying the manifest's mutations.
+  Manifest omission is always a no-op. Only an explicit higher stable-ID
+  tombstone removes eligibility;
+- atomically increment the monotonic owner-current-source-set version, compute
+  its eligible source/message counts and canonical hash, and store the resulting
+  owner-union receipt. Current eligible rows are authoritative for read
+  membership;
+- mark the manifest `verified` with its mutation counts/hash/timestamp and the
+  resulting source-set version/receipt/count/hash. Keep
+  `current_source_manifest_id` only as last-applied-manifest audit metadata; it
+  must not define read membership;
+- compact the completed manifest's import items after their accepted mutations
+  are reflected in authoritative current rows; leave cancelled/foreign staging
+  ineligible;
 - when and only when current state is `LOCAL`, compare-and-set it to `MIRROR`,
   set only `cloudSourceMirroring=true`, and leave every
   projection/read/write/shadow flag false;
@@ -610,29 +647,31 @@ gate and rechecks the generation immediately before calling it.
 - for a future `SHADOW` or `CLOUD` owner, preserve the higher state and every
   flag exactly while accepting source parity, or reject an incompatible
   contract version; never demote or clear later-phase authority;
-- monotonically increment authority version;
-- return the parity receipt and owner state.
+- increment `authorityVersion` only for an actual authority/flag transition;
+  later source-set generations preserve it;
+- return this manifest completion receipt, the resulting owner-union receipt/
+  version/count/hash, and owner state.
 
-Completion also records the formerly current manifest as
-`membership_compaction_pending` and enqueues its idempotent cleanup. Before a
-later begin, a fenced cleanup step must compact/delete every noncurrent verified
-manifest's import items and any now-unreferenced staging identities. At most
-the current full membership, one active/prepared membership, and one immediately
-prior cleanup-pending membership may exist; begin blocks rather than letting
-them accumulate. Historical manifests retain only compact receipts, so an
-identical old retry remains recognizable without 20,000 retained items.
+A completion receipt is unique and idempotent per logical manifest completion.
+The completion transaction enqueues fenced, idempotent compaction of that
+verified manifest's import items and any now-unreferenced staging identities.
+At most one active/prepared manifest membership may exist; begin blocks rather
+than allowing another active owner manifest. Historical manifests retain only
+bounded compact completion receipts plus their resulting source-set metadata,
+so an identical old retry remains recognizable without retaining 20,000 items.
 
-An identical completion retry returns the stored parity/owner receipt and does
-not increment `authorityVersion` again. Concurrent completions converge on that
-one receipt. Enrollment is also idempotent and never demotes `MIRROR`,
-`SHADOW`, or `CLOUD` back to `LOCAL`.
+Each successful completion advances a monotonic owner source-set version and
+returns the resulting owner-union receipt. An identical completion retry returns
+that manifest's stored completion/owner-union receipt and does not increment any
+version again. Different generations produce distinct receipts; concurrent
+retries of one logical generation converge on its original receipt. Enrollment
+is also idempotent and never demotes `MIRROR`, `SHADOW`, or `CLOUD` back to
+`LOCAL`.
 
-The same full-inventory rule applies to empty and nonempty datasets. A zero
-manifest may complete only when every prior eligible cloud source is already
-covered by a higher accepted deletion commitment. Completion must never ignore,
-detach, silently retain outside parity, or erase an existing eligible source.
-Empty-dataset rebinding is a client owner-binding rule, not a remote purge
-operation.
+The same cumulative rule applies to empty and nonempty mutation generations. A
+zero-item manifest leaves every prior eligible cloud row in the owner union; it
+does not purge, detach, or make rows ineligible. Empty-dataset rebinding is a
+client owner-binding rule, not a remote purge operation.
 
 ---
 
@@ -746,7 +785,8 @@ Envelope:
 - tombstone delivery references copied from the authoritative source-owner
   tombstone ledgers;
 - attempts, next-attempt time, and stable last error;
-- last verified parity receipt.
+- last verified owner-union receipt/version/count/hash plus the current device's
+  per-manifest completion receipt.
 
 ### 7.2 Safety properties
 
@@ -939,46 +979,49 @@ fixtures and a dedicated two-device Task 16 probe:
   independently. Manifest IDs are derived from owner, server-issued dataset ID,
   contract version, and that device's persisted import generation, so two
   devices never collide on manifest identity and cannot replay each other's
-  manifest.
+  manifest. They may start with shared stable IDs and create disjoint local
+  additions while offline.
 - **Serialization / one active manifest.** The partial unique index (§5.1)
-  allows at most one active `created/uploading/receiving` manifest per owner
-  across all devices. When device B begins an import while device A's manifest
-  is active, B receives a stable `ACTIVE_IMPORT_EXISTS` conflict and must not
-  cancel, supersede, or fork A's manifest; B persists its work references and
-  retries after A completes or cancels, or reconciles from the server's current
-  pointer.
+  allows at most one active `created/uploading/receiving/prepared` manifest per
+  owner across all devices. When device B begins an import while device A's
+  manifest is active, B receives a stable `ACTIVE_IMPORT_EXISTS` conflict and
+  must not cancel, supersede, or fork A's manifest; B persists its work
+  references and retries after A completes or cancels.
 - **Revision CAS.** Both devices upload `previousAcceptedRevision` plus their
   current local revision. The server accepts a higher revision only when
   `previousAcceptedRevision` exactly equals the locked server current revision
   (§4.2). Device B's stale snapshot therefore cannot overwrite device A's
   accepted rows; B gets a stable conflict, rebases above the server cursor
   (§7.3 restore-style rebase), and retries honestly as `contiguous` or
-  `coalesced_gap`.
-- **Convergence on one completion receipt.** Only the first verified
-  completion consumes the generation's short-lived permit and returns the
-  single completion receipt that flips `LOCAL -> MIRROR`. Device B's identical
-  completion retry returns the same stored receipt; a changed retry or
-  cross-manifest permit reuse conflicts. Both devices converge on the same
-  receipt, the same owner `current_source_manifest_id`, and the same
-  authorityVersion — never two competing receipts for one generation.
-- **No lost accepted revisions.** Verified completion takes the complete union
-  of unique message membership across every accepted chunk for each
-  conversation (§5.3), so revisions accepted from either device are all
-  represented in the current view and parity. A later nonempty manifest from
-  either device must include the full current source set or fail
-  `SOURCE_INVENTORY_INCOMPLETE`; ordinary absence never deletes or silently
+  `coalesced_gap`. Disjoint sources merge independently.
+- **Cumulative owner union.** A manifest is one device-observed mutation/
+  reconciliation generation. Device B can complete without possessing A-only
+  prose because the server carries A's verified rows into the owner union while
+  applying B's disjoint accepted rows. Manifest omission is a no-op; neither
+  device needs to upload or download the other device's source content.
+- **Per-generation receipts and convergence.** Device A's successful manifest
+  completion receives its unique idempotent receipt and source-set version N.
+  Device B's later successful manifest receives a distinct receipt and version
+  N+1. Both devices converge on B's latest owner-union receipt/version through
+  content-free state/parity reconciliation; retries of A or B return that
+  logical manifest's original receipt, never a new or one-global receipt.
+- **No lost accepted revisions.** Every accepted A and B revision remains
+  visible in the resulting current view. Shared-source stale snapshots fail
+  revision CAS, disjoint additions merge, and ordinary absence never deletes or
   excludes an accepted source.
 - **No cross-device resurrection.** Tombstones are owner-scoped, not
   device-scoped. A deletion commitment accepted from device A suppresses the
-  same stable source/message identity on device B; B's outbox, restore, and
-  merge paths honor the higher tombstone and never re-upload or resurrect the
-  tombstoned ID even if B still holds an older local copy. Legacy merge
-  filters tombstoned IDs (§1 rollback, `memory_deletion_ledger`).
+  same stable source/message identity on device B and every restore; B's outbox,
+  restore, and merge paths honor the higher tombstone and never re-upload or
+  resurrect the tombstoned ID even if B still holds an older local copy. No
+  cross-dataset equivalence is inferred from prose or model output. Legacy
+  merge filters tombstoned IDs (§1 rollback, `memory_deletion_ledger`).
 
-Both devices share the same owner/authority state; a device that falls behind
-simply reconciles against the server's verified current view. Phase 1 never
-accepts a second active writer or a second completion receipt for the same
-generation.
+Both devices share the same owner/authority and owner-current-source-set
+metadata. A device that falls behind reconciles receipt/version/count/hash only:
+Phase 1 remains upload-only for source prose, adds no source-content download,
+and visible-response read authority remains LOCAL. Phase 1 never accepts a
+second active owner manifest or two receipts for one logical completion.
 
 ---
 
@@ -1212,9 +1255,11 @@ git commit -m "docs(plan): pin cloud memory phase 1 execution"
    - two-owner RLS/ACL isolation;
    - direct table mutations remain denied;
    - identical manifest/chunk/event replay is identical;
-   - verified completion compacts chunks/import-items into the bounded manifest
-     summary while an identical completed-chunk retry reconstructs the same
-     receipt and a changed retry conflicts;
+   - verified completion applies the manifest mutation set to authoritative
+     owner-current-source rows, records the resulting version/receipt/count/hash,
+     and compacts chunks/import-items into the bounded manifest summary while an
+     identical completed-chunk retry reconstructs the same receipt and a changed
+     retry conflicts;
    - changed replay conflicts;
    - equal/lower/higher source and message revision semantics, including a first
      observed revision greater than `1`, adjacent append, accepted coalesced
@@ -1230,16 +1275,19 @@ git commit -m "docs(plan): pin cloud memory phase 1 execution"
    - payload/hash mismatch rolls back all rows;
    - concurrent different owners do not block each other;
    - same-owner manifest operations serialize;
-   - two-device same-owner: device A and device B (same owner, different
-     dataset commitments/generations) begin independently; a second begin while
-     A's manifest is active returns a stable `ACTIVE_IMPORT_EXISTS` conflict;
-     a stale B snapshot with an older `previousAcceptedRevision` is rejected by
-     revision CAS and never overwrites A's accepted rows; the first verified
-     completion returns the one receipt and later identical completion retries
-     from either device return that same stored receipt while changed retries
-     conflict; accepted revisions from both devices are all present in the
-     completion view/parity; a tombstone accepted from A suppresses the same
-     identity from B and B cannot re-upload or resurrect it (§7.4);
+   - two-device same-owner: device A and device B begin with shared stable IDs,
+     create disjoint local additions while offline, and use different dataset
+     commitments/generations; a second begin while A's manifest is active
+     returns a stable `ACTIVE_IMPORT_EXISTS` conflict; after A completes, a stale
+     shared-source B snapshot with an older `previousAcceptedRevision` is
+     rejected by revision CAS and never overwrites A's accepted rows, while B's
+     disjoint additions complete without A-only prose; the server carries A's
+     verified rows into the owner union; A and B receive distinct logical-
+     manifest receipts/versions, identical retries return each manifest's stored
+     receipt, and both devices converge on B's latest owner-union receipt/version;
+     every accepted A and B revision remains visible; a higher owner-scoped
+     tombstone accepted from A suppresses the same stable identity from B and B
+     cannot re-upload or resurrect it (§7.4);
    - tombstone-before-upload cannot resurrect;
    - tombstone acceptance immediately makes existing rows ineligible;
    - cancel/supersede survives process loss, never makes partial rows eligible,
@@ -1251,13 +1299,14 @@ git commit -m "docs(plan): pin cloud memory phase 1 execution"
      expired/consumed permit cleanup cannot remove a completion receipt;
    - a cancelled edit never overwrites or de-eligibilizes the last verified
      current revision;
-   - verified generation G followed by partial edit/remove/reorder G+1 and
-     cancel/failure leaves G byte-identical; verified G+2 atomically switches
-     all current fields/omissions together;
+   - verified generation G followed by a partial edit/reorder G+1 and
+     cancel/failure leaves G byte-identical; verified G+2 atomically applies
+     touched revisions while omitted rows remain byte-identical and eligible;
    - finalization rejects every count/hash/membership mismatch;
-   - after verified A+B, a nonempty manifest containing only B fails
-     `SOURCE_INVENTORY_INCOMPLETE` unless a higher accepted A tombstone exists;
-     ordinary absence never deletes or silently excludes A from parity;
+   - after verified A, a nonempty manifest containing only B succeeds without
+     A-only prose; the owner-union receipt/count/hash still includes A and B;
+     ordinary absence never deletes or silently excludes A, while an explicit
+     higher A tombstone removes A immediately;
    - repeated max-size completions with one changed revision do not retain
      20,000 membership rows per generation; only observed revisions plus one
      bounded compact manifest receipt per generation remain;
@@ -1265,8 +1314,10 @@ git commit -m "docs(plan): pin cloud memory phase 1 execution"
    - completion at LOCAL, MIRROR, SHADOW, and CLOUD proves respectively
      bootstrap transition, exact preservation, exact preservation, and exact
      preservation; stale authority versions fail with zero state/flag change;
-   - concurrent enroll/complete/tombstone requests return one stable receipt,
-     enroll never demotes, and completion never double-increments version;
+   - concurrent enroll/complete/tombstone requests return one stable receipt per
+     logical operation, enroll never demotes, and an identical completion retry
+     never double-increments either authority or source-set version; sequential
+     manifest generations produce distinct monotonic owner-union receipts;
    - expired/reused/wrong-owner/wrong-generation completion permits cannot
      promote rows or authority, including a request delivered after permit
      expiry;
@@ -1282,7 +1333,9 @@ git commit -m "docs(plan): pin cloud memory phase 1 execution"
      permits), `memory_mirror_owner_allowlist`, `memory_mirror_rate_limits`,
      `memory_import_items`, `memory_conversation_revisions`, plus the additive
      fields/views — and assert the Phase 0 `memory_source_watermarks` table is
-     not extended and is never the mirror sequencing authority (§4.2).
+     not extended and is never the mirror sequencing authority (§4.2); assert
+     `current_source_manifest_id` is audit-only, eligible current rows define
+     membership, and source-set version/receipt/count/hash advance atomically.
 7. Run advisors locally where supported.
 
 **Sabotage:** Capture each deliberate red result, restore, and rerun green:
@@ -1291,10 +1344,10 @@ git commit -m "docs(plan): pin cloud memory phase 1 execution"
 - trust the client-supplied hash rather than recomputing it independently in
   PostgreSQL;
 - move chunk receipt/membership writes outside the chunk transaction;
-- move completion receipt/current-view promotion outside the completion
+- move completion receipt/current-owner-union promotion outside the completion
   transaction;
-- omit one prior eligible whole conversation from a nonempty "complete"
-  manifest without a tombstone;
+- replace cumulative eligible-row membership with exact newest-manifest
+  membership, or make omission delete a prior eligible conversation;
 - allow an import to overwrite a deletion commitment.
 
 The focused pgTAP/static/integration guard for each removed invariant must fail;
@@ -2101,7 +2154,9 @@ Required probes:
    - restore valid state and prove recovery.
 9. **Visible authority**
    - instrument prompt/tool assembly and prove no cloud source appears;
-   - existing device-direct assistant flow remains unchanged.
+   - prove no server-to-client source-content download occurs;
+   - existing device-direct assistant flow remains unchanged and visible-response
+     read authority remains LOCAL.
 10. **No demo contamination**
     - verify no seed source ID is present in the disposable owner's manifest.
 11. **Restore and session lifecycle**
@@ -2130,20 +2185,28 @@ Required probes:
 13. **Two-device same-owner reconciliation**
     - run two isolated app instances (two fresh web profiles, or a fresh web
       profile plus the Android target) for the same confirmed owner;
-    - generate independent local sources on each device while offline, with
-      different message sets and revision histories;
+    - start with at least one shared stable source/message ID, then generate
+      disjoint A-only and B-only local additions while offline with different
+      revision histories;
     - begin device A's import; begin device B's import and prove the stable
       `ACTIVE_IMPORT_EXISTS` conflict, B's retained work, and no fork/cancel of
       A's manifest;
-    - let A complete, then reconcile B; prove B's stale snapshots are rejected
-      by revision CAS, B rebases above the server cursor, and both devices
-      converge on the single completion receipt, `current_source_manifest_id`,
-      and authorityVersion;
+    - let A complete, then complete B without sending A-only prose; prove B's
+      stale shared-source snapshots are rejected by revision CAS, B rebases
+      above the server cursor, B-only additions merge independently, and the
+      server carries A-only verified rows into the cumulative owner union;
+    - prove A's and B's logical manifests have distinct idempotent completion
+      receipts and monotonic source-set versions, then prove both devices
+      converge on B's latest owner-union receipt/version/count/hash through
+      content-free reconciliation; `current_source_manifest_id` may match B only
+      as audit metadata and does not define membership;
     - prove every accepted revision from both devices is present in the
-      completed current view and parity (no lost accepted revisions);
+      completed current view and parity, ordinary omission changes nothing, and
+      neither app receives the other device's source content;
     - delete a source on device A, force-stop/relaunch B with its older local
-      copy, reconnect, and prove B cannot re-upload or resurrect the tombstoned
-      ID (no cross-device resurrection).
+      copy, reconnect, and prove the higher owner-scoped stable-ID tombstone
+      prevents B from re-uploading or resurrecting it; no prose/model-output
+      similarity is used to infer identity.
 
 Run both app targets against the exact reconciled implementation commit and
 Task 15 deployment evidence:

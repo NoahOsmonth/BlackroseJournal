@@ -204,31 +204,85 @@ export const singleDevicePhaseOnePlan = validPhaseOnePlan.replace(
 );
 
 export const noActiveManifestSerializationPhaseOnePlan = validPhaseOnePlan.replace(
-    'The server allows\nonly one active manifest per owner across all devices.',
+    'A partial unique index permits only one active\nmanifest per owner across all devices.',
     'Each device may keep its own active manifest.',
 );
 
 export const noRevisionCasPhaseOnePlan = validPhaseOnePlan.replace(
-    'Uploads use revision CAS\nwith previousAcceptedRevision.',
+    'Apply source/message revision CAS under row locks.',
     'Uploads are accepted by best-effort ordering.',
 );
 
 export const noCompletionReceiptConvergencePhaseOnePlan = validPhaseOnePlan.replace(
-    'Both devices converge on one completion receipt.',
+    "Both devices converge on B's latest\nowner-union receipt/version.",
     'Each device receives its own completion receipt.',
 );
 
 export const lostAcceptedRevisionsPhaseOnePlan = validPhaseOnePlan.replace(
-    'No accepted revision is lost: no lost accepted revisions.',
+    'Every accepted A and B revision remains visible in\nthe resulting current view.',
     'A slower device may drop revisions accepted from the other device.',
 );
 
 export const crossDeviceResurrectionPhaseOnePlan = validPhaseOnePlan.replace(
-    'Tombstones are\nowner-scoped: no cross-device resurrection.',
+    'Tombstones are owner-scoped: no cross-device\nresurrection.',
     'Tombstones are device-scoped and do not suppress the same identity from the\nother device.',
 );
 
 export const phaseOneReadAuthorityNotLocalPlan = validPhaseOnePlan.replace(
     'Phase 1 visible-response read authority remains LOCAL for every enrolled owner.',
     'Phase 1 may read cloud memory into visible responses.',
+);
+
+export const exactNewestManifestMembershipPhaseOnePlan = validPhaseOnePlan.replace(
+    'Completion carries prior verified rows forward transactionally.',
+    `Completion carries prior verified rows forward transactionally.
+The owner current view is replaced by exactly the newest manifest membership.`,
+);
+
+export const wholeOwnerInventoryRequiredPhaseOnePlan = validPhaseOnePlan.replace(
+    'Manifest omission is always a no-op.',
+    `Manifest omission is always a no-op.
+Each completing device must provide the whole-owner inventory.`,
+);
+
+export const omissionDeletesPriorRowsPhaseOnePlan = validPhaseOnePlan.replace(
+    'Manifest omission is always a no-op.',
+    `Manifest omission is always a no-op.
+Omission from a completed manifest deletes prior eligible rows.`,
+);
+
+export const sourceContentDownloadPhaseOnePlan = validPhaseOnePlan.replace(
+    'is added. Keep Phases 2-8 mapped',
+    `is added. Server-to-client source-content download is enabled for reconciliation.
+Keep Phases 2-8 mapped`,
+);
+
+export const multipleActiveOwnerManifestsPhaseOnePlan = validPhaseOnePlan.replace(
+    'manifest per owner across all devices.',
+    `manifest per owner across all devices.
+Each device may also keep its own active manifest for the owner.`,
+);
+
+export const staleCasOverwritePhaseOnePlan = validPhaseOnePlan.replace(
+    'snapshot cannot overwrite accepted revisions.',
+    `snapshot cannot overwrite accepted revisions.
+A stale shared-source snapshot may overwrite the accepted server revision.`,
+);
+
+export const deviceScopedTombstonesPhaseOnePlan = validPhaseOnePlan.replace(
+    'Tombstones are owner-scoped: no cross-device\nresurrection.',
+    `Tombstones are owner-scoped: no cross-device resurrection.
+Tombstones are device-scoped for upload and restore decisions.`,
+);
+
+export const cloudVisibleReadsPhaseOnePlan = validPhaseOnePlan.replace(
+    'Phase 1 visible-response read authority remains LOCAL for every enrolled owner.',
+    `Phase 1 visible-response read authority remains LOCAL for every enrolled owner.
+Phase 1 may also read cloud source content into visible responses.`,
+);
+
+export const oneGlobalReceiptPhaseOnePlan = validPhaseOnePlan.replace(
+    'its original receipt.',
+    `its original receipt.
+The owner has one global completion receipt forever across all generations.`,
 );

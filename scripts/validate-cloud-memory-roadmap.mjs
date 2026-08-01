@@ -88,17 +88,126 @@ const requiredPhaseNineGates = [
     'a cloud-only turn survives staged provider-native rollback and current-cloud-snapshot fresh-target recovery',
     'zero cloud-only-turn, source-parity, or deletion loss is present',
 ];
-const requiredPhaseOnePlanStatements = [
-    'memory_import_completion_permits',
-    'reused only for legacy client sequencing',
-    'not the mirror sequencing authority',
-    'two independent devices for the same owner',
-    'one active manifest',
-    'revision cas',
-    'one completion receipt',
-    'no lost accepted revisions',
-    'no cross-device resurrection',
-    'read authority remains LOCAL',
+const requiredPhaseOneSectionStatements = [
+    {
+        heading: '## 1. Fixed Phase Boundary',
+        statements: [
+            ['visible-response read authority remains LOCAL', /visible-response read authority remains LOCAL/i],
+            ['source prose is upload-only', /source prose is upload-only/i],
+            ['no server-to-client source-content download is added', /no server-to-client source-content download is added/i],
+            ['Phase 9 last', /Phase 9 last/i],
+        ],
+    },
+    {
+        heading: '### 4.2 Stable identity',
+        statements: [
+            ['per-source/per-message revision cursors are the mirror sequencing authority', /mirror sequencing authority is the per-source\/per-message revision cursors/i],
+            ['memory_source_watermarks is reused only for legacy client sequencing', /memory_source_watermarks.*reused only for legacy client sequencing/i],
+            ['memory_source_watermarks is not the mirror sequencing authority', /memory_source_watermarks.*not the mirror sequencing authority/i],
+            ['tombstones are keyed by owner plus stable source/message identity', /tombstones are keyed by owner plus stable source\/message identity/i],
+            ['no cross-dataset logical equivalence is inferred from prose or model output', /no cross-dataset logical equivalence is inferred from prose or model output/i],
+        ],
+    },
+    {
+        heading: '### 5.1 Additive schema',
+        statements: [
+            ['named completion permits', /memory_import_completion_permits/i],
+            ['additive Phase 1 schema only', /additive Phase 1 schema only/i],
+            ['one active manifest per owner', /only one active[^.]*manifest per owner/i],
+            ['current_source_manifest_id is last-applied-manifest audit metadata', /current_source_manifest_id[^.]*last-applied-manifest audit metadata/i],
+            ['current_source_manifest_id must not define read membership', /current_source_manifest_id[^.]*must not define read membership/i],
+            ['owner-current-source-set version/receipt/count/hash contract', /owner-current-source-set version\/receipt\/count\/hash contract/i],
+            ['current eligible rows are authoritative', /current eligible rows are authoritative/i],
+        ],
+    },
+    {
+        heading: '### 5.3 Atomic chunk acceptance',
+        statements: [
+            ['source/message revision CAS under row locks', /source\/message revision CAS under row locks/i],
+            ['stale shared-source snapshots cannot overwrite accepted revisions', /stale shared-source snapshot cannot overwrite accepted revisions/i],
+            ['disjoint sources merge independently', /disjoint sources merge independently/i],
+        ],
+    },
+    {
+        heading: '### 5.5 Atomic completion and transition',
+        statements: [
+            ['manifest mutation/reconciliation generation', /manifest is an atomic, device-observed mutation\/reconciliation generation/i],
+            ['manifest is not a replacement snapshot', /not a replacement snapshot of the owner's entire archive/i],
+            ['cumulative owner union', /current owner view is the cumulative union/i],
+            ['prior verified rows carry forward transactionally', /carr(?:y|ies) prior verified rows forward transactionally/i],
+            ['manifest omission is a no-op', /manifest omission is always a no-op/i],
+            ['only an explicit higher stable-ID tombstone removes eligibility', /only an explicit higher stable-ID tombstone removes eligibility/i],
+            ['completion receipt is unique and idempotent per logical manifest completion', /completion receipt is unique and idempotent per logical manifest completion/i],
+            ['successful completion advances the owner source-set version', /successful completion advances a monotonic owner source-set version/i],
+            ['completion returns the resulting owner-union receipt', /returns the resulting owner-union receipt/i],
+            ['different generations produce distinct receipts', /different generations produce distinct receipts/i],
+        ],
+    },
+    {
+        heading: '### 7.4 Two-device same-owner reconciliation',
+        statements: [
+            ['two independent devices for the same owner', /two independent devices for the same owner/i],
+            ['shared stable IDs and disjoint offline additions', /shared stable IDs and create disjoint local additions while offline/i],
+            ['device B completes without A-only prose', /device B can complete without possessing A-only prose/i],
+            ['server carries A verified rows into the owner union', /server carries A's verified rows into the owner union/i],
+            ['devices converge on B latest owner-union receipt/version', /devices converge on B's latest owner-union receipt\/version/i],
+            ['every accepted A and B revision remains visible', /every accepted A and B revision remains visible/i],
+            ['owner-scoped tombstones prevent cross-device resurrection', /tombstones are owner-scoped(?:: no cross-device resurrection|, not device-scoped)/i],
+        ],
+    },
+];
+const forbiddenPhaseOneSectionClauses = [
+    {
+        heading: '## 1. Fixed Phase Boundary',
+        description: 'read authority remains LOCAL and upload-only source-content contract',
+        patterns: [
+            /server-to-client source-content download is (?:enabled|allowed|provided)/i,
+            /Phase 1 (?:may|can|will)[^.]*read cloud[^.]*visible responses/i,
+            /source prose is not upload-only/i,
+            /visible-response read authority[^.]*(?:does|must|may) not remain LOCAL/i,
+        ],
+    },
+    {
+        heading: '### 5.1 Additive schema',
+        description: 'one active manifest per owner contract',
+        patterns: [
+            /each device[^.]*own active manifest/i,
+            /multiple active[^.]*manifests?[^.]*(?:allowed|permitted)/i,
+            /(?:more than|not only) one active manifest/i,
+            /current_source_manifest_id[^.]*defines? read membership/i,
+        ],
+    },
+    {
+        heading: '### 5.3 Atomic chunk acceptance',
+        description: 'revision CAS contract',
+        patterns: [
+            /stale shared-source snapshot[^.]*(?:may|can)[^.]*overwrite/i,
+            /last-write-wins/i,
+            /revision CAS[^.]*(?:disabled|optional|does not apply)/i,
+        ],
+    },
+    {
+        heading: '### 5.5 Atomic completion and transition',
+        description: 'cumulative owner union, manifest omission, and completion receipt contract',
+        patterns: [
+            /owner current view[^.]*(?:exactly|only)[^.]*(?:newest|latest|current|pointed) manifest/i,
+            /completing device[^.]*(?:must|is required to)[^.]*(?:whole-owner|complete owner|full-source)[^.]*(?:inventory|source set)/i,
+            /omission[^.]*(?:deletes?|removes?|excludes?|ineligible)/i,
+            /one global completion receipt[^.]*all generations/i,
+            /one global completion receipt forever/i,
+            /current owner view is not the cumulative union/i,
+            /manifest omission is not[^.]*no-op/i,
+            /different generations[^.]*same receipt/i,
+        ],
+    },
+    {
+        heading: '### 7.4 Two-device same-owner reconciliation',
+        description: 'owner-scoped tombstone contract',
+        patterns: [
+            /tombstones? are device-scoped/i,
+            /tombstones? are not owner-scoped/i,
+        ],
+    },
 ];
 const violations = [];
 
@@ -160,6 +269,32 @@ function extractLevelTwoSection(markdown, heading) {
         markdown: lines.slice(start, end).join('\n'),
         start,
     };
+}
+
+function extractMarkdownSection(markdown, heading) {
+    const headingMarker = heading.match(/^(#{2,6})\s+/)?.[1];
+    if (!headingMarker) {
+        throw new Error(`Invalid semantic section heading: ${heading}`);
+    }
+
+    const lines = markdown.split(/\r?\n/);
+    const headingIndexes = lines
+        .map((line, index) => (line.trim() === heading ? index : -1))
+        .filter((index) => index !== -1);
+    if (headingIndexes.length !== 1) {
+        return { count: headingIndexes.length, markdown: '' };
+    }
+
+    const start = headingIndexes[0];
+    const followingHeading = lines.findIndex((line, index) => {
+        if (index <= start) {
+            return false;
+        }
+        const marker = line.trim().match(/^(#{1,6})\s+/)?.[1];
+        return marker !== undefined && marker.length <= headingMarker.length;
+    });
+    const end = followingHeading === -1 ? lines.length : followingHeading;
+    return { count: 1, markdown: lines.slice(start, end).join('\n') };
 }
 
 function countPhaseSections(markdown, phase) {
@@ -591,14 +726,39 @@ if (
 const phaseOnePlan = stripNonSemanticMarkdown(
     readRepositoryFile(phaseOnePlanRelativePath),
 );
-const normalizedPhaseOnePlan = normalizeWhitespace(phaseOnePlan).toLowerCase();
-for (const statement of requiredPhaseOnePlanStatements) {
-    if (!normalizedPhaseOnePlan.includes(statement.toLowerCase())) {
-        violations.push(`Phase 1 plan must state: "${statement}."`);
+for (const contract of requiredPhaseOneSectionStatements) {
+    const section = extractMarkdownSection(phaseOnePlan, contract.heading);
+    if (section.count !== 1) {
+        violations.push(
+            `Phase 1 plan must contain exactly one semantic section ${contract.heading}.`,
+        );
+        continue;
+    }
+    const normalizedSection = normalizeWhitespace(section.markdown);
+    for (const [description, pattern] of contract.statements) {
+        if (!pattern.test(normalizedSection)) {
+            violations.push(
+                `Phase 1 ${contract.heading} must state the ${description} contract.`,
+            );
+        }
     }
 }
-if (!normalizedPhaseOnePlan.includes('phase 9 last')) {
-    violations.push('Phase 1 plan must keep Phase 9 last.');
+
+for (const contract of forbiddenPhaseOneSectionClauses) {
+    const section = extractMarkdownSection(phaseOnePlan, contract.heading);
+    if (section.count !== 1) {
+        continue;
+    }
+    const clauses = splitOperativeClauses(section.markdown).map(normalizeWhitespace);
+    if (
+        contract.patterns.some((pattern) =>
+            clauses.some((clause) => pattern.test(clause)),
+        )
+    ) {
+        violations.push(
+            `Phase 1 ${contract.heading} contradicts the ${contract.description}.`,
+        );
+    }
 }
 
 for (const relativePath of activeGuidancePaths) {
