@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 export const PHASE1_IMMUTABLE_BASE = 'ef2610f019c21a6b9c0652014d26f3e0fdfbb8b6';
 
@@ -78,6 +79,6 @@ function main() {
     }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     main();
 }

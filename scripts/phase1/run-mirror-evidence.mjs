@@ -1,7 +1,9 @@
 import { spawnSync } from 'node:child_process';
+import { Buffer } from 'node:buffer';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const requiredImplementationPaths = [
     'scripts/verify-cloud-memory-phase1-immutables.mjs',
@@ -226,4 +228,4 @@ function main() {
     }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (import.meta.url === pathToFileURL(process.argv[1]).href) main();
