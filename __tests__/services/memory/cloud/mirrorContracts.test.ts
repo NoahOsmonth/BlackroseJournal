@@ -3,7 +3,9 @@ import {
     MirrorContractError,
     nextSourceRevision,
     parseMirrorChunk,
-} from '../../../../../shared/memory/mirrorContracts';
+    type MirrorChunk,
+    type MirrorMessage,
+} from '@/shared/memory/mirrorContracts';
 
 const message = {
     id: 'journal%3Aentry-1:message-1',
@@ -19,9 +21,9 @@ const message = {
     revision: 1,
     previousAcceptedRevision: null,
     status: 'active',
-} as const;
+} as MirrorMessage;
 
-const chunk = {
+const chunk: MirrorChunk = {
     contractVersion: 1,
     manifestId: 'manifest-1',
     chunkIndex: 0,
@@ -40,7 +42,7 @@ const chunk = {
         previousAcceptedRevision: null,
         messages: [message],
     }],
-} as const;
+};
 
 describe('parseMirrorChunk', () => {
     it('accepts the exact bounded Phase 1 upload shape', () => {

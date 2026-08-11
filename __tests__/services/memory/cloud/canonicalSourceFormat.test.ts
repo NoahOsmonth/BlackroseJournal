@@ -1,7 +1,7 @@
 import {
     canonicalMirrorChunkBytes,
     canonicalizeMirrorChunk,
-} from '../../../../../shared/memory/canonicalSourceFormat';
+} from '@/shared/memory/canonicalSourceFormat';
 
 const chunk = {
     contractVersion: 1,
