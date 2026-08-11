@@ -1,6 +1,7 @@
 import {
     MIRROR_OUTBOX_STORAGE_KEY,
     clearMirrorOutbox,
+    isMirrorQuarantineActive,
     resetMirrorOutboxStorageAdapter,
     setMirrorOutboxStorageAdapter,
 } from '@/services/memory/cloud/mirrorOutbox';
@@ -33,6 +34,22 @@ function createMemoryAdapter() {
             store.delete(key);
         }),
     };
+}
+
+/** Serialized primary binding envelope for a given owner (phase 'complete'). */
+function bindingSeed(ownerId: string): string {
+    return JSON.stringify({
+        bindingSchemaVersion: 1,
+        replicaWritePhase: 'complete',
+        localDatasetId: `dset-${ownerId}`,
+        ownerId,
+        serverDatasetId: null,
+        greatestKnownGeneration: 0,
+        enrolledAt: null,
+        recovery: { required: false, reason: null, since: null },
+        createdAt: '2026-08-02T00:00:00.000Z',
+        updatedAt: '2026-08-02T00:00:00.000Z',
+    });
 }
 
 describe('dataset binding and mirror status', () => {
@@ -236,5 +253,36 @@ describe('dataset binding and mirror status', () => {
         unsubscribe();
         await setMirrorConsent(false, { ownerId: 'A', localDatasetId: 'dset-A' });
         expect(events).toEqual(['status']);
+    });
+
+    it('reports outbox_recovery_required when replica repair is blocked by a quarantined outbox', async () => {
+        // Bound nonempty dataset for A with a matching server-verified owner, but
+        // the outbox payload is corrupt: replica repair's setBindingReplica write
+        // is quarantined, so this must NOT be presented as an ownership problem.
+        bindingAdapter.store.set('@rosebud_memory_dataset_binding', bindingSeed('A'));
+        outboxAdapter.store.set(MIRROR_OUTBOX_STORAGE_KEY, '{corrupt outbox');
+
+        const result = await reconcileDatasetBinding({
+            datasetNonEmpty: true,
+            currentSessionOwnerId: 'A',
+            serverVerifiedOwnerId: 'A',
+        });
+        expect(result.status).toBe('outbox_recovery_required');
+        if (result.status === 'outbox_recovery_required') expect(result.ownerId).toBe('A');
+    });
+
+    it('a binding-level clear never rewrites a quarantined outbox and preserves the quarantine', async () => {
+        bindingAdapter.store.set('@rosebud_memory_dataset_binding', bindingSeed('A'));
+        outboxAdapter.store.set(MIRROR_OUTBOX_STORAGE_KEY, '{corrupt outbox');
+
+        await clearDatasetBinding();
+
+        // Primary binding cleared; the quarantined outbox is NOT touched:
+        // setBindingReplica(null) is a documented fail-closed no-op while the
+        // corrupt latch holds, so the clear cannot peel the quarantine or smuggle
+        // a fresh unverified replica into the envelope.
+        expect(bindingAdapter.store.get('@rosebud_memory_dataset_binding')).toBeUndefined();
+        expect(outboxAdapter.store.get(MIRROR_OUTBOX_STORAGE_KEY)).toBe('{corrupt outbox');
+        expect(await isMirrorQuarantineActive()).toBe(true);
     });
 });

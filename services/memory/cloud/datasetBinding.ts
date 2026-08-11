@@ -180,6 +180,14 @@ async function writeOutboxReplica(binding: DatasetBindingEnvelope): Promise<bool
     return written.applied;
 }
 
+/**
+ * Attempt to null out the outbox replica. Deliberate fail-closed no-op when the
+ * outbox is quarantined (corrupt/missing over nonempty data): `setBindingReplica`
+ * returns blocked and this ignores the result, so the untrusted outbox is never
+ * rewritten and the quarantine is never peeled by a binding-level clear. The
+ * coordinator clears the outbox itself (or runs outbox recovery) before binding
+ * teardown when it needs the full wipe.
+ */
 async function clearOutboxReplica(): Promise<void> {
     await setBindingReplica(null);
 }
