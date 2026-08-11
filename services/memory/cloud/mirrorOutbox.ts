@@ -33,7 +33,6 @@ import type {
 } from './mirrorOutbox.types';
 
 export const MIRROR_OUTBOX_STORAGE_KEY = '@rosebud_cloud_memory_mirror_outbox';
-export const MIRROR_OUTBOX_CORRUPT_BACKUP_KEY = '@rosebud_cloud_memory_mirror_outbox_corrupt';
 export const MIRROR_OUTBOX_SCHEMA_VERSION = 2;
 
 /** Persisted permit/outcome-unknown guard forces a fresh full quarantine window. */
@@ -137,6 +136,15 @@ function notifyChanged(): void {
 // Quarantine is a process-lifetime marker, re-derived at each process start
 // when a completion guard or corrupt-with-nonempty-binding is discovered. It is
 // never persisted: a restart naturally re-derives a fresh full window.
+//
+// `outboxCorruptThisSession` is the in-memory latch for an outbox whose stored
+// payload failed to parse. It is set ONLY when the payload itself is conclusively
+// untrustable (JSON/coerce failure — durable evidence); a transient read `getItem`
+// failure returns the safe-default envelope without latching. The latch blocks
+// every outbox mutation until recovery/finalize reconciles the underlying issue
+// and rebuilds a valid envelope (it is cleared only then, not by time). There is
+// deliberately NO persisted second copy of a corrupt payload: a backup could
+// smuggle source prose past the content-free invariant.
 let quarantineState: { reason: MirrorQuarantineReason; startedAtMs: number } | null = null;
 let outboxCorruptThisSession = false;
 
@@ -427,11 +435,18 @@ function coerceEnvelope(parsed: unknown): MirrorOutboxEnvelope | null {
             if (parsedRef && parsedRef.sourceId === sourceId) base.pendingSources[sourceId] = parsedRef;
         });
     }
-    if (!isRecord(parsed.tombstones)) return null;
-    Object.entries(parsed.tombstones).forEach(([sourceId, tombstone]) => {
-        const parsedTombstone = parseTombstone(tombstone);
-        if (parsedTombstone && parsedTombstone.sourceId === sourceId) base.tombstones[sourceId] = parsedTombstone;
-    });
+    if (parsed.tombstones === undefined) {
+        // Legacy v1 payloads predate the tombstone ledger: migrate them with an
+        // empty ledger rather than treating a missing key as total corruption.
+        base.tombstones = {};
+    } else if (!isRecord(parsed.tombstones)) {
+        return null;
+    } else {
+        Object.entries(parsed.tombstones).forEach(([sourceId, tombstone]) => {
+            const parsedTombstone = parseTombstone(tombstone);
+            if (parsedTombstone && parsedTombstone.sourceId === sourceId) base.tombstones[sourceId] = parsedTombstone;
+        });
+    }
 
     if (isRecord(parsed.lastVerifiedUnion)
         && typeof parsed.lastVerifiedUnion.receipt === 'string'
@@ -467,7 +482,8 @@ async function loadEnvelope(): Promise<MirrorOutboxEnvelope> {
     try {
         raw = await adapter.getItem(MIRROR_OUTBOX_STORAGE_KEY);
     } catch {
-        outboxCorruptThisSession = true;
+        // A transient read failure returns the safe default WITHOUT latching the
+        // corrupt flag: there is no durable evidence the payload is untrustable.
         return emptyEnvelope();
     }
     if (!raw) return emptyEnvelope();
@@ -476,12 +492,12 @@ async function loadEnvelope(): Promise<MirrorOutboxEnvelope> {
     try {
         parsed = JSON.parse(raw);
     } catch {
-        await quarantineCorruptPayload(raw);
+        latchCorruptQuarantine();
         return emptyEnvelope();
     }
     const envelope = coerceEnvelope(parsed);
     if (!envelope) {
-        await quarantineCorruptPayload(raw);
+        latchCorruptQuarantine();
         return emptyEnvelope();
     }
     if (envelope.completionGuard && !quarantineState) {
@@ -491,14 +507,14 @@ async function loadEnvelope(): Promise<MirrorOutboxEnvelope> {
     return envelope;
 }
 
-async function quarantineCorruptPayload(raw: string): Promise<void> {
+/**
+ * Set the in-memory corrupt latch. Never persists a second copy of the payload:
+ * the untrusted bytes stay at the owned key (so a restart re-derives the latch)
+ * but are never written anywhere else, and the outbox fails closed to the
+ * safe-default envelope until recovery reconciles the corruption.
+ */
+function latchCorruptQuarantine(): void {
     outboxCorruptThisSession = true;
-    try {
-        await adapter.setItem(MIRROR_OUTBOX_CORRUPT_BACKUP_KEY, raw);
-        await adapter.removeItem(MIRROR_OUTBOX_STORAGE_KEY);
-    } catch {
-        // The payload stays on disk; the outbox still fails closed.
-    }
 }
 
 function enforceContentFree(value: unknown, path = 'root'): void {
@@ -522,19 +538,44 @@ async function saveEnvelope(envelope: MirrorOutboxEnvelope): Promise<void> {
 }
 
 function quarantineActive(): boolean {
+    // An un-reconciled corrupt outbox is always quarantined until recovery
+    // rebuilds a valid envelope; time alone never releases it.
+    if (outboxCorruptThisSession) return true;
     if (!quarantineState) return false;
     return nowMs() - quarantineState.startedAtMs < COMPLETION_QUARANTINE_WINDOW_MS;
 }
 
-/** Returns the block reason for source mutation, or null when mutation is allowed. */
+/**
+ * Returns the block reason for outbox mutation, or null when mutation is
+ * allowed. While the corrupt latch is set every mutation is blocked until
+ * recovery/finalize reconciles the underlying issue: allowing a write would
+ * silently rebuild the outbox from untrustable bytes and lose the authority
+ * signals (bindingCommitment, cursors) that quarantine is meant to preserve.
+ */
 function mutationBlockReason(): 'quarantine' | null {
+    if (outboxCorruptThisSession) return 'quarantine';
     if (!quarantineState) return null;
     const elapsed = nowMs() - quarantineState.startedAtMs;
     if (elapsed < COMPLETION_QUARANTINE_WINDOW_MS) return 'quarantine';
-    // An unreconciled corrupt-outbox quarantine stays blocked until the
-    // recorded owner is verified; it must never silently rebuild to a stranger.
+    // startup_guard auto-releases by time (below): every server permit on that
+    // guard is expired, so local mutation cannot double-deliver; the stale guard
+    // is reconciled by finalizeStaleCompletionGuard, not silently dropped here.
+    // An unreconciled corrupt-outbox quarantine, by contrast, NEVER auto-releases
+    // by time: it stays blocked until the recorded owner is server-verified and
+    // the outbox is rebuilt. It must never silently rebuild to a stranger.
     if (quarantineState.reason === 'outbox_corrupt_nonempty') return 'quarantine';
     return null;
+}
+
+/**
+ * Blocks only when the outbox is an un-reconciled corrupt payload. Guard
+ * lifecycle writes (begin / mark-outcome-unknown) must still run INSIDE the
+ * quarantine window — they are how the coordinator records and resolves the
+ * guard — so they are blocked by the corrupt latch alone, never by an active
+ * startup_guard window.
+ */
+function corruptLatchBlockReason(): 'quarantine' | null {
+    return outboxCorruptThisSession ? 'quarantine' : null;
 }
 
 function maxPendingSources(): number {
@@ -626,9 +667,11 @@ export async function reportInvalidSource(
     });
 }
 
-export async function resetMirrorSuspension(): Promise<{ ok: boolean }> {
+export async function resetMirrorSuspension(): Promise<{ ok: boolean; blocked?: boolean; reason?: 'quarantine' }> {
     return withLock(async () => {
         const envelope = await loadEnvelope();
+        const block = mutationBlockReason();
+        if (block) return { ok: false, blocked: true, reason: block };
         envelope.authState.suspended = false;
         envelope.authState.suspendedCode = null;
         envelope.authState.suspendedAt = null;
@@ -642,9 +685,11 @@ export async function resetMirrorSuspension(): Promise<{ ok: boolean }> {
 export async function acknowledgeSource(
     sourceId: string,
     input: { acceptedRevision: number; acceptedAt?: string },
-): Promise<{ ok: boolean; generation: number }> {
+): Promise<{ ok: boolean; generation: number; blocked?: boolean; reason?: 'quarantine' }> {
     return withLock(async () => {
         const envelope = await loadEnvelope();
+        const block = mutationBlockReason();
+        if (block) return { ok: false, generation: envelope.generation, blocked: true, reason: block };
         delete envelope.pendingSources[sourceId];
         envelope.acknowledgedCursors[sourceId] = {
             sourceRevision: input.acceptedRevision,
@@ -663,9 +708,11 @@ export async function recordMirrorAttempt(
         | { kind: 'tombstone'; sourceId: string; sinkId: string },
     errorCode: string,
     attemptedAtMs: number,
-): Promise<{ ok: boolean; suspended: boolean; suspensionCode: string | null }> {
+): Promise<{ ok: boolean; suspended: boolean; suspensionCode: string | null; blocked?: boolean; reason?: 'quarantine' }> {
     return withLock(async () => {
         const envelope = await loadEnvelope();
+        const block = mutationBlockReason();
+        if (block) return { ok: false, suspended: false, suspensionCode: null, blocked: true, reason: block };
         const suspend = (code: string): void => {
             envelope.authState.suspended = true;
             envelope.authState.suspendedCode = code;
@@ -796,6 +843,8 @@ export async function recordTombstoneAttempt(
 export async function acknowledgeDeletion(sourceId: string, sinkId: string): Promise<MirrorDeletionAckResult> {
     return withLock(async () => {
         const envelope = await loadEnvelope();
+        const block = mutationBlockReason();
+        if (block) return { ok: false, acknowledged: false, reason: block };
         const tombstone = envelope.tombstones[sourceId];
         if (!tombstone) return { ok: false, acknowledged: false, reason: 'unknown_tombstone' };
         delete tombstone.sinkStates[sinkId];
@@ -852,9 +901,11 @@ export async function beginCompletionGuard(input: {
     manifestId: string;
     generation: number;
     serverExpiresAt: string;
-}): Promise<{ ok: boolean; guard: MirrorCompletionGuard }> {
+}): Promise<{ ok: boolean; guard: MirrorCompletionGuard | null; blocked?: boolean; reason?: 'quarantine' }> {
     return withLock(async () => {
         const envelope = await loadEnvelope();
+        const block = corruptLatchBlockReason();
+        if (block) return { ok: false, guard: null, blocked: true, reason: block };
         const guard: MirrorCompletionGuard = {
             permitId: input.permitId,
             manifestId: input.manifestId,
@@ -870,9 +921,13 @@ export async function beginCompletionGuard(input: {
     });
 }
 
-export async function markCompletionOutcomeUnknown(): Promise<{ ok: boolean; guard: MirrorCompletionGuard | null }> {
+export async function markCompletionOutcomeUnknown(): Promise<
+    { ok: boolean; guard: MirrorCompletionGuard | null; blocked?: boolean; reason?: 'quarantine' }
+> {
     return withLock(async () => {
         const envelope = await loadEnvelope();
+        const block = corruptLatchBlockReason();
+        if (block) return { ok: false, guard: null, blocked: true, reason: block };
         if (!envelope.completionGuard) return { ok: true, guard: null };
         envelope.completionGuard.outcomeUnknown = true;
         await saveEnvelope(envelope);
@@ -912,9 +967,17 @@ export async function finalizeStaleCompletionGuard(): Promise<
         const envelope = await loadEnvelope();
         if (!envelope.completionGuard && !quarantineState) return { ok: true, generation: envelope.generation };
         if (quarantineActive()) return { ok: false, blocked: true, reason: 'quarantine' };
+        // Only the startup-guard quarantine is reconciled here. A corrupt-outbox
+        // quarantine is recovered exclusively by recoverMirrorOutbox (owner-
+        // verified rebuild); finalize must not collapse the guard state for it.
+        if (quarantineState && quarantineState.reason !== 'startup_guard') {
+            return { ok: false, blocked: true, reason: 'quarantine' };
+        }
         envelope.completionGuard = null;
         envelope.generation += 1;
         quarantineState = null;
+        // Rebuilding a valid envelope reconciles any corrupt latch too.
+        outboxCorruptThisSession = false;
         await saveEnvelope(envelope);
         notifyChanged();
         return { ok: true, generation: envelope.generation };
@@ -947,7 +1010,14 @@ export async function recoverMirrorOutbox(input: MirrorRecoveryInput): Promise<M
         if (corruptTrigger && !quarantineState) {
             quarantineState = { reason: 'outbox_corrupt_nonempty', startedAtMs: nowMs() };
         }
-        if (!quarantineState) return { status: 'ready' };
+        if (!quarantineState) {
+            // Nothing needed recovery. A corrupt outbox over an EMPTY/unbound
+            // dataset never demands quarantine (no authority to protect), so
+            // recovery reconciles it by releasing the latch: the next valid write
+            // simply rebuilds the envelope from the safe default.
+            outboxCorruptThisSession = false;
+            return { status: 'ready' };
+        }
 
         const remainingMs = COMPLETION_QUARANTINE_WINDOW_MS - (nowMs() - quarantineState.startedAtMs);
         if (remainingMs > 0) {
@@ -963,13 +1033,22 @@ export async function recoverMirrorOutbox(input: MirrorRecoveryInput): Promise<M
             envelope.completionGuard = null;
             envelope.generation += 1;
             quarantineState = null;
+            // A rebuilt valid envelope clears any corrupt latch; no future read
+            // re-arms a fresh window for the recovered state.
+            outboxCorruptThisSession = false;
             await saveEnvelope(envelope);
             notifyChanged();
             return { status: 'recovered', ownerId: envelope.bindingCommitment?.ownerId ?? null, generation: envelope.generation };
         }
 
+        // A rebuild requires SERVER-verified ownership. Session identity alone
+        // (currentSessionOwnerId) must never drive a rebuild: the whole point of
+        // the corrupt-outbox quarantine is that a fresh session claiming a
+        // nonempty dataset cannot walk off with it until the server confirms the
+        // original owner. When the binding never recorded an owner there is
+        // nothing to protect, so a server-verified (or absent) owner may proceed.
         const recordedOwner = input.recordedOwnerId ?? envelope.bindingCommitment?.ownerId ?? null;
-        const verifiedOwner = input.serverVerifiedOwnerId ?? input.currentSessionOwnerId;
+        const verifiedOwner = input.serverVerifiedOwnerId;
         if (recordedOwner !== null && verifiedOwner !== recordedOwner) {
             return { status: 'requires_original_owner', ownerId: recordedOwner };
         }
@@ -978,6 +1057,7 @@ export async function recoverMirrorOutbox(input: MirrorRecoveryInput): Promise<M
         }
         envelope.generation += 1;
         quarantineState = null;
+        outboxCorruptThisSession = false;
         await saveEnvelope(envelope);
         notifyChanged();
         return {
@@ -1005,6 +1085,8 @@ export async function reportMirrorCapacity(): Promise<MirrorCapacityReport> {
 export async function setConsentState(input: MirrorConsentInput): Promise<MirrorMarkResult> {
     return withLock(async () => {
         const envelope = await loadEnvelope();
+        const block = mutationBlockReason();
+        if (block) return { applied: false, blocked: true, reason: block };
         envelope.consentState = {
             ownerId: input.ownerId,
             localDatasetId: input.localDatasetId,
@@ -1050,6 +1132,8 @@ export async function setDeploymentState(input: {
 }): Promise<MirrorMarkResult> {
     return withLock(async () => {
         const envelope = await loadEnvelope();
+        const block = mutationBlockReason();
+        if (block) return { applied: false, blocked: true, reason: block };
         envelope.deploymentId = input.deploymentId;
         envelope.writerEpoch = input.writerEpoch;
         envelope.greatestAcceptedAuthorityVersion = input.greatestAcceptedAuthorityVersion;
@@ -1062,6 +1146,8 @@ export async function setDeploymentState(input: {
 export async function setVerifiedUnion(receipt: MirrorVerifiedUnionReceipt): Promise<MirrorMarkResult> {
     return withLock(async () => {
         const envelope = await loadEnvelope();
+        const block = mutationBlockReason();
+        if (block) return { applied: false, blocked: true, reason: block };
         envelope.lastVerifiedUnion = receipt;
         await saveEnvelope(envelope);
         notifyChanged();
@@ -1072,6 +1158,8 @@ export async function setVerifiedUnion(receipt: MirrorVerifiedUnionReceipt): Pro
 export async function setActiveManifest(manifest: MirrorOutboxEnvelope['activeManifest']): Promise<MirrorMarkResult> {
     return withLock(async () => {
         const envelope = await loadEnvelope();
+        const block = mutationBlockReason();
+        if (block) return { applied: false, blocked: true, reason: block };
         envelope.activeManifest = manifest;
         await saveEnvelope(envelope);
         notifyChanged();
@@ -1093,7 +1181,6 @@ export async function clearMirrorOutbox(): Promise<void> {
     await withLock(async () => {
         try {
             await adapter.removeItem(MIRROR_OUTBOX_STORAGE_KEY);
-            await adapter.removeItem(MIRROR_OUTBOX_CORRUPT_BACKUP_KEY);
         } finally {
             outboxCorruptThisSession = false;
             quarantineState = null;

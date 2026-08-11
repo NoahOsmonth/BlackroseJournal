@@ -1,6 +1,5 @@
 import {
     COMPLETION_QUARANTINE_WINDOW_MS,
-    MIRROR_OUTBOX_CORRUPT_BACKUP_KEY,
     MIRROR_OUTBOX_STORAGE_KEY,
     MIRROR_RETRY_BASE_MS,
 } from '@/services/memory/cloud/mirrorOutbox';
@@ -137,7 +136,7 @@ describe('mirrorOutbox recovery', () => {
             reconstructedCommitment: committed,
         });
         expect(first.status).toBe('quarantined');
-        expect(adapter.store.get(MIRROR_OUTBOX_CORRUPT_BACKUP_KEY)).toBe('{corrupt outbox bytes');
+        expect(adapter.store.get(MIRROR_OUTBOX_STORAGE_KEY)).toBe('{corrupt outbox bytes');
         expect(await outbox.isMirrorQuarantineActive()).toBe(true);
 
         const blocked = await outbox.markSourceDirty(candidate());
@@ -201,5 +200,99 @@ describe('mirrorOutbox recovery', () => {
         const blocked = await outbox.markSourceDirty(candidate());
         expect(blocked.applied).toBe(false);
         if (blocked.applied === false) expect(blocked.reason).toBe('quarantine');
+    });
+
+    it('does not re-arm a fresh quarantine window after a successful recovery', async () => {
+        const adapter = createMemoryAdapter();
+        const now = { ms: 6_000_000 };
+        adapter.store.set(MIRROR_OUTBOX_STORAGE_KEY, '{corrupt outbox bytes');
+
+        const outbox = freshOutbox(adapter, () => now.ms);
+        const committed = {
+            bindingSchemaVersion: 1,
+            localDatasetId: 'dset-A',
+            ownerId: 'A',
+            serverDatasetId: null,
+            greatestKnownGeneration: 0,
+            enrolledAt: null,
+        };
+        const recovery = {
+            datasetBound: true,
+            datasetNonEmpty: true,
+            recordedOwnerId: 'A',
+            currentSessionOwnerId: 'A',
+            serverVerifiedOwnerId: 'A',
+            reconstructedCommitment: committed,
+        };
+
+        const first = await outbox.recoverMirrorOutbox(recovery);
+        expect(first.status).toBe('quarantined');
+
+        now.ms += COMPLETION_QUARANTINE_WINDOW_MS + 10;
+        const second = await outbox.recoverMirrorOutbox(recovery);
+        expect(second.status).toBe('recovered');
+
+        // Enough time for a fresh would-be window to elapse: the issuer must NOT
+        // re-derive a corrupt-outbox quarantine from the earlier recovery.
+        now.ms += COMPLETION_QUARANTINE_WINDOW_MS + 10;
+        const third = await outbox.recoverMirrorOutbox(recovery);
+        expect(third.status).toBe('ready');
+        expect((await outbox.getMirrorQuarantine()).active).toBe(false);
+    });
+
+    it('blocks a source mutation until recovery for a corrupt outbox over nonempty data', async () => {
+        const adapter = createMemoryAdapter();
+        const now = { ms: 7_000_000 };
+        adapter.store.set(MIRROR_OUTBOX_STORAGE_KEY, '{corrupt outbox');
+
+        const outbox = freshOutbox(adapter, () => now.ms);
+
+        // The coordinator's startup recovery has not run yet: a source mutation
+        // must not silently rebuild the outbox unquarantined.
+        const blocked = await outbox.markSourceDirty(candidate());
+        expect(blocked.applied).toBe(false);
+        if (blocked.applied === false) expect(blocked.reason).toBe('quarantine');
+        // The untrusted payload is never rewritten as a valid envelope.
+        expect(adapter.store.get(MIRROR_OUTBOX_STORAGE_KEY)).toBe('{corrupt outbox');
+
+        // Recovery still drives the FULL fresh window before the outbox may be
+        // rebuilt (the block alone does not shorten the permit quarantine).
+        const quarantined = await outbox.recoverMirrorOutbox({
+            datasetBound: true,
+            datasetNonEmpty: true,
+            recordedOwnerId: 'A',
+            currentSessionOwnerId: 'A',
+            serverVerifiedOwnerId: 'A',
+            reconstructedCommitment: {
+                bindingSchemaVersion: 1,
+                localDatasetId: 'dset-A',
+                ownerId: 'A',
+                serverDatasetId: null,
+                greatestKnownGeneration: 0,
+                enrolledAt: null,
+            },
+        });
+        expect(quarantined.status).toBe('quarantined');
+
+        now.ms += COMPLETION_QUARANTINE_WINDOW_MS + 10;
+        const recovered = await outbox.recoverMirrorOutbox({
+            datasetBound: true,
+            datasetNonEmpty: true,
+            recordedOwnerId: 'A',
+            currentSessionOwnerId: 'A',
+            serverVerifiedOwnerId: 'A',
+            reconstructedCommitment: {
+                bindingSchemaVersion: 1,
+                localDatasetId: 'dset-A',
+                ownerId: 'A',
+                serverDatasetId: null,
+                greatestKnownGeneration: 0,
+                enrolledAt: null,
+            },
+        });
+        expect(recovered.status).toBe('recovered');
+
+        const applied = await outbox.markSourceDirty(candidate());
+        expect(applied.applied).toBe(true);
     });
 });

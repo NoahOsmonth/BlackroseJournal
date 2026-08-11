@@ -46,7 +46,8 @@ export type DatasetReconcileResult =
     | { status: 'bound'; ownerId: string }
     | { status: 'repaired'; ownerId: string }
     | { status: 'requires_original_owner'; ownerId: string }
-    | { status: 'binding_recovery_required' };
+    | { status: 'binding_recovery_required' }
+    | { status: 'outbox_recovery_required'; ownerId: string };
 
 export interface DatasetBindingStorageAdapter {
     getItem(key: string): Promise<string | null>;

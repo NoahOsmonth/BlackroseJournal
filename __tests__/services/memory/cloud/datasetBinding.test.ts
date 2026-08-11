@@ -1,5 +1,6 @@
 import {
     MIRROR_OUTBOX_STORAGE_KEY,
+    clearMirrorOutbox,
     resetMirrorOutboxStorageAdapter,
     setMirrorOutboxStorageAdapter,
 } from '@/services/memory/cloud/mirrorOutbox';
@@ -48,6 +49,7 @@ describe('dataset binding and mirror status', () => {
 
     afterEach(async () => {
         await clearDatasetBinding();
+        await clearMirrorOutbox();
         resetDatasetBindingStorageAdapter();
         resetMirrorOutboxStorageAdapter();
         resetMirrorStatusWiring();

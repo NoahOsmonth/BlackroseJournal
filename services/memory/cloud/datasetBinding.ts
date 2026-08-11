@@ -331,7 +331,12 @@ export async function reconcileDatasetBinding(input: {
         if (needsReconstruction) {
             if (input.serverVerifiedOwnerId === binding.ownerId) {
                 const written = await setBindingReplica(commitmentFromBinding(binding));
-                if (!written.applied) return { status: 'requires_original_owner', ownerId: binding.ownerId };
+                if (!written.applied) {
+                    // The mirror outbox is quarantined (corrupt/missing over
+                    // nonempty data); the coordinator must run outbox recovery
+                    // before this binding repair may write its replica.
+                    return { status: 'outbox_recovery_required', ownerId: binding.ownerId };
+                }
                 if (binding.replicaWritePhase !== 'complete') {
                     binding.replicaWritePhase = 'complete';
                 }

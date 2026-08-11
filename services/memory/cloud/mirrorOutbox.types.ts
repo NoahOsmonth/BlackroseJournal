@@ -197,8 +197,16 @@ export interface MirrorCapacityReport {
 export interface MirrorRecoveryInput {
     datasetBound: boolean;
     datasetNonEmpty: boolean;
+    /** Owner recorded in the surviving primary binding/replica, if any. */
     recordedOwnerId: string | null;
+    /**
+     * Owner identity of the current session. Retained for coordinator context
+     * only — it NEVER authorizes a corrupt-outbox rebuild. A rebuild of a
+     * quarantined outbox requires `serverVerifiedOwnerId` to match the recorded
+     * owner (a fresh session must not walk off with a nonempty dataset).
+     */
     currentSessionOwnerId: string | null;
+    /** Server-confirmed owner identity; the only identity that authorizes rebuild. */
     serverVerifiedOwnerId: string | null;
     reconstructedCommitment: MirrorDatasetBindingCommitment | null;
 }

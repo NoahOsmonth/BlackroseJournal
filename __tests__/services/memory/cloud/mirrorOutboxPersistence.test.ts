@@ -1,5 +1,4 @@
 import {
-    MIRROR_OUTBOX_CORRUPT_BACKUP_KEY,
     MIRROR_OUTBOX_SCHEMA_VERSION,
     MIRROR_OUTBOX_STORAGE_KEY,
     acknowledgeDeletion,
@@ -116,8 +115,10 @@ describe('mirrorOutbox persistence', () => {
         const snap = await getEnvelopeSnapshot();
         expect(snap.schemaVersion).toBe(MIRROR_OUTBOX_SCHEMA_VERSION);
         expect(snap.pendingSources).toEqual({});
-        expect(await adapter.getItem(MIRROR_OUTBOX_STORAGE_KEY)).toBeNull();
-        expect(adapter.store.get(MIRROR_OUTBOX_CORRUPT_BACKUP_KEY)).not.toBeNull();
+        // Untrusted payload stays at the owned key (no second copy ever) and
+        // source mutation is blocked until the outbox is reconciled.
+        expect([...adapter.store.keys()]).toEqual([MIRROR_OUTBOX_STORAGE_KEY]);
+        expect(await markSourceDirty(candidate())).toMatchObject({ applied: false });
     });
 
     it('quarantines a corrupt envelope and fails closed without trusting garbage', async () => {
@@ -126,8 +127,11 @@ describe('mirrorOutbox persistence', () => {
         const snap = await getEnvelopeSnapshot();
         expect(snap.schemaVersion).toBe(MIRROR_OUTBOX_SCHEMA_VERSION);
         expect(snap.pendingSources).toEqual({});
-        expect(await adapter.getItem(MIRROR_OUTBOX_STORAGE_KEY)).toBeNull();
-        expect(adapter.store.get(MIRROR_OUTBOX_CORRUPT_BACKUP_KEY)).toBe('{definitely not json');
+        // The owned key alone retains the corrupt bytes (never copied to a
+        // backup key); the payload is never trusted for source mutation.
+        expect(adapter.store.get(MIRROR_OUTBOX_STORAGE_KEY)).toBe('{definitely not json');
+        expect([...adapter.store.keys()]).toEqual([MIRROR_OUTBOX_STORAGE_KEY]);
+        expect(await markSourceDirty(candidate())).toMatchObject({ applied: false });
     });
 
     it('never stores source prose: content fields are structurally impossible and absent', async () => {
@@ -272,5 +276,19 @@ describe('mirrorOutbox persistence', () => {
         const third = await recordMirrorAttempt({ kind: 'source', sourceId: 'journal:entry-1' }, '403', 3000);
         expect(third.suspended).toBe(true);
         expect(third.suspensionCode).toBe('403');
+    });
+
+    it('migrates a legacy v1 payload that predates the tombstone ledger', async () => {
+        adapter.store.set(MIRROR_OUTBOX_STORAGE_KEY, JSON.stringify({
+            schemaVersion: 1,
+            generation: 0,
+            acknowledgedCursors: {},
+            pendingSources: {},
+        }));
+
+        const snap = await getEnvelopeSnapshot();
+        expect(snap.schemaVersion).toBe(MIRROR_OUTBOX_SCHEMA_VERSION);
+        expect(snap.tombstones).toEqual({});
+        expect(adapter.store.has(MIRROR_OUTBOX_STORAGE_KEY)).toBe(true);
     });
 });
