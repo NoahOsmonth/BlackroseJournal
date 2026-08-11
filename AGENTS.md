@@ -209,6 +209,8 @@ Registry: `services/ai/tools/*`. Agent loop: `services/ai/agentLoop.ts`. Wired f
 | `@blackrose_custom_ai_provider` (OpenRouter/custom provider, freeOnly, recentModelIds, selected model) | `services/ai/customModels.ts` |
 | `@blackrose_generation_settings` | `services/ai/generationSettings.ts` |
 | `@blackrose_model_context_cache` | `services/ai/modelContext.ts` |
+| `@rosebud_cloud_memory_mirror_outbox` (content-free durable mirror work outbox; never holds prose) | `services/memory/cloud/mirrorOutbox.ts` |
+| `@rosebud_memory_dataset_binding` (dataset-to-owner binding, replicated into outbox; Task 8 adds journal/check-in replicas) | `services/memory/cloud/datasetBinding.ts` |
 | chat autosave sessions | `services/ai/sessionStorage.ts` |
 
 View-model types must not reuse a stored type's name (e.g. `MemoryGraphAtom` is the graph display model — ISO dates, 1–10 salience — never write it back to storage).
