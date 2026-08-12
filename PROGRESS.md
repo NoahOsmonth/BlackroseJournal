@@ -2198,6 +2198,43 @@
       error lines, or missing-listener evidence.
 
 
+- **2026-08-12**: Cloud memory Phase 1 MIRROR ingestion — atomic PostgreSQL RPC schema
+  completed on `codex/cloud-memory-phase-1-mirror` (Task 4).
+  - **Scope and authority**:
+    - Added the Phase 1 MIRROR schema: owner allowlist, minute/day rate budgets,
+      import manifests, chunks, import-items staging, completion permits, conversation and
+      message revisions, current/parity views (security-invoker), and 9 mutator + 2 reader
+      RPCs. Local mode never reaches the network; all verification ran against a clean local
+      Supabase, never the hosted `blackrose` project (Task 14 owns deployment).
+    - Canonical SQL (`backend/sql/migrations/0003_memory_mirror_ingestion.sql`) plus Supabase
+      overlay (`backend/sql/overlays/supabase/0002_memory_mirror_ingestion.sql`) are byte-joined
+      into one generated migration by a checkable builder
+      (`scripts/build-cloud-memory-phase1-migration.mjs`); generated output is never
+      hand-edited.
+  - **Verification**:
+    - pgTAP: **190/190 passed** across Phase 0 (53) and Phase 1 (137) after a clean reset.
+      Covers owner-gate/rate limits, staging ceilings, retained-revision 200k ceiling,
+      LOCAL->MIRROR bootstrap with only `cloudSourceMirroring`, exact preservation at
+      MIRROR/SHADOW/CLOUD, stale-authority-version failure with zero state change, completion
+      permits (expired/consumed/reused/wrong-owner/wrong-generation/too-late/quota/cleanup
+      keeps receipts), cumulative eligible-row union carry-forward, tombstone dominance,
+      RLS two-owner isolation through parity views, SECURITY DEFINER privilege enumeration,
+      table enumeration (5 new tables + 2 views, watermarks table never extended), and
+      repeated max-size 20k-message completions that compact to zero membership rows.
+    - Static contract Jest: **10/10 passed** (byte-current generation, LF attributes,
+      table/RPC enumeration, no Phase 0 edits, fencing).
+    - `supabase db lint --local`: no schema errors. Six sabotages each produced a focused
+      guard failure on the real local DB and returned green after restore: writer-assertion
+      removal, trusting the client hash, moving chunk receipt/membership writes out of the
+      chunk transaction, moving completion receipt/owner-union promotion out of the completion
+      transaction, exact-newest-manifest membership (lost the cumulative A-row carry),
+      and allowing an import to overwrite a deletion commitment.
+    - Per AGENTS.md phase sequencing, Phase 1 changes schema/contracts only: visible-response
+      memory authority remains `LOCAL`, cloud source upload stays disabled, and existing
+      on-device tools still supply the model.
+  - **Commits**: (single commit `feat(memory): add atomic mirror ingestion schema` recorded at
+    the end of Task 4).
+
 - **2026-07-29**: Cloud-memory roadmap final-phase portability resequencing verified.
   - **Approved sequence and retirement boundary**:
     - The user-approved delivery order is Phase 0, Phases 1–8, then Phase 9
