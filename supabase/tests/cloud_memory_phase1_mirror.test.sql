@@ -555,6 +555,32 @@ select extensions.is(
   'oversize chunk leaves no partial staged rows'
 );
 
+-- Out-of-order chunk index rejection: an index at/beyond the declared chunk
+-- bound is rejected before any staging (owner B's m-b1 declares exactly one
+-- chunk).
+select extensions.throws_ok($core$
+  select * from public.memory_accept_source_chunk_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000b',
+    '10000000-0000-4000-8000-00000000000b',
+    'm-b1', 1,
+    public.brj_chunk('m-b1', 1, jsonb_build_array(
+      public.brj_conv('cv-oob', 1, null, jsonb_build_array(
+        public.brj_msg('mq-oob', 'cv-oob', 'user', 0, 1, 'x', 'active', '2026-07-20T00:00:01+00:00')
+      ))
+    )),
+    public.brj_hash(public.brj_chunk('m-b1', 1, jsonb_build_array(
+      public.brj_conv('cv-oob', 1, null, jsonb_build_array(
+        public.brj_msg('mq-oob', 'cv-oob', 'user', 0, 1, 'x', 'active', '2026-07-20T00:00:01+00:00')
+      ))
+    ))))
+$core$, '22023', 'MIRROR_CHUNK_OUT_OF_ORDER', 'chunk index at the declared bound is out of order');
+select extensions.is(
+  (select count(*) from public.memory_import_chunks
+   where owner_id = '00000000-0000-4000-8000-00000000000b' and manifest_id = 'm-b1'),
+  0::bigint, 'out-of-order chunk leaves no chunk rows');
+
 -- Accept chunk 0 of m-a1.
 do $do$
 declare
@@ -1169,6 +1195,20 @@ select extensions.is(
    where owner_id = '00000000-0000-4000-8000-00000000000a' and id = 'm-tb1'),
   'cancelled', 'tombstone-blocked import is cancelled');
 
+-- A linked Phase 0 evidence span on a cv-a1 message revision is eligible before
+-- the tombstone; the tombstone must sweep it to 'deleted' (plan 5.4 effect 6).
+insert into public.memory_evidence_spans (
+  owner_id, message_revision_id, start_offset, end_offset, span_hash,
+  evidence_kind, eligibility
+)
+select '00000000-0000-4000-8000-00000000000a', revision.id, 0, 10,
+       'sha256:evidence', 'reflection', 'eligible'
+from public.memory_message_revisions revision
+where revision.owner_id = '00000000-0000-4000-8000-00000000000a'
+  and revision.message_id = 'mq-a1-0'
+  and revision.revision = 1
+  and revision.manifest_id = 'm-a1';
+
 -- Tombstone acceptance immediately makes existing eligible rows ineligible and
 -- removes them from the owner union, while A's cv-a1 stays visible before it.
 do $do$
@@ -1202,6 +1242,65 @@ select extensions.is(
   (select source_set_receipt from public.memory_owner_state
    where owner_id = '00000000-0000-4000-8000-00000000000a'),
   'tombstone ledger embeds the current owner-union receipt');
+
+-- Plan 5.4 effect 10: the stable tombstone receipt carries the ORIGINAL
+-- ineligibility counts (cv-a1 + its two messages were eligible before the
+-- sweep) alongside the resulting owner-union receipt.
+select extensions.is(
+  (select mirror_ineligible_conversation_count from public.memory_deletion_ledger
+   where owner_id = '00000000-0000-4000-8000-00000000000a'
+     and client_event_id = 'tb-a1-1'),
+  1, 'tombstone receipt records the original ineligible conversation count');
+select extensions.is(
+  (select mirror_ineligible_message_count from public.memory_deletion_ledger
+   where owner_id = '00000000-0000-4000-8000-00000000000a'
+     and client_event_id = 'tb-a1-1'),
+  2, 'tombstone receipt records the original ineligible message count');
+select extensions.is(
+  ((select mirror_receipt from public.memory_deletion_ledger
+    where owner_id = '00000000-0000-4000-8000-00000000000a'
+      and client_event_id = 'tb-a1-1') like 'mirror-tombstone:tb-a1-1:ineligible:c1:m2:%'),
+  true, 'tombstone receipt string embeds the original ineligibility counts');
+select extensions.is(
+  (select span.eligibility from public.memory_evidence_spans span
+   join public.memory_message_revisions revision
+     on revision.owner_id = span.owner_id
+     and revision.id = span.message_revision_id
+   where span.owner_id = '00000000-0000-4000-8000-00000000000a'
+     and revision.message_id = 'mq-a1-0'
+     and span.span_hash = 'sha256:evidence'),
+  'deleted', 'tombstone sweeps linked evidence spans to deleted');
+
+-- An identical tombstone retry returns the same stored counts/receipt without
+-- advancing the source-set version again (plan 5.4 effect 10).
+do $do$
+declare
+  v_result public.memory_deletion_ledger%rowtype;
+  v_before bigint;
+begin
+  select source_set_version into v_before
+    from public.memory_owner_state
+    where owner_id = '00000000-0000-4000-8000-00000000000a';
+  v_result := public.memory_apply_source_tombstone_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000a',
+    '10000000-0000-4000-8000-00000000000a',
+    'journal', 'entry-cv-a1', 4, 3, 'tb-a1-1',
+    now() - interval '30 minutes', 'USER_DELETE');
+  if v_result.mirror_ineligible_conversation_count is distinct from 1
+      or v_result.mirror_ineligible_message_count is distinct from 2
+      or (select source_set_version from public.memory_owner_state
+          where owner_id = '00000000-0000-4000-8000-00000000000a') <> v_before then
+    raise exception 'tombstone retry did not return the original counts idempotently';
+  end if;
+end
+$do$;
+select extensions.is(
+  (select mirror_ineligible_conversation_count from public.memory_deletion_ledger
+   where owner_id = '00000000-0000-4000-8000-00000000000a'
+     and client_event_id = 'tb-a1-1'),
+  1, 'identical tombstone retry keeps the original counts unchanged');
 
 -- The tombstone already advanced the owner union: the receipt changed and the
 -- tombstoned cv-a1 is immediately ineligible/deleted.
@@ -2173,6 +2272,472 @@ select extensions.is(
      and id in ('m-r1', 'm-r2')
      and status = 'verified'),
   2::bigint, 'exactly two bounded compact manifest receipts remain for G and G+1');
+
+-- ---------------------------------------------------------------------------
+-- Review prove items (owner D, generations 32+): conversation spanning chunks
+-- with contiguous slices, collision-safe sequence reorder, role/time-change
+-- revisions, validate count/hash-mismatch rejection, the 4096 receipt cap, and
+-- zero-item manifest behavior. D is CLOUD:2 here; finalization never demotes.
+-- ---------------------------------------------------------------------------
+
+-- A conversation safely spans chunks: chunk 0 carries messages seq 0-1 and
+-- chunk 1 carries the contiguous slice seq 2-3 of the same conversation.
+select extensions.lives_ok($core$
+  select * from public.brj_begin(
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d',
+    'm-s1', 32, 2, 1, 4)
+$core$, 'owner D begins a two-chunk spanning manifest');
+do $do$
+declare
+  v_permit uuid;
+begin
+  perform public.memory_accept_source_chunk_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d',
+    'm-s1', 0,
+    public.brj_chunk('m-s1', 0, jsonb_build_array(
+      public.brj_conv('cv-span', 1, null, jsonb_build_array(
+        public.brj_msg('mq-s0', 'cv-span', 'user', 0, 1, 's0-1', 'active', '2026-07-20T00:00:01+00:00'),
+        public.brj_msg('mq-s1', 'cv-span', 'assistant', 1, 1, 's1-1', 'active', '2026-07-20T00:00:02+00:00')
+      ))
+    )),
+    public.brj_hash(public.brj_chunk('m-s1', 0, jsonb_build_array(
+      public.brj_conv('cv-span', 1, null, jsonb_build_array(
+        public.brj_msg('mq-s0', 'cv-span', 'user', 0, 1, 's0-1', 'active', '2026-07-20T00:00:01+00:00'),
+        public.brj_msg('mq-s1', 'cv-span', 'assistant', 1, 1, 's1-1', 'active', '2026-07-20T00:00:02+00:00')
+      ))
+    ))));
+  perform public.memory_accept_source_chunk_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d',
+    'm-s1', 1,
+    public.brj_chunk('m-s1', 1, jsonb_build_array(
+      public.brj_conv('cv-span', 1, null, jsonb_build_array(
+        public.brj_msg('mq-s2', 'cv-span', 'user', 2, 1, 's2-1', 'active', '2026-07-20T00:00:03+00:00'),
+        public.brj_msg('mq-s3', 'cv-span', 'assistant', 3, 1, 's3-1', 'active', '2026-07-20T00:00:04+00:00')
+      ))
+    )),
+    public.brj_hash(public.brj_chunk('m-s1', 1, jsonb_build_array(
+      public.brj_conv('cv-span', 1, null, jsonb_build_array(
+        public.brj_msg('mq-s2', 'cv-span', 'user', 2, 1, 's2-1', 'active', '2026-07-20T00:00:03+00:00'),
+        public.brj_msg('mq-s3', 'cv-span', 'assistant', 3, 1, 's3-1', 'active', '2026-07-20T00:00:04+00:00')
+      ))
+    ))));
+  perform public.memory_validate_source_import_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d', 'm-s1');
+  v_permit := (select id from public.memory_prepare_source_completion_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d', 'm-s1',
+    (select authority_version from public.memory_owner_state where owner_id = '00000000-0000-4000-8000-00000000000d')));
+  perform public.memory_complete_source_import_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d',
+    'm-s1', v_permit,
+    (select authority_version from public.memory_owner_state where owner_id = '00000000-0000-4000-8000-00000000000d'),
+    (select prepared_hash from public.memory_import_manifests where owner_id = '00000000-0000-4000-8000-00000000000d' and id = 'm-s1'),
+    (select prepared_membership_hash from public.memory_import_manifests where owner_id = '00000000-0000-4000-8000-00000000000d' and id = 'm-s1'));
+end
+$do$;
+select extensions.is(
+  (select count(*) from public.memory_messages
+   where owner_id = '00000000-0000-4000-8000-00000000000d'
+     and conversation_id = 'cv-span' and eligibility = 'eligible'),
+  4::bigint, 'a conversation spanning chunks completes with all four messages eligible');
+select extensions.is(
+  (select array_agg(sequence order by sequence) from public.memory_messages
+   where owner_id = '00000000-0000-4000-8000-00000000000d'
+     and conversation_id = 'cv-span' and eligibility = 'eligible'),
+  array[0, 1, 2, 3]::integer[], 'spanning-chunk conversation keeps contiguous sequences');
+
+-- Contiguous-slice enforcement: a second chunk that resumes the conversation
+-- at the wrong slice (seq 2 when seq 1 was never staged in this manifest) is
+-- rejected with no partial rows.
+select extensions.lives_ok($core$
+  select * from public.brj_begin(
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d',
+    'm-s2', 33, 2, 1, 1)
+$core$, 'owner D begins the contiguous-slice probe manifest');
+do $do$
+begin
+  perform public.memory_accept_source_chunk_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d',
+    'm-s2', 0,
+    public.brj_chunk('m-s2', 0, jsonb_build_array(
+      public.brj_conv('cv-gap', 1, null, jsonb_build_array(
+        public.brj_msg('mq-g0', 'cv-gap', 'user', 0, 1, 'g0', 'active', '2026-07-20T00:00:01+00:00')
+      ))
+    )),
+    public.brj_hash(public.brj_chunk('m-s2', 0, jsonb_build_array(
+      public.brj_conv('cv-gap', 1, null, jsonb_build_array(
+        public.brj_msg('mq-g0', 'cv-gap', 'user', 0, 1, 'g0', 'active', '2026-07-20T00:00:01+00:00')
+      ))
+    ))));
+end
+$do$;
+select extensions.throws_ok($core$
+  select * from public.memory_accept_source_chunk_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d',
+    'm-s2', 1,
+    public.brj_chunk('m-s2', 1, jsonb_build_array(
+      public.brj_conv('cv-gap', 1, null, jsonb_build_array(
+        public.brj_msg('mq-g1', 'cv-gap', 'user', 2, 1, 'g1', 'active', '2026-07-20T00:00:02+00:00')
+      ))
+    )),
+    public.brj_hash(public.brj_chunk('m-s2', 1, jsonb_build_array(
+      public.brj_conv('cv-gap', 1, null, jsonb_build_array(
+        public.brj_msg('mq-g1', 'cv-gap', 'user', 2, 1, 'g1', 'active', '2026-07-20T00:00:02+00:00')
+      ))
+    ))))
+$core$, '22023', 'MIRROR_CHUNK_INVALID', 'non-contiguous slice across chunks is rejected');
+select extensions.is(
+  (select count(*) from public.memory_import_items
+   where owner_id = '00000000-0000-4000-8000-00000000000d'
+     and manifest_id = 'm-s2' and item_kind = 'message'),
+  1::bigint, 'only the accepted slice row remains after the gap rejection');
+do $do$
+begin
+  perform public.memory_cancel_source_import_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d', 'm-s2');
+end
+$do$;
+
+-- Collision-safe sequence reorder: mq-s0/mq-s1 swap sequences in one manifest;
+-- the two-step temporary-ordinal reorder inside completion makes the swap
+-- atomic under the non-deferrable unique (owner_id, conversation_id, sequence).
+select extensions.lives_ok($core$
+  select * from public.brj_begin(
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d',
+    'm-s3', 34, 1, 1, 2)
+$core$, 'owner D begins the sequence-reorder manifest');
+do $do$
+declare
+  v_permit uuid;
+begin
+  perform public.memory_accept_source_chunk_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d',
+    'm-s3', 0,
+    public.brj_chunk('m-s3', 0, jsonb_build_array(
+      public.brj_conv('cv-span', 2, 1, jsonb_build_array(
+        public.brj_msg('mq-s1', 'cv-span', 'assistant', 0, 2, 's1-2', 'active', '2026-07-20T00:00:02+00:00', 1),
+        public.brj_msg('mq-s0', 'cv-span', 'user', 1, 2, 's0-2', 'active', '2026-07-20T00:00:01+00:00', 1)
+      ))
+    )),
+    public.brj_hash(public.brj_chunk('m-s3', 0, jsonb_build_array(
+      public.brj_conv('cv-span', 2, 1, jsonb_build_array(
+        public.brj_msg('mq-s1', 'cv-span', 'assistant', 0, 2, 's1-2', 'active', '2026-07-20T00:00:02+00:00', 1),
+        public.brj_msg('mq-s0', 'cv-span', 'user', 1, 2, 's0-2', 'active', '2026-07-20T00:00:01+00:00', 1)
+      ))
+    ))));
+  perform public.memory_validate_source_import_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d', 'm-s3');
+  v_permit := (select id from public.memory_prepare_source_completion_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d', 'm-s3',
+    (select authority_version from public.memory_owner_state where owner_id = '00000000-0000-4000-8000-00000000000d')));
+  perform public.memory_complete_source_import_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d',
+    'm-s3', v_permit,
+    (select authority_version from public.memory_owner_state where owner_id = '00000000-0000-4000-8000-00000000000d'),
+    (select prepared_hash from public.memory_import_manifests where owner_id = '00000000-0000-4000-8000-00000000000d' and id = 'm-s3'),
+    (select prepared_membership_hash from public.memory_import_manifests where owner_id = '00000000-0000-4000-8000-00000000000d' and id = 'm-s3'));
+end
+$do$;
+select extensions.is(
+  (select array_agg(id || ':' || sequence order by sequence) from public.memory_messages
+   where owner_id = '00000000-0000-4000-8000-00000000000d'
+     and conversation_id = 'cv-span' and eligibility = 'eligible'),
+  array['mq-s1:0', 'mq-s0:1', 'mq-s2:2', 'mq-s3:3']::text[],
+  'collision-safe sequence reorder swaps the two messages atomically');
+
+-- Role/time changes are revision-worthy: a role change (user -> assistant) on
+-- mq-s0 and an authored-at change on mq-s1 are accepted at revision 3 with the
+-- exact previousAcceptedRevision CAS, appended as complete immutable revisions,
+-- and reflected on the current rows after completion.
+select extensions.lives_ok($core$
+  select * from public.brj_begin(
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d',
+    'm-s4', 35, 1, 1, 2)
+$core$, 'owner D begins the role/time-change manifest');
+do $do$
+declare
+  v_permit uuid;
+begin
+  perform public.memory_accept_source_chunk_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d',
+    'm-s4', 0,
+    public.brj_chunk('m-s4', 0, jsonb_build_array(
+      public.brj_conv('cv-span', 3, 2, jsonb_build_array(
+        public.brj_msg('mq-s1', 'cv-span', 'assistant', 0, 3, 's1-3', 'active', '2026-07-21T00:00:05+00:00', 2),
+        public.brj_msg('mq-s0', 'cv-span', 'assistant', 1, 3, 's0-3', 'active', '2026-07-21T00:00:01+00:00', 2)
+      ))
+    )),
+    public.brj_hash(public.brj_chunk('m-s4', 0, jsonb_build_array(
+      public.brj_conv('cv-span', 3, 2, jsonb_build_array(
+        public.brj_msg('mq-s1', 'cv-span', 'assistant', 0, 3, 's1-3', 'active', '2026-07-21T00:00:05+00:00', 2),
+        public.brj_msg('mq-s0', 'cv-span', 'assistant', 1, 3, 's0-3', 'active', '2026-07-21T00:00:01+00:00', 2)
+      ))
+    ))));
+  perform public.memory_validate_source_import_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d', 'm-s4');
+  v_permit := (select id from public.memory_prepare_source_completion_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d', 'm-s4',
+    (select authority_version from public.memory_owner_state where owner_id = '00000000-0000-4000-8000-00000000000d')));
+  perform public.memory_complete_source_import_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d',
+    'm-s4', v_permit,
+    (select authority_version from public.memory_owner_state where owner_id = '00000000-0000-4000-8000-00000000000d'),
+    (select prepared_hash from public.memory_import_manifests where owner_id = '00000000-0000-4000-8000-00000000000d' and id = 'm-s4'),
+    (select prepared_membership_hash from public.memory_import_manifests where owner_id = '00000000-0000-4000-8000-00000000000d' and id = 'm-s4'));
+end
+$do$;
+select extensions.is(
+  (select role from public.memory_message_revisions
+   where owner_id = '00000000-0000-4000-8000-00000000000d'
+     and message_id = 'mq-s0' and revision = 3 and manifest_id = 'm-s4'),
+  'assistant', 'role change is recorded on the immutable message revision');
+select extensions.is(
+  (select role from public.memory_messages
+   where owner_id = '00000000-0000-4000-8000-00000000000d' and id = 'mq-s0'),
+  'assistant', 'role change is reflected on the current message row');
+select extensions.is(
+  (select authored_at from public.memory_message_revisions
+   where owner_id = '00000000-0000-4000-8000-00000000000d'
+     and message_id = 'mq-s1' and revision = 3 and manifest_id = 'm-s4'),
+  '2026-07-21T00:00:05+00:00'::timestamptz, 'authored-at change is recorded on the revision');
+select extensions.is(
+  (select revision_provenance from public.memory_message_revisions
+   where owner_id = '00000000-0000-4000-8000-00000000000d'
+     and message_id = 'mq-s0' and revision = 3 and manifest_id = 'm-s4'),
+  'contiguous', 'role/time-change revision is contiguous, not invented');
+
+-- Validate rejects count mismatches: the manifest declares 2 sources but stages
+-- only 1 conversation.
+select extensions.lives_ok($core$
+  select * from public.brj_begin(
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d',
+    'm-v1', 36, 1, 2, 2)
+$core$, 'owner D begins a manifest that will fail count validation');
+do $do$
+begin
+  perform public.memory_accept_source_chunk_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d',
+    'm-v1', 0,
+    public.brj_chunk('m-v1', 0, jsonb_build_array(
+      public.brj_conv('cv-v1', 1, null, jsonb_build_array(
+        public.brj_msg('mq-v1', 'cv-v1', 'user', 0, 1, 'v1', 'active', '2026-07-20T00:00:01+00:00')
+      ))
+    )),
+    public.brj_hash(public.brj_chunk('m-v1', 0, jsonb_build_array(
+      public.brj_conv('cv-v1', 1, null, jsonb_build_array(
+        public.brj_msg('mq-v1', 'cv-v1', 'user', 0, 1, 'v1', 'active', '2026-07-20T00:00:01+00:00')
+      ))
+    ))));
+end
+$do$;
+select extensions.throws_ok($core$
+  select * from public.memory_validate_source_import_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d', 'm-v1')
+$core$, 'P0001', 'MIRROR_MANIFEST_COUNT_MISMATCH', 'validate rejects a declared/staged count mismatch');
+do $do$
+begin
+  perform public.memory_cancel_source_import_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d', 'm-v1');
+end
+$do$;
+
+-- Validate rejects a hash mismatch: the manifest's declared source hash does
+-- not match the independently recomputed chunk hash.
+select extensions.lives_ok($core$
+  select * from public.memory_begin_source_import_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d',
+    'm-v2', (select dataset_id from public.memory_owner_state where owner_id = '00000000-0000-4000-8000-00000000000d'),
+    1, 37, 1, 1, 1, 'sha256:deadbeef')
+$core$, 'owner D begins a manifest that will fail hash validation');
+do $do$
+begin
+  perform public.memory_accept_source_chunk_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d',
+    'm-v2', 0,
+    public.brj_chunk('m-v2', 0, jsonb_build_array(
+      public.brj_conv('cv-v2', 1, null, jsonb_build_array(
+        public.brj_msg('mq-v2', 'cv-v2', 'user', 0, 1, 'v2', 'active', '2026-07-20T00:00:01+00:00')
+      ))
+    )),
+    public.brj_hash(public.brj_chunk('m-v2', 0, jsonb_build_array(
+      public.brj_conv('cv-v2', 1, null, jsonb_build_array(
+        public.brj_msg('mq-v2', 'cv-v2', 'user', 0, 1, 'v2', 'active', '2026-07-20T00:00:01+00:00')
+      ))
+    ))));
+end
+$do$;
+select extensions.throws_ok($core$
+  select * from public.memory_validate_source_import_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d', 'm-v2')
+$core$, 'P0001', 'MIRROR_MANIFEST_HASH_MISMATCH', 'validate rejects a declared/chunk hash mismatch');
+do $do$
+begin
+  perform public.memory_cancel_source_import_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d', 'm-v2');
+end
+$do$;
+
+-- Zero-item manifest: an empty generation (0 chunks, 0 sources, 0 messages)
+-- completes without touching the prior owner union.
+do $do$
+declare
+  v_before_conv integer;
+  v_before_msg integer;
+  v_before_hash text;
+  v_permit uuid;
+begin
+  select source_set_conversation_count, source_set_message_count, source_set_hash
+  into v_before_conv, v_before_msg, v_before_hash
+  from public.memory_owner_state
+  where owner_id = '00000000-0000-4000-8000-00000000000d';
+  perform public.memory_begin_source_import_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d',
+    'm-z1', (select dataset_id from public.memory_owner_state where owner_id = '00000000-0000-4000-8000-00000000000d'),
+    1, 38, 0, 0, 0, null);
+  perform public.memory_validate_source_import_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d', 'm-z1');
+  v_permit := (select id from public.memory_prepare_source_completion_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d', 'm-z1',
+    (select authority_version from public.memory_owner_state where owner_id = '00000000-0000-4000-8000-00000000000d')));
+  perform public.memory_complete_source_import_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d',
+    'm-z1', v_permit,
+    (select authority_version from public.memory_owner_state where owner_id = '00000000-0000-4000-8000-00000000000d'),
+    (select prepared_hash from public.memory_import_manifests where owner_id = '00000000-0000-4000-8000-00000000000d' and id = 'm-z1'),
+    (select prepared_membership_hash from public.memory_import_manifests where owner_id = '00000000-0000-4000-8000-00000000000d' and id = 'm-z1'));
+  if (select source_set_conversation_count from public.memory_owner_state
+      where owner_id = '00000000-0000-4000-8000-00000000000d') is distinct from v_before_conv
+      or (select source_set_message_count from public.memory_owner_state
+          where owner_id = '00000000-0000-4000-8000-00000000000d') is distinct from v_before_msg
+      or (select source_set_hash from public.memory_owner_state
+          where owner_id = '00000000-0000-4000-8000-00000000000d') is distinct from v_before_hash then
+    raise exception 'zero-item completion changed the owner union';
+  end if;
+end
+$do$;
+select extensions.is(
+  (select status from public.memory_import_manifests
+   where owner_id = '00000000-0000-4000-8000-00000000000d' and id = 'm-z1'),
+  'verified', 'zero-item manifest completes verified');
+
+-- The 4096 compact-receipt ceiling: begin rejects once verified/cancelled
+-- manifests reach 4096.
+do $do$
+begin
+  insert into public.memory_import_manifests (
+    owner_id, id, contract_version, import_generation, declared_chunk_count,
+    source_count, message_count, status
+  )
+  select '00000000-0000-4000-8000-00000000000d',
+         'rc-' || g, 1, 1000 + g, 0, 0, 0, 'verified'
+  from generate_series(1, 4096 - (
+    select count(*) from public.memory_import_manifests
+    where owner_id = '00000000-0000-4000-8000-00000000000d'
+      and status in ('verified', 'cancelled')
+  )) g;
+end
+$do$;
+select extensions.throws_ok($core$
+  select * from public.memory_begin_source_import_v1(
+    'blackrose-primary', 1, '00000000-0000-4000-8000-000000000077',
+    'local-test-writer-token', 'sha256:local-source',
+    '00000000-0000-4000-8000-00000000000d',
+    '10000000-0000-4000-8000-00000000000d',
+    'm-rc', (select dataset_id from public.memory_owner_state where owner_id = '00000000-0000-4000-8000-00000000000d'),
+    1, 39, 1, 1, 1, null)
+$core$, 'P0001', 'MIRROR_RECEIPT_LIMIT', 'the 4096 compact-receipt ceiling rejects a new begin');
+do $do$
+begin
+  delete from public.memory_import_manifests
+  where owner_id = '00000000-0000-4000-8000-00000000000d'
+    and id like 'rc-%';
+end
+$do$;
 
 select * from extensions.finish();
 rollback;

@@ -2,6 +2,13 @@
 -- Forces RLS on every new Phase 1 table, fences direct table mutation from
 -- public/anon/authenticated/service_role, and grants each Phase 1 SECURITY
 -- DEFINER RPC to service_role only.
+--
+-- The Phase 1 tables are intentionally RPC-only: every privilege (including
+-- SELECT) is revoked from every role below, so no owner-scoped table policy
+-- could ever fire. Owner-scoped reads go through the security_invoker parity
+-- views (memory_current_source_*), whose underlying Phase 0 tables carry their
+-- own owner-access policies. RLS is still forced here as defense in depth so a
+-- future privilege grant cannot bypass the owner boundary.
 
 do $$
 declare table_name text;
@@ -16,12 +23,6 @@ begin
   loop
     execute format('alter table public.%I enable row level security', table_name);
     execute format('alter table public.%I force row level security', table_name);
-    execute format(
-      'create policy %I on public.%I for select to authenticated '
-      || 'using ((select auth.uid()) = owner_id)',
-      table_name || '_owner_select',
-      table_name
-    );
   end loop;
   -- memory_import_manifests / memory_import_chunks already carry owner-access
   -- policies from the Phase 0 overlay (0001); do not recreate them here.

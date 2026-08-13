@@ -2234,6 +2234,29 @@
       on-device tools still supply the model.
   - **Commits**: (single commit `feat(memory): add atomic mirror ingestion schema` recorded at
     the end of Task 4).
+  - **Follow-up review fixes (2026-08-13, same branch)**:
+    - Tombstone receipts now persist the ORIGINAL ineligibility counts
+      (`mirror_ineligible_conversation_count` / `mirror_ineligible_message_count` on
+      `memory_deletion_ledger`, measured before the eligibility sweeps) and embed them in
+      `mirror_receipt`; identical tombstone retries return them without re-advancing the
+      source-set version.
+    - Tombstone now sweeps linked Phase 0 `memory_evidence_spans` to `deleted` in the same
+      transaction (plan 5.4 effect 6).
+    - All 4 `extensions.digest` call sites in canonical SQL were swapped to core
+      `sha256(convert_to(...))` so the canonical file stays provider-agnostic (managed or
+      private PostgREST); byte-identical hex output.
+    - Added focused pgTAP prove items: collision-safe sequence reorder, conversation spanning
+      chunks with contiguous-slice enforcement, `MIRROR_CHUNK_OUT_OF_ORDER`, role/time-change
+      revisions, the 4096 receipt cap, and validate count/hash mismatch rejection.
+    - Removed the unreachable `MIRROR_ITEM_BYTE_LIMIT` per-message check (the chunk-level byte
+      check always fires first), narrowed `begin`'s catch-all unique-violation remap by
+      constraint name, removed the inert owner-scoped SELECT policies from the overlay, and
+      added a zero-item manifest test.
+    - pgTAP now **216/216 passed** (Phase 1 grew 137 -> 163); static contract 10/10, builder
+      `--check` byte-current, `supabase db lint --local` clean. Nine focused sabotages each
+      turned the exact new guard RED on the real local DB and returned GREEN after restore
+      (reorder, contiguous slice, out-of-order, role change, receipt cap, count mismatch,
+      hash mismatch, evidence-span sweep, ineligibility counts).
 
 - **2026-07-29**: Cloud-memory roadmap final-phase portability resequencing verified.
   - **Approved sequence and retirement boundary**:

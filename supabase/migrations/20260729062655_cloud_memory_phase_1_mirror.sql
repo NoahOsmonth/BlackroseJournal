@@ -122,11 +122,17 @@ alter table public.memory_message_revisions
   );
 
 -- ---------------------------------------------------------------------------
--- 5. Deletion ledger: stable tombstone receipts and resulting owner-union
---    metadata (additive; existing unique deletion keys are untouched).
+-- 5. Deletion ledger: stable tombstone receipts, the original ineligibility
+--    counts (rows this tombstone de-eligibilized, measured before its sweeps),
+--    and resulting owner-union metadata (additive; existing unique deletion
+--    keys are untouched).
 -- ---------------------------------------------------------------------------
 alter table public.memory_deletion_ledger
   add column mirror_receipt text,
+  add column mirror_ineligible_conversation_count integer
+    check (mirror_ineligible_conversation_count is null or mirror_ineligible_conversation_count >= 0),
+  add column mirror_ineligible_message_count integer
+    check (mirror_ineligible_message_count is null or mirror_ineligible_message_count >= 0),
   add column mirror_source_set_version bigint
     check (mirror_source_set_version is null or mirror_source_set_version >= 0),
   add column mirror_source_set_receipt text,
@@ -377,7 +383,7 @@ security definer
 set search_path = ''
 as $$
   select 'sha256:' || encode(
-    extensions.digest(convert_to(p_value::text, 'UTF8'), 'sha256'), 'hex'
+    sha256(convert_to(p_value::text, 'UTF8')), 'hex'
   )
 $$;
 
@@ -493,9 +499,8 @@ security definer
 set search_path = ''
 as $$
   select 'sha256:' || encode(
-    extensions.digest(
-      convert_to(public.memory_canonical_mirror_chunk(p_chunk), 'UTF8'),
-      'sha256'
+    sha256(
+      convert_to(public.memory_canonical_mirror_chunk(p_chunk), 'UTF8')
     ),
     'hex'
   )
@@ -620,9 +625,8 @@ begin
     and eligibility = 'eligible';
 
   select 'sha256:' || encode(
-    extensions.digest(
-      convert_to(coalesce(string_agg(value, E'\n' order by value), ''), 'UTF8'),
-      'sha256'
+    sha256(
+      convert_to(coalesce(string_agg(value, E'\n' order by value), ''), 'UTF8')
     ),
     'hex'
   )
@@ -836,6 +840,7 @@ as $$
 declare
   result public.memory_import_manifests%rowtype;
   owner_state public.memory_owner_state%rowtype;
+  v_constraint text;
 begin
   perform public.memory_assert_writer(
     p_deployment_id, p_writer_epoch, p_writer_lease_id,
@@ -929,7 +934,18 @@ begin
 
   return result;
 exception when unique_violation then
-  raise exception using errcode = 'PT409', message = 'ACTIVE_IMPORT_EXISTS';
+  -- Narrow the concurrent-insert race remap by constraint: only the
+  -- one-active-manifest fence legitimately means ACTIVE_IMPORT_EXISTS; a race
+  -- on the per-owner generation-unique index is a stale-generation conflict,
+  -- and any other unique violation is re-raised unchanged instead of being
+  -- mislabeled.
+  get stacked diagnostics v_constraint = constraint_name;
+  if v_constraint = 'memory_import_manifests_generation_unique' then
+    raise exception using errcode = 'PT409', message = 'MIRROR_GENERATION_STALE';
+  elsif v_constraint = 'memory_import_manifests_one_active_owner_idx' then
+    raise exception using errcode = 'PT409', message = 'ACTIVE_IMPORT_EXISTS';
+  end if;
+  raise;
 end;
 $$;
 
@@ -1271,9 +1287,6 @@ begin
           or message->>'conversationId' is distinct from v_conversation_id then
         raise exception using errcode = '22023', message = 'MIRROR_CHUNK_INVALID';
       end if;
-      if octet_length(convert_to(message::text, 'UTF8')) > 262144 then
-        raise exception using errcode = '22023', message = 'MIRROR_ITEM_BYTE_LIMIT';
-      end if;
       -- Exact message array order is authoritative for sequence; a conversation
       -- spans chunks with contiguous slices only (plan section 4.3/4.5).
       if (message->>'sequence')::integer <> v_staged_for_conv + v_message_ordinal then
@@ -1580,9 +1593,8 @@ begin
   end if;
 
   select 'sha256:' || encode(
-    extensions.digest(
-      convert_to(coalesce(string_agg(chunk_hash, E'\n' order by chunk_index), ''), 'UTF8'),
-      'sha256'
+    sha256(
+      convert_to(coalesce(string_agg(chunk_hash, E'\n' order by chunk_index), ''), 'UTF8')
     ),
     'hex'
   )
@@ -2053,9 +2065,11 @@ $$;
 
 -- ---------------------------------------------------------------------------
 -- 24. RPC: tombstone (plan 5.4). One transaction: content-equivalent
---     insert/replay of the deletion-ledger row, immediate eligibility removal,
---     future-import ineligibility, idempotent verify_deletion enqueue, and a
---     stable tombstone receipt with the resulting owner-union metadata.
+--     insert/replay of the deletion-ledger row, immediate eligibility removal
+--     of matching conversations/revisions/messages/evidence spans, future-import
+--     ineligibility, idempotent verify_deletion enqueue, and a stable tombstone
+--     receipt carrying the original ineligibility counts plus the resulting
+--     owner-union metadata (plan 5.4 effect 10).
 -- ---------------------------------------------------------------------------
 create or replace function public.memory_apply_source_tombstone_v1(
   p_deployment_id text,
@@ -2081,6 +2095,8 @@ declare
   result public.memory_deletion_ledger%rowtype;
   current_conversation public.memory_conversations%rowtype;
   owner_result public.memory_owner_state%rowtype;
+  v_ineligible_conversations integer := 0;
+  v_ineligible_messages integer := 0;
 begin
   perform public.memory_assert_writer(
     p_deployment_id, p_writer_epoch, p_writer_lease_id,
@@ -2141,6 +2157,24 @@ begin
     raise exception using errcode = 'PT409', message = 'MEMORY_IDEMPOTENCY_CONFLICT';
   end if;
 
+  -- Original ineligibility counts: the eligible conversation/message rows this
+  -- tombstone de-eligibilizes, measured BEFORE the sweeps below (plan 5.4
+  -- effect 10). A first-observed tombstone sees zero rows.
+  select count(*)
+  into v_ineligible_conversations
+  from public.memory_conversations
+  where owner_id = p_owner_id
+    and source_kind = p_source_kind
+    and source_record_id = p_source_id
+    and eligibility = 'eligible';
+
+  select count(*)
+  into v_ineligible_messages
+  from public.memory_messages
+  where owner_id = p_owner_id
+    and conversation_id = current_conversation.id
+    and eligibility = 'eligible';
+
   -- Immediate cloud ineligibility on accepted tombstone.
   update public.memory_conversations
   set status = 'deleted',
@@ -2166,6 +2200,17 @@ begin
   set eligibility = 'deleted'
   where owner_id = p_owner_id
     and conversation_id = current_conversation.id;
+  -- Plan 5.4 effect 6 also covers evidence spans: every evidence span linked to
+  -- a tombstoned message revision becomes 'deleted' in the same transaction.
+  update public.memory_evidence_spans
+  set eligibility = 'deleted'
+  where owner_id = p_owner_id
+    and message_revision_id in (
+      select revision.id
+      from public.memory_message_revisions revision
+      where revision.owner_id = p_owner_id
+        and revision.conversation_id = current_conversation.id
+    );
 
   perform public.memory_enqueue_job(
     p_deployment_id, p_writer_epoch, p_writer_lease_id,
@@ -2188,7 +2233,11 @@ begin
 
   update public.memory_deletion_ledger
   set mirror_receipt = 'mirror-tombstone:' || p_client_event_id
+      || ':ineligible:c' || v_ineligible_conversations
+      || ':m' || v_ineligible_messages
       || ':' || owner_result.source_set_receipt,
+      mirror_ineligible_conversation_count = v_ineligible_conversations,
+      mirror_ineligible_message_count = v_ineligible_messages,
       mirror_source_set_version = owner_result.source_set_version,
       mirror_source_set_receipt = owner_result.source_set_receipt,
       mirror_source_set_conversation_count = owner_result.source_set_conversation_count,
@@ -2285,6 +2334,13 @@ revoke all on function public.memory_mirror_refresh_owner_union(uuid, text) from
 -- Forces RLS on every new Phase 1 table, fences direct table mutation from
 -- public/anon/authenticated/service_role, and grants each Phase 1 SECURITY
 -- DEFINER RPC to service_role only.
+--
+-- The Phase 1 tables are intentionally RPC-only: every privilege (including
+-- SELECT) is revoked from every role below, so no owner-scoped table policy
+-- could ever fire. Owner-scoped reads go through the security_invoker parity
+-- views (memory_current_source_*), whose underlying Phase 0 tables carry their
+-- own owner-access policies. RLS is still forced here as defense in depth so a
+-- future privilege grant cannot bypass the owner boundary.
 
 do $$
 declare table_name text;
@@ -2299,12 +2355,6 @@ begin
   loop
     execute format('alter table public.%I enable row level security', table_name);
     execute format('alter table public.%I force row level security', table_name);
-    execute format(
-      'create policy %I on public.%I for select to authenticated '
-      || 'using ((select auth.uid()) = owner_id)',
-      table_name || '_owner_select',
-      table_name
-    );
   end loop;
   -- memory_import_manifests / memory_import_chunks already carry owner-access
   -- policies from the Phase 0 overlay (0001); do not recreate them here.
