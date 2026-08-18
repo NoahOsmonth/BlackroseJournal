@@ -16,9 +16,6 @@ function readEnv(key: string): string | undefined {
 const NOT_READY: ReadinessProvider = {
   getSnapshot: () => ({
     ai: false,
-    supabaseAuth: false,
-    postgrestGateway: false,
-    deploymentAuthority: false,
   }),
 };
 

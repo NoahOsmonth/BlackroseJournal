@@ -10,6 +10,12 @@ const REMOVED_RUNTIME_FILES = [
     'backend/src/config/simpleMemConfig.ts',
 ];
 
+// The abandoned custom cloud-memory implementation (LOCAL -> MIRROR -> SHADOW ->
+// CLOUD control plane: mirror outbox, dataset binding, source inventory, memory
+// authority). Zero references may remain in production sources.
+const FORBIDDEN_CLOUD_MEMORY =
+    /memory\/cloud|cloudMemory|cloudReadAuthority|mirrorOutbox|datasetBinding|sourceInventory|memoryAuthority/i;
+
 const CLIENT_SOURCE_DIRS = [
     'app',
     'components',
@@ -21,7 +27,21 @@ const CLIENT_SOURCE_DIRS = [
     'utils',
 ];
 
+const REMOVAL_SCAN_ROOTS = [
+    'app',
+    'components',
+    'hooks',
+    'services',
+    'backend/src',
+    'utils',
+    'constants',
+    'shared',
+];
+
 function sourceFiles(root: string): string[] {
+    if (!fs.existsSync(root)) {
+        return [];
+    }
     return fs.readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
         const absolute = path.join(root, entry.name);
         if (entry.isDirectory()) return sourceFiles(absolute);
@@ -29,7 +49,7 @@ function sourceFiles(root: string): string[] {
     });
 }
 
-describe('Phase 0 backend boundary', () => {
+describe('abandoned cloud-memory removal boundary', () => {
     it('removes Railway and SimpleMem runtime artifacts', () => {
         for (const file of REMOVED_RUNTIME_FILES) {
             expect(fs.existsSync(path.join(process.cwd(), file))).toBe(false);
@@ -48,17 +68,17 @@ describe('Phase 0 backend boundary', () => {
         }
     });
 
-    it('keeps visible-response memory local during Phase 0', () => {
-        const responsePathFiles = [
-            'features/chat/flows/index.ts',
-            'services/ai/ai.ts',
-            'services/ai/historyPrefetch.ts',
-        ];
-
-        for (const file of responsePathFiles) {
-            const source = fs.readFileSync(path.join(process.cwd(), file), 'utf-8');
-            expect(source).not.toMatch(/memory\/cloud|cloudMemory|cloudReadAuthority/);
+    it('keeps zero references to the abandoned cloud-memory implementation in production sources', () => {
+        const offenders: string[] = [];
+        for (const directory of REMOVAL_SCAN_ROOTS) {
+            const root = path.join(process.cwd(), directory);
+            for (const file of sourceFiles(root)) {
+                const source = fs.readFileSync(file, 'utf-8');
+                if (FORBIDDEN_CLOUD_MEMORY.test(source)) {
+                    offenders.push(file);
+                }
+            }
         }
+        expect(offenders).toEqual([]);
     });
 });
-
