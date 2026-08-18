@@ -3,13 +3,23 @@
 # Arch/CachyOS + Docker). Idempotent: re-running stops/recreates the container
 # but keeps the hindsight-laptop-data volume.
 #
-# The env below mirrors `docker inspect hindsight-test` on the dev machine
+# The env below mirrors `docker inspect hindsight-laptop` on the laptop
 # (2026-08-18 verified): image ghcr.io/vectorize-io/hindsight:latest, ports
-# 8888+9999, volume at /home/hindsight/.pg0, OpenRouter LLM + Google embeddings
-# at 768 dims. Secrets are never baked in — inject at runtime:
-#   HINDSIGHT_LLM_API_KEY           (OpenRouter)
-#   HINDSIGHT_GEMINI_EMBEDDINGS_API_KEY
-set -euo pipefail
+# 8888+9999, volume at /home/hindsight/.pg0, OpenRouter LLM + VOYAGE AI
+# embeddings (voyage-4-lite, 1024 dims) via Hindsight's OpenAI-compatible
+# provider with a custom base URL (https://api.voyageai.com/v1). Voyage
+# replaced local MiniLM/Gemini after free-tier quota issues; it returns an
+# OpenAI-shaped response and auto-detects 1024 dims via a startup test embed
+# — do NOT set HINDSIGHT_API_EMBEDDINGS_OPENAI_DIMENSIONS (Voyage rejects
+# OpenAI's `dimensions` param; its own knob is `output_dimension`).
+# NOTE: switching the embedding space does NOT migrate stored vectors — the
+# dimension guard refuses to boot with rows in the old space, so reset the
+# volume (or bank) after a switch and re-retain facts.
+# Secrets are never baked in — inject at runtime:
+#   HINDSIGHT_LLM_API_KEY                 (OpenRouter)
+#   HINDSIGHT_VOYAGE_EMBEDDINGS_API_KEY   (Voyage AI, pa-...)
+# POSIX-safe strict mode: the laptop's bash is dash-like and rejects pipefail.
+set -eu
 
 IMAGE="ghcr.io/vectorize-io/hindsight:latest"
 NAME="hindsight-laptop"
@@ -18,7 +28,7 @@ CORS_NAME="hindsight-cors"
 CORS_DIR="/home/sigmund/.hindsight-cors"
 
 : "${HINDSIGHT_LLM_API_KEY:?set HINDSIGHT_LLM_API_KEY (OpenRouter)}"
-: "${HINDSIGHT_GEMINI_EMBEDDINGS_API_KEY:?set HINDSIGHT_GEMINI_EMBEDDINGS_API_KEY}"
+: "${HINDSIGHT_VOYAGE_EMBEDDINGS_API_KEY:?set HINDSIGHT_VOYAGE_EMBEDDINGS_API_KEY (Voyage AI)}"
 
 docker rm -f "$NAME" >/dev/null 2>&1 || true
 docker volume create "$VOLUME" >/dev/null || true
@@ -31,10 +41,10 @@ docker run -d --name "$NAME" \
   -e HINDSIGHT_API_LLM_PROVIDER=openrouter \
   -e HINDSIGHT_API_LLM_API_KEY="$HINDSIGHT_LLM_API_KEY" \
   -e HINDSIGHT_API_LLM_MODEL=dots-studio/dots-3-note-preview:free \
-  -e HINDSIGHT_API_EMBEDDINGS_PROVIDER=google \
-  -e HINDSIGHT_API_EMBEDDINGS_GEMINI_API_KEY="$HINDSIGHT_GEMINI_EMBEDDINGS_API_KEY" \
-  -e HINDSIGHT_API_EMBEDDINGS_GEMINI_MODEL=gemini-embedding-001 \
-  -e HINDSIGHT_API_EMBEDDINGS_GEMINI_OUTPUT_DIMENSIONALITY=768 \
+  -e HINDSIGHT_API_EMBEDDINGS_PROVIDER=openai \
+  -e HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY="$HINDSIGHT_VOYAGE_EMBEDDINGS_API_KEY" \
+  -e HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL=https://api.voyageai.com/v1 \
+  -e HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL=voyage-4-lite \
   -e HINDSIGHT_API_WORKER_ID=hindsight-laptop \
   -e HINDSIGHT_API_HOST=0.0.0.0 \
   -e HINDSIGHT_API_PORT=8888 \
@@ -44,15 +54,15 @@ docker run -d --name "$NAME" \
   -e HINDSIGHT_ENABLE_CP=true \
   "$IMAGE"
 
-# Image may need pulling; wait up to 60s for health.
-for i in $(seq 1 60); do
+# Voyage needs no local model download; just wait up to 300s for health.
+for i in $(seq 1 300); do
   if curl -fsS http://localhost:8888/health >/dev/null 2>&1; then
     echo "health:200 after ${i}s"
     break
   fi
   sleep 1
-  if [ "$i" = 60 ]; then
-    echo "health check timed out after 60s" >&2
+  if [ "$i" = 300 ]; then
+    echo "health check timed out after 300s" >&2
     exit 1
   fi
 done

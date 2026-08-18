@@ -97,6 +97,13 @@ export interface UseChatOrchestrationOptions {
     flow?: ChatFlow;
     /** Inputs consumed by the active `flow`. */
     flowContext?: ChatFlowContext;
+    /**
+     * Optional turn-resolved recall context. When provided (and a `flow` is active),
+     * it is awaited before the send so the outgoing message's long-term recall lands
+     * in the system prompt for THIS turn. The reactive `flowContext` path lags one
+     * turn: it only updates after the message has already been frozen into the prompt.
+     */
+    resolveRecallContext?: (text: string) => Promise<string | undefined>;
     /** When provided, the conversation is debounced-autosaved to the session store. */
     persist?: ChatPersistOptions;
 }
@@ -141,6 +148,7 @@ export function useChatOrchestration({
     systemPrompt,
     flow,
     flowContext,
+    resolveRecallContext,
     persist,
 }: UseChatOrchestrationOptions): UseChatOrchestrationReturn {
     const [messages, setMessages] = useState<Message[]>([]);
@@ -467,6 +475,16 @@ export function useChatOrchestration({
         const tempStreamingId = beginStreaming();
 
         try {
+            // Resolve this turn's long-term recall BEFORE freezing the prompt. The
+            // reactive `flowContext` path only updates after this message lands, so it
+            // would starve the reply of its own recall (first message got none).
+            if (flow && resolveRecallContext) {
+                const recall = await resolveRecallContext(text).catch(() => undefined);
+                if (recall !== undefined) {
+                    setSystemPrompt(flow.buildSystemPrompt({ ...flowContext, retrievedHistoryContext: recall }));
+                }
+            }
+
             await sendMessage(
                 text,
                 (chunk, reasoning) => {
@@ -497,7 +515,7 @@ export function useChatOrchestration({
         } catch (error) {
             handleAiError(error instanceof Error ? error : new Error('Unknown error'));
         }
-    }, [sendMessage, scrollToBottom, focusInput, beginStreaming, clearError, handleAiError]);
+    }, [sendMessage, scrollToBottom, focusInput, beginStreaming, clearError, handleAiError, flow, resolveRecallContext, flowContext, setSystemPrompt]);
 
     const retryLastMessage = useCallback(async () => {
         if (!lastUserMessage || isLoading) {
@@ -510,6 +528,13 @@ export function useChatOrchestration({
         setChatMessages(messages.filter(message => message.id !== lastUserMessage.id));
 
         try {
+            if (flow && resolveRecallContext) {
+                const recall = await resolveRecallContext(lastUserMessage.content).catch(() => undefined);
+                if (recall !== undefined) {
+                    setSystemPrompt(flow.buildSystemPrompt({ ...flowContext, retrievedHistoryContext: recall }));
+                }
+            }
+
             await sendMessage(
                 lastUserMessage.content,
                 (chunk, reasoning) => {
@@ -540,7 +565,7 @@ export function useChatOrchestration({
         } catch (error) {
             handleAiError(error instanceof Error ? error : new Error('Unknown error'));
         }
-    }, [beginStreaming, clearError, focusInput, handleAiError, isLoading, lastUserMessage, messages, scrollToBottom, sendMessage, setChatMessages]);
+    }, [beginStreaming, clearError, focusInput, handleAiError, isLoading, lastUserMessage, messages, scrollToBottom, sendMessage, setChatMessages, flow, resolveRecallContext, flowContext, setSystemPrompt]);
 
     const handleNewChat = useCallback(() => {
         hasInitialized.current = false;

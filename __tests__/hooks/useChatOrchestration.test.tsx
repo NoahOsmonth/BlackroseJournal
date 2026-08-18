@@ -202,3 +202,61 @@ describe('useChatOrchestration initialPrompt + flow', () => {
         );
     });
 });
+
+describe('useChatOrchestration turn-resolved recall', () => {
+    const setSystemPrompt = (useChat as jest.Mock & { __mockSetSystemPrompt: jest.Mock })
+        .__mockSetSystemPrompt;
+    const useChatMock = useChat as jest.Mock;
+    const getSendMessage = () => useChatMock.mock.results.at(-1)?.value.sendMessage as jest.Mock;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+    });
+
+    it('awaits resolveRecallContext before send and re-freezes the prompt with this turn\'s recall', async () => {
+        let release: () => void = () => undefined;
+        const resolveRecallContext = jest.fn(
+            () =>
+                new Promise<string | undefined>((resolve) => {
+                    release = () =>
+                        resolve('## Relevant long-term context\n- sim=0.61 brass compass (Written 2026-08-18)');
+                })
+        );
+
+        let exposed: HookResult | null = null;
+
+        function RecallHarness() {
+            const scrollViewRef = useRef<ScrollView | null>(null);
+            const inputRef = useRef<InlineTypingInputRef | null>(null);
+            const recallHarness = useChatOrchestration({
+                scrollViewRef,
+                inputRef,
+                flow: FLOWS.freeform,
+                flowContext: {},
+                resolveRecallContext,
+            });
+            useEffect(() => {
+                exposed = recallHarness;
+            });
+            return null;
+        }
+
+        render(<RecallHarness />);
+
+        let sendDone: Promise<void>;
+        await act(async () => {
+            sendDone = exposed!.handleSendMessage('brass compass dad');
+            // The turn-resolved recall is still pending; sendMessage must NOT fire yet.
+            expect(getSendMessage()).not.toHaveBeenCalled();
+            await Promise.resolve();
+            release();
+            await sendDone;
+        });
+
+        expect(getSendMessage()).toHaveBeenCalledWith(expect.any(String), expect.any(Function), expect.any(Function), expect.any(Function));
+        // The frozen prompt contains the turn-specific recall block.
+        expect(setSystemPrompt).toHaveBeenCalledWith(
+            expect.stringContaining('- sim=0.61 brass compass')
+        );
+    });
+});

@@ -90,7 +90,7 @@ export default function ChatScreen() {
     const { context: recentDaysContext } = useRecentDaysContext({ days: 3 });
     const { context: identityContext } = useIdentityContext();
     const { goalsContext } = useGoalsContext();
-    const { context: hindsightRecallContext } = useHindsightRecallContext({ query: memoryCapsuleQuery });
+    const { context: hindsightRecallContext, recallFor } = useHindsightRecallContext({ query: memoryCapsuleQuery });
     const flow = resolvedMode === 'continue' ? FLOWS.continue : FLOWS.freeform;
     const flowContext = useMemo(
         () => ({
@@ -147,6 +147,7 @@ export default function ChatScreen() {
         conversationId,
         flow,
         flowContext,
+        resolveRecallContext: recallFor,
         persist,
         initialPrompt,
     });

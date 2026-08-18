@@ -9,3 +9,5 @@ backend/sql/migrations/0003_memory_mirror_ingestion.sql text eol=lf
 backend/sql/overlays/supabase/0002_memory_mirror_ingestion.sql text eol=lf
 scripts/build-cloud-memory-phase1-migration.mjs text eol=lf
 supabase/migrations/20260729062655_cloud_memory_phase_1_mirror.sql text eol=lf
+scripts/hindsight/deploy-laptop.sh text eol=lf
+scripts/hindsight/cors-proxy.mjs text eol=lf
