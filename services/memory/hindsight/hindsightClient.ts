@@ -23,7 +23,10 @@ export interface HindsightRecallHit {
     documentId?: string;
 }
 
-const TIMEOUTS = { recall: 2500, retain: 6000, reflect: 8000, health: 1500 } as const;
+// retain is fire-and-forget on the finish path; the container's first retain
+// of a new document_id runs a synchronous LLM extraction pass measured up to
+// ~19s (idempotent fast upsert afterwards), so keep the timeout above that.
+const TIMEOUTS = { recall: 2500, retain: 20000, reflect: 8000, health: 1500 } as const;
 
 type ChangeListener = () => void;
 const listeners = new Set<ChangeListener>();
