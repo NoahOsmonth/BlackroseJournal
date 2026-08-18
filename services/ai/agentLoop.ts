@@ -37,11 +37,16 @@ import {
     toolCallDedupeKey,
     type ToolCallOrigin,
 } from './tools/validateToolCalls';
-import type { AgentMessage, ToolCall } from './tools/types';
+import type { AgentMessage, ToolCall, ToolResult } from './tools/types';
 import type { Message } from './chatTypes';
 import { estimateTokensFromChars, extractUsageFromCompletion } from './promptBudget';
 
-export const MAX_AGENT_TOOL_ROUNDS = 3;
+/**
+ * Max non-streaming tool rounds per agent turn. 6 rounds so multi-step
+ * questions (search → day → conversation) can complete; the cumulative token
+ * budget and the wall-clock timeout still bound runaway loops.
+ */
+export const MAX_AGENT_TOOL_ROUNDS = 6;
 /**
  * Hard cap for non-streaming tool rounds. Settings often allow 32k max_tokens;
  * free reasoning models will spend that budget on chain-of-thought and the UI
@@ -52,15 +57,19 @@ export const AGENT_ROUND_MAX_TOKENS = 1_536;
 /**
  * Whole-turn wall-clock deadline for the agent loop (Task 9). When exceeded at
  * the top of a round, tool rounds abort and a final no-tools pass runs.
+ * Raised to 45s: more rounds on slower free models need more wall-clock; the
+ * deadline still cuts tool rounds and ships a final no-tools answer.
  */
-export const AGENT_TURN_TIMEOUT_MS = 25_000;
+export const AGENT_TURN_TIMEOUT_MS = 45_000;
 
 /**
  * PR8c: cumulative prompt-token budget across all tool rounds of one agent turn.
  * Real usage.prompt_tokens when available; chars/4 estimator otherwise.
  * Tools-schema + framing often add ~900 real tokens/round outside the system string.
+ * Raised to 24k so multi-step rounds aren't starved on the long freeform prompt
+ * path; still cumulative across rounds.
  */
-export const AGENT_TURN_TOKEN_BUDGET = 12_000;
+export const AGENT_TURN_TOKEN_BUDGET = 24_000;
 
 /**
  * User-visible fallback when tool rounds exhaust and the final no-tools pass
@@ -75,6 +84,15 @@ export const AGENT_EXHAUSTION_FALLBACK =
  */
 export const DUPLICATE_TOOL_CALL_NOTE =
     'System note: duplicate call — you already have these results; answer with what you have.';
+
+/**
+ * Injected at most once per turn when a tool batch comes back thin (errors,
+ * empty, or explicit no-match), giving the model one explicit chance to retry
+ * with different terms, a broader date range, or a different tool before the
+ * round cap cuts it off.
+ */
+export const THIN_RESULT_RETRY_NOTE =
+    'System note: the last tool call(s) returned no useful results. If you believe relevant information exists, try again with different terms, a broader date range, or a different tool. Otherwise answer from what you already have. Never invent results.';
 
 export class ToolsUnsupportedError extends Error {
     constructor(message: string) {
@@ -266,6 +284,21 @@ function mergeToolSource(
     if (hasS) return 'structured';
     if (hasT) return 'text';
     return current;
+}
+
+/**
+ * A tool result is "thin" when it offers the model nothing to answer from:
+ * an execution error, empty content, or an explicit no-match / timeout marker.
+ */
+function isThinToolResult(result: ToolResult): boolean {
+    if (result.isError) return true;
+    const trimmed = result.content.trim();
+    if (!trimmed) return true;
+    return (
+        trimmed.startsWith('No ')
+        || trimmed.startsWith('Error')
+        || trimmed.startsWith('[tool:')
+    );
 }
 
 function agentRoundMaxTokens(settings: GenerationSettings): number {
@@ -513,6 +546,8 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
     let lastUsage: AgentLoopResult['usage'] = null;
     let cumulativePromptTokens = 0;
     let stopReason: NonNullable<AgentLoopResult['stopReason']> = 'complete';
+    // One-shot thin-result retry nudge: at most one per turn; the round cap bounds the rest.
+    let retryNudged = false;
 
     for (let round = 0; round < maxRounds; round += 1) {
         // Cross-round budget: do not start another model+tools round if already over.
@@ -706,6 +741,10 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
                 role: 'user',
                 content: formatToolResultsForModel(results),
             });
+            if (!retryNudged && results.length > 0 && results.every(isThinToolResult)) {
+                agentMessages.push({ role: 'user', content: THIN_RESULT_RETRY_NOTE });
+                retryNudged = true;
+            }
         } else {
             agentMessages.push({
                 role: 'assistant',
@@ -727,6 +766,10 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
                     name: result.name,
                     content: result.content,
                 });
+            }
+            if (!retryNudged && results.length > 0 && results.every(isThinToolResult)) {
+                agentMessages.push({ role: 'user', content: THIN_RESULT_RETRY_NOTE });
+                retryNudged = true;
             }
         }
 

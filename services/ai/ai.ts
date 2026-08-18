@@ -1,5 +1,11 @@
 import { THERAPIST_SYSTEM_PROMPT } from '@/constants/aiPrompts';
-import { runAgentTurnWithTools, ToolsUnsupportedError } from './agentLoop';
+import {
+    latestUserText,
+    resolveAgentTurnTokenBudget,
+    resolveHistoryToolsBranch,
+    shouldEnableHistoryTools,
+} from './agenticGate';
+import { AGENT_TURN_TOKEN_BUDGET, runAgentTurnWithTools, ToolsUnsupportedError } from './agentLoop';
 import {
     buildChatPayload,
     ChatAccumulator,
@@ -17,12 +23,11 @@ import {
 } from './conversationCompact';
 import { getKnownContextWindow } from './customModels';
 import { getResolvedDirectConfig } from './directConfig';
-import { augmentSystemPromptForTurn, detectHistoryIntent } from './historyPrefetch';
+import { augmentSystemPromptForTurn } from './historyPrefetch';
 import {
     attachRealUsage,
     buildLedgerFromAssembledRequest,
     logPromptBudget,
-    type HistoryToolsBranch,
 } from './promptBudget';
 import {
     buildResponseError,
@@ -50,12 +55,11 @@ export {
 export type { ChatAccumulator } from './chatTypes';
 export type { HistoryToolsBranch } from './promptBudget';
 export { useChat } from './useChat';
+export { resolveHistoryToolsBranch, shouldEnableHistoryTools } from './agenticGate';
 
 const DEFAULT_DIRECT_MODEL = 'agent-default';
 
-/** Proactive tool triggers beyond pure history Q&A (rants, first turns, night cues). */
-const PROACTIVE_TOOL_RE =
-    /\b(tired|exhausted|can'?t sleep|insomnia|night|tonight|this morning|today|work|boss|always|never|again|spiral|anxious|anxiety|overwhelmed|rant|finally|anyway)\b/i;
+/** Proactive tool triggers and the history-tools gate now live in ./agenticGate. */
 
 function normalizeUnknownError(error: unknown): Error {
     if (error instanceof Error) return error;
@@ -65,51 +69,6 @@ function normalizeUnknownError(error: unknown): Error {
     } catch {
         return new Error('Unknown error occurred');
     }
-}
-
-function latestUserText(messages: Message[]): string {
-    for (let i = messages.length - 1; i >= 0; i -= 1) {
-        if (messages[i].role === 'user') return messages[i].content;
-    }
-    return '';
-}
-
-/**
- * Proactive tools by default (curiosity / clock / history), without forcing an
- * agent-loop round-trip on every tiny "hi" — that would kill mobile latency.
- * Pass enableHistoryTools: true to always try tools; false to never.
- */
-/** Synthetic bootstrap lines used to start guided chats — not real user text. */
-const BOOTSTRAP_TRIGGER_RE = /^\[Start\b/i;
-
-/**
- * Which shouldEnableHistoryTools arm fired (instrumentation / prompt-budget).
- * Mirrors the boolean gate exactly — first matching branch wins.
- */
-export function resolveHistoryToolsBranch(
-    flag: StreamChatOptions['enableHistoryTools'],
-    userText: string,
-    messages: readonly Message[],
-): HistoryToolsBranch {
-    if (flag === false) return 'forced-false';
-    if (flag === true) return 'forced-true';
-    const trimmed = userText.trim();
-    if (BOOTSTRAP_TRIGGER_RE.test(trimmed)) return 'bootstrap';
-    if (detectHistoryIntent(trimmed)) return 'historyIntent';
-    if (trimmed.length >= 80) return 'length>=80';
-    if (PROACTIVE_TOOL_RE.test(trimmed)) return 'PROACTIVE_RE';
-    const userTurns = messages.filter((m) => m.role === 'user').length;
-    if (userTurns <= 2 && trimmed.length >= 12) return 'first-turns';
-    return 'none';
-}
-
-export function shouldEnableHistoryTools(
-    flag: StreamChatOptions['enableHistoryTools'],
-    userText: string,
-    messages: readonly Message[]
-): boolean {
-    const branch = resolveHistoryToolsBranch(flag, userText, messages);
-    return branch !== 'forced-false' && branch !== 'bootstrap' && branch !== 'none';
 }
 
 /** Local-only context window resolve — no network hang on mobile offline. */
@@ -205,6 +164,7 @@ export async function streamChat(
                         generation: resolved.generation,
                         model: DEFAULT_DIRECT_MODEL,
                         capability,
+                        turnTokenBudget: resolveAgentTurnTokenBudget(contextWindow, AGENT_TURN_TOKEN_BUDGET),
                     });
                     lastUsage = agentResult.usage ?? null;
                     logPromptBudget(attachRealUsage(preLedger, lastUsage));

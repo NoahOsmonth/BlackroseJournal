@@ -30,6 +30,7 @@ export type HistoryToolsBranch =
     | 'forced-false'
     | 'bootstrap'
     | 'historyIntent'
+    | 'agentic-task'
     | 'length>=80'
     | 'PROACTIVE_RE'
     | 'first-turns'

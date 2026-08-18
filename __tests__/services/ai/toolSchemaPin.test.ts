@@ -171,10 +171,51 @@ const PINNED_OTHER_TOOLS_JSON = JSON.stringify([
             },
         },
     },
+    {
+        type: 'function',
+        function: {
+            name: 'list_goals',
+            description:
+                'List the user\u2019s current goals and habits with status. Use before creating a goal to avoid duplicates.',
+            parameters: {
+                type: 'object',
+                properties: {},
+                additionalProperties: false,
+            },
+        },
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'create_goal',
+            description:
+                'Create a goal or habit ONLY when the user clearly asked to set/track one; never invent a goal the user did not state. Returns the created goal id.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    title: {
+                        type: 'string',
+                        description: 'Goal or habit title.',
+                    },
+                    type: {
+                        type: 'string',
+                        enum: ['goal', 'habit'],
+                        description: 'goal (default) or habit.',
+                    },
+                    dateKey: {
+                        type: 'string',
+                        description: 'Optional start date YYYY-MM-DD (default today).',
+                    },
+                },
+                required: ['title'],
+                additionalProperties: false,
+            },
+        },
+    },
 ]);
 
 describe('PR8c tool schema pin (other than list_recent_days)', () => {
-    it('seven non-list_recent_days tools are byte-identical to the pin', () => {
+    it('nine non-list_recent_days tools are byte-identical to the pin', () => {
         const others = toOpenAiToolSpecs(
             HISTORY_TOOL_DEFINITIONS.filter((d) => d.name !== 'list_recent_days')
         );
@@ -198,7 +239,7 @@ describe('PR8c tool schema pin (other than list_recent_days)', () => {
         expect(def!.parameters.required).toBeUndefined();
     });
 
-    it('registry still exposes exactly 8 history tools', () => {
+    it('registry still exposes exactly 10 history tools', () => {
         expect(HISTORY_TOOL_DEFINITIONS.map((d) => d.name)).toEqual([
             'get_clock',
             'list_recent_days',
@@ -208,6 +249,8 @@ describe('PR8c tool schema pin (other than list_recent_days)', () => {
             'recall_memory',
             'get_identity',
             'update_identity',
+            'list_goals',
+            'create_goal',
         ]);
     });
 

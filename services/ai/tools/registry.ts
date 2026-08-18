@@ -7,6 +7,7 @@ import {
 } from './historyTools';
 import { recallMemoryToolHandler } from './hindsightTools';
 import { getIdentityTool, updateIdentityTool } from './identityTools';
+import { createGoalTool, listGoalsTool } from './goalsTools';
 import { HISTORY_TOOL_DEFINITIONS } from './definitions';
 import type { RegisteredTool, ToolDefinition, ToolHandler } from './types';
 
@@ -19,6 +20,8 @@ const handlers: Record<string, ToolHandler> = {
     recall_memory: recallMemoryToolHandler,
     get_identity: getIdentityTool,
     update_identity: updateIdentityTool,
+    list_goals: listGoalsTool,
+    create_goal: createGoalTool,
 };
 
 export function getRegisteredTools(): RegisteredTool[] {

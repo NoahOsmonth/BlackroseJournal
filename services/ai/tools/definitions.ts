@@ -170,6 +170,41 @@ export const HISTORY_TOOL_DEFINITIONS: ToolDefinition[] = [
             additionalProperties: false,
         },
     },
+    {
+        name: 'list_goals',
+        description:
+            'List the user\u2019s current goals and habits with status. Use before creating a goal to avoid duplicates.',
+        parameters: {
+            type: 'object',
+            properties: {},
+            additionalProperties: false,
+        },
+    },
+    {
+        name: 'create_goal',
+        description:
+            'Create a goal or habit ONLY when the user clearly asked to set/track one; never invent a goal the user did not state. Returns the created goal id.',
+        parameters: {
+            type: 'object',
+            properties: {
+                title: {
+                    type: 'string',
+                    description: 'Goal or habit title.',
+                },
+                type: {
+                    type: 'string',
+                    enum: ['goal', 'habit'],
+                    description: 'goal (default) or habit.',
+                },
+                dateKey: {
+                    type: 'string',
+                    description: 'Optional start date YYYY-MM-DD (default today).',
+                },
+            },
+            required: ['title'],
+            additionalProperties: false,
+        },
+    },
 ];
 
 export function toOpenAiToolSpecs(definitions: readonly ToolDefinition[] = HISTORY_TOOL_DEFINITIONS): OpenAiToolSpec[] {
@@ -188,5 +223,6 @@ export const HISTORY_TOOLS_POLICY = [
     '## On-device tools — use freely (proactive)',
     'Tools run on the phone. Call when they improve care — do not wait for "search my history."',
     'get_clock: liberally; never invent local time. list_recent_days: orient. get_day: before full transcript. get_conversation: exact prior words. search_history: themes. recall_memory: long-term themes older than digests ("remember when\u2026"). get_identity / update_identity: re-check or pin; never invent.',
+    'create_goal/list_goals: act only on explicit goal/habit requests; never invent goals.',
     'Chain when useful. Never invent results. If empty, say so and stay with the live message. Do not narrate tool names. Structured tool_calls only — never fake tool syntax in the reply. Use ## Identity name if present; never invent one.',
 ].join('\n');

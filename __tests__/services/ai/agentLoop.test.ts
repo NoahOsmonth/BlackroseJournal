@@ -311,9 +311,9 @@ describe('runAgentTurnWithTools', () => {
         ).rejects.toThrow(/Agent completion failed/);
     });
 
-    it('caps tool rounds', () => {
-        expect(MAX_AGENT_TOOL_ROUNDS).toBe(3);
-        expect(AGENT_TURN_TOKEN_BUDGET).toBe(12_000);
+    it('exposes multi-step round + budget defaults', () => {
+        expect(MAX_AGENT_TOOL_ROUNDS).toBe(6);
+        expect(AGENT_TURN_TOKEN_BUDGET).toBe(24_000);
     });
 
     it('PR8c: cross-round token budget stops further tool rounds and runs final pass', async () => {

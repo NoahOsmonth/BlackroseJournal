@@ -92,6 +92,6 @@ describe('runAgentTurnWithTools whole-turn timeout', () => {
     });
 
     it('exposes a sane default turn timeout constant', () => {
-        expect(AGENT_TURN_TIMEOUT_MS).toBe(25_000);
+        expect(AGENT_TURN_TIMEOUT_MS).toBe(45_000);
     });
 });

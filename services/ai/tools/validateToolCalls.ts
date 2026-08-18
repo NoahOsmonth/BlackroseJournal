@@ -63,6 +63,9 @@ const ARG_ALIASES: Record<string, string> = {
     start_date: 'from',
     end: 'to',
     end_date: 'to',
+    goal_title: 'title',
+    goalName: 'title',
+    goalType: 'type',
 };
 
 const KIND_ALIASES: Record<string, string> = {
@@ -242,6 +245,20 @@ export function validateAndRepairToolCall(
     const originalRaw = call.arguments;
     let args = parseArgsObject(call.arguments);
     args = normalizeKeys(args);
+
+    // create_goal: the global title→titleQuery alias (for get_conversation)
+    // would rename a goal title; restore it here. Also accept goalType.
+    if (call.name === 'create_goal') {
+        if (args.titleQuery !== undefined && args.title === undefined) {
+            args.title = args.titleQuery;
+            delete args.titleQuery;
+        }
+        if (args.goalType !== undefined && args.type === undefined) {
+            args.type = args.goalType;
+            delete args.goalType;
+        }
+    }
+
     args = promoteRaw(args, def.parameters);
     args = applyPropertyTypes(args, def.parameters);
 
