@@ -1,4 +1,5 @@
-import { hindsightRetain, hindsightRecall, hindsightReflect, hindsightHealth, notifyHindsightChanged, subscribeHindsightChanges } from '../../../services/memory/hindsight/hindsightClient';
+import { hindsightRetain, hindsightRecall, hindsightReflect, hindsightHealth, subscribeHindsightChanges } from '../../../services/memory/hindsight/hindsightClient';
+import { retainJournalEntryToHindsight } from '../../../services/memory/hindsight/hindsightRetain';
 
 const JSON_OK = { ok: true, status: 200, json: async () => ({}) } as Response;
 
@@ -120,5 +121,26 @@ describe('hindsightClient', () => {
         await expect(hindsightHealth()).resolves.toBe(true); // fetch mocked ok
         delete process.env.EXPO_PUBLIC_HINDSIGHT_BASE_URL;
         await expect(hindsightHealth()).resolves.toBe(false);
+    });
+
+    it('finish-path retain does not throw when Hindsight is down', async () => {
+        // Plan Task 13 Step 3 (B2 offline safety): with the base URL unset the
+        // client is disabled, so the finish-path retain must soft-fail (false,
+        // no fetch, no throw). A user line is included so the item builder
+        // actually produces a retain item and the disabled-config branch is
+        // exercised (with messages: [] the call would return false trivially
+        // without ever checking the config).
+        delete process.env.EXPO_PUBLIC_HINDSIGHT_BASE_URL;
+        const ok = await retainJournalEntryToHindsight({
+            id: 'x',
+            status: 'completed',
+            messages: [
+                { id: 'u1', role: 'user', content: 'I got a lilac scarf from Grandma.', timestamp: 1 },
+            ],
+            createdAt: 1,
+            updatedAt: 1,
+        } as never);
+        expect(ok).toBe(false);
+        expect(global.fetch).not.toHaveBeenCalled();
     });
 });
