@@ -19,15 +19,15 @@ export const ROSTER_VERBATIM = {
     envKeys: {
         EXPO_PUBLIC_NANO_GPT_API_KEY: '(from .env / process.env — never committed)',
         EXPO_PUBLIC_NANO_GPT_API_BASE_URL: 'optional; default https://openrouter.ai/api/v1',
-        EXPO_PUBLIC_NANO_GPT_MODEL: 'optional; default tencent/hy3:free',
-        EXPO_PUBLIC_NANO_GPT_FLASH_MODEL: 'optional; default tencent/hy3:free',
+        EXPO_PUBLIC_NANO_GPT_MODEL: 'optional; default dots-studio/dots-3-note-preview:free',
+        EXPO_PUBLIC_NANO_GPT_FLASH_MODEL: 'optional; default dots-studio/dots-3-note-preview:free',
     },
     directConfigDefaults: {
         DEFAULT_API_BASE_URL: 'https://openrouter.ai/api/v1',
-        DEFAULT_MODEL: 'tencent/hy3:free',
-        DEFAULT_FLASH_MODEL: 'tencent/hy3:free',
+        DEFAULT_MODEL: 'dots-studio/dots-3-note-preview:free',
+        DEFAULT_FLASH_MODEL: 'dots-studio/dots-3-note-preview:free',
     },
-    preferredFreeModelId: 'tencent/hy3:free',
+    preferredFreeModelId: 'dots-studio/dots-3-note-preview:free',
     openrouterDefaultBaseUrl: 'https://openrouter.ai/api/v1',
     personaModels: [
         'nvidia/nemotron-3-ultra-550b-a55b',
@@ -43,13 +43,13 @@ export const ROSTER_VERBATIM = {
     knownContextWindows: {
         'nvidia/nemotron-3-ultra-550b-a55b': 1_000_000,
         'nvidia/nemotron-3-ultra-550b-a55b:free': 1_000_000,
-        'tencent/hy3:free': 262_000,
+        'dots-studio/dots-3-note-preview:free': 512_000,
         'moonshotai/kimi-k2.5:thinking': 128_000,
         'moonshotai/kimi-k2.5': 128_000,
     } as const,
     defaultFallbackContextWindow: 128_000,
     builtinFreeFallbackModels: [
-        'tencent/hy3:free',
+        'dots-studio/dots-3-note-preview:free',
         'openrouter/free',
         'nvidia/nemotron-3-ultra-550b-a55b:free',
     ] as const,
@@ -70,17 +70,17 @@ export const ROSTER_VERBATIM = {
     /** Models selected for live probes (must include flash). */
     probeSelection: {
         e1: [
-            'tencent/hy3:free',
+            'dots-studio/dots-3-note-preview:free',
             'nvidia/nemotron-3-ultra-550b-a55b:free',
             'openrouter/free',
         ],
         e2: [
-            'tencent/hy3:free',
+            'dots-studio/dots-3-note-preview:free',
             'nvidia/nemotron-3-ultra-550b-a55b:free',
             'openrouter/free',
             'moonshotai/kimi-k2.5',
         ],
-        flashRequired: 'tencent/hy3:free',
+        flashRequired: 'dots-studio/dots-3-note-preview:free',
     },
 } as const;
 

@@ -286,8 +286,8 @@ Project root `.env` (gitignored):
 ```
 EXPO_PUBLIC_NANO_GPT_API_KEY=...          # OpenRouter or OpenAI-compat key
 EXPO_PUBLIC_NANO_GPT_API_BASE_URL=https://openrouter.ai/api/v1
-EXPO_PUBLIC_NANO_GPT_MODEL=tencent/hy3:free
-EXPO_PUBLIC_NANO_GPT_FLASH_MODEL=tencent/hy3:free
+EXPO_PUBLIC_NANO_GPT_MODEL=dots-studio/dots-3-note-preview:free
+EXPO_PUBLIC_NANO_GPT_FLASH_MODEL=dots-studio/dots-3-note-preview:free
 ```
 Names are legacy (`NANO_GPT_*`); OpenRouter free is the recommended default. Prefer free models with **≥32k** context when using the long freeform prompt.
 

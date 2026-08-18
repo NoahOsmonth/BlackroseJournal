@@ -115,8 +115,8 @@ describe('directConfig — getDirectConfig', () => {
 
         const cfg = getDirectConfig();
 
-        expect(cfg.model).toBe('tencent/hy3:free');
-        expect(cfg.flashModel).toBe('tencent/hy3:free');
+        expect(cfg.model).toBe('dots-studio/dots-3-note-preview:free');
+        expect(cfg.flashModel).toBe('dots-studio/dots-3-note-preview:free');
     });
 });
 
