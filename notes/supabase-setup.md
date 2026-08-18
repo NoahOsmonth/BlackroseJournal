@@ -28,25 +28,13 @@ Notes
 - Sessions persist on device with auto-refresh (`persistSession: true`, `autoRefreshToken: true`).
 - Reset password uses `redirectTo` to deep link into `app://update-password`.
 
-## Cloud Memory Phase 0
+## Cloud Memory (removed)
 
-Supabase Auth verifies the end-user bearer token. The backend derives
-`owner_id` from that verified token; it never accepts an owner supplied in a
-query or request body.
-
-The portable canonical PostgreSQL migrations live in
-`backend/sql/migrations/`. The historical
-`20260728112723_cloud_memory_foundation.sql` placeholder remains byte-empty.
-Supabase adds its provider-specific RLS and Auth overlay in
-`20260728144157_cloud_memory_foundation_20260728112723.sql`;
-`20260728144711_cloud_memory_fk_indexes_20260728145000.sql` is the additive
-FK-index migration. These filenames match the hosted migration records. Applied
-migrations are immutable.
-
-All memory table privileges are revoked by default. Only explicitly allowlisted
-owner-scoped read and fenced job RPCs receive `execute` grants. Multi-table
-mutations remain inside atomic PostgreSQL RPCs so managed Supabase PostgREST can
-later be replaced by private PostgREST without changing transaction boundaries.
+The custom cloud-memory platform (backend memory control plane, canonical
+PostgreSQL migrations in `backend/sql/migrations/`, and its applied
+`20260728*_cloud_memory_*` / `20260729*` migrations) was removed from code on
+2026-08-18. Applied `supabase/migrations/` files stay immutable. Supabase here
+now only hosts legacy app-data sync.
 
 `SUPABASE_SECRET_KEY` or a legacy `SUPABASE_SERVICE_ROLE_KEY` is server-only.
 Never prefix either with `EXPO_PUBLIC_`, commit it, log it, or place it in the
