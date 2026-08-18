@@ -3,6 +3,7 @@
 import { PromptPeriod } from '@/constants/dailyPrompts';
 import { useAiFeedback } from '@/hooks/feedback/useAiFeedback';
 import { useGoalsContext } from '@/hooks/goals/useGoalsContext';
+import { useHindsightRecallContext } from '@/hooks/memory/useHindsightRecallContext';
 import { useIdentityContext } from '@/hooks/memory/useIdentityContext';
 import { useLocalMemoryContext } from '@/hooks/memory/useLocalMemoryContext';
 import { useRecentDaysContext } from '@/hooks/memory/useRecentDaysContext';
@@ -89,6 +90,7 @@ export default function ChatScreen() {
     const { context: recentDaysContext } = useRecentDaysContext({ days: 3 });
     const { context: identityContext } = useIdentityContext();
     const { goalsContext } = useGoalsContext();
+    const { context: hindsightRecallContext } = useHindsightRecallContext({ query: memoryCapsuleQuery });
     const flow = resolvedMode === 'continue' ? FLOWS.continue : FLOWS.freeform;
     const flowContext = useMemo(
         () => ({
@@ -96,16 +98,13 @@ export default function ChatScreen() {
             identityContext,
             localMemoryContext,
             recentDaysContext,
+            retrievedHistoryContext: hindsightRecallContext,
             goalsContext,
             feedbackGuidance,
         }),
         [
-            activePersona,
-            identityContext,
-            localMemoryContext,
-            recentDaysContext,
-            goalsContext,
-            feedbackGuidance,
+            activePersona, identityContext, localMemoryContext,
+            recentDaysContext, hindsightRecallContext, goalsContext, feedbackGuidance,
         ]
     );
 
