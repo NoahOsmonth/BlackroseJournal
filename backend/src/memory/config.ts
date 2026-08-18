@@ -5,9 +5,11 @@ export interface MemoryRuntimeConfig {
   postgrestServerKey: string;
   postgrestKeyKind: 'secret' | 'legacy_service_role';
   deploymentId: string;
+  writerEpoch: number;
   writerLeaseId: string;
   writerLeaseToken: string;
   sourceCredentialFingerprint: string;
+  mirrorWritesEnabled: boolean;
   auth: MemoryAuthConfig;
 }
 
@@ -31,6 +33,26 @@ const DEFAULT_TIMEOUT_MS = 3_000;
 function nonempty(value: string | undefined): string | null {
   const normalized = value?.trim();
   return normalized ? normalized : null;
+}
+
+function parsePositiveInteger(value: string | undefined): number | null {
+  const normalized = nonempty(value);
+  if (!normalized || !/^\d+$/.test(normalized)) {
+    return null;
+  }
+  const parsed = Number(normalized);
+  if (!Number.isSafeInteger(parsed) || parsed < 1) {
+    return null;
+  }
+  return parsed;
+}
+
+function parseKillSwitch(value: string | undefined): boolean {
+  const normalized = nonempty(value);
+  if (normalized === null) {
+    return true;
+  }
+  return !/^(0|false)$/i.test(normalized);
 }
 
 function parseUrl(value: string | null): URL | null {
@@ -85,11 +107,13 @@ export function readMemoryConfig(env: MemoryEnvironment): MemoryConfigResult {
   const legacySecret = nonempty(env.SUPABASE_SERVICE_ROLE_KEY);
   const serverKey = modernSecret ?? legacySecret;
   const deploymentId = nonempty(env.MEMORY_DEPLOYMENT_ID);
+  const writerEpoch = parsePositiveInteger(env.MEMORY_WRITER_EPOCH);
   const writerLeaseId = nonempty(env.MEMORY_WRITER_LEASE_ID);
   const writerLeaseToken = nonempty(env.MEMORY_WRITER_LEASE_TOKEN);
   const sourceCredentialFingerprint = nonempty(
     env.MEMORY_SOURCE_CREDENTIAL_FINGERPRINT,
   );
+  const mirrorWritesEnabled = parseKillSwitch(env.MEMORY_MIRROR_WRITES_ENABLED);
 
   const dependencies = {
     supabaseAuth: Boolean(supabaseUrl && publishableKey),
@@ -97,6 +121,7 @@ export function readMemoryConfig(env: MemoryEnvironment): MemoryConfigResult {
     deployment: Boolean(
       deploymentId
       && DEPLOYMENT_ID.test(deploymentId)
+      && writerEpoch !== null
       && writerLeaseId
       && UUID.test(writerLeaseId)
       && writerLeaseToken
@@ -113,6 +138,7 @@ export function readMemoryConfig(env: MemoryEnvironment): MemoryConfigResult {
     || !postgrestBaseUrl
     || !serverKey
     || !deploymentId
+    || writerEpoch === null
     || !writerLeaseId
     || !writerLeaseToken
     || !sourceCredentialFingerprint
@@ -127,9 +153,11 @@ export function readMemoryConfig(env: MemoryEnvironment): MemoryConfigResult {
       postgrestServerKey: serverKey,
       postgrestKeyKind: modernSecret ? 'secret' : 'legacy_service_role',
       deploymentId,
+      writerEpoch,
       writerLeaseId,
       writerLeaseToken,
       sourceCredentialFingerprint,
+      mirrorWritesEnabled,
       auth: {
         supabaseUrl,
         supabasePublishableKey: publishableKey,

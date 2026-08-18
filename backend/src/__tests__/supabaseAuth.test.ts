@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createMemoryAuthMiddleware,
+  decodeAccessTokenPayload,
   verifySupabaseAccessToken,
 } from '../auth/supabaseAuth';
 
@@ -29,7 +30,12 @@ describe('Supabase memory auth', () => {
 
     assert.deepEqual(result, {
       status: 'verified',
-      user: { ownerId, accessToken: 'user-token' },
+      user: {
+        ownerId,
+        accessToken: 'user-token',
+        sessionId: null,
+        isAnonymous: false,
+      },
     });
     assert.equal(seenUrl, 'https://project.supabase.co/auth/v1/user');
     assert.equal(headers.get('apikey'), 'publishable-test-key');
@@ -132,7 +138,12 @@ describe('Supabase memory auth', () => {
       config,
       verify: async () => ({
         status: 'verified',
-        user: { ownerId, accessToken: 'user-token' },
+        user: {
+          ownerId,
+          accessToken: 'user-token',
+          sessionId: null,
+          isAnonymous: false,
+        },
       }),
     });
     const req = {
@@ -146,7 +157,126 @@ describe('Supabase memory auth', () => {
 
     assert.equal(nextCalls, 1);
     assert.deepEqual(locals, {
-      memoryAuth: { ownerId, accessToken: 'user-token' },
+      memoryAuth: {
+        ownerId,
+        accessToken: 'user-token',
+        sessionId: null,
+        isAnonymous: false,
+      },
+    });
+  });
+
+  it('derives session claims only from the access-token payload', () => {
+    const token = [
+      Buffer.from(JSON.stringify({ alg: 'none' })).toString('base64url'),
+      Buffer.from(JSON.stringify({
+        sub: ownerId,
+        session_id: '00000000-0000-4000-8000-0000000000ee',
+        is_anonymous: false,
+      })).toString('base64url'),
+      'signature',
+    ].join('.');
+    assert.deepEqual(decodeAccessTokenPayload(token), {
+      sub: ownerId,
+      sessionId: '00000000-0000-4000-8000-0000000000ee',
+      isAnonymous: false,
+    });
+    assert.equal(decodeAccessTokenPayload('not-a-jwt'), null);
+    assert.equal(decodeAccessTokenPayload('a.b'), null);
+  });
+
+  it('rejects anonymous JWTs and claim mismatches for mirror mutations', async () => {
+    const cases: Array<{ sub: string; sessionId: string | null; anonymous: boolean }> = [
+      { sub: ownerId, sessionId: '00000000-0000-4000-8000-0000000000ee', anonymous: true },
+      { sub: '00000000-0000-4000-8000-0000000000ff', sessionId: '00000000-0000-4000-8000-0000000000ee', anonymous: false },
+      { sub: ownerId, sessionId: null, anonymous: false },
+    ];
+    for (const testCase of cases) {
+      const token = [
+        Buffer.from(JSON.stringify({ alg: 'none' })).toString('base64url'),
+        Buffer.from(JSON.stringify({
+          sub: testCase.sub,
+          ...(testCase.sessionId ? { session_id: testCase.sessionId } : {}),
+          is_anonymous: testCase.anonymous,
+        })).toString('base64url'),
+        'signature',
+      ].join('.');
+      const middleware = createMemoryAuthMiddleware({
+        config,
+        requireMirrorSession: true,
+        verify: async (candidate) => (
+          candidate === token
+            ? {
+                status: 'verified',
+                user: {
+                  ownerId,
+                  accessToken: token,
+                  sessionId: null,
+                  isAnonymous: false,
+                },
+              }
+            : { status: 'invalid' }
+        ),
+      });
+      const req = { headers: { authorization: `Bearer ${token}` } } as never;
+      let status = 0;
+      let payload: unknown;
+      let nextCalls = 0;
+      const res = {
+        locals: {},
+        status(code: number) { status = code; return this; },
+        json(value: unknown) { payload = value; return this; },
+      } as never;
+      await middleware(req, res, () => { nextCalls += 1; });
+      assert.equal(status, 401, JSON.stringify(testCase));
+      assert.deepEqual(payload, {
+        error: {
+          code: 'MEMORY_AUTH_INVALID',
+          message: 'Missing or invalid Authorization header.',
+        },
+      });
+      assert.equal(nextCalls, 0);
+    }
+  });
+
+  it('attaches the verified session when sub, id, and session agree', async () => {
+    const token = [
+      Buffer.from(JSON.stringify({ alg: 'none' })).toString('base64url'),
+      Buffer.from(JSON.stringify({
+        sub: ownerId,
+        session_id: '00000000-0000-4000-8000-0000000000ee',
+        is_anonymous: false,
+      })).toString('base64url'),
+      'signature',
+    ].join('.');
+    const middleware = createMemoryAuthMiddleware({
+      config,
+      requireMirrorSession: true,
+      verify: async (candidate) => (
+        candidate === token
+          ? {
+              status: 'verified',
+              user: {
+                ownerId,
+                accessToken: token,
+                sessionId: null,
+                isAnonymous: false,
+              },
+            }
+          : { status: 'invalid' }
+      ),
+    });
+    const req = { headers: { authorization: `Bearer ${token}` } } as never;
+    const locals: Record<string, unknown> = {};
+    const res = { locals } as never;
+    let nextCalls = 0;
+    await middleware(req, res, () => { nextCalls += 1; });
+    assert.equal(nextCalls, 1);
+    assert.deepEqual(locals.memoryAuth, {
+      ownerId,
+      accessToken: token,
+      sessionId: '00000000-0000-4000-8000-0000000000ee',
+      isAnonymous: false,
     });
   });
 });

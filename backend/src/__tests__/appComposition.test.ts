@@ -58,9 +58,12 @@ describe('production app composition', () => {
       res.locals.memoryAuth = {
         ownerId,
         accessToken: 'valid-user-token',
+        sessionId: '00000000-0000-4000-8000-0000000000ee',
+        isAnonymous: false,
       };
       next();
     };
+    const mirrorAuthMiddleware: RequestHandler = memoryAuthMiddleware;
     const app = createApp({
       serverConfig: {
         port: 0,
@@ -76,7 +79,11 @@ describe('production app composition', () => {
         },
       },
       memoryAuthMiddleware,
+      mirrorAuthMiddleware,
       memoryRepository: repository,
+      sourceMirrorRepository: null,
+      mirrorWriteAuthority: null,
+      mirrorWritesEnabled: false,
     });
     const server = http.createServer(app);
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -146,6 +153,21 @@ describe('production app composition', () => {
         data: { ownerId: string };
       };
       assert.equal(inventoryBody.data.ownerId, ownerId);
+
+      const mirrorWithoutAuth = await fetch(`${baseUrl}/v1/memory/mirror/parity`, {
+        headers: { 'x-api-key': 'legacy-key' },
+      });
+      assert.equal(mirrorWithoutAuth.status, 401);
+      assert.equal(mirrorWithoutAuth.headers.get('cache-control'), 'no-store');
+
+      const mirrorUnavailable = await fetch(`${baseUrl}/v1/memory/mirror/parity`, {
+        headers: { authorization: 'Bearer valid-user-token' },
+      });
+      assert.equal(mirrorUnavailable.status, 503);
+      const mirrorBody = await mirrorUnavailable.json() as {
+        error: { code: string };
+      };
+      assert.equal(mirrorBody.error.code, 'MIRROR_UNAVAILABLE');
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => {
         if (error) reject(error); else resolve();

@@ -1,8 +1,12 @@
+import { credentialFingerprint } from '../hashing/sourceHash';
+
 export interface PostgrestGateway {
   rpc<T>(
     name: string,
     body: Readonly<Record<string, unknown>>,
   ): Promise<T>;
+  /** SHA-256 fingerprint of the selected credential, derived once at creation. */
+  readonly credentialFingerprint?: string;
 }
 
 export type PostgrestGatewayErrorCode =
@@ -15,16 +19,59 @@ export type PostgrestGatewayErrorCode =
 export type MemoryDatabaseErrorCode =
   | 'MEMORY_STALE_WRITER_EPOCH'
   | 'MEMORY_WRITES_DISABLED'
+  | 'MEMORY_DEPLOYMENT_MISMATCH'
   | 'MEMORY_STALE_JOB_LEASE'
   | 'MEMORY_WRITER_LEASE_MISMATCH'
   | 'MEMORY_WRITER_LEASE_EXPIRED'
   | 'MEMORY_WRITER_LEASE_TOKEN_INVALID'
-  | 'MEMORY_SOURCE_CREDENTIAL_MISMATCH';
+  | 'MEMORY_SOURCE_CREDENTIAL_MISMATCH'
+  | 'MEMORY_SESSION_REVOKED'
+  | 'MEMORY_AUTHORITY_UNAVAILABLE'
+  | 'OWNER_NOT_TRUSTED'
+  | 'OWNER_DISABLED'
+  | 'MIRROR_ENROLLMENT_REQUIRED'
+  | 'MIRROR_OWNER_MISSING'
+  | 'MIRROR_MANIFEST_NOT_FOUND'
+  | 'MIRROR_MANIFEST_LIMIT'
+  | 'MIRROR_CHUNK_LIMIT'
+  | 'MIRROR_CHUNK_BYTE_LIMIT'
+  | 'MIRROR_CHUNK_INVALID'
+  | 'MIRROR_CHUNK_CONTRACT_INVALID'
+  | 'MIRROR_CHUNK_OUT_OF_ORDER'
+  | 'MIRROR_CHUNK_HASH_MISMATCH'
+  | 'MIRROR_MANIFEST_HASH_MISMATCH'
+  | 'MIRROR_MANIFEST_COUNT_MISMATCH'
+  | 'MIRROR_MANIFEST_CHUNKS_INCOMPLETE'
+  | 'MIRROR_RATE_LIMIT_BUSY'
+  | 'MIRROR_RATE_LIMIT_MINUTE'
+  | 'MIRROR_RATE_LIMIT_DAY'
+  | 'MIRROR_RECEIPT_LIMIT'
+  | 'MIRROR_RETAINED_REVISION_LIMIT'
+  | 'MIRROR_STAGING_CONVERSATION_LIMIT'
+  | 'MIRROR_STAGING_MESSAGE_LIMIT'
+  | 'MIRROR_COMPLETION_PERMIT_INVALID'
+  | 'MIRROR_COMPLETION_PERMIT_LIMIT'
+  | 'MIRROR_COMPLETION_PERMIT_TOO_LATE'
+  | 'MIRROR_COMPLETION_PERMIT_CONSUMED'
+  | 'MIRROR_REVISION_CONFLICT'
+  | 'MIRROR_SEQUENCE_CONFLICT'
+  | 'MIRROR_TOMBSTONE_DOMINATES'
+  | 'MIRROR_REPEATED_CONVERSATION_CONFLICT'
+  | 'MIRROR_GENERATION_STALE'
+  | 'MIRROR_DATASET_MISMATCH'
+  | 'MEMORY_IDEMPOTENCY_CONFLICT'
+  | 'ACTIVE_IMPORT_EXISTS'
+  | 'MIRROR_MANIFEST_NOT_ACTIVE'
+  | 'MIRROR_MANIFEST_NOT_CANCELLABLE'
+  | 'MIRROR_MANIFEST_NOT_PREPARED'
+  | 'MIRROR_AUTHORITY_VERSION_STALE'
+  | 'MIRROR_COMPLETION_MISMATCH';
 
 export class PostgrestGatewayError extends Error {
   constructor(
     readonly code: PostgrestGatewayErrorCode,
     readonly status: number | null,
+    readonly retryAfterSeconds: number | null = null,
   ) {
     super(code);
     this.name = 'PostgrestGatewayError';
@@ -49,15 +96,68 @@ const ALLOWED_RPCS = new Set([
   'memory_get_bootstrap',
   'memory_get_owner_state',
   'memory_get_source_inventory',
+  'memory_reserve_mirror_request_v1',
+  'memory_enroll_mirror_v1',
+  'memory_begin_source_import_v1',
+  'memory_accept_source_chunk_v1',
+  'memory_get_source_import_v1',
+  'memory_cancel_source_import_v1',
+  'memory_validate_source_import_v1',
+  'memory_prepare_source_completion_v1',
+  'memory_complete_source_import_v1',
+  'memory_apply_source_tombstone_v1',
+  'memory_get_source_parity_v1',
 ]);
 const DATABASE_ERROR_CODES = new Set<MemoryDatabaseErrorCode>([
   'MEMORY_STALE_WRITER_EPOCH',
   'MEMORY_WRITES_DISABLED',
+  'MEMORY_DEPLOYMENT_MISMATCH',
   'MEMORY_STALE_JOB_LEASE',
   'MEMORY_WRITER_LEASE_MISMATCH',
   'MEMORY_WRITER_LEASE_EXPIRED',
   'MEMORY_WRITER_LEASE_TOKEN_INVALID',
   'MEMORY_SOURCE_CREDENTIAL_MISMATCH',
+  'MEMORY_SESSION_REVOKED',
+  'MEMORY_AUTHORITY_UNAVAILABLE',
+  'OWNER_NOT_TRUSTED',
+  'OWNER_DISABLED',
+  'MIRROR_ENROLLMENT_REQUIRED',
+  'MIRROR_OWNER_MISSING',
+  'MIRROR_MANIFEST_NOT_FOUND',
+  'MIRROR_MANIFEST_LIMIT',
+  'MIRROR_CHUNK_LIMIT',
+  'MIRROR_CHUNK_BYTE_LIMIT',
+  'MIRROR_CHUNK_INVALID',
+  'MIRROR_CHUNK_CONTRACT_INVALID',
+  'MIRROR_CHUNK_OUT_OF_ORDER',
+  'MIRROR_CHUNK_HASH_MISMATCH',
+  'MIRROR_MANIFEST_HASH_MISMATCH',
+  'MIRROR_MANIFEST_COUNT_MISMATCH',
+  'MIRROR_MANIFEST_CHUNKS_INCOMPLETE',
+  'MIRROR_RATE_LIMIT_BUSY',
+  'MIRROR_RATE_LIMIT_MINUTE',
+  'MIRROR_RATE_LIMIT_DAY',
+  'MIRROR_RECEIPT_LIMIT',
+  'MIRROR_RETAINED_REVISION_LIMIT',
+  'MIRROR_STAGING_CONVERSATION_LIMIT',
+  'MIRROR_STAGING_MESSAGE_LIMIT',
+  'MIRROR_COMPLETION_PERMIT_INVALID',
+  'MIRROR_COMPLETION_PERMIT_LIMIT',
+  'MIRROR_COMPLETION_PERMIT_TOO_LATE',
+  'MIRROR_COMPLETION_PERMIT_CONSUMED',
+  'MIRROR_REVISION_CONFLICT',
+  'MIRROR_SEQUENCE_CONFLICT',
+  'MIRROR_TOMBSTONE_DOMINATES',
+  'MIRROR_REPEATED_CONVERSATION_CONFLICT',
+  'MIRROR_GENERATION_STALE',
+  'MIRROR_DATASET_MISMATCH',
+  'MEMORY_IDEMPOTENCY_CONFLICT',
+  'ACTIVE_IMPORT_EXISTS',
+  'MIRROR_MANIFEST_NOT_ACTIVE',
+  'MIRROR_MANIFEST_NOT_CANCELLABLE',
+  'MIRROR_MANIFEST_NOT_PREPARED',
+  'MIRROR_AUTHORITY_VERSION_STALE',
+  'MIRROR_COMPLETION_MISMATCH',
 ]);
 
 function buildHeaders(config: PostgrestGatewayConfig): Headers {
@@ -71,35 +171,47 @@ function buildHeaders(config: PostgrestGatewayConfig): Headers {
   return headers;
 }
 
-async function readStableDatabaseError(
-  response: Response,
-): Promise<MemoryDatabaseErrorCode | null> {
-  try {
-    const body: unknown = await response.json();
+const RETRY_AFTER = /^RETRY_AFTER_SECONDS=(\d+)$/;
+
+function extractStableDatabaseError(
+  body: unknown,
+): { code: MemoryDatabaseErrorCode; retryAfterSeconds: number | null } | null {
+  if (
+    body
+    && typeof body === 'object'
+    && !Array.isArray(body)
+    && 'message' in body
+    && typeof body.message === 'string'
+    && DATABASE_ERROR_CODES.has(body.message as MemoryDatabaseErrorCode)
+  ) {
+    let retryAfterSeconds: number | null = null;
     if (
-      body
-      && typeof body === 'object'
-      && !Array.isArray(body)
-      && 'message' in body
-      && typeof body.message === 'string'
-      && DATABASE_ERROR_CODES.has(body.message as MemoryDatabaseErrorCode)
+      'detail' in body
+      && typeof body.detail === 'string'
     ) {
-      return body.message as MemoryDatabaseErrorCode;
+      const match = RETRY_AFTER.exec(body.detail);
+      if (match) {
+        retryAfterSeconds = Number(match[1]);
+      }
     }
-  } catch {
-    // Upstream bodies are deliberately discarded.
+    return {
+      code: body.message as MemoryDatabaseErrorCode,
+      retryAfterSeconds,
+    };
   }
   return null;
 }
 
 export function createPostgrestGateway(
   config: PostgrestGatewayConfig,
-): PostgrestGateway {
+): PostgrestGateway & { readonly credentialFingerprint: string } {
   const baseUrl = config.postgrestBaseUrl.replace(/\/+$/, '');
   const fetchImpl = config.fetchImpl ?? fetch;
   const timeoutMs = config.timeoutMs ?? 3_000;
+  const derivedFingerprint = credentialFingerprint(config.postgrestServerKey);
 
   return {
+    credentialFingerprint: derivedFingerprint,
     async rpc<T>(
       name: string,
       body: Readonly<Record<string, unknown>>,
@@ -120,22 +232,43 @@ export function createPostgrestGateway(
         throw new PostgrestGatewayError('MEMORY_GATEWAY_UNAVAILABLE', null);
       }
 
+      let payload: unknown;
+      let parsed = false;
+      try {
+        payload = await response.json();
+        parsed = true;
+      } catch {
+        // Upstream bodies are deliberately discarded.
+      }
+
+      if (parsed) {
+        const stableDatabaseError = extractStableDatabaseError(payload);
+        if (stableDatabaseError) {
+          // A known database error code is authoritative regardless of the
+          // transport status; composite RPC rows never carry a `message` column.
+          throw new PostgrestGatewayError(
+            stableDatabaseError.code,
+            response.status,
+            stableDatabaseError.retryAfterSeconds,
+          );
+        }
+      }
+
       if (!response.ok) {
-        const stableDatabaseCode = await readStableDatabaseError(response);
         throw new PostgrestGatewayError(
-          stableDatabaseCode ?? 'MEMORY_GATEWAY_REQUEST_FAILED',
+          'MEMORY_GATEWAY_REQUEST_FAILED',
           response.status,
         );
       }
 
-      try {
-        return await response.json() as T;
-      } catch {
+      if (!parsed) {
         throw new PostgrestGatewayError(
           'MEMORY_GATEWAY_RESPONSE_INVALID',
           response.status,
         );
       }
+
+      return payload as T;
     },
   };
 }

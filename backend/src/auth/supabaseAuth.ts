@@ -9,6 +9,14 @@ export interface MemoryAuthConfig {
 export interface MemoryAuthUser {
   ownerId: string;
   accessToken: string;
+  sessionId: string | null;
+  isAnonymous: boolean;
+}
+
+export interface DecodedAccessTokenClaims {
+  sub: string;
+  sessionId: string | null;
+  isAnonymous: boolean;
 }
 
 export type VerifyResult =
@@ -22,6 +30,45 @@ export type VerifyAccessToken = (
 ) => Promise<VerifyResult>;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * Decodes only the access-token payload claims needed for mirror identity:
+ * the subject, the explicit session id, and the anonymous flag. The signature
+ * is never trusted here; validity is established separately via the auth
+ * endpoint. A malformed payload yields null and the caller fails closed.
+ */
+export function decodeAccessTokenPayload(
+  token: string,
+): DecodedAccessTokenClaims | null {
+  const parts = token.split('.');
+  if (parts.length !== 3) {
+    return null;
+  }
+  try {
+    const payload = Buffer.from(parts[1] ?? '', 'base64url').toString('utf8');
+    const value: unknown = JSON.parse(payload);
+    if (
+      typeof value !== 'object'
+      || value === null
+      || Array.isArray(value)
+    ) {
+      return null;
+    }
+    const record = value as Record<string, unknown>;
+    if (typeof record.sub !== 'string' || record.sub === '') {
+      return null;
+    }
+    return {
+      sub: record.sub,
+      sessionId: typeof record.session_id === 'string' && record.session_id !== ''
+        ? record.session_id
+        : null,
+      isAnonymous: record.is_anonymous === true,
+    };
+  } catch {
+    return null;
+  }
+}
 
 export async function verifySupabaseAccessToken(
   token: string,
@@ -57,6 +104,8 @@ export async function verifySupabaseAccessToken(
       user: {
         ownerId: value.id,
         accessToken: token,
+        sessionId: null,
+        isAnonymous: false,
       },
     };
   } catch {
@@ -67,6 +116,13 @@ export async function verifySupabaseAccessToken(
 interface MemoryAuthMiddlewareDeps {
   config: MemoryAuthConfig;
   verify?: VerifyAccessToken;
+  /**
+   * Strict mode for mirror mutation routes: requires a decodable access token
+   * whose subject agrees with the verified auth user id, an explicit session
+   * id, and a non-anonymous identity. Pre-existing anonymous JWTs are rejected
+   * even though they carry Supabase's authenticated database role.
+   */
+  requireMirrorSession?: boolean;
 }
 
 function sendInvalid(res: Response): void {
@@ -82,6 +138,7 @@ export function createMemoryAuthMiddleware(
   deps: MemoryAuthMiddlewareDeps,
 ): RequestHandler {
   const verify = deps.verify ?? verifySupabaseAccessToken;
+  const requireMirrorSession = deps.requireMirrorSession ?? false;
 
   return async (req: Request, res: Response, next: NextFunction) => {
     const header = req.headers.authorization;
@@ -111,7 +168,25 @@ export function createMemoryAuthMiddleware(
       return;
     }
 
-    res.locals.memoryAuth = result.user;
+    const claims = decodeAccessTokenPayload(token);
+    if (requireMirrorSession) {
+      if (
+        !claims
+        || claims.sub !== result.user.ownerId
+        || !claims.sessionId
+        || claims.isAnonymous
+      ) {
+        sendInvalid(res);
+        return;
+      }
+    }
+
+    res.locals.memoryAuth = {
+      ownerId: result.user.ownerId,
+      accessToken: result.user.accessToken,
+      sessionId: claims?.sessionId ?? null,
+      isAnonymous: claims?.isAnonymous ?? false,
+    };
     next();
   };
 }

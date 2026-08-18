@@ -6,6 +6,7 @@ const validBase = {
   SUPABASE_URL: 'https://project.supabase.co/',
   SUPABASE_ANON_KEY: 'publishable-key',
   MEMORY_DEPLOYMENT_ID: 'blackrose-primary',
+  MEMORY_WRITER_EPOCH: '7',
   MEMORY_WRITER_LEASE_ID: '00000000-0000-4000-8000-000000000077',
   MEMORY_WRITER_LEASE_TOKEN: 'opaque-writer-token',
   MEMORY_SOURCE_CREDENTIAL_FINGERPRINT: 'sha256:source',
@@ -39,6 +40,20 @@ describe('memory runtime config', () => {
     assert.doesNotMatch(serialized, /private-value|opaque-writer-token|sha256:source/);
   });
 
+  it('requires MEMORY_WRITER_EPOCH explicitly and never invents it', () => {
+    const { MEMORY_WRITER_EPOCH: _omitted, ...withoutEpoch } = validBase;
+    for (const env of [withoutEpoch, { ...validBase, MEMORY_WRITER_EPOCH: '0' }, { ...validBase, MEMORY_WRITER_EPOCH: 'abc' }, { ...validBase, MEMORY_WRITER_EPOCH: ' ' }]) {
+      const result = readMemoryConfig({
+        ...env,
+        SUPABASE_SECRET_KEY: 'sb_secret_test',
+      });
+      assert.equal(result.ready, false);
+      if ('dependencies' in result) {
+        assert.equal(result.dependencies.deployment, false);
+      }
+    }
+  });
+
   it('accepts a modern secret key without creating a bearer credential', () => {
     assert.deepEqual(readMemoryConfig({
       ...validBase,
@@ -51,9 +66,11 @@ describe('memory runtime config', () => {
         postgrestServerKey: 'sb_secret_test',
         postgrestKeyKind: 'secret',
         deploymentId: 'blackrose-primary',
+        writerEpoch: 7,
         writerLeaseId: '00000000-0000-4000-8000-000000000077',
         writerLeaseToken: 'opaque-writer-token',
         sourceCredentialFingerprint: 'sha256:source',
+        mirrorWritesEnabled: true,
         auth: {
           supabaseUrl: 'https://project.supabase.co',
           supabasePublishableKey: 'publishable-key',
@@ -75,6 +92,33 @@ describe('memory runtime config', () => {
     assert.equal(result.config.postgrestBaseUrl, 'https://project.supabase.co/rest/v1');
     assert.equal(result.config.postgrestServerKey, 'legacy.jwt.value');
     assert.equal(result.config.postgrestKeyKind, 'legacy_service_role');
+    assert.equal(result.config.writerEpoch, 7);
+    assert.equal(result.config.mirrorWritesEnabled, true);
+  });
+
+  it('reads the mirror write kill switch as an explicit opt-out', () => {
+    assert.equal(readMemoryConfig({
+      ...validBase,
+      SUPABASE_SECRET_KEY: 'sb_secret_test',
+    }).ready, true);
+    for (const [value, expected] of [
+      ['0', false],
+      ['false', false],
+      ['FALSE', false],
+      ['1', true],
+      ['true', true],
+      ['', true],
+    ] as const) {
+      const result = readMemoryConfig({
+        ...validBase,
+        SUPABASE_SECRET_KEY: 'sb_secret_test',
+        MEMORY_MIRROR_WRITES_ENABLED: value,
+      });
+      assert.equal(result.ready, true);
+      if (result.ready) {
+        assert.equal(result.config.mirrorWritesEnabled, expected, value);
+      }
+    }
   });
 
   it('rejects credentialed URLs, blank opaque values, and unsafe deployment IDs', () => {

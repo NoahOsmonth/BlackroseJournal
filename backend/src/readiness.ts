@@ -23,6 +23,8 @@ interface ReadinessControllerDeps {
   probeAi: () => boolean | Promise<boolean>;
   memoryConfig: MemoryConfigResult;
   repository: MemoryRepository | null;
+  /** Fingerprint derived in backend memory from the selected gateway credential. */
+  credentialFingerprint?: string | null;
   now?: () => Date;
 }
 
@@ -38,6 +40,7 @@ function hasSupabaseAuth(config: MemoryConfigResult): boolean {
 function validAuthority(
   authority: BootstrapState,
   config: Extract<MemoryConfigResult, { ready: true }>['config'],
+  credentialFingerprint: string | null,
   now: Date,
 ): boolean {
   const expiresAt = authority.writerLeaseExpiresAt
@@ -45,6 +48,7 @@ function validAuthority(
     : Number.NaN;
   return authority.deploymentId === config.deploymentId
     && authority.mode === 'active'
+    && authority.writerEpoch === config.writerEpoch
     && FINGERPRINT.test(authority.databaseFingerprint)
     && !authority.databaseFingerprint.startsWith('phase0-unprovisioned')
     && authority.writerLeaseId === config.writerLeaseId
@@ -54,8 +58,9 @@ function validAuthority(
     && authority.writerLeaseIssuer.trim() !== ''
     && typeof authority.writerLeaseKeyId === 'string'
     && authority.writerLeaseKeyId.trim() !== ''
-    && authority.sourceCredentialFingerprint
-      === config.sourceCredentialFingerprint;
+    && credentialFingerprint !== null
+    && credentialFingerprint === config.sourceCredentialFingerprint
+    && credentialFingerprint === authority.sourceCredentialFingerprint;
 }
 
 export function createReadinessController(
@@ -86,6 +91,7 @@ export function createReadinessController(
         deploymentAuthority = validAuthority(
           authority,
           deps.memoryConfig.config,
+          deps.credentialFingerprint ?? null,
           (deps.now ?? (() => new Date()))(),
         );
       } catch {

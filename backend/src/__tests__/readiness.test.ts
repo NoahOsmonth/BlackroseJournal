@@ -17,9 +17,11 @@ const readyConfig: MemoryConfigResult = {
     postgrestServerKey: 'sb_secret_private',
     postgrestKeyKind: 'secret',
     deploymentId: 'blackrose-primary',
+    writerEpoch: 7,
     writerLeaseId: '00000000-0000-4000-8000-000000000077',
     writerLeaseToken: 'private-writer-token',
     sourceCredentialFingerprint: 'sha256:source-a',
+    mirrorWritesEnabled: true,
     auth: {
       supabaseUrl: 'https://project.supabase.co',
       supabasePublishableKey: 'publishable-key',
@@ -87,6 +89,7 @@ describe('cached readiness', () => {
     const controller = createReadinessController({
       probeAi: async () => true,
       memoryConfig: readyConfig,
+      credentialFingerprint: 'sha256:source-a',
       repository: repositoryReturning(validBootstrap, calls),
       now: () => new Date('2026-07-28T00:00:00.000Z'),
     });
@@ -150,6 +153,7 @@ describe('cached readiness', () => {
       { ...validBootstrap, deploymentId: 'other' },
       { ...validBootstrap, databaseFingerprint: 'phase0-unprovisioned:test' },
       { ...validBootstrap, mode: 'maintenance' },
+      { ...validBootstrap, writerEpoch: 8 },
       { ...validBootstrap, writerLeaseId: null },
       { ...validBootstrap, writerLeaseId: '00000000-0000-4000-8000-000000000078' },
       { ...validBootstrap, writerLeaseExpiresAt: '2020-01-01T00:00:00.000Z' },
@@ -161,6 +165,7 @@ describe('cached readiness', () => {
       const controller = createReadinessController({
         probeAi: async () => true,
         memoryConfig: readyConfig,
+        credentialFingerprint: 'sha256:source-a',
         repository: repositoryReturning(bootstrap),
         now: () => new Date('2026-07-28T00:00:00.000Z'),
       });
@@ -174,10 +179,44 @@ describe('cached readiness', () => {
     }
   });
 
+  it('compares the gateway-derived fingerprint, never the asserted config value', async () => {
+    // The selected key derives to sha256:derived-b, but both the config's
+    // asserted fingerprint and the hosted authority row name sha256:source-a.
+    // A deployment that trusts the asserted value would pass; deriving from
+    // the selected key must fail closed.
+    const controller = createReadinessController({
+      probeAi: async () => true,
+      memoryConfig: readyConfig,
+      credentialFingerprint: 'sha256:derived-b',
+      repository: repositoryReturning(validBootstrap),
+      now: () => new Date('2026-07-28T00:00:00.000Z'),
+    });
+    await controller.refresh();
+    assert.deepEqual(controller.getSnapshot(), {
+      ai: true,
+      supabaseAuth: true,
+      postgrestGateway: true,
+      deploymentAuthority: false,
+    });
+
+    // When the derived fingerprint, the asserted value, and the hosted row all
+    // agree, the authority is valid.
+    const matching = createReadinessController({
+      probeAi: async () => true,
+      memoryConfig: readyConfig,
+      credentialFingerprint: 'sha256:source-a',
+      repository: repositoryReturning(validBootstrap),
+      now: () => new Date('2026-07-28T00:00:00.000Z'),
+    });
+    await matching.refresh();
+    assert.equal(matching.getSnapshot().deploymentAuthority, true);
+  });
+
   it('fails closed on probe errors without exposing config or upstream values', async () => {
     const controller = createReadinessController({
       probeAi: async () => { throw new Error('private AI key'); },
       memoryConfig: readyConfig,
+      credentialFingerprint: 'sha256:source-a',
       repository: {
         ...repositoryReturning(validBootstrap),
         async getBootstrap() { throw new Error('private upstream body'); },
