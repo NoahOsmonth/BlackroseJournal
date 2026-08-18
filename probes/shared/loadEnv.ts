@@ -55,7 +55,7 @@ export function applyProbeEnv(): {
     const model = (
         process.env.EXPO_PUBLIC_NANO_GPT_MODEL
         ?? fileEnv.EXPO_PUBLIC_NANO_GPT_MODEL
-        ?? 'tencent/hy3:free'
+        ?? 'dots-studio/dots-3-note-preview:free'
     ).trim();
     const flashModel = (
         process.env.EXPO_PUBLIC_NANO_GPT_FLASH_MODEL

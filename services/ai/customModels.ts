@@ -72,7 +72,7 @@ const NESTED_CONTEXT_PATHS = [
 const KNOWN_CONTEXT_WINDOWS: Record<string, number> = {
     'nvidia/nemotron-3-ultra-550b-a55b': 1_000_000,
     'nvidia/nemotron-3-ultra-550b-a55b:free': 1_000_000,
-    'tencent/hy3:free': 262_000,
+    'dots-studio/dots-3-note-preview:free': 512_000,
     'moonshotai/kimi-k2.5:thinking': 128_000,
     'moonshotai/kimi-k2.5': 128_000,
 };
