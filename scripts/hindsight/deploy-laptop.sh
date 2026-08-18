@@ -14,6 +14,8 @@ set -euo pipefail
 IMAGE="ghcr.io/vectorize-io/hindsight:latest"
 NAME="hindsight-laptop"
 VOLUME="hindsight-laptop-data"
+CORS_NAME="hindsight-cors"
+CORS_DIR="/home/sigmund/.hindsight-cors"
 
 : "${HINDSIGHT_LLM_API_KEY:?set HINDSIGHT_LLM_API_KEY (OpenRouter)}"
 : "${HINDSIGHT_GEMINI_EMBEDDINGS_API_KEY:?set HINDSIGHT_GEMINI_EMBEDDINGS_API_KEY}"
@@ -46,9 +48,35 @@ docker run -d --name "$NAME" \
 for i in $(seq 1 60); do
   if curl -fsS http://localhost:8888/health >/dev/null 2>&1; then
     echo "health:200 after ${i}s"
+    break
+  fi
+  sleep 1
+  if [ "$i" = 60 ]; then
+    echo "health check timed out after 60s" >&2
+    exit 1
+  fi
+done
+
+# CORS shim: Hindsight ships with no CORS support, so browsers (Expo web)
+# cannot call the container cross-origin. Native RN has no CORS and talks to
+# 8888 directly; the shim on 8890 adds Access-Control-Allow-* + OPTIONS
+# handling for the web build. Host-network mode so 127.0.0.1:8888 resolves to
+# the published Hindsight port.
+mkdir -p "$CORS_DIR"
+cp "$(dirname "$0")/cors-proxy.mjs" "$CORS_DIR/proxy.mjs" 2>/dev/null || \
+  scp "$(dirname "$0")/cors-proxy.mjs" sigmund@100.107.7.52:"$CORS_DIR/proxy.mjs"
+docker rm -f "$CORS_NAME" >/dev/null 2>&1 || true
+docker run -d --name "$CORS_NAME" \
+  --restart unless-stopped \
+  --network host \
+  -v "$CORS_DIR/proxy.mjs":/app/proxy.mjs:ro \
+  node:22-alpine node /app/proxy.mjs >/dev/null
+for i in $(seq 1 30); do
+  if curl -fsS http://localhost:8890/health >/dev/null 2>&1; then
+    echo "cors shim health:200 after ${i}s"
     exit 0
   fi
   sleep 1
 done
-echo "health check timed out after 60s" >&2
+echo "cors shim health check timed out" >&2
 exit 1
