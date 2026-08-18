@@ -30,10 +30,10 @@ describe('modelDisplay helpers', () => {
     it('prefers preferred free id then first free', () => {
         const models = [
             { id: 'a/other:free' },
-            { id: 'tencent/hy3:free' },
+            { id: 'dots-studio/dots-3-note-preview:free' },
         ];
         expect(preferFreeModelId(models, 'a/other:free')).toBe('a/other:free');
-        expect(preferFreeModelId(models, null)).toBe('tencent/hy3:free');
+        expect(preferFreeModelId(models, null)).toBe('dots-studio/dots-3-note-preview:free');
     });
 
     it('formats host and display names', () => {
