@@ -50,6 +50,12 @@ export const MAX_AGENT_TOOL_ROUNDS = 3;
 export const AGENT_ROUND_MAX_TOKENS = 1_536;
 
 /**
+ * Whole-turn wall-clock deadline for the agent loop (Task 9). When exceeded at
+ * the top of a round, tool rounds abort and a final no-tools pass runs.
+ */
+export const AGENT_TURN_TIMEOUT_MS = 25_000;
+
+/**
  * PR8c: cumulative prompt-token budget across all tool rounds of one agent turn.
  * Real usage.prompt_tokens when available; chars/4 estimator otherwise.
  * Tools-schema + framing often add ~900 real tokens/round outside the system string.
@@ -105,7 +111,7 @@ export interface AgentLoopResult {
     /** Cumulative prompt tokens billed to the turn budget (real or est). */
     cumulativePromptTokens?: number;
     /** Why the loop stopped early, if applicable. */
-    stopReason?: 'complete' | 'max_rounds' | 'token_budget' | 'duplicate_call' | 'skipped';
+    stopReason?: 'complete' | 'max_rounds' | 'token_budget' | 'duplicate_call' | 'timeout' | 'skipped';
     /** Wall-clock timing for rounds and tool batches (Task 8). */
     timings?: AgentLoopTimings;
 }
@@ -120,6 +126,8 @@ interface AgentLoopOptions {
     capability?: ToolCapability;
     /** Override turn token budget (tests). Defaults to AGENT_TURN_TOKEN_BUDGET. */
     turnTokenBudget?: number;
+    /** Override whole-turn wall-clock deadline (tests). Defaults to AGENT_TURN_TIMEOUT_MS. */
+    turnTimeoutMs?: number;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -479,6 +487,7 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
     const model = options.model ?? 'agent-default';
     const capability = options.capability ?? resolveToolCapability(model);
     const turnBudget = options.turnTokenBudget ?? AGENT_TURN_TOKEN_BUDGET;
+    const turnTimeoutMs = options.turnTimeoutMs ?? AGENT_TURN_TIMEOUT_MS;
 
     // Task 8: wall-clock timing for the whole turn, per round, and per tool batch.
     const turnStartedAt = Date.now();
@@ -513,6 +522,18 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
                 model,
                 cumulative: cumulativePromptTokens,
                 budget: turnBudget,
+            });
+            break;
+        }
+
+        // Whole-turn wall-clock deadline: abort tool rounds; the final no-tools
+        // pass below still ships an answer.
+        if (Date.now() - turnStartedAt > turnTimeoutMs) {
+            stopReason = 'timeout';
+            logToolTelemetry('agent_timeout', {
+                model,
+                rounds,
+                turnMs: Date.now() - turnStartedAt,
             });
             break;
         }
