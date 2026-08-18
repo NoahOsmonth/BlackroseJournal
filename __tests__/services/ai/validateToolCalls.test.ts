@@ -77,6 +77,25 @@ describe('validateAndRepairToolCall', () => {
             id: 'entry-1',
         });
     });
+
+    it('repairs recall alias → query for recall_memory', () => {
+        const out = validateAndRepairToolCall(
+            { id: '1', name: 'recall_memory', arguments: '{"recall":"wedding"}' },
+            'text'
+        );
+        expect(out).not.toBeNull();
+        expect(JSON.parse(out!.arguments)).toEqual({ query: 'wedding' });
+        expect(out!.repaired).toBe(true);
+    });
+
+    it('rejects recall_memory without query', () => {
+        expect(
+            validateAndRepairToolCall(
+                { id: '1', name: 'recall_memory', arguments: '{}' },
+                'structured'
+            )
+        ).toBeNull();
+    });
 });
 
 describe('prepareToolCalls', () => {
