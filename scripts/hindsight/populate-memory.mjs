@@ -37,16 +37,19 @@ const asOf = Date.parse(`${AS_OF}T12:00:00Z`);
 
 const BANK_PATH = `/v1/default/banks/${encodeURIComponent(BANK)}`;
 
-/** Needle table: planted offset days before asOf, bucket label, recall query. */
+/** Needle table: planted offset days before asOf, bucket label, recall query.
+ * `distinctive` terms must survive Hindsight's LLM extraction — the container
+ * often answers a recall with an auto-extracted unit that carries NO
+ * document_id, so the quality battery matches content as a fallback. */
 const NEEDLES = [
-    { id: 'wedding',     bucket: '1mo',  offsetDays: 21,  query: 'When did Maya get married? What did she wear?' },
-    { id: 'first_5k',    bucket: '1mo',  offsetDays: 28,  query: 'Did I finish my first 5k run?' },
-    { id: 'nordvik',     bucket: '3mo',  offsetDays: 70,  query: 'How did the Nordvik interview go?' },
-    { id: 'job_offer',   bucket: '3mo',  offsetDays: 84,  query: 'Which job offer did I accept?' },
-    { id: 'dad_surgery', bucket: '6mo',  offsetDays: 168, query: "When was Dad's surgery?" },
-    { id: 'caffeine',    bucket: '6mo',  offsetDays: 196, query: 'When did I stop drinking caffeine?' },
-    { id: 'running',     bucket: '1yr',  offsetDays: 336, query: 'When did I start running again?' },
-    { id: 'priya_van',   bucket: '1yr',  offsetDays: 392, query: 'When did Priya move abroad?' },
+    { id: 'wedding',     bucket: '1mo',  offsetDays: 21,  query: 'When did Maya get married? What did she wear?', distinctive: ['lavender', 'garden'] },
+    { id: 'first_5k',    bucket: '1mo',  offsetDays: 28,  query: 'Did I finish my first 5k run?', distinctive: ['5k', '34'] },
+    { id: 'nordvik',     bucket: '3mo',  offsetDays: 70,  query: 'How did the Nordvik interview go?', distinctive: ['nordvik'] },
+    { id: 'job_offer',   bucket: '3mo',  offsetDays: 84,  query: 'Which job offer did I accept?', distinctive: ['brightline'] },
+    { id: 'dad_surgery', bucket: '6mo',  offsetDays: 168, query: "When was Dad's surgery?", distinctive: ['surgery'] },
+    { id: 'caffeine',    bucket: '6mo',  offsetDays: 196, query: 'When did I stop drinking caffeine?', distinctive: ['caffeine'] },
+    { id: 'running',     bucket: '1yr',  offsetDays: 336, query: 'When did I start running again?', distinctive: ['couch', '5k'] },
+    { id: 'priya_van',   bucket: '1yr',  offsetDays: 392, query: 'When did Priya move abroad?', distinctive: ['vancouver', 'abroad'] },
 ];
 
 /** Weekly-topic calendar: day index (negative offset) -> topic + detail. */
@@ -58,7 +61,7 @@ function topicForOffset(offsetDays) {
         'Had dinner with Maya and we talked about her plans.',
         'Ran in the morning for the first time in weeks.',
         'Could not sleep; woke at 3am worrying about money.',
-        'Called Priya; she sounded excited about a big change.',
+        'Called Priya; she had just finished a pottery class.',
         'Felt calm today. Made tea, read, went for a walk.',
         'Therapy session: we talked about boundaries with Dad.',
     ];
@@ -95,7 +98,7 @@ function needleContent(needle) {
         dad_surgery: `Dad had his knee surgery this morning, ${when}. The doctors said it went well. He is resting at home now.`,
         caffeine:    `Day 1 without caffeine, ${when}. Headache all afternoon but I am doing this for my sleep.`,
         running:     `I started running again today, ${when}. Couch to 5k week one. I want to do a 10k by the end of the year.`,
-        priya_van:   `Priya moved to Vancouver today, ${when}. Her flight left at 7am. I am going to visit in the spring.`,
+        priya_van:   `Priya moved abroad to Vancouver today, ${when}. Her flight left at 7am. I am going to visit in the spring.`,
     }[needle.id];
     return body ?? 'Unused';
 }
@@ -181,6 +184,7 @@ async function main() {
         query: n.query,
         documentId: `needle_${n.id}`,
         plantedAt: new Date(asOf - n.offsetDays * DAY).toISOString(),
+        distinctive: n.distinctive,
     }));
     const outDir = join(ROOT, 'probes', 'artifacts');
     mkdirSync(outDir, { recursive: true });

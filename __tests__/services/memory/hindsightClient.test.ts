@@ -1,4 +1,4 @@
-import { hindsightRetain, hindsightRecall, hindsightReflect, hindsightHealth, subscribeHindsightChanges } from '../../../services/memory/hindsight/hindsightClient';
+import { hindsightRetain, hindsightRecall, hindsightReflect, hindsightHealth, subscribeHindsightChanges, dedupeRecallHits } from '../../../services/memory/hindsight/hindsightClient';
 import { retainJournalEntryToHindsight } from '../../../services/memory/hindsight/hindsightRetain';
 
 const JSON_OK = { ok: true, status: 200, json: async () => ({}) } as Response;
@@ -99,12 +99,19 @@ describe('hindsightClient', () => {
     });
 
     it('aborts (timeouts) and returns null', async () => {
-        (global.fetch as jest.Mock).mockImplementation((_url: string, init: { signal?: AbortSignal }) =>
-            new Promise((_resolve, reject) => {
-                init.signal?.addEventListener('abort', () => reject(new Error('Aborted')));
-            })
-        );
-        await expect(hindsightRecall('anything')).resolves.toBeNull();
+        jest.useFakeTimers();
+        try {
+            (global.fetch as jest.Mock).mockImplementation((_url: string, init: { signal?: AbortSignal }) =>
+                new Promise((_resolve, reject) => {
+                    init.signal?.addEventListener('abort', () => reject(new Error('Aborted')));
+                })
+            );
+            const pending = hindsightRecall('anything');
+            await jest.advanceTimersByTimeAsync(10_001);
+            await expect(pending).resolves.toBeNull();
+        } finally {
+            jest.useRealTimers();
+        }
     });
 
     it('reflect normalizes string and object responses', async () => {
@@ -142,5 +149,39 @@ describe('hindsightClient', () => {
         } as never);
         expect(ok).toBe(false);
         expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('dedupeRecallHits collapses near-duplicate units and keeps distinct facts', () => {
+        // Mirrors the live bank failure: ~20 near-identical "called Priya"
+        // extraction variants drown the distinct Vancouver-move fact.
+        const hits = [
+            { content: 'User called Priya; she had just finished a pottery class. | When: May 13', similarity: 0.98 },
+            { content: 'User called Priya, who had just finished a pottery class. | When: on May 14', similarity: 0.97 },
+            { content: 'Priya moved abroad to Vancouver on July 22, 2025; her flight departed at 7am.', similarity: 0.92 },
+        ];
+        const kept = dedupeRecallHits(hits);
+        expect(kept).toHaveLength(2);
+        expect(kept[0].content).toContain('pottery class');
+        expect(kept[1].content).toContain('Vancouver');
+    });
+
+    it('dedupeRecallHits keeps the highest-similarity representative of a cluster', () => {
+        const hits = [
+            { content: 'Maya got married in the garden', similarity: 0.9 },
+            { content: 'Maya got married in her parents garden', similarity: 0.95 },
+        ];
+        const kept = dedupeRecallHits(hits);
+        expect(kept).toHaveLength(1);
+        expect(kept[0].content).toContain('parents garden');
+    });
+
+    it('dedupeRecallHits caps to the requested limit', () => {
+        const hits = [
+            { content: 'One fact', similarity: 0.99 },
+            { content: 'Another distinct fact', similarity: 0.9 },
+            { content: 'Third separate fact', similarity: 0.8 },
+        ];
+        const kept = dedupeRecallHits(hits, 2);
+        expect(kept).toHaveLength(2);
     });
 });

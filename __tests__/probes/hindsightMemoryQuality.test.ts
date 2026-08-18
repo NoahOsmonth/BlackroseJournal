@@ -26,6 +26,7 @@ interface Needle {
     bucket: string;
     query: string;
     documentId: string;
+    distinctive?: string[];
 }
 
 function loadNeedles(): Needle[] {
@@ -39,14 +40,30 @@ function topSix(hits: HindsightRecallHit[] | null): HindsightRecallHit[] {
     return (hits ?? []).slice().sort((a, b) => b.similarity - a.similarity).slice(0, 6);
 }
 
+// The container answers with the needle as the raw unit (carrying document_id)
+// AND as auto-extracted world units that drop document_id entirely. Match by
+// document_id first, then by the needle's distinctive content terms.
+function isNeedleHit(hit: HindsightRecallHit, needle: Needle): boolean {
+    if (needle.documentId && hit.documentId === needle.documentId) return true;
+    if (!needle.distinctive?.length) return false;
+    const content = hit.content.toLowerCase();
+    return needle.distinctive.every((term) => content.includes(term.toLowerCase()));
+}
+
 describe('hindsight memory quality (E6)', () => {
     if (!PROBE) {
         it('skipped without PROBE_LLM=1', () => expect(true).toBe(true));
         return;
     }
 
-    const OLD_BASE_URL = process.env.EXPO_PUBLIC_HINDSIGHT_BASE_URL;
-    const results: Record<string, unknown> = { buckets: {}, needles: [], reflect: [] };
+interface ProbeResult {
+    buckets: Record<string, { hit: number; total: number }>;
+    needles: Array<{ needleId: string; bucket: string; query: string; documentId: string; found: boolean; latencyMs: number }>;
+    reflect: Array<{ q: string; entity: string; grounded: boolean; latencyMs: number; excerpt: string }>;
+}
+
+const OLD_BASE_URL = process.env.EXPO_PUBLIC_HINDSIGHT_BASE_URL;
+const results: ProbeResult = { buckets: {}, needles: [], reflect: [] };
 
     beforeAll(() => {
         // The client reads this at call time; pin the local container so the
@@ -71,9 +88,7 @@ describe('hindsight memory quality (E6)', () => {
             const started = Date.now();
             const hits = await hindsightRecall(needle.query, { limit: 6 });
             const latencyMs = Date.now() - started;
-            // Container also emits auto-extracted world/observation units — the
-            // same documentId can appear on several hits, so .some() is right.
-            const found = topSix(hits).some((h) => h.documentId === needle.documentId);
+            const found = topSix(hits).some((h) => isNeedleHit(h, needle));
             buckets[needle.bucket] ??= { hit: 0, total: 0 };
             buckets[needle.bucket].total += 1;
             if (found) buckets[needle.bucket].hit += 1;

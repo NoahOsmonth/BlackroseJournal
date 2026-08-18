@@ -26,7 +26,10 @@ export interface HindsightRecallHit {
 // retain is fire-and-forget on the finish path; the container's first retain
 // of a new document_id runs a synchronous LLM extraction pass measured up to
 // ~19s (idempotent fast upsert afterwards), so keep the timeout above that.
-const TIMEOUTS = { recall: 2500, retain: 20000, reflect: 8000, health: 1500 } as const;
+// On the populated 168-doc bank the container answers recall in 3.5-5.7s and
+// reflect in 21-63s (quality-battery measurements, 2026-08-18); timeouts are
+// ceilings, not target latencies, and must sit above those tails.
+const TIMEOUTS = { recall: 10000, retain: 20000, reflect: 70000, health: 1500 } as const;
 
 type ChangeListener = () => void;
 const listeners = new Set<ChangeListener>();
@@ -122,7 +125,45 @@ export async function hindsightRecall(
         body,
         TIMEOUTS.recall
     );
-    return normalizeRecallResponse(data);
+    const hits = normalizeRecallResponse(data);
+    return hits ? dedupeRecallHits(hits, Math.max(1, opts.limit ?? 6)) : null;
+}
+
+// The container returns ~90-100 recall hits regardless of `limit` and, without
+// dedup, near-identical auto-extracted units (e.g. 20 "called Priya" variants)
+// drown out distinct facts. Collapse near-duplicates by word-set Jaccard and
+// cap to the requested limit so the context block and tool stay bounded.
+const NEAR_DUP_JACCARD = 0.55;
+const TOKEN_RE = /[a-z0-9]+/g;
+
+function tokenSet(content: string): Set<string> {
+    return new Set(content.toLowerCase().match(TOKEN_RE) ?? []);
+}
+
+function jaccard(a: Set<string>, b: Set<string>): number {
+    if (a.size === 0 || b.size === 0) return 0;
+    let intersection = 0;
+    a.forEach((token) => {
+        if (b.has(token)) intersection += 1;
+    });
+    return intersection / (a.size + b.size - intersection);
+}
+
+export function dedupeRecallHits<T extends { content: string; similarity: number }>(
+    hits: T[],
+    limit?: number
+): T[] {
+    const sorted = [...hits].sort((x, y) => y.similarity - x.similarity);
+    const kept: T[] = [];
+    const keptTokens: Set<string>[] = [];
+    for (const hit of sorted) {
+        const tokens = tokenSet(hit.content);
+        if (keptTokens.some((k) => jaccard(k, tokens) >= NEAR_DUP_JACCARD)) continue;
+        kept.push(hit);
+        keptTokens.push(tokens);
+        if (limit !== undefined && kept.length >= limit) break;
+    }
+    return kept;
 }
 
 function readScoresFinal(scores: unknown): number {
