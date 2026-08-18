@@ -42,18 +42,27 @@ jest.mock('../../../services/memory/identityExtraction', () => ({
     extractIdentityFromSessionTranscript: jest.fn(async () => null),
 }));
 
+jest.mock('../../../services/memory/hindsight/hindsightRetain', () => ({
+    retainCheckInToHindsight: jest.fn(async () => true),
+}));
+
 import {
     createCheckIn,
     updateCheckIn,
     clearAllCheckIns,
     listCheckIns,
 } from '../../../services/intentions/intentionsStorage';
+import { retainCheckInToHindsight } from '../../../services/memory/hindsight/hindsightRetain';
 import {
     listMemoryAtoms,
     resetMemoryStorageAdapter,
     setMemoryStorageAdapter,
 } from '../../../services/memory/localMemory';
 import type { StorageAdapter } from '../../../services/journal/journalStorage.types';
+
+const mockedRetain = retainCheckInToHindsight as jest.MockedFunction<
+    typeof retainCheckInToHindsight
+>;
 
 function createMemoryAdapter(): StorageAdapter {
     const store = new Map<string, string>();
@@ -74,6 +83,7 @@ describe('intentionsStorage', () => {
     beforeEach(() => {
         mockAsyncStorageStore.clear();
         setMemoryStorageAdapter(createMemoryAdapter());
+        mockedRetain.mockClear();
     });
 
     afterEach(() => {
@@ -135,6 +145,50 @@ describe('intentionsStorage', () => {
 
         const atoms = await listMemoryAtoms();
         expect(atoms.some((atom) => atom.source === 'intention')).toBe(true);
+    });
+
+    it('retains a completed check-in to hindsight on create', async () => {
+        await createCheckIn({
+            type: 'morning',
+            title: 'Morning check-in',
+            summary: 'Summary.',
+            mood: 'Reflective',
+            status: 'completed',
+            messages: [],
+        });
+
+        expect(mockedRetain).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not retain draft check-ins', async () => {
+        await createCheckIn({
+            type: 'evening',
+            title: 'Evening draft',
+            summary: 'Draft summary.',
+            mood: 'Reflective',
+            status: 'draft',
+            messages: [],
+        });
+
+        expect(mockedRetain).not.toHaveBeenCalled();
+    });
+
+    it('retains when a draft is updated to completed', async () => {
+        const draft = await createCheckIn({
+            type: 'intention',
+            title: 'Intention draft',
+            summary: 'Draft summary.',
+            mood: 'Reflective',
+            status: 'draft',
+            messages: [],
+        });
+
+        await updateCheckIn(draft.id, {
+            status: 'completed',
+            messages: [],
+        });
+
+        expect(mockedRetain).toHaveBeenCalledTimes(1);
     });
 
     it('clears all check-ins', async () => {

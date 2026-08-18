@@ -26,6 +26,7 @@ import {
 } from './intentionsRemote';
 import { upsertCheckInDayDigest } from '../memory/dayDigestStorage';
 import { extractIdentityFromSessionTranscript } from '../memory/identityExtraction';
+import { retainCheckInToHindsight } from '../memory/hindsight/hindsightRetain';
 import { saveIntentionCheckInMemories } from '../memory/localMemory';
 import { buildAndSaveSessionDigest } from '../memory/sessionDigestBuild';
 
@@ -302,6 +303,9 @@ export async function createCheckIn(
         }).catch((error) => {
             console.warn('Failed to build session digest for check-in:', error);
         });
+        void retainCheckInToHindsight(checkIn).catch((error) => {
+            console.warn('Hindsight retain failed (check-in):', error);
+        });
     }
 
     return checkIn;
@@ -358,6 +362,9 @@ export async function updateCheckIn(
             userMessages: userLines,
         }).catch((error) => {
             console.warn('Failed to build session digest for check-in:', error);
+        });
+        void retainCheckInToHindsight(updated).catch((error) => {
+            console.warn('Hindsight retain failed (check-in):', error);
         });
     }
 
