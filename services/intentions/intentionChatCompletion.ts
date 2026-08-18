@@ -11,6 +11,7 @@ import type {
     IntentionCheckInType,
 } from './intentionsStorage.types';
 import type { Message } from '@/services/ai/chatTypes';
+import { createTemporalMessage } from '@/services/ai/messageTemporalMetadata';
 
 export function buildIntentionChatSummary(messages: Pick<Message, 'role' | 'content'>[]): string {
     const first = messages.find((message) => message.role === 'user');
@@ -24,12 +25,11 @@ export function withPendingInput(messages: Message[], inputValue: string): Messa
     if (!trimmed) return [...messages];
     return [
         ...messages,
-        {
+        createTemporalMessage({
             id: Date.now().toString(),
             role: 'user',
             content: trimmed,
-            timestamp: Date.now(),
-        },
+        }),
     ];
 }
 

@@ -8,6 +8,7 @@ export {
     searchHistoryTool,
 } from './historyTools';
 export { getIdentityTool, updateIdentityTool } from './identityTools';
+export { recallMemoryToolHandler } from './hindsightTools';
 export {
     formatToolResultsForModel,
     looksLikeToolDump,

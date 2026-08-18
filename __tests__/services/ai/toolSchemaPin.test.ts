@@ -94,6 +94,23 @@ const PINNED_OTHER_TOOLS_JSON = JSON.stringify([
     {
         type: 'function',
         function: {
+            name: 'recall_memory',
+            description:
+                'Query the long-term memory bank (Hindsight) for recollections relevant to a topic. Use for "remember when\u2026", themes older than recent digests, or grounding across past months.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    query: { type: 'string', description: 'Topic or question to recall from long-term memory.' },
+                    limit: { type: 'number', description: 'Max recollections (1\u201310, default 6).' },
+                },
+                required: ['query'],
+                additionalProperties: false,
+            },
+        },
+    },
+    {
+        type: 'function',
+        function: {
             name: 'get_identity',
             description:
                 'Read the on-device always-on identity profile (preferred name, pronouns, key people, durable facts). Prefer the injected Identity block when present; call this if you need to re-check after an update.',
@@ -157,7 +174,7 @@ const PINNED_OTHER_TOOLS_JSON = JSON.stringify([
 ]);
 
 describe('PR8c tool schema pin (other than list_recent_days)', () => {
-    it('six non-list_recent_days tools are byte-identical to the pin', () => {
+    it('seven non-list_recent_days tools are byte-identical to the pin', () => {
         const others = toOpenAiToolSpecs(
             HISTORY_TOOL_DEFINITIONS.filter((d) => d.name !== 'list_recent_days')
         );
@@ -181,15 +198,28 @@ describe('PR8c tool schema pin (other than list_recent_days)', () => {
         expect(def!.parameters.required).toBeUndefined();
     });
 
-    it('registry still exposes exactly 7 history tools', () => {
+    it('registry still exposes exactly 8 history tools', () => {
         expect(HISTORY_TOOL_DEFINITIONS.map((d) => d.name)).toEqual([
             'get_clock',
             'list_recent_days',
             'get_day',
             'get_conversation',
             'search_history',
+            'recall_memory',
             'get_identity',
             'update_identity',
         ]);
+    });
+
+    it('recall_memory requires query and appears in OpenAI specs', () => {
+        const def = HISTORY_TOOL_DEFINITIONS.find((d) => d.name === 'recall_memory');
+        expect(def).toBeDefined();
+        expect(def!.parameters.required).toEqual(['query']);
+        expect(def!.parameters.additionalProperties).toBe(false);
+        const specs = toOpenAiToolSpecs();
+        expect(specs.some((spec) => spec.function.name === 'recall_memory')).toBe(true);
+        expect(specs.find((spec) => spec.function.name === 'recall_memory')!.function.parameters).toBe(
+            def!.parameters
+        );
     });
 });

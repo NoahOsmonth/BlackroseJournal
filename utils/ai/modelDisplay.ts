@@ -3,7 +3,7 @@
  * No I/O — safe for UI and services.
  */
 
-export const PREFERRED_FREE_MODEL_ID = 'tencent/hy3:free';
+export const PREFERRED_FREE_MODEL_ID = 'dots-studio/dots-3-note-preview:free';
 export const OPENROUTER_DEFAULT_BASE_URL = 'https://openrouter.ai/api/v1';
 export const MAX_RECENT_MODEL_IDS = 3;
 

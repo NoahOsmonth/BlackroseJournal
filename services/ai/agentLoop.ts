@@ -50,6 +50,12 @@ export const MAX_AGENT_TOOL_ROUNDS = 3;
 export const AGENT_ROUND_MAX_TOKENS = 1_536;
 
 /**
+ * Whole-turn wall-clock deadline for the agent loop (Task 9). When exceeded at
+ * the top of a round, tool rounds abort and a final no-tools pass runs.
+ */
+export const AGENT_TURN_TIMEOUT_MS = 25_000;
+
+/**
  * PR8c: cumulative prompt-token budget across all tool rounds of one agent turn.
  * Real usage.prompt_tokens when available; chars/4 estimator otherwise.
  * Tools-schema + framing often add ~900 real tokens/round outside the system string.
@@ -81,6 +87,14 @@ export type AgentToolCallSource = 'structured' | 'text' | 'mixed' | 'none';
 
 export type AgentTokenSource = 'real' | 'est';
 
+/** Wall-clock timing for one agent turn (Task 8). */
+export interface AgentLoopTimings {
+    turnMs: number;
+    roundMs: number[];
+    toolBatchMs: number[];
+    toolsExecuted: number;
+}
+
 export interface AgentLoopResult {
     content: string;
     reasoning: string;
@@ -97,7 +111,9 @@ export interface AgentLoopResult {
     /** Cumulative prompt tokens billed to the turn budget (real or est). */
     cumulativePromptTokens?: number;
     /** Why the loop stopped early, if applicable. */
-    stopReason?: 'complete' | 'max_rounds' | 'token_budget' | 'duplicate_call' | 'skipped';
+    stopReason?: 'complete' | 'max_rounds' | 'token_budget' | 'duplicate_call' | 'timeout' | 'skipped';
+    /** Wall-clock timing for rounds and tool batches (Task 8). */
+    timings?: AgentLoopTimings;
 }
 
 interface AgentLoopOptions {
@@ -110,6 +126,8 @@ interface AgentLoopOptions {
     capability?: ToolCapability;
     /** Override turn token budget (tests). Defaults to AGENT_TURN_TOKEN_BUDGET. */
     turnTokenBudget?: number;
+    /** Override whole-turn wall-clock deadline (tests). Defaults to AGENT_TURN_TIMEOUT_MS. */
+    turnTimeoutMs?: number;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -423,6 +441,7 @@ async function runFinalNoToolsPass(
         lastUsage: AgentLoopResult['usage'];
         cumulativePromptTokens: number;
         stopReason: NonNullable<AgentLoopResult['stopReason']>;
+        timings: AgentLoopTimings;
     }
 ): Promise<AgentLoopResult> {
     try {
@@ -432,6 +451,7 @@ async function runFinalNoToolsPass(
             return {
                 content: AGENT_EXHAUSTION_FALLBACK,
                 reasoning: final.reasoning,
+                timings: meta.timings,
                 ...baseResultFields({
                     ...meta,
                     usage: final.usage ?? meta.lastUsage,
@@ -441,6 +461,7 @@ async function runFinalNoToolsPass(
         return {
             content: safe,
             reasoning: final.reasoning,
+            timings: meta.timings,
             ...baseResultFields({
                 ...meta,
                 usage: final.usage ?? meta.lastUsage,
@@ -451,6 +472,7 @@ async function runFinalNoToolsPass(
         return {
             content: AGENT_EXHAUSTION_FALLBACK,
             reasoning: '',
+            timings: meta.timings,
             ...baseResultFields({
                 ...meta,
                 usage: meta.lastUsage,
@@ -465,6 +487,13 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
     const model = options.model ?? 'agent-default';
     const capability = options.capability ?? resolveToolCapability(model);
     const turnBudget = options.turnTokenBudget ?? AGENT_TURN_TOKEN_BUDGET;
+    const turnTimeoutMs = options.turnTimeoutMs ?? AGENT_TURN_TIMEOUT_MS;
+
+    // Task 8: wall-clock timing for the whole turn, per round, and per tool batch.
+    const turnStartedAt = Date.now();
+    const roundMs: number[] = [];
+    const toolBatchMs: number[] = [];
+    let toolsExecuted = 0;
 
     if (!capability.runAgentLoop) {
         logToolTelemetry('agent_skipped_inject_only', { model, mode: capability.mode });
@@ -497,7 +526,20 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
             break;
         }
 
+        // Whole-turn wall-clock deadline: abort tool rounds; the final no-tools
+        // pass below still ships an answer.
+        if (Date.now() - turnStartedAt > turnTimeoutMs) {
+            stopReason = 'timeout';
+            logToolTelemetry('agent_timeout', {
+                model,
+                rounds,
+                turnMs: Date.now() - turnStartedAt,
+            });
+            break;
+        }
+
         rounds = round + 1;
+        const roundStart = Date.now();
         let data: unknown;
         try {
             data = await completeWithTools(agentMessages, settings, model, sendTools);
@@ -523,6 +565,7 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
             cumulative: cumulativePromptTokens,
             budget: turnBudget,
         });
+        roundMs.push(Date.now() - roundStart);
 
         const structuredCalls = extractToolCalls(data);
         const { content, reasoning } = extractAssistantContent(data);
@@ -598,6 +641,12 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
             }
 
             const safe = finalizeUserFacingContent(content, reasoning);
+            const timings = {
+                turnMs: Date.now() - turnStartedAt,
+                roundMs,
+                toolBatchMs,
+                toolsExecuted,
+            };
             logToolTelemetry('agent_complete', {
                 model,
                 mode: capability.mode,
@@ -607,10 +656,14 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
                 toolsRepaired,
                 toolsSkippedInvalid,
                 toolsSkippedDuplicate,
+                roundMs: roundMs[roundMs.length - 1],
+                toolBatchMs: toolBatchMs[toolBatchMs.length - 1] ?? 0,
+                turnMs: timings.turnMs,
             });
             return {
                 content: safe,
                 reasoning,
+                timings,
                 ...baseResultFields({
                     usedTools,
                     rounds,
@@ -645,7 +698,10 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
                 role: 'assistant',
                 content: cleanedAssistant,
             });
+            const batchStart = Date.now();
             const results = await executeToolCalls(toolCalls);
+            toolBatchMs.push(Date.now() - batchStart);
+            toolsExecuted += results.length;
             agentMessages.push({
                 role: 'user',
                 content: formatToolResultsForModel(results),
@@ -660,7 +716,10 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
                     function: { name: call.name, arguments: call.arguments },
                 })),
             });
+            const batchStart = Date.now();
             const results = await executeToolCalls(toolCalls);
+            toolBatchMs.push(Date.now() - batchStart);
+            toolsExecuted += results.length;
             for (const result of results) {
                 agentMessages.push({
                     role: 'tool',
@@ -687,6 +746,13 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
         stopReason = 'max_rounds';
     }
 
+    const timings = {
+        turnMs: Date.now() - turnStartedAt,
+        roundMs,
+        toolBatchMs,
+        toolsExecuted,
+    };
+
     logToolTelemetry('agent_max_rounds', {
         model,
         mode: capability.mode,
@@ -694,6 +760,9 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
         toolCallSource,
         toolsRepaired,
         stopReason,
+        roundMs: roundMs[roundMs.length - 1],
+        toolBatchMs: toolBatchMs[toolBatchMs.length - 1] ?? 0,
+        turnMs: timings.turnMs,
     });
 
     // Discard any last-round loop narration; only the final no-tools pass may ship.
@@ -708,5 +777,6 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
         lastUsage,
         cumulativePromptTokens,
         stopReason,
+        timings,
     });
 }

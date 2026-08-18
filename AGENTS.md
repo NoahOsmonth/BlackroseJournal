@@ -126,7 +126,7 @@ Every change updates or adds tests. If a test isn't feasible, document why in `P
 
 `AppHeader` (`components/navigation`) for Today + History headers, `useHeaderActions`, `useTabNavigation`. Prefer `router.navigate` over `router.push` for tab switches. Don't reinvent navigation per screen.
 
-### 9. AI context is layered; memory authority migrates in explicit phases.
+### 9. AI context is layered; long-term recall is Hindsight-backed.
 
 | Layer | What | Where |
 |---|---|---|
@@ -135,30 +135,11 @@ Every change updates or adds tests. If a test isn't feasible, document why in `P
 | Memory capsule | Ranked atoms (with dates on lines) | `localMemory.ts` → `buildLocalMemoryContext` |
 | Full transcripts | On demand only | Tools: `get_conversation` reads journal/check-in storage |
 | Session compact | Older turns → rolling summary when ctx fills | `conversationCompact.ts` inside `streamChat` / `completeChat` |
+| Long-term recollections | Hindsight container (local-first) | `services/memory/hindsight/` — retain on finish, recall block + `recall_memory` tool |
 
-The approved memory transition is `LOCAL → MIRROR → SHADOW → CLOUD`, stored
-per user. Phase 0 builds contracts and cloud infrastructure only:
-visible-response authority remains `LOCAL`, cloud source upload is disabled, and
-existing on-device tools still supply the model. Never infer memory authority
-from deployment state or `EXPO_PUBLIC_DATA_PROVIDER`.
+Long-term memory is **Hindsight** (vectorize-io, local Docker): every completed journal entry / check-in fires a fire-and-forget retain (`retainJournalEntryToHindsight` / `retainCheckInToHindsight`); recall surfaces as the always-on `## Relevant long-term context` block (via `useHindsightRecallContext` → `ChatFlowContext.retrievedHistoryContext`) and on-demand via the `recall_memory` agent tool. Everything is **soft-fail**: Hindsight down → chat, finish path, and navigation are unaffected. Gemini (`gemini-embedding-001`, 768-dim) is **embeddings-only — never an LLM**; all LLM work goes to OpenRouter (`dots-studio/dots-3-note-preview:free` default). The abandoned custom cloud-memory platform (`LOCAL → MIRROR → SHADOW → CLOUD`) was removed 2026-08-18 — never resurrect it or its storage keys (`@rosebud_cloud_memory_mirror_outbox`, `@rosebud_memory_dataset_binding`).
 
-The delivery order is Phase 0, Phases 1–8, then final Phase 9 portability/DR.
-Phase 8 may stage CLOUD authority, but full local sources remain read-only.
-Only Phase 9 may authorize local heavy-store retirement.
-
-Per-user memory authority and deployment writer authority are separate:
-
-- Per-user authority decides whether local or cloud memory may influence a
-  visible response.
-- Deployment writer authority is fenced by deployment ID, monotonically
-  increasing writer epoch, externally issued writer lease, and source credential fingerprint.
-  A valid database credential alone does not authorize writes.
-- The portable gateway is managed or private PostgREST. Server credentials stay
-  in the backend and must never enter an Expo/client bundle.
-- Every multi-row memory mutation is an atomic PostgreSQL RPC. Do not replace an
-  RPC transaction boundary with client-side table-by-table writes.
-
-Guard: `__tests__/backend-local-only.test.ts`.
+Guard: `__tests__/backend-local-only.test.ts` (cloud-memory removal boundary + credential isolation).
 
 ### 10. System prompts: long freeform vs short guided — don't mix them up.
 
@@ -213,7 +194,7 @@ Registry: `services/ai/tools/*`. Agent loop: `services/ai/agentLoop.ts`. Wired f
 
 View-model types must not reuse a stored type's name (e.g. `MemoryGraphAtom` is the graph display model — ISO dates, 1–10 salience — never write it back to storage).
 
-**Write-path coupling:** journal finish → `saveJournalEntryMemories` **and** `upsertJournalDayDigest` **and** `buildAndSaveSessionDigest`. Check-in complete → `saveIntentionCheckInMemories` **and** `upsertCheckInDayDigest` **and** `buildAndSaveSessionDigest`. Local backup includes day digests + packed session-digest bundle (`services/backup/localBackup.ts`). Clear history must also `clearSessionDigests()` and `clearMemoryRollups()`.
+**Write-path coupling:** journal finish → `saveJournalEntryMemories` **and** `upsertJournalDayDigest` **and** `buildAndSaveSessionDigest` **and** fire-and-forget `retainJournalEntryToHindsight` (`journalFinishSideEffects.ts`). Check-in complete → `saveIntentionCheckInMemories` **and** `upsertCheckInDayDigest` **and** `buildAndSaveSessionDigest` **and** fire-and-forget `retainCheckInToHindsight` (`intentionsStorage.ts` completed branch). Local backup includes day digests + packed session-digest bundle (`services/backup/localBackup.ts`). Clear history must also `clearSessionDigests()` and `clearMemoryRollups()`.
 
 **Session digest sharding:** never store all embeddings under one AsyncStorage key (Android ~2MB/key). One record key per digest + lightweight index. Aggregate Android DB size: `AsyncStorage_db_size_in_MB` in `android/gradle.properties`.
 
@@ -227,8 +208,8 @@ View-model types must not reuse a stored type's name (e.g. `MemoryGraphAtom` is 
 - `features/chat/` — shared chat engine (`useChatOrchestration`, flows, session flush/resume).
 - `constants/aiPrompts.ts`, `constants/rosebudCompanionPrompt.ts` — companion system prompts.
 - `services/ai/` — transport, tools, agent loop, compact, streaming (phone → provider).
-- `services/memory/` — localMemory atoms + day digests + graph helpers.
-- `backend/` — Node AI proxy plus the Phase 0 cloud-memory control plane. AI provider config lives in `backend/src/config/ai/`. **`NANO_GPT_*` env names are legacy.** Production chat remains **device-direct** (`directTransport.ts`) in Phase 0; backend memory reads cannot influence visible responses while authority is `LOCAL`.
+- `services/memory/` — localMemory atoms + day digests + graph helpers; `services/memory/hindsight/` is the Hindsight client (retain/recall/reflect, soft-fail).
+- `backend/` — Node AI proxy (optional local agent). AI provider config lives in `backend/src/config/ai/`. **`NANO_GPT_*` env names are legacy.** Production chat remains **device-direct** (`directTransport.ts`); the backend is not part of the chat path.
 - `example-design/` — HTML/CSS reference prototypes. Not deployed. Copy patterns out; never modify.
 - `assets/` — embedded HTML engines, fonts, images. `notes/` — dev docs. `supabase/` — migrations + email templates. `scripts/` — build/CI tooling (includes `generate-rosebud-prompt.mjs`).
 
@@ -284,8 +265,8 @@ Project root `.env` (gitignored):
 ```
 EXPO_PUBLIC_NANO_GPT_API_KEY=...          # OpenRouter or OpenAI-compat key
 EXPO_PUBLIC_NANO_GPT_API_BASE_URL=https://openrouter.ai/api/v1
-EXPO_PUBLIC_NANO_GPT_MODEL=tencent/hy3:free
-EXPO_PUBLIC_NANO_GPT_FLASH_MODEL=tencent/hy3:free
+EXPO_PUBLIC_NANO_GPT_MODEL=dots-studio/dots-3-note-preview:free
+EXPO_PUBLIC_NANO_GPT_FLASH_MODEL=dots-studio/dots-3-note-preview:free
 ```
 Names are legacy (`NANO_GPT_*`); OpenRouter free is the recommended default. Prefer free models with **≥32k** context when using the long freeform prompt.
 
@@ -305,7 +286,7 @@ Start: `cd backend && npm install && npm run dev`, set `EXPO_PUBLIC_AGENT_BASE_U
 
 ## Repo-specific gotchas
 
-- **Data provider toggle:** `EXPO_PUBLIC_DATA_PROVIDER` switches legacy app-data sync between Supabase and local. It does not select memory authority. Local mode must never reach the network.
+- **Data provider toggle:** `EXPO_PUBLIC_DATA_PROVIDER` switches legacy app-data sync between Supabase and local. It does not affect AI memory (Hindsight is separate). Local mode must never reach the network.
 - **WebView layers:** high-frequency rendering (`react-native-webview`) runs raw JS modules inside the WebView, not the RN bridge; state crosses via synchronized data bridges. Theme/color scheme must be pushed explicitly (`SET_THEME` for memory graph) — the WebView does not inherit NativeWind `dark:`.
 - **Web dark mode hook:** `hooks/theme/use-color-scheme.web.ts` must use NativeWind's `useColorScheme` (responds to `setColorScheme()`), not RN's.
 - **Memory change events:** mutations in `services/memory/localMemory.ts` notify `subscribeMemoryChanges` listeners; access bookkeeping (`markAccessed`) deliberately does not (would loop). Keep that invariant. Day-digest UI refresh piggybacks on the same subscription via `useRecentDaysContext`.

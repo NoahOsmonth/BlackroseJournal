@@ -5,6 +5,7 @@ import {
     listRecentDaysTool,
     searchHistoryTool,
 } from './historyTools';
+import { recallMemoryToolHandler } from './hindsightTools';
 import { getIdentityTool, updateIdentityTool } from './identityTools';
 import { HISTORY_TOOL_DEFINITIONS } from './definitions';
 import type { RegisteredTool, ToolDefinition, ToolHandler } from './types';
@@ -15,6 +16,7 @@ const handlers: Record<string, ToolHandler> = {
     get_day: getDayTool,
     get_conversation: getConversationTool,
     search_history: searchHistoryTool,
+    recall_memory: recallMemoryToolHandler,
     get_identity: getIdentityTool,
     update_identity: updateIdentityTool,
 };

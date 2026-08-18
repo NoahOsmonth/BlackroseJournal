@@ -10,6 +10,12 @@ export interface Message {
     content: string;
     reasoning?: string;
     timestamp: number;
+    /** Captured only for messages authored after Phase 1 temporal support. */
+    authoredTimezone?: string | null;
+    localDate?: string | null;
+    temporalProvenance?: 'captured' | 'legacy_unknown';
+    /** Source-owner revision populated when the message is persisted for MIRROR. */
+    revision?: number;
 }
 
 export interface StreamingCallback {

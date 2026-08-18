@@ -209,6 +209,45 @@ describe('sessionStorage', () => {
         expect(session?.messages[0].content).toBe('good');
     });
 
+    it('preserves captured temporal metadata and marks legacy messages unknown on resume', async () => {
+        adapter.store.set(CHAT_SESSIONS_KEY, JSON.stringify([{
+            conversationId: 'temporal',
+            mode: 'freeform',
+            messages: [{
+                id: 'captured',
+                role: 'user',
+                content: 'new message',
+                timestamp: 123,
+                authoredTimezone: 'Asia/Manila',
+                localDate: '2026-08-01',
+                temporalProvenance: 'captured',
+            }, {
+                id: 'legacy',
+                role: 'assistant',
+                content: 'old message',
+                timestamp: 124,
+            }],
+            updatedAt: Date.now(),
+            createdAt: Date.now(),
+        }]));
+
+        const session = await getSession('temporal');
+        expect(session?.messages).toEqual([
+            expect.objectContaining({
+                id: 'captured',
+                authoredTimezone: 'Asia/Manila',
+                localDate: '2026-08-01',
+                temporalProvenance: 'captured',
+            }),
+            expect.objectContaining({
+                id: 'legacy',
+                authoredTimezone: null,
+                localDate: null,
+                temporalProvenance: 'legacy_unknown',
+            }),
+        ]);
+    });
+
     it('removeJournalChatSessions clears freeform and continue sessions only', async () => {
         const now = Date.now();
         await saveSession(makeSession({

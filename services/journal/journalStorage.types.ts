@@ -24,6 +24,8 @@ export interface JournalEntry {
     analysis?: JournalEntryAnalysis;
     createdAt: number;
     updatedAt: number;
+    /** Compact mirror cursor; source-owner persistence arrives in Phase 1 Task 8. */
+    sourceRevision?: number;
 }
 
 export interface JournalEntryCreateInput {

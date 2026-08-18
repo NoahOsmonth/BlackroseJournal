@@ -100,6 +100,20 @@ export const HISTORY_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
     },
     {
+        name: 'recall_memory',
+        description:
+            'Query the long-term memory bank (Hindsight) for recollections relevant to a topic. Use for "remember when\u2026", themes older than recent digests, or grounding across past months.',
+        parameters: {
+            type: 'object',
+            properties: {
+                query: { type: 'string', description: 'Topic or question to recall from long-term memory.' },
+                limit: { type: 'number', description: 'Max recollections (1\u201310, default 6).' },
+            },
+            required: ['query'],
+            additionalProperties: false,
+        },
+    },
+    {
         name: 'get_identity',
         description:
             'Read the on-device always-on identity profile (preferred name, pronouns, key people, durable facts). Prefer the injected Identity block when present; call this if you need to re-check after an update.',
@@ -173,6 +187,6 @@ export function toOpenAiToolSpecs(definitions: readonly ToolDefinition[] = HISTO
 export const HISTORY_TOOLS_POLICY = [
     '## On-device tools — use freely (proactive)',
     'Tools run on the phone. Call when they improve care — do not wait for "search my history."',
-    'get_clock: liberally; never invent local time. list_recent_days: orient. get_day: before full transcript. get_conversation: exact prior words. search_history: themes. get_identity / update_identity: re-check or pin; never invent.',
+    'get_clock: liberally; never invent local time. list_recent_days: orient. get_day: before full transcript. get_conversation: exact prior words. search_history: themes. recall_memory: long-term themes older than digests ("remember when\u2026"). get_identity / update_identity: re-check or pin; never invent.',
     'Chain when useful. Never invent results. If empty, say so and stay with the live message. Do not narrate tool names. Structured tool_calls only — never fake tool syntax in the reply. Use ## Identity name if present; never invent one.',
 ].join('\n');

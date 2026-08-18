@@ -7,7 +7,7 @@
 
 import { THERAPIST_SYSTEM_PROMPT } from '../../constants/aiPrompts';
 import { DAILY_PROMPTS } from '../../constants/dailyPrompts';
-import { FLOWS, composeSystemPrompt, flowForCheckInType } from '../../features/chat/flows';
+import { FLOWS, composeHistoryContextBlocks, composeSystemPrompt, flowForCheckInType } from '../../features/chat/flows';
 import type { ChatFlowContext } from '../../features/chat/flows/types';
 import { buildDailyCheckInSystemPrompt } from '../../services/ai/dailyCheckInPrompt';
 import {
@@ -98,6 +98,27 @@ describe('composeSystemPrompt', () => {
     it('can omit history tools policy', () => {
         const out = composeSystemPrompt('BASE', withClock({ omitHistoryToolsPolicy: true }));
         expect(out).not.toContain('## History tools');
+    });
+
+    it('feeds retrievedHistoryContext into the recall slot at index 3', () => {
+        const recall = [
+            '## Relevant long-term context',
+            'Long-term recollections from the user\u2019s past entries.',
+            '- sim=0.91 Maya got married (Written 2024-08-15)',
+        ].join('\n');
+        const ctx = withClock({
+            identityContext: '## Identity\n- Preferred name: Ren',
+            recentDaysContext: '## Recent day digests\n- Written 2026-07-12: sleep',
+            retrievedHistoryContext: recall,
+        });
+        const blocks = composeHistoryContextBlocks(ctx);
+        expect(blocks[0]).toContain('## Clock');
+        expect(blocks[1]).toContain('Preferred name: Ren');
+        expect(blocks[2]).toContain('Recent day digests');
+        expect(blocks[3]).toContain('Maya got married');
+        const out = composeSystemPrompt('BASE', ctx);
+        expect(out).toContain('## Relevant long-term context');
+        expect(out).toContain('Maya got married');
     });
 
     it('PR8b-2 wiring: oversize memory through composeSystemPrompt is capped ≤ MEMORY_PROMPT_BUDGET', () => {

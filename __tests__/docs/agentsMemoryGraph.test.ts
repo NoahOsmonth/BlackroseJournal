@@ -20,13 +20,13 @@ describe('AGENTS memory graph guidance', () => {
         expect(source).toContain('cd backend && npx tsc --noEmit');
     });
 
-    it('documents phased cloud authority and portable write fencing', () => {
-        expect(source).toContain('LOCAL → MIRROR → SHADOW → CLOUD');
-        expect(source).toContain('deployment writer authority');
-        expect(source).toContain('externally issued writer lease');
-        expect(source).toContain('source credential fingerprint');
-        expect(source).toContain('managed or private PostgREST');
-        expect(source).toContain('atomic PostgreSQL RPC');
-        expect(source).toContain('visible-response authority remains `LOCAL`');
+    it('documents the Hindsight long-term recall contract', () => {
+        expect(source).toContain('long-term recall is Hindsight-backed');
+        expect(source).toContain('retainJournalEntryToHindsight');
+        expect(source).toContain('recall_memory');
+        expect(source).toContain('gemini-embedding-001');
+        expect(source).toContain('embeddings-only');
+        expect(source).toContain('@rosebud_cloud_memory_mirror_outbox');
+        expect(source).toContain('backend-local-only.test.ts');
     });
 });

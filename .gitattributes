@@ -5,3 +5,7 @@ supabase/migrations/20260728112723_cloud_memory_foundation.sql text eol=lf
 supabase/migrations/20260728144157_cloud_memory_foundation_20260728112723.sql text eol=lf
 backend/sql/migrations/0002_memory_fk_indexes.sql text eol=lf
 supabase/migrations/20260728144711_cloud_memory_fk_indexes_20260728145000.sql text eol=lf
+backend/sql/migrations/0003_memory_mirror_ingestion.sql text eol=lf
+backend/sql/overlays/supabase/0002_memory_mirror_ingestion.sql text eol=lf
+scripts/build-cloud-memory-phase1-migration.mjs text eol=lf
+supabase/migrations/20260729062655_cloud_memory_phase_1_mirror.sql text eol=lf

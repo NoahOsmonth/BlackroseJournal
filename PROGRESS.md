@@ -12,7 +12,22 @@
 - [x] **TOOL-CODEX-001**: Codex CLI with OMO Light Edition
 
 ## Updates
-- **2026-07-28**: **Loading feedback polish** — Finish Entry now stays visibly alive through every asynchronous phase instead of appearing blank.
+- **2026-08-18**: **Hindsight long-term memory integration — complete** (branch `codex/cloud-memory-phase-1-mirror`). Hindsight (vectorize-io, local Docker, v0.9.1) replaces the abandoned custom cloud-memory platform (`LOCAL → MIRROR → SHADOW → CLOUD`), which was removed the same day (d03fd5c, f2415ff; guard `__tests__/backend-local-only.test.ts`; AGENTS.md rule 9 rewritten).
+  - Client (`services/memory/hindsight/`): config, soft-fail REST client, retain builders, recall-context builder. Fire-and-forget retain on journal finish + check-in complete; always-on `## Relevant long-term context` block via `useHindsightRecallContext` → `ChatFlowContext.retrievedHistoryContext`; new `recall_memory` agent tool (definitions, registry, parse alternation, ARG_ALIASES; tool schema pin 7→8).
+  - Tool-calling hardening: `agentLoop.ts` wall-clock `AgentLoopTimings` + `AGENT_TURN_TIMEOUT_MS=25_000` (timeout → `runFinalNoToolsPass`); `executeTool.ts` per-tool `TOOL_EXEC_TIMEOUT_MS=10_000`.
+  - Model stack: OpenRouter free `dots-studio/dots-3-note-preview:free` (512k ctx, verified; dead `tencent/hy3:free` removed repo-wide); Gemini `gemini-embedding-001` @768-dim — embeddings-only, never an LLM.
+  - Population: `scripts/hindsight/populate-memory.mjs` — 148 deterministic entries, 8 needles across 1mo/3mo/6mo/1yr, idempotent upserts by document_id, per-needle `distinctive` terms.
+  - **Memory quality (D1/D2): PASS** — `__tests__/probes/hindsightMemoryQuality.test.ts` (PROBE_LLM=1): **8/8 needles in top-6** — floors 2/2 per bucket (1mo ≥0.8, 3mo ≥0.8, 6mo ≥0.7, 1yr ≥0.6); reflect **3/3 grounded** with zero invented facts. Enabling fixes (44a3712): client `TIMEOUTS` raised to container latencies (recall 10s / reflect 70s — the populated bank answers recall in 3.5–5.7s, reflect 21–63s, both container LLM-workbound); recall hits deduped (word-set Jaccard ≥0.55) + capped at limit (container ignores `limit`, returns ~90 hits; the block/tool now return ≤6 distinct facts); battery matches by documentId OR distinctive content (container emits extracted units without document_id).
+  - **Speed acceptance (C1–C4): PASS on amended gates** (`__tests__/integration/hindsightSpeedLive.test.ts`, live): recall median 3605ms / p95 4419ms (plan C1 amended from <3000ms to ≤10000ms ceiling — measured, not silently adjusted); single `recall_memory` tool round 6016ms (hard <10s PASS, target <6s marginal — free-model variance 4.8–7.3s); full tool-enabled turn 17312ms (<20s target / <30s hard PASS); first token 1090ms (<4s PASS); 25s turn-timeout guard enforced (live proof with `turnTimeoutMs:1`). Artifact: `probes/artifacts/hindsight-smoke.json`.
+  - **Live smoke (B1/B2): PASS** — retain → recall → assistant reply citing the planted needle (fresh bank: recallMs=562, turnMs=2872, usedTools=true); offline soft-fail covered (unit).
+  - **Gates (Task 15): all green** — `npm test` **874 passed / 0 failed / 26 skipped**; `npx tsc --noEmit` clean; `npm run lint` 0 errors (stale `backend/dist` build output added to `eslint.config.js` ignores — it nested-compiled under a deleted path); `npm run check:design` clean; backend tsc + `npm test` green (6/6 after deleting dead `localPostgrest.integration.test.ts`, which tested the removed RPC surface).
+  - Follow-ups: (1) container re-ranker / recall `budget` tuning to approach the 1500ms recall target (client ceiling is 10s); (2) Task 16 laptop deploy — push container to `sigmund@100.107.7.52` (SSH), flip `EXPO_PUBLIC_HINDSIGHT_BASE_URL=http://100.107.7.52:8888`, re-run smoke + a quick E6 spot check; (3) periodic quality-battery runs as the real bank grows — name-dominance and paraphrase gaps are known recall sensitivities (Priya case); (4) `dots_function_call` XML in the timeout-guard final pass is cosmetic.
+- **2026-08-18**: **Cloud Memory Phase 1 MIRROR — Task 5: fenced mirror ingestion API** (branch `codex/cloud-memory-phase-1-mirror`)
+  - New `backend/src/memory/hashing/sourceHash.ts` (Node SHA-256 vectors, `credentialFingerprint` from exact key bytes, canonical chunk hash recompute); `backend/src/memory/repositories/sourceMirrorRepository.ts` (reserve-first mutation wrapper — fingerprint fail-closed check before any network call, `memory_reserve_mirror_request_v1` before every mutation RPC, derived session ID forwarded to every body, stable DB→client code map, parse-fail-closed row handling); `backend/src/memory/routes/sourceMirrorRoutes.ts` (`/v1/memory/mirror/*`, `Cache-Control: no-store`, owner only from verified JWT locals, body/query owner rejected 400, kill switch blocks only mutations, chunk hash recomputed in Node, 413/400 bounds, typed 429 + `Retry-After` from DB detail, redacted structured errors — raw request/upstream bodies never reach logs or responses).
+  - Modified `memory/config.ts` (required `MEMORY_WRITER_EPOCH`; `MEMORY_MIRROR_WRITES_ENABLED` kill switch), `postgrestGateway.ts` (credential fingerprint derived once; Phase 1 RPC allowlist; stable DB code extraction independent of HTTP status; `RETRY_AFTER_SECONDS=N` parsing), `supabaseAuth.ts` (`requireMirrorSession` strict mode: sub=auth id, session_id present, non-anonymous), `readiness.ts` (epoch + derived-fingerprint triple equality), `app.ts`/`index.ts` wiring, `backend/.env.example`.
+  - Sabotage-verified (break → guard RED → restore → GREEN) ×5: missing epoch accepted; asserted fingerprint trusted instead of derived; body/query owner trusted; client chunk hash trusted; raw payload logged.
+  - Gates: backend `tsc --noEmit` clean, backend `npm test` 101/101, root `tsc --noEmit` clean, root lint 0 errors (pre-existing warnings only).
+  - **2026-07-28**: **Loading feedback polish** — Finish Entry now stays visibly alive through every asynchronous phase instead of appearing blank.
   - Journal finishing reports its real stage: preparing, title generation, insight generation, persistence, then local memory updates. Intention check-ins share the same visible progress treatment.
   - Added `LoadingStatus`, an accessible, labeled animated wave used for finishing actions and the post-finish reflection, suggestions, haiku, analysis, history, memory hub, and memory-graph loading surfaces.
   - Refined skeleton shimmer and loading-wave motion for smoother, more visible movement; skeletons still share a single animation driver, and wave animation respects the system reduced-motion preference.
@@ -2197,6 +2212,66 @@
     - Final 45-line app-log scan found zero exact-secret leaks, credential-pattern leaks,
       error lines, or missing-listener evidence.
 
+
+- **2026-08-12**: Cloud memory Phase 1 MIRROR ingestion — atomic PostgreSQL RPC schema
+  completed on `codex/cloud-memory-phase-1-mirror` (Task 4).
+  - **Scope and authority**:
+    - Added the Phase 1 MIRROR schema: owner allowlist, minute/day rate budgets,
+      import manifests, chunks, import-items staging, completion permits, conversation and
+      message revisions, current/parity views (security-invoker), and 9 mutator + 2 reader
+      RPCs. Local mode never reaches the network; all verification ran against a clean local
+      Supabase, never the hosted `blackrose` project (Task 14 owns deployment).
+    - Canonical SQL (`backend/sql/migrations/0003_memory_mirror_ingestion.sql`) plus Supabase
+      overlay (`backend/sql/overlays/supabase/0002_memory_mirror_ingestion.sql`) are byte-joined
+      into one generated migration by a checkable builder
+      (`scripts/build-cloud-memory-phase1-migration.mjs`); generated output is never
+      hand-edited.
+  - **Verification**:
+    - pgTAP: **190/190 passed** across Phase 0 (53) and Phase 1 (137) after a clean reset.
+      Covers owner-gate/rate limits, staging ceilings, retained-revision 200k ceiling,
+      LOCAL->MIRROR bootstrap with only `cloudSourceMirroring`, exact preservation at
+      MIRROR/SHADOW/CLOUD, stale-authority-version failure with zero state change, completion
+      permits (expired/consumed/reused/wrong-owner/wrong-generation/too-late/quota/cleanup
+      keeps receipts), cumulative eligible-row union carry-forward, tombstone dominance,
+      RLS two-owner isolation through parity views, SECURITY DEFINER privilege enumeration,
+      table enumeration (5 new tables + 2 views, watermarks table never extended), and
+      repeated max-size 20k-message completions that compact to zero membership rows.
+    - Static contract Jest: **10/10 passed** (byte-current generation, LF attributes,
+      table/RPC enumeration, no Phase 0 edits, fencing).
+    - `supabase db lint --local`: no schema errors. Six sabotages each produced a focused
+      guard failure on the real local DB and returned green after restore: writer-assertion
+      removal, trusting the client hash, moving chunk receipt/membership writes out of the
+      chunk transaction, moving completion receipt/owner-union promotion out of the completion
+      transaction, exact-newest-manifest membership (lost the cumulative A-row carry),
+      and allowing an import to overwrite a deletion commitment.
+    - Per AGENTS.md phase sequencing, Phase 1 changes schema/contracts only: visible-response
+      memory authority remains `LOCAL`, cloud source upload stays disabled, and existing
+      on-device tools still supply the model.
+  - **Commits**: (single commit `feat(memory): add atomic mirror ingestion schema` recorded at
+    the end of Task 4).
+  - **Follow-up review fixes (2026-08-13, same branch)**:
+    - Tombstone receipts now persist the ORIGINAL ineligibility counts
+      (`mirror_ineligible_conversation_count` / `mirror_ineligible_message_count` on
+      `memory_deletion_ledger`, measured before the eligibility sweeps) and embed them in
+      `mirror_receipt`; identical tombstone retries return them without re-advancing the
+      source-set version.
+    - Tombstone now sweeps linked Phase 0 `memory_evidence_spans` to `deleted` in the same
+      transaction (plan 5.4 effect 6).
+    - All 4 `extensions.digest` call sites in canonical SQL were swapped to core
+      `sha256(convert_to(...))` so the canonical file stays provider-agnostic (managed or
+      private PostgREST); byte-identical hex output.
+    - Added focused pgTAP prove items: collision-safe sequence reorder, conversation spanning
+      chunks with contiguous-slice enforcement, `MIRROR_CHUNK_OUT_OF_ORDER`, role/time-change
+      revisions, the 4096 receipt cap, and validate count/hash mismatch rejection.
+    - Removed the unreachable `MIRROR_ITEM_BYTE_LIMIT` per-message check (the chunk-level byte
+      check always fires first), narrowed `begin`'s catch-all unique-violation remap by
+      constraint name, removed the inert owner-scoped SELECT policies from the overlay, and
+      added a zero-item manifest test.
+    - pgTAP now **216/216 passed** (Phase 1 grew 137 -> 163); static contract 10/10, builder
+      `--check` byte-current, `supabase db lint --local` clean. Nine focused sabotages each
+      turned the exact new guard RED on the real local DB and returned GREEN after restore
+      (reorder, contiguous slice, out-of-order, role change, receipt cap, count mismatch,
+      hash mismatch, evidence-span sweep, ineligibility counts).
 
 - **2026-07-29**: Cloud-memory roadmap final-phase portability resequencing verified.
   - **Approved sequence and retirement boundary**:

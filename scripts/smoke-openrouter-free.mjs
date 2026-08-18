@@ -38,7 +38,7 @@ console.log('total_models', all.length);
 console.log('free_models', free.length);
 console.log('sample_free', free.slice(0, 8).map((m) => m.id).join(', '));
 
-const preferred = free.find((m) => m.id === 'tencent/hy3:free') ?? free[0];
+const preferred = free.find((m) => m.id === 'dots-studio/dots-3-note-preview:free') ?? free[0];
 if (!preferred) {
     console.error('No free models available');
     process.exit(1);

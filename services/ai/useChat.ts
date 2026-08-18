@@ -15,6 +15,7 @@ import {
     Message,
     StreamingCallback,
 } from './chatTypes';
+import { createTemporalMessage } from './messageTemporalMetadata';
 
 export { buildDailyCheckInSystemPrompt };
 
@@ -24,13 +25,12 @@ function appendAssistantMessage(
     fullReasoning: string,
     onComplete: (fullContent: string, fullReasoning: string) => void
 ): void {
-    const aiMessage: Message = {
+    const aiMessage: Message = createTemporalMessage({
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: fullContent,
         reasoning: fullReasoning,
-        timestamp: Date.now(),
-    };
+    });
     messagesRef.current = [...messagesRef.current, aiMessage];
     onComplete(fullContent, fullReasoning);
 }
@@ -65,12 +65,11 @@ export function useChat() {
             onComplete: CompleteCallback,
             onError: ErrorCallback
         ) => {
-            const userMessage: Message = {
+            const userMessage: Message = createTemporalMessage({
                 id: Date.now().toString(),
                 role: 'user',
                 content,
-                timestamp: Date.now(),
-            };
+            });
             messagesRef.current = [...messagesRef.current, userMessage];
             const basePrompt = systemPromptRef.current || THERAPIST_SYSTEM_PROMPT;
             await streamChat(
@@ -97,24 +96,22 @@ export function useChat() {
         ) => {
             const basePrompt = buildDailyCheckInSystemPrompt(prompt);
             systemPromptRef.current = basePrompt;
-            const triggerMessage: Message = {
+            const triggerMessage: Message = createTemporalMessage({
                 id: 'trigger-' + Date.now(),
                 role: 'user',
                 content: '[Start daily check-in]',
-                timestamp: Date.now(),
-            };
+            });
             messagesRef.current = [triggerMessage];
             await streamChat(
                 messagesRef.current,
                 onChunk,
                 (fullContent, fullReasoning) => {
-                    const aiMessage: Message = {
+                    const aiMessage: Message = createTemporalMessage({
                         id: (Date.now() + 1).toString(),
                         role: 'assistant',
                         content: fullContent,
                         reasoning: fullReasoning,
-                        timestamp: Date.now(),
-                    };
+                    });
                     messagesRef.current = [aiMessage];
                     onComplete(fullContent, fullReasoning);
                 },
@@ -140,24 +137,22 @@ export function useChat() {
             onError: ErrorCallback
         ) => {
             systemPromptRef.current = systemPrompt;
-            const triggerMessage: Message = {
+            const triggerMessage: Message = createTemporalMessage({
                 id: 'trigger-' + Date.now(),
                 role: 'user',
                 content: triggerText,
-                timestamp: Date.now(),
-            };
+            });
             messagesRef.current = [triggerMessage];
             await streamChat(
                 messagesRef.current,
                 onChunk,
                 (fullContent, fullReasoning) => {
-                    const aiMessage: Message = {
+                    const aiMessage: Message = createTemporalMessage({
                         id: (Date.now() + 1).toString(),
                         role: 'assistant',
                         content: fullContent,
                         reasoning: fullReasoning,
-                        timestamp: Date.now(),
-                    };
+                    });
                     messagesRef.current = [aiMessage];
                     onComplete(fullContent, fullReasoning);
                 },

@@ -1,29 +1,18 @@
 # Rosebud Memory Implementation Notes
 
-## Phase 0 Cloud Foundation
+## Long-Term Memory (Hindsight)
 
-The existing local stores remain visible-response authority throughout Phase 0.
-The read-only canonical inventory in
-`services/memory/cloud/sourceInventory.ts` treats completed local journals and
-check-ins as future migration sources; it does not upload them or change which
-memory can influence a response.
+Long-term memory is **Hindsight** (vectorize-io, local Docker container) —
+see `docs/superpowers/plans/2026-08-18-hindsight-integration.md` for the
+integration plan and `services/memory/hindsight/` for the client. Every
+completed journal entry / check-in fires a fire-and-forget retain; recall
+surfaces as the always-on `## Relevant long-term context` block and the
+`recall_memory` agent tool. Gemini is embeddings-only (768-dim); all LLM work
+is OpenRouter. Everything is soft-fail.
 
-Per-user memory authority (`LOCAL`, `MIRROR`, `SHADOW`, or `CLOUD`) is distinct
-from deployment writer authority. Per-user authority controls read/write
-behavior for one owner. Deployment authority protects the single active writer
-with a deployment ID, writer epoch, externally issued lease, and source
-credential fingerprint.
-
-The PostgreSQL foundation includes owner-scoped source watermarks and a deletion
-ledger so later migration can resume and invalidate derived data. Phase 0 does
-not claim deletion completion: verified erase-all, backup tombstone enforcement,
-and end-to-end deletion completion are final Phase 9 portability work and must
-pass before local heavy stores may retire.
-
-The executable quality contract lives in
-`benchmarks/memory/qualityConstitution.ts`. It versions the eight diagnostic
-pipeline stages, zero-tolerance failures, and all initial measured release
-targets.
+The earlier custom cloud-memory platform (`LOCAL → MIRROR → SHADOW → CLOUD`)
+was removed on 2026-08-18; do not resurrect it or its storage keys
+(`@rosebud_cloud_memory_mirror_outbox`, `@rosebud_memory_dataset_binding`).
 
 ## Implemented Local Baseline
 
@@ -182,8 +171,8 @@ The tests cover:
 - weekly summary UI rendering,
 - local backup inclusion for the memory store.
 
-## Next Phases
+## Long-Term Recall
 
-The phased cloud roadmap is the active plan. The local stores above remain the
-working baseline and later become migration sources; they are not deleted or
-silently bypassed during Phase 0.
+Hindsight retain/recall (see the top of this file). The local stores above stay
+the offline authority; Hindsight is the long-term layer and is entirely
+optional at runtime (soft-fail).

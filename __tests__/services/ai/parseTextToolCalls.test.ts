@@ -87,6 +87,7 @@ describe('looksLikeToolDump', () => {
     it('detects {"name": "X"} JSON format with newer tool names', () => {
         expect(looksLikeToolDump('{"name": "get_identity"}')).toBe(true);
         expect(looksLikeToolDump('{"name": "update_identity", "arguments": {}}')).toBe(true);
+        expect(looksLikeToolDump('{"name": "recall_memory", "query": "wedding"}')).toBe(true);
     });
 });
 

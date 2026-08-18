@@ -59,14 +59,15 @@ describe('intentionChatCompletion', () => {
     it('appends pending input as a user message', () => {
         const result = withPendingInput([], '  one next step  ');
 
-        expect(result).toEqual([
-            {
-                id: '123',
-                role: 'user',
-                content: 'one next step',
-                timestamp: 123,
-            },
-        ]);
+        expect(result).toEqual([expect.objectContaining({
+            id: '123',
+            role: 'user',
+            content: 'one next step',
+            timestamp: 123,
+            authoredTimezone: expect.any(String),
+            localDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+            temporalProvenance: 'captured',
+        })]);
     });
 
     it('creates a new explicit draft from an in-flight chat', async () => {

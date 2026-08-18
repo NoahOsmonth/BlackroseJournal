@@ -8,8 +8,8 @@
  * Env vars (all read at call time, not at module load):
  *   EXPO_PUBLIC_NANO_GPT_API_KEY       (required; stored locally for device builds)
  *   EXPO_PUBLIC_NANO_GPT_API_BASE_URL  (optional; defaults to OpenRouter)
- *   EXPO_PUBLIC_NANO_GPT_MODEL         (optional; defaults to tencent/hy3:free)
- *   EXPO_PUBLIC_NANO_GPT_FLASH_MODEL   (optional; defaults to tencent/hy3:free)
+ *   EXPO_PUBLIC_NANO_GPT_MODEL         (optional; defaults to dots-studio/dots-3-note-preview:free)
+ *   EXPO_PUBLIC_NANO_GPT_FLASH_MODEL   (optional; defaults to dots-studio/dots-3-note-preview:free)
  */
 
 import { OPENROUTER_DEFAULT_BASE_URL } from '@/utils/ai/modelDisplay';
@@ -29,8 +29,8 @@ export interface ResolvedDirectConfig extends DirectConfig {
 }
 
 const DEFAULT_API_BASE_URL = OPENROUTER_DEFAULT_BASE_URL;
-const DEFAULT_MODEL = 'tencent/hy3:free';
-const DEFAULT_FLASH_MODEL = 'tencent/hy3:free';
+const DEFAULT_MODEL = 'dots-studio/dots-3-note-preview:free';
+const DEFAULT_FLASH_MODEL = 'dots-studio/dots-3-note-preview:free';
 const PLACEHOLDER_KEYS = new Set([
     'YOUR_NANO_GPT_API_KEY',
     'YOUR_OPENROUTER_API_KEY',
