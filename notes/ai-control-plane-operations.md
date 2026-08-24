@@ -92,6 +92,12 @@ Minimum operating checks:
 - Release deployment records the app, admin, gateway, Supabase Compose, and
   Hindsight image versions together.
 
+The bundled per-user request, token-window, and concurrency limiter is valid
+for a single gateway process. Configure its `AI_MANAGED_*` values from
+`backend/.env.example`. Before running multiple replicas, inject a distributed,
+atomic limiter backed by shared infrastructure; process-local counters must not
+be multiplied independently on every replica.
+
 Official references: [Supabase self-hosting](https://supabase.com/docs/guides/self-hosting),
 [Docker deployment](https://supabase.com/docs/guides/self-hosting/docker), and
 [HTTPS reverse proxy](https://supabase.com/docs/guides/self-hosting/self-hosted-proxy-https).

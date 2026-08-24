@@ -52,6 +52,23 @@ describe('AI control-plane operations assets', () => {
     expect(`${rootEnv}\n${backendEnv}`).not.toMatch(/EXPO_PUBLIC_(?:SUPABASE_SECRET|SERVICE_ROLE|AI_CREDENTIAL)/);
   });
 
+  it('documents managed inference quotas and the multi-instance limiter boundary', () => {
+    const backendEnv = readFileSync(path.join(repoRoot, 'backend/.env.example'), 'utf8');
+    const runbook = readFileSync(operationsDoc, 'utf8');
+
+    for (const name of [
+      'AI_MANAGED_MAX_CONCURRENT_PER_USER',
+      'AI_MANAGED_REQUESTS_PER_WINDOW',
+      'AI_MANAGED_TOKENS_PER_WINDOW',
+      'AI_MANAGED_LIMIT_WINDOW_MS',
+      'AI_MANAGED_DEFAULT_OUTPUT_RESERVATION',
+    ]) {
+      expect(backendEnv).toContain(`${name}=`);
+    }
+    expect(runbook).toMatch(/single gateway process/i);
+    expect(runbook).toMatch(/distributed,\s+atomic limiter/i);
+  });
+
   it('exports a new protected bundle without mutating the source database', () => {
     const temp = mkdtempSync(path.join(tmpdir(), 'blackrose-export-test-'));
     const bin = path.join(temp, 'bin');
