@@ -2462,3 +2462,91 @@
   route-specific state parser; memory metadata is an exact safe DTO in both directions;
   catalog rows expose only `publicModelId`; and admin provider responses use exact safe
   display/discovery metadata shapes with no arbitrary JSON or authorization headers.
+
+## 2026-08-24 — AI control plane Task 3: gateway security primitives
+
+- Added dependency-injected Supabase access-token verification against bounded/cached JWKS
+  responses using Node cryptography. Verification requires an asymmetric supported
+  algorithm, exact key id, valid signature, issuer, authenticated audience/role, expiry,
+  and a non-empty subject; returned principals exclude user-controlled metadata.
+- Added an explicit `AdminAuthorizer` boundary backed by an administrative data owner rather
+  than JWT metadata, plus fail-closed managed-route authentication and origin guards. Managed
+  authentication now runs before JSON body parsing; existing legacy API-key routes remain
+  unchanged.
+- Added context-bound, versioned AES-256-GCM credential envelopes and an external
+  `MasterKeyProvider`; only key version and ciphertext envelope metadata are serializable.
+  Production startup rejects missing JWT/JWKS/master-key configuration.
+- Added recursive non-mutating redaction for prompts, message content, authorization values,
+  credentials, provider keys, JWTs, and error details.
+- Added HTTPS-only provider endpoint resolution that rejects credentials, fragments,
+  loopback/private/link-local/reserved/multicast IPv4 and IPv6, transition-address bypasses,
+  mixed public/private DNS answers, empty answers, and oversized answer sets. The result
+  includes all validated addresses for connection pinning by protocol adapters.
+- Added immutable hard request ceilings and bounded transient retry. At most three attempts
+  receive the same frozen route/model binding; permanent failures are never retried and total
+  retry time is capped.
+- TDD RED evidence: the first backend run failed all missing security-module imports and
+  showed managed paths returning 404; a follow-up real HTTP test failed 400 instead of 401
+  because JSON parsing preceded auth; an IPv6 transition-address probe was accepted. GREEN
+  changes were applied only after each observed failure.
+- Fresh verification: backend tests passed **12 suites / 31 tests**; root and backend
+  TypeScript passed; changed-file ESLint passed with zero errors; design validation passed
+  with zero errors and four unrelated existing near-limit warnings; `git diff --check`
+  passed. Full root ESLint remains blocked by four pre-existing UI errors in `BottomNav.tsx`
+  and `CustomModelSettingsSection.tsx`; no unrelated UI files were changed.
+
+### Task 3 security review fix round 1
+
+- Admin access now has two server-enforced gates: verified Supabase authentication followed by
+  a concrete authorizer backed by a narrow Supabase `control.admins` REST repository using a
+  server-only secret. Normal users and forged `user_metadata.admin` claims receive 403; absent
+  repository configuration fails closed.
+- Issuer comparison and configuration preservation are byte-for-byte exact. The production
+  signature allowlist is RS256/ES256 only, with real positive/malformed ES256 coverage; JWKs
+  marked for encryption are rejected. JWKS reads stop while streaming at 128 KiB, caches have
+  explicit invalidation, and unknown key ids trigger one refresh.
+- Provider traffic now has an enforced `https.request` transport that pins the validated IP,
+  disables agent redirect behavior, manually validates every redirect DNS hop, bounds total
+  hops/cross-origin redirects, and strips sensitive headers before an explicitly allowed
+  cross-origin hop.
+- IPv6 classification now also rejects deprecated site-local `fec0::/10` and current IANA
+  non-global/special blocks including `100:0:0:1::/64`, `2001::/23`, `3fff::/20`, and
+  `5f00::/16`.
+- Retry execution now races each in-flight attempt against the remaining total deadline and
+  aborts its signal, including operations that never settle. Redaction normalizes camelCase and
+  prefixed sensitive field names and accepts caller-supplied opaque secret values.
+- TDD RED: the consolidated backend run reported **11 failures / 40 tests**; concrete admin
+  repository wiring then failed **1/4**, and exact issuer preservation failed **1/5** before
+  their implementations. Fresh GREEN: backend **13 suites / 43 tests**, root/backend TypeScript,
+  and scoped ESLint all passed.
+
+### Task 3 security review fix round 2
+
+- Unknown attacker-controlled JWT key ids can no longer invalidate and refetch JWKS on every
+  token. The verifier has a global refresh cooldown plus a bounded 128-entry negative-kid
+  cache; one refresh remains available after the policy interval for legitimate signing-key
+  rotation.
+- Allowed cross-origin provider redirects now tokenize header names and remove compact,
+  separator-based, camelCase, standard, and custom credential headers (`apikey`, API keys,
+  auth, token, secret, password, cookie, and credential forms). Non-credential metadata such
+  as `x-api-version` remains intact.
+- Deep redaction now tokenizes separators and camelCase boundaries. It catches
+  `secret_value`, `token_expiry`, `provider_key_value`, nested client-secret forms, and system
+  instructions while avoiding substring false positives such as `monkey`, `hockey`,
+  `tokenizer`, and `secretary`.
+- TDD RED: JWT refresh test **8/9 passed, 1 failed** (3 fetches vs allowed 2); safe transport
+  **2/3 passed, 1 failed** (seven credential headers forwarded); redaction **3/4 passed,
+  1 failed** (four boundary fields leaked). Follow-up anti-over-redaction/preservation probes
+  each failed **1/3** and **1/4** before refinement. GREEN: backend **13 suites / 46 tests**,
+  backend/root TypeScript, scoped ESLint, and `git diff --check` passed.
+
+### Task 3 security review fix round 3
+
+- Deep redaction now treats exact tokenized `auth` and `authentication` boundaries as
+  sensitive, covering separator and camelCase forms such as `auth_value`, `customAuthHeader`,
+  and `authenticationDetails`. Ordinary auth-prefixed words such as `author`, `authority`, and
+  `authentic` remain visible.
+- TDD RED: the new regression failed with all three auth fields visible (the backend runner
+  also hit one unrelated intermittent random-base64 regex failure). GREEN: backend
+  **13 suites / 47 tests** passed; backend/root TypeScript, scoped ESLint, and
+  `git diff --check` passed.
