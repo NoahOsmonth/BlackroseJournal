@@ -267,7 +267,7 @@ select extensions.is(
     where namespace.nspname = 'control'
       and has_function_privilege('service_role', function.oid, 'EXECUTE')
   ),
-  5::bigint,
+  7::bigint,
   'gateway function catalog has the expected service-only surface'
 );
 select extensions.ok(

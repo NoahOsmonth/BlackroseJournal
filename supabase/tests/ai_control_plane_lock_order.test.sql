@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select extensions.plan(5);
+select extensions.plan(7);
 
 select extensions.ok(
   strpos(definition, 'from public.ai_catalog_revision') > 0
@@ -69,6 +69,38 @@ from (
     'control.bump_catalog_revision()'::regprocedure
   )) as definition
 ) as bump_definition;
+
+select extensions.ok(
+  strpos(definition, 'from public.ai_catalog_revision') > 0
+    and strpos(definition, 'from public.ai_catalog_revision')
+      < strpos(definition, 'from control.providers')
+    and strpos(definition, 'from control.providers')
+      < strpos(definition, 'from control.provider_models')
+    and strpos(definition, 'from control.provider_models')
+      < strpos(definition, 'from public.ai_catalog_models'),
+  'provider update locks singleton, provider, provider models, then catalog models'
+)
+from (
+  select lower(pg_get_functiondef(
+    'control.update_provider(uuid,bigint,jsonb)'::regprocedure
+  )) as definition
+) as provider_update_definition;
+
+select extensions.ok(
+  strpos(definition, 'from public.ai_catalog_revision') > 0
+    and strpos(definition, 'from public.ai_catalog_revision')
+      < strpos(definition, 'from control.providers')
+    and strpos(definition, 'from control.providers')
+      < strpos(definition, 'from control.provider_models')
+    and strpos(definition, 'from control.provider_models')
+      < strpos(definition, 'from public.ai_catalog_models'),
+  'discovery replacement locks singleton, provider, provider models, then catalog models'
+)
+from (
+  select lower(pg_get_functiondef(
+    'control.replace_discovered_models(uuid,bigint,jsonb)'::regprocedure
+  )) as definition
+) as discovery_replace_definition;
 
 select * from extensions.finish();
 rollback;

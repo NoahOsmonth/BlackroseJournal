@@ -291,7 +291,8 @@ export function createSupabaseControlPlaneRepository(
         throw new SupabaseControlRepositoryError();
       }
     } catch (error) {
-      if (error instanceof SupabaseControlRepositoryError) throw error;
+      if (error instanceof SupabaseControlRepositoryError
+        || error instanceof SupabaseControlRepositoryConflictError) throw error;
       throw new SupabaseControlRepositoryError();
     } finally {
       clearTimeout(timer);
@@ -340,20 +341,22 @@ export function createSupabaseControlPlaneRepository(
     },
 
     async updateProvider(id, input) {
-      const body: Record<string, unknown> = {};
-      if (input.name !== undefined) body.name = input.name;
-      if (input.baseUrl !== undefined) body.base_url = input.baseUrl;
-      if (input.state !== undefined) body.state = input.state;
-      if (input.displayMetadata !== undefined) body.display_metadata = input.displayMetadata;
-      if (input.discoveryConfig !== undefined) body.discovery_config = input.discoveryConfig;
-      const row = await single('providers', {
-        method: 'PATCH',
+      const patch: Record<string, unknown> = {};
+      if (input.name !== undefined) patch.name = input.name;
+      if (input.baseUrl !== undefined) patch.base_url = input.baseUrl;
+      if (input.state !== undefined) patch.state = input.state;
+      if (input.displayMetadata !== undefined) patch.display_metadata = input.displayMetadata;
+      if (input.discoveryConfig !== undefined) patch.discovery_config = input.discoveryConfig;
+      const row = record(await request('rpc/update_provider', {
+        method: 'POST',
         schema: 'control',
-        query: { id: `eq.${id}`, revision: `eq.${input.expectedRevision}` },
-        body,
-        prefer: 'return=representation',
-      }, 'conflict');
-      return providerRecord(row as Record<string, unknown>);
+        body: {
+          p_provider_id: id,
+          p_expected_revision: input.expectedRevision,
+          p_patch: patch,
+        },
+      }));
+      return providerRecord(row);
     },
 
     async archiveProvider(id, expectedRevision) {
@@ -435,47 +438,22 @@ export function createSupabaseControlPlaneRepository(
       models: readonly DiscoveredProviderModel[],
       expectedProviderRevision,
     ) {
-      await single('providers', {
-        method: 'PATCH',
+      const result = records(await request('rpc/replace_discovered_models', {
+        method: 'POST',
         schema: 'control',
-        query: { id: `eq.${providerId}`, revision: `eq.${expectedProviderRevision}`, state: 'eq.active' },
-        body: { updated_at: new Date().toISOString() },
-        prefer: 'return=representation',
-      }, 'conflict');
-      const existing = await this.listProviderModels(providerId);
-      if (models.length > 0) {
-        await request('provider_models', {
-          method: 'POST',
-          schema: 'control',
-          query: { on_conflict: 'provider_id,upstream_model_id' },
-          body: models.map((model) => ({
-            provider_id: providerId,
+        body: {
+          p_provider_id: providerId,
+          p_expected_provider_revision: expectedProviderRevision,
+          p_models: models.map((model) => ({
             upstream_model_id: model.upstreamModelId,
             label: model.label,
             capabilities: model.capabilities,
             context_window: model.contextWindow ?? null,
             raw_safe_metadata: model.rawSafeMetadata,
-            state: 'active',
-            discovered_at: new Date().toISOString(),
           })),
-          prefer: 'resolution=merge-duplicates,return=minimal',
-          allowEmpty: true,
-        });
-      }
-      const discoveredIds = new Set(models.map((model) => model.upstreamModelId));
-      for (const stale of existing.filter((item) => (
-        item.state === 'active' && !discoveredIds.has(item.upstreamModelId)
-      ))) {
-        await request('provider_models', {
-          method: 'PATCH',
-          schema: 'control',
-          query: { id: `eq.${stale.id}` },
-          body: { state: 'disabled' },
-          prefer: 'return=minimal',
-          allowEmpty: true,
-        });
-      }
-      return this.listProviderModels(providerId);
+        },
+      }));
+      return result.map(providerModelRecord);
     },
 
     async archiveProviderModel(id, expectedRevision) {

@@ -94,7 +94,9 @@ describe('managed security configuration', () => {
       AI_CREDENTIAL_MASTER_KEY_BASE64: encodedMasterKey,
     }, async (_input, init) => {
       authorization = new Headers(init?.headers).get('authorization') ?? '';
-      return new Response(JSON.stringify([{ user_id: 'admin-id', role: 'owner' }]), {
+      return new Response(JSON.stringify([{
+        user_id: 'admin-id', role: 'owner', enabled: true,
+      }]), {
         status: 200,
       });
     });

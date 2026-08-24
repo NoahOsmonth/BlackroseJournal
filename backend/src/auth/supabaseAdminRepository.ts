@@ -14,6 +14,7 @@ function parseAdminRows(value: unknown, expectedUserId: string): AdminPrincipal 
   const role = record.role;
   if (
     record.user_id !== expectedUserId
+    || record.enabled !== true
     || typeof role !== 'string'
     || !(['owner', 'admin', 'auditor'] as const).includes(role as AdminRole)
   ) return null;
@@ -29,8 +30,9 @@ export function createSupabaseControlAdminRepository(
   return {
     async findAdminByUserId(userId: string): Promise<AdminPrincipal | null> {
       const url = new URL(`${baseUrl}/admins`);
-      url.searchParams.set('select', 'user_id,role');
+      url.searchParams.set('select', 'user_id,role,enabled');
       url.searchParams.set('user_id', `eq.${userId}`);
+      url.searchParams.set('enabled', 'eq.true');
       url.searchParams.set('limit', '1');
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 5_000);

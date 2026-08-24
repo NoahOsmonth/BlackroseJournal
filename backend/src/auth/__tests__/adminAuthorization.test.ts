@@ -58,6 +58,7 @@ describe('explicit admin authorization', () => {
       fetcher: async () => new Response(JSON.stringify([{
         user_id: 'admin-id',
         role: 'admin',
+        enabled: true,
       }]), { status: 200, headers: { 'content-type': 'application/json' } }),
     });
 
@@ -65,5 +66,24 @@ describe('explicit admin authorization', () => {
       userId: 'admin-id',
       role: 'admin',
     });
+  });
+
+  it('rejects a persisted administrator after the row is disabled', async () => {
+    let requestedUrl = '';
+    const repository = createSupabaseControlAdminRepository({
+      restUrl: 'https://supabase.example/rest/v1',
+      secretKey: 'service-secret',
+      fetcher: async (input) => {
+        requestedUrl = input.toString();
+        return new Response(JSON.stringify([{
+          user_id: 'admin-id',
+          role: 'owner',
+          enabled: false,
+        }]), { status: 200, headers: { 'content-type': 'application/json' } });
+      },
+    });
+
+    assert.equal(await repository.findAdminByUserId('admin-id'), null);
+    assert.match(requestedUrl, /enabled=eq\.true/);
   });
 });

@@ -73,11 +73,14 @@ describe('Supabase control plane repository', () => {
     assert.doesNotMatch(requestBody, /plaintext|service-secret/);
   });
 
-  it('turns zero-row optimistic updates into a revision conflict', async () => {
+  it('turns transactional RPC revision conflicts into a repository conflict', async () => {
     const repository = createSupabaseControlPlaneRepository({
       restUrl: 'https://project.supabase.co/rest/v1',
       secretKey: 'service-secret',
-      fetcher: async () => jsonResponse([]),
+      fetcher: async () => jsonResponse({
+        code: 'PT409',
+        message: 'REVISION_CONFLICT',
+      }, 409),
     });
 
     await assert.rejects(
@@ -87,6 +90,86 @@ describe('Supabase control plane repository', () => {
       }),
       SupabaseControlRepositoryConflictError,
     );
+  });
+
+  it('updates provider state through the transactional catalog-withdrawal RPC', async () => {
+    let requestedUrl = '';
+    let requestBody = '';
+    const repository = createSupabaseControlPlaneRepository({
+      restUrl: 'https://project.supabase.co/rest/v1',
+      secretKey: 'service-secret',
+      fetcher: async (input, init) => {
+        requestedUrl = input.toString();
+        requestBody = String(init?.body ?? '');
+        return jsonResponse({
+          id: 'provider-1', name: 'Disabled provider', protocol: 'openai-responses',
+          base_url: 'https://models.example/v1', state: 'disabled', revision: 5,
+          display_metadata: {}, discovery_config: {},
+          created_at: '2026-08-24T00:00:00.000Z',
+          updated_at: '2026-08-24T00:01:00.000Z',
+        });
+      },
+    });
+
+    const provider = await repository.updateProvider('provider-1', {
+      expectedRevision: 4,
+      name: 'Disabled provider',
+      state: 'disabled',
+    });
+
+    assert.match(requestedUrl, /\/rpc\/update_provider$/);
+    assert.deepEqual(JSON.parse(requestBody), {
+      p_provider_id: 'provider-1',
+      p_expected_revision: 4,
+      p_patch: { name: 'Disabled provider', state: 'disabled' },
+    });
+    assert.equal(provider.state, 'disabled');
+  });
+
+  it('replaces discovery inventory through one transactional withdrawal RPC', async () => {
+    let requestedUrl = '';
+    let requestBody = '';
+    const repository = createSupabaseControlPlaneRepository({
+      restUrl: 'https://project.supabase.co/rest/v1',
+      secretKey: 'service-secret',
+      fetcher: async (input, init) => {
+        requestedUrl = input.toString();
+        requestBody = String(init?.body ?? '');
+        return jsonResponse([{
+          id: 'provider-model-1', provider_id: 'provider-1', upstream_model_id: 'vendor/one',
+          label: 'One', capabilities: {
+            streaming: true, tools: false, vision: false, jsonObject: true, jsonSchema: false,
+          },
+          context_window: 32768, raw_safe_metadata: {}, state: 'active', revision: 2,
+          discovered_at: '2026-08-24T00:01:00.000Z',
+          updated_at: '2026-08-24T00:01:00.000Z',
+        }]);
+      },
+    });
+
+    const models = await repository.replaceDiscoveredModels('provider-1', [{
+      upstreamModelId: 'vendor/one',
+      label: 'One',
+      capabilities: {
+        streaming: true, tools: false, vision: false, jsonObject: true, jsonSchema: false,
+      },
+      contextWindow: 32768,
+      rawSafeMetadata: {},
+    }], 4);
+
+    assert.match(requestedUrl, /\/rpc\/replace_discovered_models$/);
+    assert.deepEqual(JSON.parse(requestBody), {
+      p_provider_id: 'provider-1',
+      p_expected_provider_revision: 4,
+      p_models: [{
+        upstream_model_id: 'vendor/one', label: 'One',
+        capabilities: {
+          streaming: true, tools: false, vision: false, jsonObject: true, jsonSchema: false,
+        },
+        context_window: 32768, raw_safe_metadata: {},
+      }],
+    });
+    assert.equal(models[0].upstreamModelId, 'vendor/one');
   });
 
   it('publishes through the transactional RPC with both provider and catalog revisions', async () => {
