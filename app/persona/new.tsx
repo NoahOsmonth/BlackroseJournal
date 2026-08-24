@@ -5,6 +5,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { PersonaForm, PersonaFormValues } from '@/components/personas/PersonaForm';
+import { PersonaFormSkeleton } from '@/components/personas/PersonaFormSkeleton';
 import { usePersonas } from '@/hooks/personas/usePersonas';
 import {
     clearPersonaDraftSettings,
@@ -26,11 +27,13 @@ export default function NewPersonaScreen() {
     const router = useRouter();
     const { create } = usePersonas();
     const [values, setValues] = useState<PersonaFormValues>(defaultValues);
+    const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
         let isActive = true;
         const loadDraft = async () => {
             const draft = await loadPersonaDraftSettings();
+            setIsLoading(false);
             if (!isActive || !draft) return;
             setValues((prev) => ({
                 ...prev,
@@ -75,15 +78,19 @@ export default function NewPersonaScreen() {
                     <Text className="text-[15px] font-semibold text-primary">Generate with AI</Text>
                 </Pressable>
             </View>
-            <PersonaForm
-                title="New persona"
-                submitLabel="Create"
-                initialValues={values}
-                onChange={setValues}
-                onBack={() => router.back()}
-                onSubmit={handleSubmit}
-                onAdvanced={handleAdvanced}
-            />
+            {isLoading ? (
+                <PersonaFormSkeleton />
+            ) : (
+                <PersonaForm
+                    title="New persona"
+                    submitLabel="Create"
+                    initialValues={values}
+                    onChange={setValues}
+                    onBack={() => router.back()}
+                    onSubmit={handleSubmit}
+                    onAdvanced={handleAdvanced}
+                />
+            )}
         </SafeAreaView>
     );
 }

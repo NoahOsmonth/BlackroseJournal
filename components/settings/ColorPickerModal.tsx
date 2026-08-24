@@ -4,7 +4,6 @@ import {
     Modal,
     Pressable,
     ScrollView,
-    Switch,
     Text,
     TextInput,
     View,
@@ -24,6 +23,7 @@ import {
     softenNeutralPartner,
 } from '@/services/theme/colorDerivation';
 import { ColorSlider } from '@/components/ui/ColorSlider';
+import { AnimatedSwitch } from '@/components/ui/AnimatedSwitch';
 
 interface ColorPickerModalProps {
     /**
@@ -329,7 +329,7 @@ export function ColorPickerModal({
                                         : `Keep the current ${editingLight ? 'dark' : 'light'} value as-is.`}
                                 </Text>
                             </View>
-                            <Switch
+                            <AnimatedSwitch
                                 value={syncPartner}
                                 onValueChange={setSyncPartner}
                                 accessibilityLabel="Sync partner color"

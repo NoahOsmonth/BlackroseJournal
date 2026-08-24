@@ -4,11 +4,12 @@
  */
 
 import React, { useCallback, useMemo, useState } from 'react';
-import { ScrollView, Share, Text, View } from 'react-native';
+import { Share, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
+import Animated from 'react-native-reanimated';
 
 import { BottomNav } from '@/components/journal';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
@@ -41,19 +42,25 @@ import { WeekdaySelector } from '@/components/today/WeekdaySelector';
 import { getLocalDateKey } from '@/utils/date';
 import { calculateStreakStats } from '@/utils/streakStats';
 import { SpatialView } from '@/components/ui/SpatialView';
+import { RevealItem } from '@/components/ui/RevealItem';
+import { useScrollReveal } from '@/components/ui/useScrollReveal';
+import { TodaySkeleton } from '@/components/today/TodaySkeleton';
 
 export default function TodayScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { scrollY, onScroll } = useScrollReveal();
     const { weekDays, selectedDay, selectDay, monthLabel, shortDateLabel } = useSelectedDay();
-    const { completed: entries, refresh: refreshEntries } = useJournalEntries();
-    const { completed: checkIns, refresh: refreshCheckIns } = useIntentionCheckIns();
-    const { activeIntentions, refresh: refreshIntentions } = useIntentions();
-    const { goals, toggle: toggleGoal, refresh: refreshGoals } = useGoals();
+    const { completed: entries, refresh: refreshEntries, isLoading: entriesLoading } = useJournalEntries();
+    const { completed: checkIns, refresh: refreshCheckIns, isLoading: checkInsLoading } = useIntentionCheckIns();
+    const { activeIntentions, refresh: refreshIntentions, isLoading: intentionsLoading } = useIntentions();
+    const { goals, toggle: toggleGoal, refresh: refreshGoals, isLoading: goalsLoading } = useGoals();
     const { question, refresh, sourceDate } = useEntryInsightQuestion(entries);
-    const { add: saveInsight } = useSavedInsights();
+    const { add: saveInsight, isLoading: insightsLoading } = useSavedInsights();
     const { openStreakView, openSettings } = useHeaderActions();
     const { goToTab } = useTabNavigation();
+
+    const isLoading = entriesLoading || checkInsLoading || intentionsLoading || goalsLoading || insightsLoading;
 
     const refreshAll = useCallback(() => {
         void refreshEntries();
@@ -212,74 +219,94 @@ export default function TodayScreen() {
                 onRightPress={openSettings}
             />
 
-            <ScrollView
-                className="flex-1 px-4"
-                contentContainerStyle={{ paddingBottom: navAwareBottomPadding(insets.bottom) }}
-                showsVerticalScrollIndicator={false}
-            >
-                <SpatialView visible={true}>
-                    <View className="gap-6">
-                        <WeekdaySelector
-                            weekDays={weekDays}
-                            selectedDayIndex={selectedDay.dayIndex}
-                            onDaySelect={selectDay}
-                            completedDayIndices={completedDayIndices}
-                        />
+            {isLoading ? (
+                <TodaySkeleton />
+            ) : (
+                <>
+                    <Animated.ScrollView
+                        className="flex-1 px-4"
+                        contentContainerStyle={{ paddingBottom: navAwareBottomPadding(insets.bottom) }}
+                        showsVerticalScrollIndicator={false}
+                        onScroll={onScroll}
+                        scrollEventThrottle={16}
+                    >
+                        <SpatialView visible={true}>
+                            <View className="gap-6">
+                                <RevealItem scrollY={scrollY}>
+                                    <WeekdaySelector
+                                        weekDays={weekDays}
+                                        selectedDayIndex={selectedDay.dayIndex}
+                                        onDaySelect={selectDay}
+                                        completedDayIndices={completedDayIndices}
+                                    />
+                                </RevealItem>
 
-                        <View className="items-center justify-center">
-                            <Text className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide">
-                                Today {shortDateLabel}
-                            </Text>
-                        </View>
+                                <RevealItem scrollY={scrollY}>
+                                    <View className="items-center justify-center">
+                                        <Text className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide">
+                                            Today {shortDateLabel}
+                                        </Text>
+                                    </View>
+                                </RevealItem>
 
-                        <View className="flex-row gap-4">
-                            <IntentionActionCard
-                                title={'Morning\nIntention'}
-                                subtitle="Start your day"
-                                icon={<MorningIntentionIcon />}
-                                onPress={handleMorningPress}
-                                isCompleted={morningCompleted}
-                            />
-                            <IntentionActionCard
-                                title={'Evening\nReflection'}
-                                subtitle="Reflect & unwind"
-                                icon={<EveningReflectionIcon />}
-                                onPress={handleEveningPress}
-                                isCompleted={eveningCompleted}
-                            />
-                        </View>
+                                <RevealItem scrollY={scrollY}>
+                                    <View className="flex-row gap-4">
+                                        <IntentionActionCard
+                                            title={'Morning\nIntention'}
+                                            subtitle="Start your day"
+                                            icon={<MorningIntentionIcon />}
+                                            onPress={handleMorningPress}
+                                            isCompleted={morningCompleted}
+                                        />
+                                        <IntentionActionCard
+                                            title={'Evening\nReflection'}
+                                            subtitle="Reflect & unwind"
+                                            icon={<EveningReflectionIcon />}
+                                            onPress={handleEveningPress}
+                                            isCompleted={eveningCompleted}
+                                        />
+                                    </View>
+                                </RevealItem>
 
-                        <MyIntentionsSection
-                            intentions={activeIntentions}
-                            onAdd={handleAddIntention}
-                            onSelect={(intention) => handleSelectIntention(intention.id)}
-                        />
+                                <RevealItem scrollY={scrollY}>
+                                    <MyIntentionsSection
+                                        intentions={activeIntentions}
+                                        onAdd={handleAddIntention}
+                                        onSelect={(intention) => handleSelectIntention(intention.id)}
+                                    />
+                                </RevealItem>
 
-                        <GoalsSection
-                            items={goalListItems}
-                            onAddGoal={handleAddGoal}
-                            onManage={handleManageGoals}
-                            onToggle={handleToggleGoal}
-                        />
+                                <RevealItem scrollY={scrollY}>
+                                    <GoalsSection
+                                        items={goalListItems}
+                                        onAddGoal={handleAddGoal}
+                                        onManage={handleManageGoals}
+                                        onToggle={handleToggleGoal}
+                                    />
+                                </RevealItem>
 
-                        {!isInsightHidden ? (
-                            <EntryInsightsCard
-                                question={question}
-                                onRefresh={refresh}
-                                onBookmark={handleBookmark}
-                                onMore={() => setMoreVisible(true)}
-                                onPress={handleInsightPress}
-                            />
-                        ) : null}
-                    </View>
-                </SpatialView>
-            </ScrollView>
+                                {!isInsightHidden ? (
+                                    <RevealItem scrollY={scrollY}>
+                                        <EntryInsightsCard
+                                            question={question}
+                                            onRefresh={refresh}
+                                            onBookmark={handleBookmark}
+                                            onMore={() => setMoreVisible(true)}
+                                            onPress={handleInsightPress}
+                                        />
+                                    </RevealItem>
+                                ) : null}
+                            </View>
+                        </SpatialView>
+                    </Animated.ScrollView>
 
-            <BottomNav
-                activeTab="today"
-                onTabPress={handleTabPress}
-                onFabPress={() => router.push('/chat')}
-            />
+                    <BottomNav
+                        activeTab="today"
+                        onTabPress={handleTabPress}
+                        onFabPress={() => router.push('/chat')}
+                    />
+                </>
+            )}
 
             <GoalQuickAddModal
                 visible={showAddGoal}

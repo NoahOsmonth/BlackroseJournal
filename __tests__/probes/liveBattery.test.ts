@@ -15,8 +15,6 @@ import { writeArtifact } from '../../probes/shared/artifacts';
 import { applyProbeEnv, probesEnabled } from '../../probes/shared/loadEnv';
 import { runE1 } from '../../probes/e1_toolSchemaTax';
 import { runE2 } from '../../probes/e2_behavioralTools';
-import { runE3 } from '../../probes/e3_retrieval';
-import { runE5 } from '../../probes/e5_capsuleOnly';
 import { runE4 } from '../../probes/e4_triggerCoverage';
 
 const describeMaybe = probesEnabled() ? describe : describe.skip;
@@ -65,27 +63,9 @@ describeMaybe('PR8-probe live LLM battery (PROBE_LLM=1)', () => {
         console.log('[E2 BEST TRANSCRIPTS]\n', bestTranscripts);
     });
 
-    it('E3 retrieval quality at scale', async () => {
-        const { stats, rankTable } = await runE3();
-        // eslint-disable-next-line no-console
-        console.log('[E3 embedStats]', JSON.stringify(stats, null, 2));
-        // eslint-disable-next-line no-console
-        console.log('[E3 rankTable]', JSON.stringify(rankTable, null, 2));
-        expect(rankTable.length).toBe(20);
-    });
-
     it('E4 re-run for live battery artifact bundle', () => {
         const { summary } = runE4();
         // eslint-disable-next-line no-console
         console.log('[E4]', summary);
-    });
-
-    it('E5 capsule-only what-if', async () => {
-        const { table, vectorsLoaded } = await runE5();
-        // eslint-disable-next-line no-console
-        console.log('[E5 vectorsLoaded]', vectorsLoaded);
-        // eslint-disable-next-line no-console
-        console.log('[E5 table]', JSON.stringify(table, null, 2));
-        expect(table.length).toBe(20);
     });
 });

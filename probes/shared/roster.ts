@@ -2,7 +2,7 @@
  * Full model roster/config as used by the app — assembled for probe artifacts.
  * Source files: constants/aiModels.ts, services/ai/directConfig.ts,
  * services/ai/customModels.ts KNOWN_CONTEXT_WINDOWS, utils/ai/modelFallback.ts,
- * utils/ai/modelDisplay.ts, services/memory/embeddings.ts.
+ * utils/ai/modelDisplay.ts.
  */
 
 export const ROSTER_VERBATIM = {
@@ -13,7 +13,6 @@ export const ROSTER_VERBATIM = {
         'services/ai/customModels.ts',
         'utils/ai/modelDisplay.ts',
         'utils/ai/modelFallback.ts',
-        'services/memory/embeddings.ts',
         'backend/src/config/aiConfig.ts',
     ],
     envKeys: {
@@ -53,12 +52,6 @@ export const ROSTER_VERBATIM = {
         'openrouter/free',
         'nvidia/nemotron-3-ultra-550b-a55b:free',
     ] as const,
-    embedding: {
-        EMBEDDING_MODEL: 'nvidia/llama-nemotron-embed-vl-1b-v2:free',
-        EMBEDDING_DIMENSIONS: 2048,
-        runnerUpModel: 'perplexity/pplx-embed-v1-0.6b',
-        runnerUpDimensions: 1024,
-    },
     backendDefaults: {
         DEFAULT_MODEL: 'nvidia/nemotron-3-ultra-550b-a55b',
         note: 'Backend optional; device-direct is source of truth for freeform.',

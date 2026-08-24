@@ -1,10 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Message } from '@/services/ai';
-import { embedText } from '@/services/ai/embeddingsTransport';
 import type { JournalEntry } from '@/services/journal/journalStorage.types';
 import type { IntentionCheckIn } from '@/services/intentions/intentionsStorage.types';
 import { formatEventDateLabel, getLocalDateKeyFromTimestamp, isValidIsoDateKey } from '@/utils/date';
-import { cosineSimilarity } from '@/services/memory/embeddings';
+import {
+    scoreKeywordRecency,
+    tokenize,
+} from './keywordRanking';
 import type {
     LocalMemoryAtom,
     LocalMemoryAtomInput,
@@ -25,25 +27,6 @@ export const MAX_MEMORY_ATOMS = 400;
 
 const MAX_CONTEXT_ATOMS = 6;
 const MAX_CONTEXT_CHARS = 1200;
-
-const STOP_WORDS = new Set([
-    'about',
-    'after',
-    'again',
-    'because',
-    'before',
-    'being',
-    'could',
-    'doing',
-    'feel',
-    'feeling',
-    'from',
-    'have',
-    'more',
-    'that',
-    'this',
-    'with',
-]);
 
 let memoryStorageAdapter: LocalMemoryStorageAdapter = AsyncStorage;
 
@@ -94,17 +77,6 @@ function trimText(value: string, maxLength: number): string {
     return clean.length > maxLength ? `${clean.slice(0, maxLength).trim()}...` : clean;
 }
 
-function normalizeToken(value: string): string {
-    return value.toLowerCase().replace(/[^a-z0-9']/g, '');
-}
-
-function tokenize(text: string): string[] {
-    return text
-        .split(/\s+/)
-        .map(normalizeToken)
-        .filter((token) => token.length > 3 && !STOP_WORDS.has(token));
-}
-
 function uniqueValues(values: string[]): string[] {
     return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
 }
@@ -127,16 +99,6 @@ function atomId(input: LocalMemoryAtomInput): string {
     return `${input.source}:${input.layer}:${input.sourceId}`;
 }
 
-function sanitizeEmbedding(value: unknown): number[] | undefined {
-    if (!Array.isArray(value) || value.length === 0) return undefined;
-    const out: number[] = [];
-    for (const n of value) {
-        if (typeof n !== 'number' || !Number.isFinite(n)) return undefined;
-        out.push(n);
-    }
-    return out;
-}
-
 function isValidAtom(value: unknown): value is LocalMemoryAtom {
     if (typeof value !== 'object' || value === null) return false;
     const atom = value as Partial<LocalMemoryAtom>;
@@ -157,9 +119,6 @@ function sanitizeAtoms(value: unknown): Record<string, LocalMemoryAtom> {
     const result: Record<string, LocalMemoryAtom> = {};
     Object.entries(value as Record<string, unknown>).forEach(([key, candidate]) => {
         if (isValidAtom(candidate)) {
-            const embedding = sanitizeEmbedding(
-                (candidate as { embedding?: unknown }).embedding,
-            );
             const rawEvent = (candidate as { eventDate?: unknown }).eventDate;
             const eventDate = typeof rawEvent === 'string' && isValidIsoDateKey(rawEvent)
                 ? rawEvent
@@ -169,7 +128,6 @@ function sanitizeAtoms(value: unknown): Record<string, LocalMemoryAtom> {
             const base: LocalMemoryAtom = {
                 ...candidate,
                 accessCount: typeof candidate.accessCount === 'number' ? candidate.accessCount : 0,
-                ...(embedding ? { embedding } : {}),
                 ...(eventDate !== undefined ? { eventDate } : {}),
             };
             result[key] = migrateAtomProvenance(base);
@@ -251,10 +209,6 @@ function mergeAtom(existing: LocalMemoryAtom | undefined, input: LocalMemoryAtom
         ? clampScore(Math.min(0.95, Math.max(existing.confidence, input.confidence ?? 0.7) + 0.02))
         : clampScore(input.confidence ?? 0.7);
 
-    const embedding = input.embedding?.length
-        ? input.embedding
-        : existing?.embedding;
-
     const eventDate = input.eventDate !== undefined
         ? input.eventDate
         : existing?.eventDate;
@@ -275,7 +229,6 @@ function mergeAtom(existing: LocalMemoryAtom | undefined, input: LocalMemoryAtom
         updatedAt: now,
         lastAccessedAt: existing?.lastAccessedAt,
         accessCount: existing?.accessCount ?? 0,
-        ...(embedding?.length ? { embedding } : {}),
         ...(eventDate !== undefined ? { eventDate } : {}),
     };
 }
@@ -313,34 +266,8 @@ function profileTitleFromInsight(insight: string): string {
     return shortened;
 }
 
-/**
- * Soft-attach embedding outside the storage lock (network I/O).
- * Same embedText() / EMBEDDING_MODEL path as session digests + rollups.
- * Failure leaves the atom lexical-only — never throws.
- */
-async function softAttachEmbedding(atom: LocalMemoryAtom): Promise<LocalMemoryAtom> {
-    if (atom.embedding?.length) return atom;
-    try {
-        const vector = await embedText(`${atom.title}\n${atom.content}`);
-        if (!vector?.length) return atom;
-        return await withMemoryLock(async () => {
-            const map = await loadMemoryMap();
-            const existing = map[atom.id];
-            if (!existing) return atom;
-            // Another writer may have attached a vector while we embedded.
-            if (existing.embedding?.length) return existing;
-            const next = { ...existing, embedding: vector };
-            map[atom.id] = next;
-            await saveMemoryMap(map);
-            return next;
-        });
-    } catch {
-        return atom;
-    }
-}
-
 export async function upsertMemoryAtom(input: LocalMemoryAtomInput): Promise<LocalMemoryAtom> {
-    let atom = await withMemoryLock(async () => {
+    const atom = await withMemoryLock(async () => {
         const map = await loadMemoryMap();
         const id = atomId(input);
         const merged = mergeAtom(map[id], input);
@@ -350,14 +277,6 @@ export async function upsertMemoryAtom(input: LocalMemoryAtomInput): Promise<Loc
         return map[id] ?? merged;
     });
     notifyMemoryChanged();
-
-    if (!input.embedding?.length) {
-        atom = await softAttachEmbedding(atom);
-        if (atom.embedding?.length) {
-            // Vector landed after the first notify — refresh listeners once.
-            notifyMemoryChanged();
-        }
-    }
 
     return atom;
 }
@@ -545,21 +464,7 @@ async function saveAtomBatch(atoms: readonly LocalMemoryAtomInput[]): Promise<Lo
     });
     notifyMemoryChanged();
 
-    // Finish-path atoms previously skipped embeddings (only upsertMemoryAtom attached).
-    // Soft-attach via the same embedText() pair as digests — sequential to share the lock queue.
-    const withEmbeddings: LocalMemoryAtom[] = [];
-    let anyNewVector = false;
-    for (const atom of saved) {
-        const next = await softAttachEmbedding(atom);
-        if (next.embedding?.length && !atom.embedding?.length) {
-            anyNewVector = true;
-        }
-        withEmbeddings.push(next);
-    }
-    if (anyNewVector) {
-        notifyMemoryChanged();
-    }
-    return withEmbeddings;
+    return saved;
 }
 
 export async function saveJournalEntryMemories(entry: JournalEntry): Promise<LocalMemoryAtom[]> {
@@ -642,51 +547,23 @@ export async function saveIntentionCheckInMemories(
     return saveAtomBatch(atoms);
 }
 
-function recencyScore(atom: LocalMemoryAtom, now: number): number {
-    const ageDays = Math.max(0, (now - atom.updatedAt) / 86_400_000);
-    return 1 / (1 + ageDays / 30);
-}
-
-function lexicalScore(atom: LocalMemoryAtom, queryTokens: Set<string>): number {
-    if (queryTokens.size === 0) return 0.35;
-    const text = tokenize(`${atom.title} ${atom.content} ${atom.tags.join(' ')}`);
-    const overlap = text.filter((token) => queryTokens.has(token)).length;
-    return Math.min(1, overlap / Math.max(3, queryTokens.size));
+function atomTextTokens(atom: LocalMemoryAtom): string[] {
+    return tokenize(`${atom.title} ${atom.content} ${atom.tags.join(' ')}`);
 }
 
 /**
- * Capsule ranking (Memory v3 Phase 5).
- * When both query + atom embeddings exist: semantic cosine is primary;
- * salience/recency/usage are tie-breakers only.
- * Without embeddings: legacy lexical mix.
+ * Capsule ranking — keyword-overlap + recency fallback (no embeddings).
+ * Uses the shared scoreKeywordRecency baseline; salience and usage are
+ * gentle tie-breakers.
  */
 export function rankAtom(
     atom: LocalMemoryAtom,
     queryTokens: Set<string>,
     now: number,
-    queryEmbedding?: readonly number[] | null,
 ): number {
     const usage = Math.min(atom.accessCount, 10) / 20;
-    const recency = recencyScore(atom, now);
-    const hasSemantic = Boolean(
-        queryEmbedding
-        && queryEmbedding.length > 0
-        && atom.embedding
-        && atom.embedding.length === queryEmbedding.length,
-    );
-
-    if (hasSemantic && queryEmbedding && atom.embedding) {
-        const semantic = cosineSimilarity(queryEmbedding, atom.embedding);
-        return (semantic * 0.62)
-            + (atom.salience * 0.18)
-            + (recency * 0.12)
-            + (usage * 0.08);
-    }
-
-    return (lexicalScore(atom, queryTokens) * 0.44)
-        + (atom.salience * 0.28)
-        + (recency * 0.18)
-        + usage;
+    const kwr = scoreKeywordRecency(atomTextTokens(atom), queryTokens, atom.updatedAt, now);
+    return (kwr * 0.7) + (atom.salience * 0.2) + (usage * 0.1);
 }
 
 async function markAccessed(atomIds: readonly string[], now: number): Promise<void> {
@@ -725,20 +602,10 @@ export async function retrieveLocalMemories(
     const queryTokens = new Set(tokenize(queryText));
     const atoms = await listMemoryAtoms();
 
-    // One embed of the latest user text for semantic ranking (soft-fail offline).
-    let queryEmbedding: number[] | null = null;
-    if (queryText.length > 0) {
-        try {
-            queryEmbedding = await embedText(queryText);
-        } catch {
-            queryEmbedding = null;
-        }
-    }
-
     const ranked = atoms
         .map((atom) => ({
             atom,
-            score: rankAtom(atom, queryTokens, now, queryEmbedding),
+            score: rankAtom(atom, queryTokens, now),
         }))
         .sort((a, b) => b.score - a.score)
         .slice(0, limit)

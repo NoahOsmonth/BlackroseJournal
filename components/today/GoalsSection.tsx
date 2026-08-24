@@ -3,6 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { StaggerEntranceItem } from '@/components/ui/StaggerEntrance';
 import type { GoalItem } from '@/services/goals/goalsStorage.types';
 
 export interface GoalListItem {
@@ -130,7 +131,16 @@ export function GoalsSection({
                 ) : (
                     <View>
                         {visible.map((item, index) => (
-                            <View key={item.id}>
+                            <StaggerEntranceItem
+                                key={item.id}
+                                index={index}
+                                columns={1}
+                                totalItems={visible.length}
+                                staggerType="linear"
+                                baseDelayMs={30}
+                                delayFactorMs={45}
+                                className="w-full"
+                            >
                                 {index > 0 ? (
                                     <View className="h-px bg-divider-light dark:bg-divider-dark" />
                                 ) : null}
@@ -140,7 +150,7 @@ export function GoalsSection({
                                     checkColor={checkColor}
                                     emptyCheckColor={emptyCheckColor}
                                 />
-                            </View>
+                            </StaggerEntranceItem>
                         ))}
                         {overflow > 0 ? (
                             <Pressable

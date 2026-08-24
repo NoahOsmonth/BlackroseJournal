@@ -21,10 +21,6 @@ jest.mock('../../../services/ai/directTransport', () => ({
     fetchDirectChatCompletion: jest.fn(),
 }));
 
-jest.mock('../../../services/ai/embeddingsTransport', () => ({
-    embedText: jest.fn(async () => [0.1, 0.2, 0.3]),
-}));
-
 import { fetchDirectChatCompletion } from '../../../services/ai/directTransport';
 import {
     WEEK_MIN_DAY_DIGESTS,
@@ -153,7 +149,6 @@ describe('ensureMemoryRollupsUpToDate', () => {
         const week = result.created.find((r) => r.kind === 'week');
         expect(week).toBeDefined();
         expect(week!.summary).toContain('work stress');
-        expect(week!.embedding.length).toBe(3);
         expect(mockFetch).toHaveBeenCalled();
 
         // Sharded key present

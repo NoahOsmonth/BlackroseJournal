@@ -95,7 +95,7 @@ export function TactileButton({
     const panGesture = Gesture.Pan()
         .onBegin((event) => {
             isPressed.value = true;
-            scale.value = withSpring(0.96, config);
+            scale.value = withSpring(0.95, config);
             triggerHaptic(hapticType);
             updateCoordinates(event.x, event.y);
         })

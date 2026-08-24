@@ -36,12 +36,6 @@ export interface LocalMemoryAtom {
     lastAccessedAt?: number;
     accessCount: number;
     /**
-     * Optional L2-normalized embedding (EMBEDDING_MODEL) of title+content.
-     * Used for semantic capsule ranking (Memory v3 Phase 5). Missing on older
-     * atoms → lexical fallback.
-     */
-    embedding?: number[];
-    /**
      * Absolute ISO date (YYYY-MM-DD) of a specific datable event in this atom,
      * when extraction resolved one. Absent/null on undatable or older atoms.
      */
@@ -60,7 +54,6 @@ export interface LocalMemoryAtomInput {
     salience?: number;
     confidence?: number;
     createdAt?: number;
-    embedding?: number[];
     eventDate?: string | null;
 }
 

@@ -101,7 +101,7 @@ export function ChatMessage({
 
   return (
     <Animated.View
-      entering={FadeInDown.duration(500).springify()}
+      entering={FadeInDown.duration(250).springify()}
       layout={Layout.springify()}
       className={`w-full ${isReadOnly ? 'opacity-70' : ''}`}
     >

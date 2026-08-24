@@ -25,11 +25,6 @@ export interface SessionDigest {
      * Absent/null on older shards or undatable sessions — treat as no event date.
      */
     eventDate?: string | null;
-    /**
-     * L2-normalized embedding of summary (+ topics) from EMBEDDING_MODEL.
-     * Empty array if embed failed offline — still keep the text digest.
-     */
-    embedding: number[];
     entryWordCount: number;
     createdAt: number;
     sourceKind: SessionDigestSourceKind;

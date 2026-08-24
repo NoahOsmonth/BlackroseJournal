@@ -11,6 +11,7 @@ import {
     pickModelAfterFetch,
     readEnvProviderSeed,
     saveCustomAiProviderSettings,
+    withManualModel,
     withSelectedModel,
 } from '@/services/ai/customModels';
 
@@ -40,6 +41,7 @@ export interface UseCustomAiModelsReturn {
     fetchModels: () => Promise<void>;
     saveSettings: () => Promise<void>;
     selectModel: (modelId: string) => Promise<void>;
+    addManualModel: (modelId: string) => Promise<void>;
     setEnabled: (enabled: boolean) => Promise<void>;
     setFreeOnly: (freeOnly: boolean) => Promise<void>;
 }
@@ -196,6 +198,17 @@ export function useCustomAiModels(): UseCustomAiModelsReturn {
         }
     }, [persist, settings]);
 
+    const addManualModel = useCallback(async (modelId: string) => {
+        try {
+            const fallback = normalizeFallbackContextWindow(draft.fallbackContextWindow);
+            const next = withManualModel(settings, modelId, fallback);
+            await persist(next);
+            setStatus({ kind: 'success', message: `Added ${modelId} and enabled it.` });
+        } catch (error) {
+            setStatus({ kind: 'error', message: errorMessage(error) });
+        }
+    }, [draft.fallbackContextWindow, persist, settings]);
+
     const setEnabled = useCallback(async (enabled: boolean) => {
         if (enabled && !selectedOrFirst(settings)) {
             setStatus({ kind: 'error', message: 'Fetch and select a model first.' });
@@ -241,6 +254,7 @@ export function useCustomAiModels(): UseCustomAiModelsReturn {
         fetchModels,
         saveSettings,
         selectModel,
+        addManualModel,
         setEnabled,
         setFreeOnly,
     };

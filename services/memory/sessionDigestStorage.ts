@@ -96,17 +96,10 @@ function sanitizeDigest(value: unknown): SessionDigest | null {
     if (typeof value.dateISO !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value.dateISO)) return null;
     if (typeof value.oneLineSummary !== 'string') return null;
     if (!Array.isArray(value.topics)) return null;
-    if (!Array.isArray(value.embedding)) return null;
     if (typeof value.entryWordCount !== 'number' || !Number.isFinite(value.entryWordCount)) return null;
     if (typeof value.createdAt !== 'number' || !Number.isFinite(value.createdAt)) return null;
     if (!isValidSourceKind(value.sourceKind)) return null;
     if (typeof value.sourceId !== 'string' || !value.sourceId.trim()) return null;
-
-    const embedding: number[] = [];
-    for (const n of value.embedding) {
-        if (typeof n !== 'number' || !Number.isFinite(n)) continue;
-        embedding.push(n);
-    }
 
     const topics = value.topics
         .filter((t): t is string => typeof t === 'string')
@@ -128,7 +121,6 @@ function sanitizeDigest(value: unknown): SessionDigest | null {
         oneLineSummary: trimText(value.oneLineSummary, MAX_SUMMARY_CHARS),
         topics,
         ...(eventDate !== undefined ? { eventDate } : {}),
-        embedding,
         entryWordCount: Math.max(0, Math.floor(value.entryWordCount)),
         createdAt: value.createdAt,
         sourceKind: value.sourceKind,

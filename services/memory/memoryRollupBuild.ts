@@ -27,7 +27,6 @@ import {
     extractFirstJsonObject,
     fetchDirectJsonCompletion,
 } from '@/services/ai/jsonCompletion';
-import { embedText } from '@/services/ai/embeddingsTransport';
 import { INSIGHTS_TEMPERATURE } from '@/services/ai/generationSettings';
 import { listDayDigests } from '@/services/memory/dayDigestStorage';
 import type { DayDigest } from '@/services/memory/dayDigest.types';
@@ -255,7 +254,6 @@ async function buildOneRollup(input: {
     const { summary, topics } = llm
         ?? fallbackSummary(`${input.kind} ${input.periodKey}`, input.sourceLines);
 
-    const embedding = (await embedText([summary, ...topics].join('\n'))) ?? [];
     const existing = await getMemoryRollup(input.kind, input.periodKey);
     const createdAt = existing?.createdAt ?? input.now;
 
@@ -267,7 +265,6 @@ async function buildOneRollup(input: {
         dateTo: window.dateTo,
         summary,
         topics,
-        embedding,
         sourceCount: input.sourceCount,
         createdAt,
         updatedAt: input.now,

@@ -17,11 +17,6 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
     },
 }));
 
-jest.mock('../../../services/ai/embeddingsTransport', () => ({
-    embedText: jest.fn(),
-}));
-
-import { embedText } from '../../../services/ai/embeddingsTransport';
 import {
     buildSessionRecallContext,
     detectSessionRecallIntent,
@@ -34,7 +29,6 @@ import {
     upsertSessionDigest,
 } from '../../../services/memory/sessionDigestStorage';
 import type { SessionDigest } from '../../../services/memory/sessionDigest.types';
-import { l2Normalize } from '../../../services/memory/embeddings';
 
 function createInMemoryAdapter() {
     const store = new Map<string, string>();
@@ -56,13 +50,10 @@ function createInMemoryAdapter() {
     };
 }
 
-const mockEmbed = jest.mocked(embedText);
-
 function digest(partial: Partial<SessionDigest> & Pick<SessionDigest, 'sessionId' | 'dateISO' | 'oneLineSummary'>): SessionDigest {
     return {
         schemaVersion: 1,
         topics: partial.topics ?? ['general'],
-        embedding: partial.embedding ?? [],
         entryWordCount: partial.entryWordCount ?? 20,
         createdAt: partial.createdAt ?? Date.now(),
         sourceKind: partial.sourceKind ?? 'journal_entry',
@@ -74,7 +65,6 @@ function digest(partial: Partial<SessionDigest> & Pick<SessionDigest, 'sessionId
 describe('sessionRecall', () => {
     beforeEach(() => {
         setSessionDigestStorageAdapter(createInMemoryAdapter());
-        mockEmbed.mockReset();
     });
 
     afterEach(async () => {
@@ -102,8 +92,7 @@ describe('sessionRecall', () => {
         expect(range?.from).toBe('2026-06-17');
     });
 
-    it('injects matching digests for last month (date path, offline embed)', async () => {
-        mockEmbed.mockResolvedValue(null);
+    it('injects matching digests for last month (date path)', async () => {
         const now = new Date(2026, 6, 17, 12, 0, 0);
 
         await upsertSessionDigest(digest({
@@ -123,7 +112,7 @@ describe('sessionRecall', () => {
 
         const block = await buildSessionRecallContext(
             'what did we talk about last month',
-            { now, skipEmbed: true },
+            { now },
         );
 
         expect(block).toContain('## Relevant past context');
@@ -139,15 +128,13 @@ describe('sessionRecall', () => {
      * Offline: embed fails → still return date-window digests.
      * What would make this fail: requiring non-empty embedding to include a row.
      */
-    it('falls back to date-range-only when embeddings fail', async () => {
-        mockEmbed.mockResolvedValue(null);
+    it('falls back to date-range-only recall without embeddings', async () => {
         const now = new Date(2026, 6, 17);
         await upsertSessionDigest(digest({
             sessionId: 'work1',
             dateISO: '2026-07-10',
             oneLineSummary: 'Deadlines at work felt crushing.',
             topics: ['work stress'],
-            embedding: [], // empty stored vector
             createdAt: now.getTime() - 3 * 86_400_000,
         }));
 
@@ -155,7 +142,6 @@ describe('sessionRecall', () => {
             'what did we talk about last week',
             { now },
         );
-        expect(mockEmbed).toHaveBeenCalled();
         expect(block).toContain('Deadlines at work');
         expect(block).toContain('Date window');
     });
@@ -165,7 +151,6 @@ describe('sessionRecall', () => {
      * Sabotage: drop eventDate formatting from formatRecallLine → red.
      */
     it('injects Event absolute date label when digest has eventDate', async () => {
-        mockEmbed.mockResolvedValue(null);
         const now = new Date(2026, 6, 18, 16, 0, 0);
 
         await upsertSessionDigest(digest({
@@ -181,7 +166,7 @@ describe('sessionRecall', () => {
 
         const block = await buildSessionRecallContext(
             'When is my dentist appointment?',
-            { now, skipEmbed: true },
+            { now },
         );
 
         expect(block).toContain('## Relevant past context');
@@ -190,33 +175,30 @@ describe('sessionRecall', () => {
         expect(block).toContain('dentist');
     });
 
-    it('ranks by semantic similarity when embeddings available', async () => {
+    it('ranks by keyword overlap when digests match the query', async () => {
         const now = new Date(2026, 6, 17);
-        const workVec = l2Normalize([1, 0, 0, 0]);
-        const foodVec = l2Normalize([0, 1, 0, 0]);
-        const queryVec = l2Normalize([0.95, 0.05, 0, 0]);
 
         await upsertSessionDigest(digest({
             sessionId: 'work',
             dateISO: '2026-07-01',
             oneLineSummary: 'Work stress and deadlines.',
-            embedding: workVec,
+            topics: ['work'],
             createdAt: now.getTime() - 10 * 86_400_000,
         }));
         await upsertSessionDigest(digest({
             sessionId: 'food',
             dateISO: '2026-07-02',
             oneLineSummary: 'Cooked a tomato pasta recipe.',
-            embedding: foodVec,
+            topics: ['food', 'pasta'],
             createdAt: now.getTime() - 9 * 86_400_000,
         }));
 
         const block = await buildSessionRecallContext(
             'last time I mentioned work pressure',
-            { now, queryEmbedding: queryVec, skipEmbed: true },
+            { now },
         );
         expect(block).toContain('Work stress');
-        // Food is orthogonal in embedding space — should be filtered by MIN_SIMILARITY.
+        // Food has no keyword overlap with the query — excluded by the gate.
         expect(block).not.toContain('pasta');
     });
 
@@ -228,6 +210,5 @@ describe('sessionRecall', () => {
         }));
         const block = await buildSessionRecallContext('I am tired today');
         expect(block).toBeUndefined();
-        expect(mockEmbed).not.toHaveBeenCalled();
     });
 });

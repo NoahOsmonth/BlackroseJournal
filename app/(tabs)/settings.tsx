@@ -45,6 +45,7 @@ import {
     isDemoSeedEnabled,
     markDemoDataSeeded,
 } from '@/services/seed/seedDemoData';
+import { SettingsSkeleton } from '@/components/settings/SettingsSkeleton';
 
 export default function SettingsScreen() {
     const router = useRouter();
@@ -71,6 +72,8 @@ export default function SettingsScreen() {
     const { seed: seedDemoData, seedBulk: seedBulkProbe } = useSeedDemoData();
     const [isSigningOut, setIsSigningOut] = useState(false);
     const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set());
+
+    const isLoading = isAuthLoading;
 
     const toggleSection = useCallback((id: string) => {
         setExpandedIds((prev) => {
@@ -298,11 +301,14 @@ export default function SettingsScreen() {
 
     return (
         <ScreenContainer edges="top" className="relative">
-            <ScrollView
-                className="flex-1 px-4 pt-6"
-                contentContainerStyle={{ paddingBottom: navAwareBottomPadding(insets.bottom) }}
-                showsVerticalScrollIndicator={false}
-            >
+            {isLoading ? (
+                <SettingsSkeleton />
+            ) : (
+                <ScrollView
+                    className="flex-1 px-4 pt-6"
+                    contentContainerStyle={{ paddingBottom: navAwareBottomPadding(insets.bottom) }}
+                    showsVerticalScrollIndicator={false}
+                >
                 <View className="mb-6">
                     <Text className="text-3xl font-serif font-bold text-text-light dark:text-text-dark">
                         Settings
@@ -462,12 +468,13 @@ export default function SettingsScreen() {
                     />
                 </SettingsAccordionSection>
             </ScrollView>
+        )}
 
-            <BottomNav
-                activeTab="settings"
-                onTabPress={handleTabPress}
-                onFabPress={() => router.push('/chat')}
-            />
+        <BottomNav
+            activeTab="settings"
+            onTabPress={handleTabPress}
+            onFabPress={() => router.push('/chat')}
+        />
         </ScreenContainer>
     );
 }

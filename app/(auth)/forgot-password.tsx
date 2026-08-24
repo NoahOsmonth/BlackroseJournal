@@ -1,4 +1,6 @@
 import { sendPasswordResetEmail } from '@/services/auth/authService';
+import { AuthFormSkeleton } from '@/components/auth/AuthFormSkeleton';
+import { useAuthSession } from '@/hooks/auth/useAuthSession';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
@@ -14,6 +16,7 @@ function FieldLabel({ text }: { text: string }) {
 
 export default function ForgotPasswordScreen() {
     const router = useRouter();
+    const { isLoading } = useAuthSession();
     const [email, setEmail] = useState('');
     const [status, setStatus] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -58,6 +61,9 @@ export default function ForgotPasswordScreen() {
                     We will email you a secure link to reset your password.
                 </Text>
 
+                {isLoading ? (
+                    <AuthFormSkeleton fields={1} />
+                ) : (
                 <View className="bg-surface-light dark:bg-surface-dark rounded-2xl p-5 shadow-sm mt-6">
                     <FieldLabel text="Email" />
                     <TextInput
@@ -100,6 +106,7 @@ export default function ForgotPasswordScreen() {
                         </Text>
                     </Pressable>
                 </View>
+                )}
             </View>
         </SafeAreaView>
     );

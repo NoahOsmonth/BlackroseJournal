@@ -22,12 +22,7 @@ jest.mock('../../../services/ai/directTransport', () => ({
     fetchDirectChatCompletion: jest.fn(),
 }));
 
-jest.mock('../../../services/ai/embeddingsTransport', () => ({
-    embedText: jest.fn(),
-}));
-
 import { fetchDirectChatCompletion } from '../../../services/ai/directTransport';
-import { embedText } from '../../../services/ai/embeddingsTransport';
 import { resetJsonCompletionStateForTests } from '../../../services/ai/jsonCompletion';
 import {
     buildAndSaveSessionDigest,
@@ -61,14 +56,12 @@ function createInMemoryAdapter() {
 }
 
 const mockFetch = jest.mocked(fetchDirectChatCompletion);
-const mockEmbed = jest.mocked(embedText);
 
 describe('buildAndSaveSessionDigest', () => {
     beforeEach(() => {
         setSessionDigestStorageAdapter(createInMemoryAdapter());
         resetJsonCompletionStateForTests();
         mockFetch.mockReset();
-        mockEmbed.mockReset();
     });
 
     afterEach(async () => {
@@ -77,7 +70,7 @@ describe('buildAndSaveSessionDigest', () => {
         resetJsonCompletionStateForTests();
     });
 
-    it('saves summary, topics, and embedding from LLM + embed calls', async () => {
+    it('saves summary and topics from the LLM call', async () => {
         mockFetch.mockResolvedValue({
             ok: true,
             json: async () => ({
@@ -92,7 +85,6 @@ describe('buildAndSaveSessionDigest', () => {
             }),
             text: async () => '',
         } as Response);
-        mockEmbed.mockResolvedValue([0.1, 0.2, 0.3, 0.4]);
 
         const saved = await buildAndSaveSessionDigest({
             sessionId: 'j1',
@@ -104,10 +96,8 @@ describe('buildAndSaveSessionDigest', () => {
 
         expect(saved?.oneLineSummary).toContain('deadlines');
         expect(saved?.topics).toEqual(expect.arrayContaining(['work stress', 'sleep']));
-        expect(saved?.embedding).toEqual([0.1, 0.2, 0.3, 0.4]);
         expect(saved?.dateISO).toBe('2026-07-17');
         expect(mockFetch).toHaveBeenCalled();
-        expect(mockEmbed).toHaveBeenCalled();
 
         const loaded = await getSessionDigest('j1');
         expect(loaded?.entryWordCount).toBeGreaterThan(0);
@@ -117,7 +107,7 @@ describe('buildAndSaveSessionDigest', () => {
      * Offline / embed fail: still persist text digest (Phase 3 date-range path).
      * What would make this fail: requiring non-empty embedding to upsert.
      */
-    it('still stores digest when embeddings call returns null', async () => {
+    it('still stores the text digest offline', async () => {
         mockFetch.mockResolvedValue({
             ok: true,
             json: async () => ({
@@ -132,7 +122,6 @@ describe('buildAndSaveSessionDigest', () => {
             }),
             text: async () => '',
         } as Response);
-        mockEmbed.mockResolvedValue(null);
 
         const saved = await buildAndSaveSessionDigest({
             sessionId: 'j2',
@@ -143,13 +132,11 @@ describe('buildAndSaveSessionDigest', () => {
         });
 
         expect(saved?.oneLineSummary).toContain('family');
-        expect(saved?.embedding).toEqual([]);
         expect(await getSessionDigest('j2')).not.toBeNull();
     });
 
-    it('falls back to extractive summary when LLM fails, still embeds if possible', async () => {
+    it('falls back to extractive summary when the LLM fails', async () => {
         mockFetch.mockRejectedValue(new Error('flash down'));
-        mockEmbed.mockResolvedValue([1, 0, 0]);
 
         const saved = await buildAndSaveSessionDigest({
             sessionId: 'j3',
@@ -160,7 +147,6 @@ describe('buildAndSaveSessionDigest', () => {
         });
 
         expect(saved?.oneLineSummary).toMatch(/Journaled about|calm breathing/i);
-        expect(saved?.embedding).toEqual([1, 0, 0]);
         expect(saved?.sourceKind).toBe('intention_checkin');
     });
 
@@ -190,7 +176,6 @@ describe('buildAndSaveSessionDigest', () => {
                 }),
                 text: async () => '',
             } as Response);
-        mockEmbed.mockResolvedValue([0.5, 0.5]);
 
         const saved = await buildAndSaveSessionDigest({
             sessionId: 'j-freeform',
@@ -237,7 +222,6 @@ describe('buildAndSaveSessionDigest', () => {
             }),
             text: async () => '',
         } as Response);
-        mockEmbed.mockResolvedValue([0.1, 0.2]);
 
         const saturday = new Date(2026, 6, 18, 15, 0, 0).getTime();
         const saved = await buildAndSaveSessionDigest({
@@ -272,7 +256,6 @@ describe('buildAndSaveSessionDigest', () => {
             }),
             text: async () => '',
         } as Response);
-        mockEmbed.mockResolvedValue([0.3]);
 
         const saturday = new Date(2026, 6, 18, 12, 0, 0).getTime();
         const saved = await buildAndSaveSessionDigest({
@@ -306,7 +289,6 @@ describe('buildAndSaveSessionDigest', () => {
             }),
             text: async () => '',
         } as Response);
-        mockEmbed.mockResolvedValue([0.4]);
 
         const saved = await buildAndSaveSessionDigest({
             sessionId: 'bad-event',
@@ -364,7 +346,6 @@ describe('buildAndSaveSessionDigest', () => {
             }),
             text: async () => '',
         } as Response);
-        mockEmbed.mockResolvedValue([0.2, 0.3]);
 
         // Saturday 2026-07-18 afternoon — same shape as the live Test B device day.
         const saturdayFinish = new Date(2026, 6, 18, 14, 30, 0).getTime();

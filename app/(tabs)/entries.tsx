@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
@@ -7,6 +8,8 @@ import { useRouter } from 'expo-router';
 import { AppHeader } from '@/components/navigation';
 import { BottomNav, ResumeSessionBanner } from '@/components/journal';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
+import { RevealItem } from '@/components/ui/RevealItem';
+import { useScrollReveal } from '@/components/ui/useScrollReveal';
 import { StaggerEntranceItem } from '@/components/ui/StaggerEntrance';
 import { navAwareBottomPadding } from '@/constants/spacing';
 import { HistorySection } from '@/components/history/HistorySection';
@@ -76,6 +79,7 @@ function buildFeedRows(sections: HistorySectionModel[]): FeedRow[] {
 export default function EntriesScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { scrollY, onScroll } = useScrollReveal();
     const { sections, weeklySummary, isLoading } = useHistoryFeed();
     const { drafts, refresh: refreshEntries } = useJournalEntries();
     const { drafts: checkInDrafts, refresh: refreshCheckIns } = useIntentionCheckIns();
@@ -157,29 +161,37 @@ export default function EntriesScreen() {
                 onDraftsPress={() => router.push('/drafts')}
             />
 
-            <ScrollView
+            <Animated.ScrollView
                 className="flex-1 px-4"
                 contentContainerStyle={{ paddingBottom: navAwareBottomPadding(insets.bottom) }}
                 showsVerticalScrollIndicator={false}
+                onScroll={onScroll}
+                scrollEventThrottle={16}
             >
                 {showBanner && activeSession ? (
-                    <View className="mt-1 mb-3">
-                        <ResumeSessionBanner
-                            title={sessionTitle(activeSession)}
-                            onResume={handleResumeSession}
-                            onDismiss={() => setDismissedId(activeSession.conversationId)}
-                        />
-                    </View>
+                    <RevealItem scrollY={scrollY}>
+                        <View className="mt-1 mb-3">
+                            <ResumeSessionBanner
+                                title={sessionTitle(activeSession)}
+                                onResume={handleResumeSession}
+                                onDismiss={() => setDismissedId(activeSession.conversationId)}
+                            />
+                        </View>
+                    </RevealItem>
                 ) : null}
 
-                <View className="mt-1 mb-4">
-                    <HistoryWeekRhythm summary={weeklySummary} />
-                </View>
+                <RevealItem scrollY={scrollY}>
+                    <View className="mt-1 mb-4">
+                        <HistoryWeekRhythm summary={weeklySummary} />
+                    </View>
+                </RevealItem>
 
                 {hasAnyItems ? (
-                    <View className="mb-5">
-                        <HistoryFilterBar value={filter} onChange={setFilter} />
-                    </View>
+                    <RevealItem scrollY={scrollY}>
+                        <View className="mb-5">
+                            <HistoryFilterBar value={filter} onChange={setFilter} />
+                        </View>
+                    </RevealItem>
                 ) : null}
 
                 {isLoading && !hasAnyItems ? (
@@ -223,7 +235,7 @@ export default function EntriesScreen() {
                         })}
                     </View>
                 )}
-            </ScrollView>
+            </Animated.ScrollView>
 
             <BottomNav
                 activeTab="entries"

@@ -1,5 +1,6 @@
 import { useAuthSession } from '@/hooks/auth/useAuthSession';
 import { signInWithEmail } from '@/services/auth/authService';
+import { AuthFormSkeleton } from '@/components/auth/AuthFormSkeleton';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
@@ -61,6 +62,9 @@ export default function LoginScreen() {
                     Sign in to sync your journal across devices. Sessions stay active until you sign out.
                 </Text>
 
+                {isLoading ? (
+                    <AuthFormSkeleton fields={2} showForgotLink />
+                ) : (
                 <View className="bg-surface-light dark:bg-surface-dark rounded-2xl p-5 shadow-sm mt-6">
                     {isSignedIn && !isLoading ? (
                         <View>
@@ -147,6 +151,7 @@ export default function LoginScreen() {
                         </View>
                     )}
                 </View>
+                )}
             </View>
         </SafeAreaView>
     );

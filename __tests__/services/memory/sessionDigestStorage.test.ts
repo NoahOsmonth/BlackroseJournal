@@ -63,7 +63,6 @@ function sampleDigest(overrides: Partial<SessionDigest> = {}): SessionDigest {
         dateISO: '2026-07-17',
         oneLineSummary: 'Talked about work stress and poor sleep.',
         topics: ['work stress', 'sleep'],
-        embedding: [0.1, 0.2, 0.3],
         entryWordCount: 42,
         createdAt: 1_700_000_000_000,
         sourceKind: 'journal_entry',
@@ -101,9 +100,9 @@ describe('sessionDigestStorage (sharded)', () => {
         expect(indexJson).toContain('entry_abc');
         expect(indexJson).toContain('2026-07-17');
 
-        // Record holds the vector.
+        // Record holds the text digest (no vector anymore).
         const recordJson = adapter.store.get(recordKey) ?? '';
-        expect(recordJson).toContain('embedding');
+        expect(recordJson).not.toContain('embedding');
         expect(recordJson).toContain('work stress');
     });
 
@@ -116,7 +115,6 @@ describe('sessionDigestStorage (sharded)', () => {
             sessionId: 'sess_restart',
             sourceId: 'sess_restart',
             oneLineSummary: 'Mentioned sister and mom health.',
-            embedding: [0.5, -0.5, 0.25],
         }));
 
         // Simulate process death: new adapter module path still points at same store map,
@@ -133,7 +131,6 @@ describe('sessionDigestStorage (sharded)', () => {
 
         const loaded = await getSessionDigest('sess_restart');
         expect(loaded?.oneLineSummary).toContain('sister');
-        expect(loaded?.embedding).toEqual([0.5, -0.5, 0.25]);
         expect(loaded?.topics).toContain('work stress');
 
         const listed = await listSessionDigests();
@@ -181,7 +178,6 @@ describe('sessionDigestStorage (sharded)', () => {
         await importSessionDigestsBundle(bundle);
         const again = await getSessionDigest('x1');
         expect(again?.oneLineSummary).toContain('work stress');
-        expect(again?.embedding.length).toBe(3);
     });
 
     it('clearSessionDigests removes index and all record keys', async () => {

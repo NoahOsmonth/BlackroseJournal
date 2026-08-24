@@ -5,10 +5,6 @@ jest.mock('@/services/memory/memoryAtomExtraction', () => ({
     extractCheckInMemoryAtoms: jest.fn(async () => []),
 }));
 
-jest.mock('@/services/ai/embeddingsTransport', () => ({
-    embedText: jest.fn(async () => null),
-}));
-
 jest.mock('@react-native-async-storage/async-storage', () => ({
     __esModule: true,
     default: {
@@ -35,8 +31,6 @@ import {
     setMemoryStorageAdapter,
     upsertMemoryAtom,
 } from '../../services/memory/localMemory';
-import { EMBEDDING_DIMENSIONS, l2Normalize } from '../../services/memory/embeddings';
-import { embedText } from '../../services/ai/embeddingsTransport';
 import type {
     JournalEntry,
     StorageAdapter,
@@ -225,21 +219,16 @@ describe('localMemory', () => {
      * What would make this fail: lexical-only rank preferring food if query tokens overlap badly,
      * or equal weights ignoring cosine.
      */
-    it('ranks atoms by embedding similarity when vectors exist (semantic primary)', async () => {
-        const workVec = l2Normalize([1, 0, 0, 0]);
-        const foodVec = l2Normalize([0, 1, 0, 0]);
-        const queryVec = l2Normalize([0.99, 0.01, 0, 0]);
-
+    it('ranks atoms by keyword overlap + recency (fallback ranking)', async () => {
         await upsertMemoryAtom({
             layer: 'episodic',
             source: 'journal',
             sourceId: 'work-atom',
-            title: 'zzzz lexical trap pasta pasta',
+            title: 'Crushing deadlines at work',
             content: 'Work stress and crushing deadlines at the office.',
             tags: ['work'],
             salience: 0.4,
             confidence: 0.8,
-            embedding: workVec,
         });
         await upsertMemoryAtom({
             layer: 'episodic',
@@ -250,24 +239,18 @@ describe('localMemory', () => {
             tags: ['food', 'pasta'],
             salience: 0.95,
             confidence: 0.9,
-            embedding: foodVec,
         });
 
         const work = (await listMemoryAtoms()).find((a) => a.sourceId === 'work-atom')!;
         const food = (await listMemoryAtoms()).find((a) => a.sourceId === 'food-atom')!;
-        const tokens = new Set(['pasta', 'recipe']); // lexical would prefer food
+        const tokens = new Set(['work', 'deadlines']); // only work overlaps
         const now = Date.now();
 
-        const workScore = rankAtom(work, tokens, now, queryVec);
-        const foodScore = rankAtom(food, tokens, now, queryVec);
+        const workScore = rankAtom(work, tokens, now);
+        const foodScore = rankAtom(food, tokens, now);
         expect(workScore).toBeGreaterThan(foodScore);
 
-        // retrieveLocalMemories with injected path via upsert embeddings + mocked embedText
-        const { embedText } = jest.requireMock('@/services/ai/embeddingsTransport') as {
-            embedText: jest.Mock;
-        };
-        embedText.mockResolvedValueOnce(queryVec);
-
+        // retrieveLocalMemories ranks through the same keyword+recency path.
         const ranked = await retrieveLocalMemories({
             query: 'feeling crushed by work deadlines',
             limit: 2,
@@ -276,38 +259,19 @@ describe('localMemory', () => {
     });
 
     /**
-     * Finish path (saveJournalEntryMemories → saveAtomBatch) must soft-attach
-     * embeddings via the same embedText() pair as digests — not only upsertMemoryAtom.
-     * What would make this fail: batch save skipping softAttachEmbedding.
+     * Finish path (saveJournalEntryMemories → saveAtomBatch) persists atoms
+     * as plain text records — no vector fields are written anymore.
      */
-    it('attaches a 2048-d embedding on journal finish atoms via embedText', async () => {
-        const mockEmbed = jest.mocked(embedText);
-        const vector = Array.from({ length: EMBEDDING_DIMENSIONS }, (_, i) => (i === 0 ? 1 : 0));
-        mockEmbed.mockResolvedValue(vector);
-
+    it('persists journal finish atoms without vector fields', async () => {
         const saved = await saveJournalEntryMemories(buildEntry());
         expect(saved.length).toBeGreaterThan(0);
-        expect(mockEmbed).toHaveBeenCalled();
 
         const atoms = await listMemoryAtoms();
         const journalAtoms = atoms.filter((a) => a.source === 'journal');
         expect(journalAtoms.length).toBeGreaterThan(0);
+        // No vector storage anymore — atoms are plain text records.
         for (const atom of journalAtoms) {
-            expect(atom.embedding).toBeDefined();
-            expect(atom.embedding!.length).toBe(EMBEDDING_DIMENSIONS);
+            expect(Object.keys(atom)).not.toContain('embedding');
         }
-
-        // Cosine-primary still wins when vectors exist (reuse ranking contract).
-        const withVec = journalAtoms[0]!;
-        const tokens = new Set(['zzzznomatch']);
-        const semanticScore = rankAtom(withVec, tokens, Date.now(), vector);
-        const lexicalOnly = rankAtom(
-            { ...withVec, embedding: undefined },
-            tokens,
-            Date.now(),
-            vector,
-        );
-        // With matching query embedding, semantic path should dominate over empty lexical.
-        expect(semanticScore).toBeGreaterThan(lexicalOnly);
     });
 });

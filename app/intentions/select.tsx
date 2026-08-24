@@ -6,6 +6,7 @@ import { Sparkle, X } from 'phosphor-react-native';
 
 import { INTENTION_AREAS } from '@/constants/intentions';
 import { IntentionAreaButton } from '@/components/intentions/IntentionAreaButton';
+import { IntentionSelectSkeleton } from '@/components/intentions/IntentionSelectSkeleton';
 import { IntentionArea } from '@/services/intentions/intentionsStorage.types';
 
 function CompassBadge() {
@@ -29,6 +30,12 @@ function CompassBadge() {
 
 export default function IntentionSelectScreen() {
     const router = useRouter();
+    // Areas are static constants today; keep a hydration gate so a skeleton shows
+    // instantly if the list ever loads remotely.
+    const [isHydrating, setIsHydrating] = React.useState(true);
+    React.useEffect(() => {
+        setIsHydrating(false);
+    }, []);
 
     const handleClose = () => {
         router.back();
@@ -60,6 +67,9 @@ export default function IntentionSelectScreen() {
                 </View>
 
                 <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+                    {isHydrating ? (
+                        <IntentionSelectSkeleton />
+                    ) : (
                     <View className="gap-3 pb-6">
                         {INTENTION_AREAS.map((area) => (
                             <IntentionAreaButton
@@ -69,6 +79,7 @@ export default function IntentionSelectScreen() {
                             />
                         ))}
                     </View>
+                    )}
                 </ScrollView>
             </View>
         </SafeAreaView>

@@ -1,5 +1,6 @@
 import {
     assertModelAllowed,
+    buildManualModel,
     clearCustomAiProviderSettings,
     fetchOpenAiCompatibleModels,
     getActiveCustomModelConfig,
@@ -9,6 +10,7 @@ import {
     resetCustomModelStorageAdapter,
     saveCustomAiProviderSettings,
     setCustomModelStorageAdapter,
+    withManualModel,
     withSelectedModel,
 } from '../../../services/ai/customModels';
 
@@ -156,6 +158,42 @@ describe('customModels service', () => {
         expect(next.recentModelIds).toEqual(['tencent/hy3:free']);
         expect(next.enabled).toBe(true);
         expect(() => withSelectedModel(base, 'openai/gpt-4')).toThrow(/Free models only/);
+    });
+
+    it('buildManualModel normalizes id and applies fallback context', () => {
+        const model = buildManualModel('  qwen-web/qwen3.8-max  ', 128_000);
+        expect(model.id).toBe('qwen-web/qwen3.8-max');
+        expect(model.contextWindow).toBe(128_000);
+        expect(model.contextWindowSource).toBe('fallback');
+        expect(() => buildManualModel('   ', 128_000)).toThrow(/Model id is required/);
+    });
+
+    it('withManualModel adds, selects, and enables a free web model', () => {
+        const base = getDefaultCustomAiProviderSettings();
+        const next = withManualModel(base, 'qwen-web/qwen3.8-max', 128_000);
+        expect(next.models).toHaveLength(1);
+        expect(next.models[0].id).toBe('qwen-web/qwen3.8-max');
+        expect(next.selectedModelId).toBe('qwen-web/qwen3.8-max');
+        expect(next.enabled).toBe(true);
+        expect(next.recentModelIds).toEqual(['qwen-web/qwen3.8-max']);
+    });
+
+    it('withManualModel dedupes on id without duplicating entries', () => {
+        const base = {
+            ...getDefaultCustomAiProviderSettings(),
+            models: [{ id: 'qwen-web/qwen3.8-max', contextWindow: 64_000, contextWindowSource: 'fallback' as const }],
+        };
+        const next = withManualModel(base, 'qwen-web/qwen3.8-max', 128_000);
+        expect(next.models).toHaveLength(1);
+        expect(next.models[0].contextWindow).toBe(128_000);
+    });
+
+    it('withManualModel blocks paid ids while freeOnly is on', () => {
+        expect(() => withManualModel(
+            getDefaultCustomAiProviderSettings(),
+            'cl/qwen/qwen3.8-max',
+            128_000
+        )).toThrow(/Free models only/);
     });
 
     it('resolves the active selected free custom model config', async () => {

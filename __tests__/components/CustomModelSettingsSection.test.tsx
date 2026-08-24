@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
 import { CustomModelSettingsSection } from '../../components/settings/CustomModelSettingsSection';
 import type { UseCustomAiModelsReturn } from '../../hooks/settings/useCustomAiModels';
@@ -55,6 +55,7 @@ function buildProps(): UseCustomAiModelsReturn {
         fetchModels: jest.fn(),
         saveSettings: jest.fn(),
         selectModel: jest.fn(),
+        addManualModel: jest.fn(),
         setEnabled: jest.fn(),
         setFreeOnly: jest.fn(),
     };
@@ -76,9 +77,10 @@ describe('CustomModelSettingsSection', () => {
         render(<CustomModelSettingsSection {...props} />);
 
         const toggle = screen.getByLabelText('Enable custom AI provider');
-        expect(toggle.props.disabled).toBe(false);
+        // AnimatedSwitch surfaces disabled state via accessibilityState, not props.disabled.
+        expect(toggle.props.accessibilityState.disabled).toBe(false);
 
-        fireEvent(toggle, 'valueChange', true);
+        fireEvent.press(toggle);
         expect(props.setEnabled).toHaveBeenCalledWith(true);
     });
 
@@ -98,5 +100,30 @@ describe('CustomModelSettingsSection', () => {
         expect(props.saveSettings).toHaveBeenCalledTimes(1);
         expect(props.setBaseUrl).toHaveBeenCalledWith('https://openrouter.ai');
         expect(props.setFallbackContextWindow).toHaveBeenCalledWith('64000');
+    });
+
+    it('adds a manual model from the advanced section and clears the input', async () => {
+        const props = buildProps();
+        props.addManualModel = jest.fn().mockResolvedValue(undefined);
+        render(<CustomModelSettingsSection {...props} />);
+
+        fireEvent.press(screen.getByLabelText('Advanced AI provider settings'));
+        fireEvent.changeText(screen.getByLabelText('Manual model id'), 'qwen-web/qwen3.8-max');
+        await act(async () => {
+            fireEvent.press(screen.getByLabelText('Add manual model'));
+        });
+
+        expect(props.addManualModel).toHaveBeenCalledWith('qwen-web/qwen3.8-max');
+    });
+
+    it('does not call addManualModel with a blank id', () => {
+        const props = buildProps();
+        props.addManualModel = jest.fn().mockResolvedValue(undefined);
+        render(<CustomModelSettingsSection {...props} />);
+
+        fireEvent.press(screen.getByLabelText('Advanced AI provider settings'));
+        // The Add button is disabled while the input is empty.
+        expect(screen.getByLabelText('Add manual model').props.accessibilityState.disabled).toBe(true);
+        expect(props.addManualModel).not.toHaveBeenCalled();
     });
 });

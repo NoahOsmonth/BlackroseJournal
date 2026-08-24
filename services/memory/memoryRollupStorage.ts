@@ -91,15 +91,11 @@ function sanitizeRollup(value: unknown): MemoryRollup | null {
     if (typeof value.dateFrom !== 'string' || !value.dateFrom) return null;
     if (typeof value.dateTo !== 'string' || !value.dateTo) return null;
     if (typeof value.summary !== 'string') return null;
-    if (!Array.isArray(value.topics) || !Array.isArray(value.embedding)) return null;
+    if (!Array.isArray(value.topics)) return null;
     if (typeof value.sourceCount !== 'number' || !Number.isFinite(value.sourceCount)) return null;
     if (typeof value.createdAt !== 'number' || !Number.isFinite(value.createdAt)) return null;
     if (typeof value.updatedAt !== 'number' || !Number.isFinite(value.updatedAt)) return null;
 
-    const embedding: number[] = [];
-    for (const n of value.embedding) {
-        if (typeof n === 'number' && Number.isFinite(n)) embedding.push(n);
-    }
     const topics = value.topics
         .filter((t): t is string => typeof t === 'string')
         .map((t) => trimText(t, 48))
@@ -114,7 +110,6 @@ function sanitizeRollup(value: unknown): MemoryRollup | null {
         dateTo: value.dateTo,
         summary: trimText(value.summary, MAX_SUMMARY_CHARS),
         topics,
-        embedding,
         sourceCount: Math.max(0, Math.floor(value.sourceCount)),
         createdAt: value.createdAt,
         updatedAt: value.updatedAt,

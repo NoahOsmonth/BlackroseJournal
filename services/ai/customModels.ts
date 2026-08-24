@@ -451,6 +451,47 @@ export function pickModelAfterFetch(
         ?? null;
 }
 
+/**
+ * Build a custom model entry from a hand-typed id (escape hatch when the
+ * provider's `/models` response can't be fetched or parsed). Context window
+ * is the fallback value; it is never marked as API-detected.
+ */
+export function buildManualModel(id: string, fallbackContextWindow: number): CustomAiModel {
+    const normalizedId = id.trim();
+    if (!normalizedId) throw new CustomModelSettingsError('Model id is required.');
+    return {
+        id: normalizedId,
+        contextWindow: normalizeFallbackContextWindow(fallbackContextWindow),
+        contextWindowSource: 'fallback',
+    };
+}
+
+/**
+ * Add (or refresh) a manually-entered model, select it, and enable the provider.
+ * Honors the free-only policy: paid ids are rejected while freeOnly is on.
+ */
+export function withManualModel(
+    settings: CustomAiProviderSettings,
+    id: string,
+    fallbackContextWindow: number
+): CustomAiProviderSettings {
+    const model = buildManualModel(id, fallbackContextWindow);
+    assertModelAllowed(model.id, settings.freeOnly);
+    const exists = settings.models.some((entry) => entry.id === model.id);
+    const models = exists
+        ? settings.models.map((entry) => (entry.id === model.id
+            ? { ...entry, ...model, name: entry.name, ownedBy: entry.ownedBy }
+            : entry))
+        : [...settings.models, model];
+    return {
+        ...settings,
+        enabled: true,
+        models,
+        selectedModelId: model.id,
+        recentModelIds: pushRecentModelId(settings.recentModelIds, model.id),
+    };
+}
+
 export async function getActiveCustomModelConfig(): Promise<ActiveCustomModelConfig | null> {
     const settings = await loadCustomAiProviderSettings();
     if (!settings.enabled) return null;

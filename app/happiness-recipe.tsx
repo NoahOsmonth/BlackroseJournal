@@ -6,6 +6,7 @@
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useHappinessRecipe } from '@/hooks/useHappinessRecipe';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { HappinessRecipeSkeleton } from '@/components/happiness/HappinessRecipeSkeleton';
 import { RecipeItem, RecipeItemType } from '@/services/happinessRecipeStorage.types';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -253,6 +254,10 @@ export default function HappinessRecipeScreen() {
                 </View>
 
                 <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
+                    {isLoading ? (
+                        <HappinessRecipeSkeleton />
+                    ) : (
+                        <>
                     {/* Add buttons */}
                     {!addingType && (
                         <View className="flex-row gap-3 mb-6">
@@ -301,6 +306,8 @@ export default function HappinessRecipeScreen() {
                     )}
 
                     <View className="h-6" />
+                        </>
+                    )}
                 </ScrollView>
             </View>
         </SafeAreaView>

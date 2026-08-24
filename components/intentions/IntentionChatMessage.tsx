@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
 
 import { resolveIntentionChatContent } from '@/constants/intentionChat';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -35,9 +36,13 @@ export function IntentionChatMessage({
     const messageTextColor = isAssistant
         ? actionIconColor
         : isDark ? colors.chatUserTextDark : colors.chatUserTextLight;
+    const reduceMotion = useReducedMotion();
 
     return (
-        <View className="gap-2">
+        <Animated.View
+            className="gap-2"
+            entering={reduceMotion ? undefined : FadeInDown.duration(250).springify()}
+        >
             <Text
                 testID="intention-chat-message-text"
                 className={`max-w-[320px] text-[17px] leading-relaxed ${isAssistant
@@ -75,6 +80,6 @@ export function IntentionChatMessage({
                     </Pressable>
                 </View>
             )}
-        </View>
+        </Animated.View>
     );
 }

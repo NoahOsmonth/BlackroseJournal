@@ -6,6 +6,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getPersonaAvatarSource, PERSONA_VOICES, PersonaAvatarKey } from '@/constants/personas';
 import { AvatarPickerModal } from './AvatarPickerModal';
 import { VoicePickerModal } from './VoicePickerModal';
+import { StaggerEntranceItem } from '@/components/ui/StaggerEntrance';
 
 export interface PersonaFormValues {
     name: string;
@@ -107,39 +108,41 @@ export function PersonaForm({
                 </View>
 
                 <View className="bg-surface-light dark:bg-surface-dark rounded-xl overflow-hidden shadow-soft mb-6">
-                    <View className="border-b border-divider-light dark:border-divider-dark">
-                        <TextInput
-                            value={values.name}
-                            onChangeText={(text) => updateValues((prev) => ({ ...prev, name: text }))}
-                            placeholder="Name"
-                            placeholderTextColor="#9CA3AF"
-                            className="px-4 py-3 text-[17px] text-text-light dark:text-text-dark"
-                        />
-                    </View>
-                    <View className="border-b border-divider-light dark:border-divider-dark">
-                        <TextInput
-                            value={values.tagline}
-                            onChangeText={(text) => updateValues((prev) => ({ ...prev, tagline: text }))}
-                            placeholder="Tagline"
-                            placeholderTextColor="#9CA3AF"
-                            className="px-4 py-3 text-[17px] text-text-light dark:text-text-dark"
-                        />
-                    </View>
-                    <Pressable
-                        onPress={() => setShowVoicePicker(true)}
-                        className="flex-row items-center justify-between px-4 py-3"
-                    >
-                        <View className="flex-row items-center gap-3">
-                            <MaterialIcons name="volume-up" size={20} color="#9CA3AF" />
-                            <Text className="text-[17px] text-text-light dark:text-text-dark">Voice</Text>
+                    <StaggerEntranceItem index={0} columns={1} totalItems={3} staggerType="linear" baseDelayMs={20} delayFactorMs={50} className="w-full">
+                        <View className="border-b border-divider-light dark:border-divider-dark">
+                            <TextInput
+                                value={values.name}
+                                onChangeText={(text) => updateValues((prev) => ({ ...prev, name: text }))}
+                                placeholder="Name"
+                                placeholderTextColor="#9CA3AF"
+                                className="px-4 py-3 text-[17px] text-text-light dark:text-text-dark"
+                            />
                         </View>
-                        <View className="flex-row items-center gap-1">
-                            <Text className="text-[17px] text-text-secondary-light dark:text-text-secondary-dark">
-                                {values.voice}
-                            </Text>
-                            <MaterialIcons name="chevron-right" size={20} color="#9CA3AF" />
+                        <View className="border-b border-divider-light dark:border-divider-dark">
+                            <TextInput
+                                value={values.tagline}
+                                onChangeText={(text) => updateValues((prev) => ({ ...prev, tagline: text }))}
+                                placeholder="Tagline"
+                                placeholderTextColor="#9CA3AF"
+                                className="px-4 py-3 text-[17px] text-text-light dark:text-text-dark"
+                            />
                         </View>
-                    </Pressable>
+                        <Pressable
+                            onPress={() => setShowVoicePicker(true)}
+                            className="flex-row items-center justify-between px-4 py-3"
+                        >
+                            <View className="flex-row items-center gap-3">
+                                <MaterialIcons name="volume-up" size={20} color="#9CA3AF" />
+                                <Text className="text-[17px] text-text-light dark:text-text-dark">Voice</Text>
+                            </View>
+                            <View className="flex-row items-center gap-1">
+                                <Text className="text-[17px] text-text-secondary-light dark:text-text-secondary-dark">
+                                    {values.voice}
+                                </Text>
+                                <MaterialIcons name="chevron-right" size={20} color="#9CA3AF" />
+                            </View>
+                        </Pressable>
+                    </StaggerEntranceItem>
                 </View>
 
                 <View className="mb-6">

@@ -10,7 +10,9 @@ import { getLocalDateKey } from '@/utils/date';
 import { useIntentionDetail } from '@/hooks/intentions/useIntentionDetail';
 import { useIntentions } from '@/hooks/intentions/useIntentions';
 import { useNavBack } from '@/hooks/navigation/useNavBack';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingStatus } from '@/components/ui/LoadingStatus';
+import { StaggerEntranceItem } from '@/components/ui/StaggerEntrance';
 
 const heroImage = require('@/assets/intentions/intention-hero.png');
 
@@ -75,11 +77,27 @@ export default function IntentionDetailScreen() {
         );
     };
 
-    if (isLoading || !intention) {
+    if (isLoading) {
         return (
             <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark">
                 <View className="flex-1 max-w-md mx-auto w-full items-center justify-center">
                     <LoadingStatus label="Loading your intention" detail="Bringing your latest check-in into view." />
+                </View>
+            </SafeAreaView>
+        );
+    }
+
+    if (!intention) {
+        return (
+            <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark">
+                <View className="flex-1 max-w-md mx-auto w-full items-center justify-center px-6">
+                    <EmptyState
+                        icon="event-busy"
+                        title="Intention not found"
+                        message="This intention may have been deleted or is no longer available."
+                        actionLabel="Go back"
+                        onActionPress={handleBack}
+                    />
                 </View>
             </SafeAreaView>
         );
@@ -134,30 +152,40 @@ export default function IntentionDetailScreen() {
                                     {checkInDateLabel}
                                 </Text>
                             </View>
-                            <View className="bg-surface-light dark:bg-surface-dark rounded-3xl p-5 border border-gray-100 dark:border-divider-dark">
-                                <View className="flex-row items-center justify-between text-xs text-text-secondary-light dark:text-text-secondary-dark mb-3">
-                                    <View className="flex-row items-center gap-2">
-                                        <MaterialIcons name="edit" size={16} color="#9CA3AF" />
-                                        <Text className="text-text-secondary-light dark:text-text-secondary-dark">Intention Setting</Text>
+                            <StaggerEntranceItem
+                                index={0}
+                                columns={1}
+                                totalItems={1}
+                                staggerType="diagonal"
+                                baseDelayMs={30}
+                                delayFactorMs={40}
+                                className="w-full"
+                            >
+                                <View className="bg-surface-light dark:bg-surface-dark rounded-3xl p-5 border border-gray-100 dark:border-divider-dark">
+                                    <View className="flex-row items-center justify-between text-xs text-text-secondary-light dark:text-text-secondary-dark mb-3">
+                                        <View className="flex-row items-center gap-2">
+                                            <MaterialIcons name="edit" size={16} color="#9CA3AF" />
+                                            <Text className="text-text-secondary-light dark:text-text-secondary-dark">Intention Setting</Text>
+                                        </View>
+                                        <Text className="text-text-secondary-light dark:text-text-secondary-dark">
+                                            {new Date(latestCheckIn.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                                        </Text>
                                     </View>
-                                    <Text className="text-text-secondary-light dark:text-text-secondary-dark">
-                                        {new Date(latestCheckIn.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                                    <View className="flex-row items-start gap-3 mb-2">
+                                        <MaterialIcons name="adjust" size={20} color="#EF4444" />
+                                        <Text className="font-semibold text-text-light dark:text-text-dark text-sm leading-tight">
+                                            {latestCheckIn.title}
+                                        </Text>
+                                    </View>
+                                    <Text className="text-sm text-text-secondary-light dark:text-text-secondary-dark leading-snug mb-4">
+                                        {latestCheckIn.summary}
                                     </Text>
+                                    <View className="flex-row items-center gap-1.5 text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark">
+                                        <MaterialIcons name="search" size={16} color="#9CA3AF" />
+                                        <Text className="text-text-secondary-light dark:text-text-secondary-dark">{latestCheckIn.mood ?? 'Reflective'}</Text>
+                                    </View>
                                 </View>
-                                <View className="flex-row items-start gap-3 mb-2">
-                                    <MaterialIcons name="adjust" size={20} color="#EF4444" />
-                                    <Text className="font-semibold text-text-light dark:text-text-dark text-sm leading-tight">
-                                        {latestCheckIn.title}
-                                    </Text>
-                                </View>
-                                <Text className="text-sm text-text-secondary-light dark:text-text-secondary-dark leading-snug mb-4">
-                                    {latestCheckIn.summary}
-                                </Text>
-                                <View className="flex-row items-center gap-1.5 text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark">
-                                    <MaterialIcons name="search" size={16} color="#9CA3AF" />
-                                    <Text className="text-text-secondary-light dark:text-text-secondary-dark">{latestCheckIn.mood ?? 'Reflective'}</Text>
-                                </View>
-                            </View>
+                            </StaggerEntranceItem>
                         </View>
                     )}
                 </ScrollView>

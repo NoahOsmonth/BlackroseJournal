@@ -8,15 +8,50 @@ import { useGoals } from '@/hooks/goals/useGoals';
 import { useNavBack } from '@/hooks/navigation/useNavBack';
 import { GoalQuickAddModal } from '@/components/goals/GoalQuickAddModal';
 import { getLocalDateKey } from '@/utils/date';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { LoadingStatus } from '@/components/ui/LoadingStatus';
 
 export default function GoalsScreen() {
     const goBack = useNavBack('/(tabs)/today');
     const colorScheme = useColorScheme();
     const iconColor = colorScheme === 'dark' ? '#F9FAFB' : '#111827';
-    const { goals, toggle, create } = useGoals();
+    const { goals, toggle, create, isLoading } = useGoals();
     const [showAdd, setShowAdd] = useState(false);
 
     const dateKey = useMemo(() => getLocalDateKey(new Date()), []);
+
+    if (isLoading) {
+        return (
+            <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
+                <View className="flex-1 max-w-md mx-auto w-full">
+                    <View className="flex-row items-center justify-between px-4 py-4">
+                        <Pressable onPress={goBack} className="p-2 -ml-2">
+                            <MaterialIcons name="arrow-back" size={24} color={iconColor} />
+                        </Pressable>
+                        <Text className="text-lg font-semibold text-text-light dark:text-text-dark">Goals & Habits</Text>
+                        <View className="w-10" />
+                    </View>
+                    <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
+                        <View className="gap-6 pb-10">
+                            <LoadingStatus label="Loading goals" compact />
+                            <View className="gap-3">
+                                <Skeleton className="h-3 w-16" accessibilityLabel="Loading goals header" />
+                                {[1, 2, 3].map((index) => (
+                                    <Skeleton key={index} className="h-12 w-full rounded-2xl bg-surface-light dark:bg-surface-dark" accessibilityLabel={`Loading goal ${index}`} />
+                                ))}
+                            </View>
+                            <View className="gap-3 mt-6">
+                                <Skeleton className="h-3 w-16" accessibilityLabel="Loading habits header" />
+                                {[1, 2].map((index) => (
+                                    <Skeleton key={index} className="h-12 w-full rounded-2xl bg-surface-light dark:bg-surface-dark" accessibilityLabel={`Loading habit ${index}`} />
+                                ))}
+                            </View>
+                        </View>
+                    </ScrollView>
+                </View>
+            </SafeAreaView>
+        );
+    }
 
     const todayGoals = goals.filter((goal) => goal.type === 'goal' && goal.dateKey === dateKey);
     const habits = goals.filter((goal) => goal.type === 'habit');

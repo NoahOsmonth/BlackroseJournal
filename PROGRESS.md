@@ -2432,3 +2432,12 @@
       tests**; typecheck clean; ESLint **0 errors / 72 existing warnings**;
       design **0 errors / 3 existing warnings**; prohibited-path and diff
       checks passed.
+
+## 2026-08-18 — REMOVE-APP-EMBEDDINGS-001: app-side embeddings stack removed
+- Deleted: `services/ai/embeddingsTransport.ts`, `services/memory/embeddings.ts`, `__tests__/services/ai/embeddingsTransport.test.ts`, `__tests__/services/memory/embeddings.test.ts`, `probes/e3_retrieval.ts`, `probes/e5_capsuleOnly.ts`, `scripts/validate-embeddings-throwaway.mjs`.
+- New `services/memory/keywordRanking.ts`: shared pure keyword-overlap + recency scoring (`scoreKeywordRecency` = overlap 0.7 / recency 0.3, ~30d half-life) used by localMemory recall, sessionRecall, digests, rollups. No network, no vectors, never throws.
+- `directConfig.ts`, `localMemory.ts`, `sessionRecall.ts`, `sessionDigestBuild.ts`, `memoryRollupBuild.ts`, storage/type files: no `embedText`/`embedding` fields anywhere in app code.
+- `.env` / `.env.example`: `EXPO_PUBLIC_EMBEDDINGS_*` removed.
+- Hindsight (server-side Voyage embeddings in its own container) untouched; chat proxy untouched; Supabase untouched.
+- Tests updated to assert keyword+recency fallback; new `__tests__/services/memory/keywordRanking.test.ts`.
+- Live battery: E3/E5 probe cases removed (probes deleted); E1/E2/E4 kept.

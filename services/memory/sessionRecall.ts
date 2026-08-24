@@ -2,14 +2,14 @@
  * Phase 3 — on-demand temporal / topical session-digest recall.
  *
  * Trigger is heuristic-first (no guaranteed LLM classifier call per message).
- * On trigger: date-range filter and/or embedding cosine vs session digests.
- * Injected only for that turn via historyPrefetch → ## Relevant past context.
+ * On trigger: date-range filter and/or keyword-overlap + recency ranking vs
+ * session digests. Injected only for that turn via historyPrefetch →
+ * ## Relevant past context.
  *
- * Offline: embeddings soft-fail → date-range-only (or empty if no date phrase).
+ * No app-side embeddings: relevance is pure keyword overlap (shared
+ * services/memory/keywordRanking) with a small recency boost.
  */
 
-import { embedText } from '@/services/ai/embeddingsTransport';
-import { cosineSimilarity } from '@/services/memory/embeddings';
 import { listMemoryRollups } from '@/services/memory/memoryRollupStorage';
 import type { MemoryRollup } from '@/services/memory/memoryRollup.types';
 import {
@@ -23,9 +23,13 @@ import {
     formatEventDateLabel,
     getLocalDateKey,
 } from '@/utils/date';
+import {
+    overlapCount,
+    scoreKeywordRecency,
+    tokenize,
+} from './keywordRanking';
 
 const MAX_RECALL_LINES = 5;
-const MIN_SIMILARITY = 0.28;
 
 /** Temporal phrases that imply looking at past sessions. */
 const TEMPORAL_RECALL_RE =
@@ -103,6 +107,10 @@ export function resolveSessionRecallDateRange(
     return null;
 }
 
+function digestTextTokens(digest: SessionDigest): string[] {
+    return tokenize(`${digest.oneLineSummary} ${digest.topics.join(' ')}`);
+}
+
 function formatRecallLine(digest: SessionDigest): string {
     const topics = digest.topics.length > 0
         ? ` [${digest.topics.slice(0, 4).join(', ')}]`
@@ -124,12 +132,12 @@ function formatRollupLine(rollup: MemoryRollup): string {
 
 /**
  * Prefer month/year rollups when the user asks about last month/year and
- * individual session digests would be too many or sparse.
+ * individual session digests would be too many or sparse. Ranked by the same
+ * keyword+recency score as session digests.
  */
 async function rankRollupsForRecall(
     userText: string,
     range: DateRangeFilter | null,
-    queryEmbedding: number[] | null,
     now: Date,
     limit: number,
 ): Promise<RollupRecallMatch[]> {
@@ -150,50 +158,35 @@ async function rankRollupsForRecall(
     });
     if (rollups.length === 0) return [];
 
+    const queryTokens = new Set(tokenize(userText));
+    const nowMs = now.getTime();
     const scored: RollupRecallMatch[] = rollups.map((rollup) => {
-        if (
-            queryEmbedding
-            && queryEmbedding.length > 0
-            && rollup.embedding.length === queryEmbedding.length
-        ) {
-            return {
-                rollup,
-                score: cosineSimilarity(queryEmbedding, rollup.embedding),
-                reason: (range ? 'date+semantic' : 'semantic') as RollupRecallMatch['reason'],
-            };
-        }
-        const ageDays = Math.max(0, (now.getTime() - rollup.updatedAt) / 86_400_000);
+        const textTokens = tokenize(`${rollup.summary} ${rollup.topics.join(' ')}`);
+        const score = scoreKeywordRecency(textTokens, queryTokens, rollup.updatedAt, nowMs);
         return {
             rollup,
-            score: range ? Math.max(0.35, 1 - ageDays / 90) : 0.2,
-            reason: (range ? 'date' : 'semantic') as RollupRecallMatch['reason'],
+            score,
+            reason: (range ? 'date+semantic' : 'semantic') as RollupRecallMatch['reason'],
         };
     });
     scored.sort((a, b) => b.score - a.score);
-    const hasSemantic = Boolean(queryEmbedding);
-    const filtered = hasSemantic
-        ? scored.filter((m) => m.score >= MIN_SIMILARITY)
-        : scored;
-    return filtered.slice(0, limit);
+    return scored.slice(0, limit);
 }
 
 /**
- * Rank session digests for a recall query. Embeddings optional (null = date-only).
+ * Rank session digests for a recall query using keyword overlap + recency.
  */
 export async function rankSessionDigestsForRecall(
     userText: string,
     options: {
         now?: Date;
-        /** Injected for tests — skip network embed. */
-        queryEmbedding?: number[] | null;
-        /** Skip embed entirely (tests / offline forced). */
-        skipEmbed?: boolean;
         limit?: number;
     } = {},
 ): Promise<SessionRecallMatch[]> {
     const now = options.now ?? new Date();
     const limit = options.limit ?? MAX_RECALL_LINES;
     const range = resolveSessionRecallDateRange(userText, now);
+    const queryTokens = new Set(tokenize(userText));
 
     let digests: SessionDigest[];
     if (range) {
@@ -210,50 +203,27 @@ export async function rankSessionDigestsForRecall(
 
     if (digests.length === 0) return [];
 
-    let queryEmbedding: number[] | null | undefined = options.queryEmbedding;
-    if (queryEmbedding === undefined && !options.skipEmbed) {
-        queryEmbedding = await embedText(userText);
-    }
-    if (queryEmbedding === undefined) queryEmbedding = null;
-
-    const scored: SessionRecallMatch[] = digests.map((digest) => {
-        if (
-            queryEmbedding
-            && queryEmbedding.length > 0
-            && digest.embedding.length > 0
-            && digest.embedding.length === queryEmbedding.length
-        ) {
-            const score = cosineSimilarity(queryEmbedding, digest.embedding);
-            return {
-                digest,
-                score,
-                reason: (range ? 'date+semantic' : 'semantic') as SessionRecallMatch['reason'],
-            };
-        }
-        // Date-only / offline: recency within the set as weak score.
-        const ageDays = Math.max(
-            0,
-            (now.getTime() - digest.createdAt) / 86_400_000,
-        );
-        const score = range ? Math.max(0.35, 1 - ageDays / 60) : 0.2;
-        return {
-            digest,
-            score,
-            reason: (range ? 'date' : 'semantic') as SessionRecallMatch['reason'],
-        };
+    const nowMs = now.getTime();
+    const scored = digests.map((digest) => {
+        const textTokens = digestTextTokens(digest);
+        const overlap = overlapCount(textTokens, queryTokens);
+        const score = scoreKeywordRecency(textTokens, queryTokens, digest.createdAt, nowMs);
+        const reason = (overlap > 0
+            ? range ? 'date+semantic' : 'semantic'
+            : range ? 'date' : 'semantic') as SessionRecallMatch['reason'];
+        return { digest, score, reason, overlap };
     });
 
-    scored.sort((a, b) => b.score - a.score);
+    let ranked = scored;
+    if (!range) {
+        // Pure topic query: only surface digests that share a keyword; if none
+        // overlap, fall back to recency order within the scanned cap.
+        const matches = scored.filter((m) => m.overlap > 0);
+        if (matches.length > 0) ranked = matches;
+    }
 
-    // When semantic scores exist, drop weak ones; date-only keeps top by recency.
-    const hasSemantic = scored.some(
-        (m) => m.reason === 'semantic' || m.reason === 'date+semantic',
-    );
-    const filtered = hasSemantic && queryEmbedding
-        ? scored.filter((m) => m.score >= MIN_SIMILARITY)
-        : scored;
-
-    return filtered.slice(0, limit);
+    ranked.sort((a, b) => b.score - a.score);
+    return ranked.slice(0, limit);
 }
 
 /**
@@ -263,8 +233,6 @@ export async function buildSessionRecallContext(
     userText: string,
     options: {
         now?: Date;
-        queryEmbedding?: number[] | null;
-        skipEmbed?: boolean;
     } = {},
 ): Promise<string | undefined> {
     if (!detectSessionRecallIntent(userText)) return undefined;
@@ -272,17 +240,9 @@ export async function buildSessionRecallContext(
     const now = options.now ?? new Date();
     const range = resolveSessionRecallDateRange(userText, now);
 
-    // Single embed for session digests + rollups (same EMBEDDING_MODEL via embedText).
-    let queryEmbedding: number[] | null | undefined = options.queryEmbedding;
-    if (queryEmbedding === undefined && !options.skipEmbed) {
-        queryEmbedding = await embedText(userText);
-    }
-    if (queryEmbedding === undefined) queryEmbedding = null;
-
     const matches = await rankSessionDigestsForRecall(userText, {
-        ...options,
-        queryEmbedding,
-        skipEmbed: true,
+        now,
+        limit: MAX_RECALL_LINES,
     });
 
     // Coarser grain for month/year (or when session digests are sparse).
@@ -291,13 +251,7 @@ export async function buildSessionRecallContext(
         && (range.label === 'last month' || range.label === 'last year' || matches.length < 2),
     );
     const rollupMatches = wantRollups
-        ? await rankRollupsForRecall(
-            userText,
-            range,
-            queryEmbedding,
-            now,
-            MAX_RECALL_LINES,
-        )
+        ? await rankRollupsForRecall(userText, range, now, MAX_RECALL_LINES)
         : [];
 
     if (matches.length === 0 && rollupMatches.length === 0) {

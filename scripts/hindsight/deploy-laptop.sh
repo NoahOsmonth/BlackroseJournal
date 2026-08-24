@@ -39,8 +39,9 @@ docker run -d --name "$NAME" \
   -p 9999:9999 \
   -v "$VOLUME":/home/hindsight/.pg0 \
   -e HINDSIGHT_API_LLM_PROVIDER=openrouter \
+  -e HINDSIGHT_API_LLM_BASE_URL=http://100.71.25.3:8877/v1 \
   -e HINDSIGHT_API_LLM_API_KEY="$HINDSIGHT_LLM_API_KEY" \
-  -e HINDSIGHT_API_LLM_MODEL=dots-studio/dots-3-note-preview:free \
+  -e HINDSIGHT_API_LLM_MODEL=deepseek/deepseek-v4-flash \
   -e HINDSIGHT_API_EMBEDDINGS_PROVIDER=openai \
   -e HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY="$HINDSIGHT_VOYAGE_EMBEDDINGS_API_KEY" \
   -e HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL=https://api.voyageai.com/v1 \

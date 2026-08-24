@@ -1,5 +1,6 @@
 import { extractAuthLinkTokens } from '@/services/auth/authLinking';
 import { getSupabaseClient } from '@/services/supabase/supabaseClient';
+import { AuthFormSkeleton } from '@/components/auth/AuthFormSkeleton';
 import { useRouter } from 'expo-router';
 import * as Linking from 'expo-linking';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -17,7 +18,7 @@ function FieldLabel({ text }: { text: string }) {
 
 export default function UpdatePasswordScreen() {
     const router = useRouter();
-    const { user } = useAuthSession();
+    const { user, isLoading } = useAuthSession();
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [status, setStatus] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
@@ -156,10 +157,8 @@ export default function UpdatePasswordScreen() {
                 </Text>
 
                 <View className="bg-surface-light dark:bg-surface-dark rounded-2xl p-5 shadow-sm mt-6">
-                    {isProcessingLink && !canReset ? (
-                        <Text className="text-sm text-subtext-light dark:text-subtext-dark">
-                            Checking your recovery link...
-                        </Text>
+                    {isLoading || (isProcessingLink && !canReset) ? (
+                        <AuthFormSkeleton fields={2} />
                     ) : (
                         <View>
                             {!canReset && (

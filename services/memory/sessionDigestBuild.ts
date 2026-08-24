@@ -2,11 +2,10 @@
  * Finish-path session digest builder.
  *
  * One flash chat call → { oneLineSummary, topics, eventDate? }
- * One embeddings call → vector for summary (+ topics)
  * Then sharded upsert via sessionDigestStorage.
  *
- * Soft-fails: never blocks Finish. Missing embed still stores text digest
- * (Phase 3 falls back to date-range-only when embedding is empty).
+ * Soft-fails: never blocks Finish. No embeddings — recall ranks by keyword
+ * overlap + recency.
  * eventDate is optional best-effort — null on absence/parse failure (warns).
  */
 
@@ -14,7 +13,6 @@ import {
     extractFirstJsonObject,
     fetchDirectJsonCompletion,
 } from '@/services/ai/jsonCompletion';
-import { embedText } from '@/services/ai/embeddingsTransport';
 import { INSIGHTS_TEMPERATURE } from '@/services/ai/generationSettings';
 import {
     getLocalDateKey,
@@ -179,9 +177,6 @@ export async function buildAndSaveSessionDigest(
         const llm = await requestSummaryTopics(userBlob, writeDay);
         const { oneLineSummary, topics, eventDate } = llm ?? fallbackSummary(userBlob, wordCount);
 
-        const embedInput = [oneLineSummary, ...topics].filter(Boolean).join('\n');
-        const embedding = (await embedText(embedInput)) ?? [];
-
         const digest: SessionDigest = {
             schemaVersion: 1,
             sessionId: input.sessionId,
@@ -189,7 +184,6 @@ export async function buildAndSaveSessionDigest(
             oneLineSummary,
             topics,
             eventDate: eventDate ?? null,
-            embedding,
             entryWordCount: wordCount,
             createdAt: now,
             sourceKind: input.sourceKind,

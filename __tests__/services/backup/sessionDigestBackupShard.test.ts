@@ -65,15 +65,6 @@ function adapterFromMockStore() {
     };
 }
 
-function fatEmbedding(seed: number): number[] {
-    // Realistic payload size pressure without needing real model output.
-    const v = new Array<number>(2048);
-    for (let i = 0; i < 2048; i += 1) {
-        v[i] = ((seed + i) % 100) / 1000;
-    }
-    return v;
-}
-
 function makeDigest(i: number): SessionDigest {
     const id = `sess_${String(i).padStart(4, '0')}`;
     return {
@@ -82,7 +73,6 @@ function makeDigest(i: number): SessionDigest {
         dateISO: `2026-${String((i % 12) + 1).padStart(2, '0')}-${String((i % 28) + 1).padStart(2, '0')}`,
         oneLineSummary: `Session ${i} about work stress and family.`,
         topics: ['work stress', 'family'],
-        embedding: fatEmbedding(i),
         entryWordCount: 40 + i,
         createdAt: 1_700_000_000_000 + i * 1000,
         sourceKind: 'journal_entry',
@@ -141,11 +131,9 @@ describe('session digest backup stays sharded', () => {
         expect(meta.backupId).toBe(backup.id);
         expect(JSON.stringify(meta).includes('oneLineSummary')).toBe(false);
 
-        // Spot-check a shard body exists and has embedding.
+        // Spot-check a shard body exists.
         const sampleKey = backupSessionDigestRecordKey(backup.id, 'sess_0000');
         expect(mockStore.has(sampleKey)).toBe(true);
-        const sample = JSON.parse(mockStore.get(sampleKey)!);
-        expect(sample.embedding.length).toBe(2048);
 
         // eslint-disable-next-line no-console
         console.log(
@@ -174,6 +162,5 @@ describe('session digest backup stays sharded', () => {
         expect(result.status).toBe('restored');
         const loaded = await getSessionDigest('sess_0007');
         expect(loaded?.oneLineSummary).toContain('Session 7');
-        expect(loaded?.embedding.length).toBe(2048);
     });
 });

@@ -15,10 +15,6 @@ jest.mock('@/services/memory/memoryAtomExtraction', () => ({
     extractCheckInMemoryAtoms: jest.fn(async () => []),
 }));
 
-jest.mock('@/services/ai/embeddingsTransport', () => ({
-    embedText: jest.fn(async () => null),
-}));
-
 import {
     clearMemoryAtoms,
     listMemoryAtoms,

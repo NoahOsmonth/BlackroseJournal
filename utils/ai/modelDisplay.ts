@@ -7,11 +7,27 @@ export const PREFERRED_FREE_MODEL_ID = 'dots-studio/dots-3-note-preview:free';
 export const OPENROUTER_DEFAULT_BASE_URL = 'https://openrouter.ai/api/v1';
 export const MAX_RECENT_MODEL_IDS = 3;
 
-/** Free = id contains `:free` or is OpenRouter's free router. */
+/**
+ * OmniRoute account-cookie web providers are flat-rate (no per-token billing),
+ * so they are treated as free alongside OpenRouter `:free` ids. These prefixes
+ * never collide with OpenRouter ids (OpenRouter never emits `ds-web/`, etc.).
+ */
+export const FREE_WEB_PROVIDER_PREFIXES = [
+    'ds-web/',
+    'deepseek-web/',
+    'qwen-web/',
+    'qwen-api/',
+    'cgpt-web/',
+    'chatgpt-web/',
+] as const;
+
+/** Free = `:free` suffix, OpenRouter free router, `-free` suffix (zenmux), or a free web provider. */
 export function isFreeModelId(id: string): boolean {
     const n = id.trim().toLowerCase();
     if (!n) return false;
-    return n.includes(':free') || n === 'openrouter/free';
+    if (n.includes(':free') || n === 'openrouter/free') return true;
+    if (n.endsWith('-free')) return true;
+    return FREE_WEB_PROVIDER_PREFIXES.some((prefix) => n.startsWith(prefix));
 }
 
 export function filterFreeModels<T extends { id: string }>(models: readonly T[]): T[] {

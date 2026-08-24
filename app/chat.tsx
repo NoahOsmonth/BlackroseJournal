@@ -9,9 +9,11 @@ import { useLocalMemoryContext } from '@/hooks/memory/useLocalMemoryContext';
 import { useRecentDaysContext } from '@/hooks/memory/useRecentDaysContext';
 import { usePersonas } from '@/hooks/personas/usePersonas';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { EntryFinishCelebration } from '../components/celebrations/EntryFinishCelebration';
 import { ChatModelPickerSheet } from '../components/ai/ChatModelPickerSheet';
 import { ChatMessage } from '../components/ChatMessage';
 import { FooterActions } from '../components/FooterActions';
@@ -43,6 +45,7 @@ export default function ChatScreen() {
     const inputRef = useRef<InlineTypingInputRef>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [finishStage, setFinishStage] = useState('Preparing your entry');
+    const [showCelebration, setShowCelebration] = useState(false);
     const [inputValue, setInputValue] = useState('');
     const [continuedEntry, setContinuedEntry] = useState<JournalEntry | null>(null);
     const [readOnlyMessageCount, setReadOnlyMessageCount] = useState(0);
@@ -303,13 +306,13 @@ export default function ChatScreen() {
                 setFinishStage('Updating your memories');
                 await runJournalFinishSideEffects(savedEntry);
             }
-
             // Completed work must not linger as an active session.
             await clearPersistedSession();
-
-            // Clear chat and navigate to post-finish reflection
             handleNewChat();
             if (savedEntryId) {
+                void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => { });
+                setShowCelebration(true);
+                await new Promise((resolve) => setTimeout(resolve, 500));
                 router.replace({ pathname: '/entry-reflection', params: { entryId: savedEntryId } });
             } else {
                 router.replace('/(tabs)/entries');
@@ -490,8 +493,8 @@ export default function ChatScreen() {
                     onClose={modelPicker.close}
                     onOpenSettings={modelPicker.openSettings}
                 />
+                {showCelebration && <EntryFinishCelebration onDismiss={() => setShowCelebration(false)} />}
             </View>
         </SafeAreaView>
     );
 }
-

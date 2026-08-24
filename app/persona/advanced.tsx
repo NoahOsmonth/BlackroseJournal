@@ -6,6 +6,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getPersona, updatePersona } from '@/services/personas/personasStorage';
+import { PersonaAdvancedSkeleton } from '@/components/personas/PersonaAdvancedSkeleton';
 import {
     loadPersonaDraftSettings,
     savePersonaDraftSettings,
@@ -36,18 +37,21 @@ export default function PersonaAdvancedScreen() {
     const [model, setModel] = useState<PersonaModelId>(PERSONA_MODELS[0]);
     const [imagination, setImagination] = useState(25);
     const [showModelPicker, setShowModelPicker] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
         let isActive = true;
         const load = async () => {
             if (personaId) {
                 const persona = await getPersona(personaId);
+                setIsLoading(false);
                 if (!isActive || !persona) return;
                 setModel(resolveModel(persona.model));
                 setImagination(persona.imagination ?? 25);
                 return;
             }
             const draft = await loadPersonaDraftSettings();
+            setIsLoading(false);
             if (!isActive || !draft) return;
             setModel(resolveModel(draft.model));
             setImagination(draft.imagination);
@@ -88,6 +92,10 @@ export default function PersonaAdvancedScreen() {
             </View>
 
             <View className="flex-1 max-w-md mx-auto px-4 py-6">
+                {isLoading ? (
+                    <PersonaAdvancedSkeleton />
+                ) : (
+                <>
                 <View className="mb-2 pl-4">
                     <Text className="text-[13px] font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide">
                         Intelligence
@@ -135,6 +143,8 @@ export default function PersonaAdvancedScreen() {
                         Lower imagination yields consistent responses. Higher sparks variety.
                     </Text>
                 </View>
+                </>
+                )}
             </View>
             <ModelPickerModal
                 visible={showModelPicker}

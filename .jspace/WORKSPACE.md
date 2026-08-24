@@ -1,7 +1,7 @@
 # J-Space Workspace Ledger
 
 ## Goal
-Agentic multi-step upgrade: Cursor-style tool calling (rounds 6, 24k budget, 45s timeout, retry-on-thin-results nudge, create_goal/list_goals action tools, task-intent gating) + Voyage voyage-4-lite embeddings on the laptop container; gates green, PROGRESS.md updated, committed, pushed. Remaining: browser E2E under Voyage once the ZCode browser pane is reattached.
+Remove app-side embeddings stack from BlackroseJournal (keep hindsight/Voyage server-side untouched)
 
 ## Core
 - Two live entries: (a) the agentic upgrade contract — MAX_AGENT_TOOL_ROUNDS=6, AGENT_TURN_TOKEN_BUDGET=24_000, AGENT_TURN_TIMEOUT_MS=45_000, one-shot THIN_RESULT_RETRY_NOTE, resolveAgentTurnTokenBudget=min(cap, max(12k, floor(ctx*0.5))); (b) Voyage embeddings — OpenAI-compatible provider, base URL api.voyageai.com/v1, voyage-4-lite, 1024 dims auto-detected, never set OPENAI_DIMENSIONS, volume reset on embedding-space switch. LLM is OpenRouter dots-3-note-preview:free, never Gemini.
@@ -18,4 +18,4 @@ Agentic multi-step upgrade: Cursor-style tool calling (rounds 6, 24k budget, 45s
 - Browser E2E under Voyage — BLOCKED on detached ZCode in-app browser pane; needs the pane reopened/restarted at host level (browser guest not attached). Then re-run retain/recall/full-loop UI probes with verbatim replies; also exercise the new agentic path ("add a goal…", thin-result retry) live.
 
 ## Next
-Reopen the ZCode browser pane, then run the E2E battery under Voyage (retain → recall → full-loop → agentic task with create_goal), pasting verbatim assistant replies.
+delegate removal to subagent

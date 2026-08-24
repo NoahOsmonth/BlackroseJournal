@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
-import { Alert, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 import { ChatModelPickerSheet } from '@/components/ai/ChatModelPickerSheet';
 import { FreeOnlyPill } from '@/components/ai/FreeModelBadge';
 import { LoadingBar } from '@/components/ui/LoadingBar';
+import { AnimatedSwitch } from '@/components/ui/AnimatedSwitch';
 import type { UseCustomAiModelsReturn } from '@/hooks/settings/useCustomAiModels';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { filterFreeModels, formatPickerModelName, hostLabelFromBaseUrl } from '@/utils/ai/modelDisplay';
@@ -78,12 +79,15 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
         fetchModels,
         saveSettings,
         selectModel,
+        addManualModel,
         setEnabled,
         setFreeOnly,
         embedded = false,
     } = props;
     const [advancedOpen, setAdvancedOpen] = useState(false);
     const [pickerOpen, setPickerOpen] = useState(false);
+    const [manualModelId, setManualModelId] = useState('');
+    const [isAddingManual, setIsAddingManual] = useState(false);
     const isDark = useColorScheme() === 'dark';
     const placeholderColor = isDark ? '#9CA3AF' : '#6B7280';
     const chevronColor = isDark ? '#F9FAFB' : '#111827';
@@ -119,6 +123,16 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
         void setFreeOnly(true);
     };
 
+    const handleAddManualModel = () => {
+        const id = manualModelId.trim();
+        if (!id || isAddingManual) return;
+        setIsAddingManual(true);
+        void addManualModel(id).finally(() => {
+            setIsAddingManual(false);
+            setManualModelId('');
+        });
+    };
+
     return (
         <SettingsSection title="AI Model" embedded={embedded}>
             <View className="flex-row items-center justify-between mb-4">
@@ -130,7 +144,7 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                         Free models by default. Optional custom base URL and API key.
                     </Text>
                 </View>
-                <Switch
+                <AnimatedSwitch
                     value={settings.enabled}
                     onValueChange={setEnabled}
                     disabled={isLoading}
@@ -188,7 +202,7 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                         Only models with :free in the id (and openrouter/free). Recommended.
                     </Text>
                 </View>
-                <Switch
+                <AnimatedSwitch
                     value={settings.freeOnly}
                     onValueChange={handleFreeOnlyToggle}
                     disabled={isLoading}
@@ -282,6 +296,43 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                             className={INPUT_CLASS}
                             accessibilityLabel="Fallback context tokens"
                         />
+                    </View>
+                    <View>
+                        <Text className="text-sm font-medium text-text-light dark:text-text-dark mb-2">
+                            Add model manually
+                        </Text>
+                        <Text className={`text-xs mt-1 mb-2 ${SECONDARY_TEXT}`}>
+                            Type a model id when fetch can't list it (e.g. qwen-web/qwen3.8-max).
+                        </Text>
+                        <View className="flex-row gap-2">
+                            <TextInput
+                                value={manualModelId}
+                                onChangeText={setManualModelId}
+                                placeholder="qwen-web/qwen3.8-max"
+                                placeholderTextColor={placeholderColor}
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                                returnKeyType="done"
+                                onSubmitEditing={handleAddManualModel}
+                                className={`${INPUT_CLASS} flex-1`}
+                                accessibilityLabel="Manual model id"
+                            />
+                            <TouchableOpacity
+                                onPress={handleAddManualModel}
+                                disabled={isAddingManual || !manualModelId.trim()}
+                                className={`items-center justify-center rounded-xl bg-primary px-4 ${
+                                    isAddingManual || !manualModelId.trim() ? 'opacity-50' : ''
+                                }`}
+                                accessibilityRole="button"
+                                accessibilityLabel="Add manual model"
+                            >
+                                {isAddingManual ? (
+                                    <LoadingBar size="sm" accessibilityLabel="Adding model" />
+                                ) : (
+                                    <Text className="font-bold text-white">Add</Text>
+                                )}
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 </View>
             ) : null}

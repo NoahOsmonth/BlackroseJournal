@@ -18,8 +18,6 @@ export interface MemoryRollup {
     dateTo: string;
     summary: string;
     topics: string[];
-    /** L2-normalized embedding of summary+topics; empty if embed offline. */
-    embedding: number[];
     sourceCount: number;
     createdAt: number;
     updatedAt: number;

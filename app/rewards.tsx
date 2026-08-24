@@ -5,6 +5,8 @@
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AchievementProgress, useAchievements } from '@/hooks/useAchievements';
+import { RewardsSkeleton } from '@/components/rewards/RewardsSkeleton';
+import { StaggerEntranceItem } from '@/components/ui/StaggerEntrance';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
@@ -18,6 +20,12 @@ export default function RewardsScreen() {
     const { achievements, unlockedCount, totalCount, currentStreak, longestStreak } = useAchievements();
 
     const [selectedAchievement, setSelectedAchievement] = useState<AchievementProgress | null>(null);
+    // Achievements are computed synchronously today, but keep a hydration gate so a
+    // skeleton shows instantly if they ever load remotely.
+    const [isHydrating, setIsHydrating] = useState(true);
+    React.useEffect(() => {
+        setIsHydrating(false);
+    }, []);
 
     const handleBack = () => {
         router.back();
@@ -50,6 +58,10 @@ export default function RewardsScreen() {
                 </View>
 
                 <ScrollView className="flex-1 px-6" showsVerticalScrollIndicator={false}>
+                    {isHydrating ? (
+                        <RewardsSkeleton />
+                    ) : (
+                        <>
                     {/* Streak Card */}
                     <View className={`p-6 rounded-2xl mb-6 ${isDark ? 'bg-surface-dark' : 'bg-surface-light'}`}>
                         <View className="flex-row items-center justify-between mb-4">
@@ -82,39 +94,52 @@ export default function RewardsScreen() {
 
                     {/* Achievements Grid */}
                     <View className="flex-row flex-wrap -mx-2 mb-6">
-                        {achievements.map((item) => (
-                            <Pressable
+                        {achievements.map((item, index) => (
+                            <StaggerEntranceItem
                                 key={item.achievement.id}
-                                onPress={() => setSelectedAchievement(item)}
-                                className="w-1/3 p-2"
+                                index={index}
+                                columns={3}
+                                totalItems={achievements.length}
+                                staggerType="diagonal"
+                                baseDelayMs={25}
+                                delayFactorMs={35}
+                                className="p-2"
+                                style={{ width: '33.3333%' }}
                             >
-                                <View
-                                    className={`p-4 rounded-xl items-center ${isDark ? 'bg-surface-dark' : 'bg-surface-light'
-                                        } ${!item.isUnlocked ? 'opacity-50' : ''}`}
+                                <Pressable
+                                    onPress={() => setSelectedAchievement(item)}
+                                    className="w-full"
                                 >
-                                    <Text className="text-3xl mb-2">
-                                        {item.isUnlocked ? item.achievement.icon : '🔒'}
-                                    </Text>
-                                    <Text
-                                        className="text-xs font-bold text-text-main-light dark:text-text-main-dark text-center"
-                                        numberOfLines={2}
+                                    <View
+                                        className={`p-4 rounded-xl items-center ${isDark ? 'bg-surface-dark' : 'bg-surface-light'
+                                            } ${!item.isUnlocked ? 'opacity-50' : ''}`}
                                     >
-                                        {item.achievement.title}
-                                    </Text>
-                                    {!item.isUnlocked && (
-                                        <View className="w-full h-1 bg-gray-200 dark:bg-gray-700 rounded-full mt-2">
-                                            <View
-                                                className="h-full bg-primary rounded-full"
-                                                style={{ width: `${item.progress * 100}%` }}
-                                            />
-                                        </View>
-                                    )}
-                                </View>
-                            </Pressable>
+                                        <Text className="text-3xl mb-2">
+                                            {item.isUnlocked ? item.achievement.icon : '🔒'}
+                                        </Text>
+                                        <Text
+                                            className="text-xs font-bold text-text-main-light dark:text-text-main-dark text-center"
+                                            numberOfLines={2}
+                                        >
+                                            {item.achievement.title}
+                                        </Text>
+                                        {!item.isUnlocked && (
+                                            <View className="w-full h-1 bg-gray-200 dark:bg-gray-700 rounded-full mt-2">
+                                                <View
+                                                    className="h-full bg-primary rounded-full"
+                                                    style={{ width: `${item.progress * 100}%` }}
+                                                />
+                                            </View>
+                                        )}
+                                    </View>
+                                </Pressable>
+                            </StaggerEntranceItem>
                         ))}
                     </View>
 
                     <View className="h-6" />
+                        </>
+                    )}
                 </ScrollView>
 
                 {/* Achievement Detail Modal */}

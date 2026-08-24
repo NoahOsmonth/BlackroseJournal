@@ -5,6 +5,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChatMessage } from '@/components/ChatMessage';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { EntryAnalysisPanel } from '@/components/entries/EntryAnalysisPanel';
 import { EntryDetailSkeleton } from '@/components/entries/EntryDetailSkeleton';
 import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
@@ -94,6 +95,18 @@ export default function EntryDetailScreen() {
                 </View>
 
                 {isLoading && <EntryDetailSkeleton />}
+
+                {!isLoading && !entry && (
+                    <View className="flex-1 px-6 items-center justify-center">
+                        <EmptyState
+                            icon="search-off"
+                            title="Entry not found"
+                            message="This entry may have been deleted or is no longer available."
+                            actionLabel="Go back"
+                            onActionPress={goBack}
+                        />
+                    </View>
+                )}
 
                 {!isLoading && entry && (
                     <ScrollView className="flex-1 px-6" showsVerticalScrollIndicator={false}>

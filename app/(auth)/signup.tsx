@@ -1,4 +1,6 @@
 import { signUpWithEmail } from '@/services/auth/authService';
+import { AuthFormSkeleton } from '@/components/auth/AuthFormSkeleton';
+import { useAuthSession } from '@/hooks/auth/useAuthSession';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
@@ -14,6 +16,7 @@ function FieldLabel({ text }: { text: string }) {
 
 export default function SignupScreen() {
     const router = useRouter();
+    const { isLoading } = useAuthSession();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -70,6 +73,9 @@ export default function SignupScreen() {
                     Use an email and password to keep your journal synced and secure.
                 </Text>
 
+                {isLoading ? (
+                <AuthFormSkeleton fields={3} />
+                ) : (
                 <View className="bg-surface-light dark:bg-surface-dark rounded-2xl p-5 shadow-sm mt-6">
                     <FieldLabel text="Email" />
                     <TextInput
@@ -141,6 +147,7 @@ export default function SignupScreen() {
                         </Pressable>
                     </View>
                 </View>
+                )}
             </View>
         </SafeAreaView>
     );
