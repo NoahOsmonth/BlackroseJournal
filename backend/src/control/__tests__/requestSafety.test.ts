@@ -90,6 +90,25 @@ describe('same-route transient retry', () => {
     assert.equal(transientAttempts, 3);
   });
 
+  it('retries typed adapter errors that explicitly declare themselves retryable', async () => {
+    let attempts = 0;
+    const result = await executeWithSameRouteRetry({
+      binding: { routeId: 'route-a', modelId: 'model-a' },
+      policy: { maxAttempts: 2, baseDelayMs: 1, maxTotalMs: 1_000 },
+      sleep: async () => undefined,
+      execute: async () => {
+        attempts += 1;
+        if (attempts === 1) throw Object.assign(new Error('generic'), {
+          code: 'upstream_error', retryable: true,
+        });
+        return 'ok';
+      },
+    });
+
+    assert.equal(result, 'ok');
+    assert.equal(attempts, 2);
+  });
+
   it('aborts and rejects an in-flight attempt when the total deadline expires', async () => {
     let aborted = false;
     const startedAt = Date.now();

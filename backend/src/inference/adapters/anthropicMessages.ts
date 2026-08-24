@@ -40,10 +40,10 @@ export const anthropicMessagesAdapter: ProviderAdapter = {
       stream: input.request.stream,
     };
     put(body, 'system', system || undefined);
-    put(body, 'tools', input.request.tools?.map((tool) => ({
+    const choice = input.request.toolChoice;
+    put(body, 'tools', choice === 'none' ? undefined : input.request.tools?.map((tool) => ({
       name: tool.name, description: tool.description, input_schema: tool.inputSchema,
     })));
-    const choice = input.request.toolChoice;
     put(body, 'tool_choice', typeof choice === 'object'
       ? { type: 'tool', name: choice.name }
       : choice === 'required'

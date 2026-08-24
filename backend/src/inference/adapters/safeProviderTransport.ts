@@ -11,6 +11,13 @@ export interface SafeProviderTransportInput {
   maxResponseBytes: number;
 }
 
+export class SafeProviderTransportError extends Error {
+  constructor(public readonly reason: 'response_too_large') {
+    super('Pinned provider transport failed.');
+    this.name = 'SafeProviderTransportError';
+  }
+}
+
 const normalizedHeaders = (headers: IncomingHttpHeaders): Record<string, string> => {
   const result: Record<string, string> = {};
   for (const [name, value] of Object.entries(headers)) {
@@ -32,7 +39,7 @@ const responseBody = (
       source.on('data', (chunk: Buffer) => {
         received += chunk.byteLength;
         if (received > maximumBytes) {
-          source.destroy(new Error('Provider response exceeded its byte limit.'));
+          source.destroy(new SafeProviderTransportError('response_too_large'));
           return;
         }
         controller.enqueue(new Uint8Array(chunk));
@@ -69,8 +76,9 @@ export const requestSafeProviderStream = async (
       const status = response.statusCode ?? 502;
       const declaredLength = Number(response.headers['content-length']);
       if (Number.isFinite(declaredLength) && declaredLength > input.maxResponseBytes) {
-        response.destroy(new Error('Provider response exceeded its byte limit.'));
-        reject(new Error('Provider response exceeded its byte limit.'));
+        const error = new SafeProviderTransportError('response_too_large');
+        response.destroy(error);
+        reject(error);
         return;
       }
       resolve(new Response(responseBody(response, input.maxResponseBytes), {

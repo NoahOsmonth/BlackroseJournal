@@ -27,10 +27,31 @@ export const geminiGenerateContentAdapter: ProviderAdapter = {
     const body: Record<string, unknown> = {
       contents: input.request.messages
         .filter((message) => message.role !== 'system')
-        .map((message) => ({
-          role: message.role === 'assistant' ? 'model' : 'user',
-          parts: geminiParts(message.content),
-        })),
+        .map((message) => {
+          if (message.role !== 'tool') {
+            return {
+              role: message.role === 'assistant' ? 'model' : 'user',
+              parts: geminiParts(message.content),
+            };
+          }
+          const output = typeof message.content === 'string'
+            ? message.content
+            : message.content.filter((part) => part.type === 'text')
+              .map((part) => part.text).join('\n');
+          let response: Record<string, unknown> = { result: output };
+          try {
+            const parsed: unknown = JSON.parse(output);
+            if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+              response = parsed as Record<string, unknown>;
+            }
+          } catch {
+            // Non-JSON tool outputs remain available under a stable result field.
+          }
+          return {
+            role: 'user',
+            parts: [{ functionResponse: { name: message.name ?? '', response } }],
+          };
+        }),
     };
     const systemText = [
       input.request.systemInstruction,

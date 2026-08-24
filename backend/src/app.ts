@@ -18,12 +18,17 @@ import {
   registerControlPlaneRoutes,
   type ControlPlaneRouteService,
 } from './routes/controlPlaneRoutes';
+import {
+  registerManagedInferenceRoutes,
+  type ManagedInferenceRouteService,
+} from './routes/managedInferenceRoutes';
 
 export interface AppDeps {
   serverConfig: ServerConfig;
   managedAccess?: ManagedAccessDependencies;
   memoryGateway?: HindsightMemoryGateway;
   controlPlaneService?: ControlPlaneRouteService;
+  managedInferenceService?: ManagedInferenceRouteService;
 }
 
 export function createApp(deps: AppDeps): express.Application {
@@ -56,6 +61,7 @@ export function createApp(deps: AppDeps): express.Application {
   registerInsightsRoutes(app);
   registerMemoryRoutes(app, deps.memoryGateway);
   registerControlPlaneRoutes(app, deps.controlPlaneService);
+  registerManagedInferenceRoutes(app, deps.managedInferenceService);
 
   return app;
 }

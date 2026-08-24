@@ -16,10 +16,16 @@ export const openAiResponsesAdapter: ProviderAdapter = {
   buildRequest(input) {
     const body: Record<string, unknown> = {
       model: input.modelId,
-      input: input.request.messages.map((message) => ({
-        role: message.role,
-        content: inputContent(message.content),
-      })),
+      input: input.request.messages.map((message) => message.role === 'tool'
+        ? {
+            type: 'function_call_output',
+            call_id: message.toolCallId ?? message.name ?? '',
+            output: typeof message.content === 'string'
+              ? message.content
+              : message.content.filter((part) => part.type === 'text')
+                .map((part) => part.text).join('\n'),
+          }
+        : { role: message.role, content: inputContent(message.content) }),
       stream: input.request.stream,
     };
     put(body, 'instructions', input.request.systemInstruction);

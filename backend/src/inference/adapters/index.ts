@@ -6,7 +6,10 @@ import { anthropicMessagesAdapter } from './anthropicMessages';
 import { geminiGenerateContentAdapter } from './geminiGenerateContent';
 import { openAiChatCompletionsAdapter } from './openAiChatCompletions';
 import { openAiResponsesAdapter } from './openAiResponses';
-import { requestSafeProviderStream } from './safeProviderTransport';
+import {
+  requestSafeProviderStream,
+  SafeProviderTransportError,
+} from './safeProviderTransport';
 import type { ExecuteProviderInferenceInput, ProviderAdapter } from './types';
 
 export type {
@@ -148,6 +151,9 @@ export async function* executeProviderInference(
     yield* adapter.parseNonStream(value);
   } catch (error) {
     if (error instanceof ProviderAdapterError) throw error;
+    if (error instanceof SafeProviderTransportError && error.reason === 'response_too_large') {
+      throw new ProviderAdapterError('upstream_error', false);
+    }
     if (controller.signal.aborted) {
       throw timedOut
         ? new ProviderAdapterError('upstream_timeout', true)

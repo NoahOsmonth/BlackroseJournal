@@ -183,4 +183,34 @@ describe('provider request translation', () => {
       },
     });
   });
+
+  it('translates tool results and explicit no-tool choice with protocol-native semantics', async () => {
+    const responses = await executeAndCapture('openai-responses', {
+      purpose: 'chat',
+      messages: [{ role: 'tool', name: 'lookup', toolCallId: 'call-1', content: '{"ok":true}' }],
+      stream: false,
+    });
+    assert.deepEqual(responses.body.input, [{
+      type: 'function_call_output', call_id: 'call-1', output: '{"ok":true}',
+    }]);
+
+    const gemini = await executeAndCapture('gemini-generate-content', {
+      purpose: 'chat',
+      messages: [{ role: 'tool', name: 'lookup', toolCallId: 'call-1', content: '{"ok":true}' }],
+      stream: false,
+    });
+    assert.deepEqual(gemini.body.contents, [{ role: 'user', parts: [{
+      functionResponse: { name: 'lookup', response: { ok: true } },
+    }] }]);
+
+    const anthropic = await executeAndCapture('anthropic-messages', {
+      purpose: 'chat',
+      messages: [{ role: 'user', content: 'Do not call tools' }],
+      tools: [{ name: 'lookup', description: 'Look up', inputSchema: { type: 'object' } }],
+      toolChoice: 'none',
+      stream: false,
+    });
+    assert.equal('tools' in anthropic.body, false);
+    assert.equal('tool_choice' in anthropic.body, false);
+  });
 });

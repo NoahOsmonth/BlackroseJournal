@@ -4,6 +4,7 @@ import {
   executeProviderInference,
   ProviderAdapterError,
 } from '../index';
+import { SafeProviderTransportError } from '../safeProviderTransport';
 
 const input = (overrides: Record<string, unknown> = {}) => ({
   provider: { protocol: 'openai-chat-completions' as const, baseUrl: 'https://provider.example/v1' },
@@ -14,7 +15,7 @@ const input = (overrides: Record<string, unknown> = {}) => ({
 });
 
 const consume = async (events: AsyncIterable<unknown>): Promise<void> => {
-  for await (const _event of events) { /* consume */ }
+  for await (const event of events) void event;
 };
 
 describe('provider adapter execution safety', () => {
@@ -34,7 +35,7 @@ describe('provider adapter execution safety', () => {
   });
 
   it('distinguishes caller cancellation from a bounded upstream timeout', async () => {
-    const waitForAbort: typeof fetch = async (_url, init) => new Promise((_resolve, reject) => {
+    const waitForAbort: typeof fetch = async (_url, init) => new Promise<Response>((_resolve, reject) => {
       init?.signal?.addEventListener('abort', () => {
         const error = new Error('aborted');
         error.name = 'AbortError';
@@ -61,6 +62,17 @@ describe('provider adapter execution safety', () => {
       fetchFn: async () => new Response(JSON.stringify({
         choices: [{ message: { content: 'far too much content' }, finish_reason: 'stop' }],
       })),
+    })));
+
+    await assert.rejects(operation, (error: unknown) =>
+      error instanceof ProviderAdapterError
+      && error.code === 'upstream_error'
+      && error.retryable === false);
+  });
+
+  it('does not retry a byte-ceiling failure raised by the pinned streaming transport', async () => {
+    const operation = consume(executeProviderInference(input({
+      fetchFn: async () => { throw new SafeProviderTransportError('response_too_large'); },
     })));
 
     await assert.rejects(operation, (error: unknown) =>

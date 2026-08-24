@@ -2644,3 +2644,23 @@
 - Verification: backend **21 suites / 87 tests**, backend/root TypeScript, scoped ESLint, design
   limits, and `git diff --check` all passed. Independent re-review was unavailable after agent
   usage exhaustion; controller review added the final security and maintainability fixes.
+
+# 2026-08-24 — AI control plane Task 5: managed inference gateway
+
+- Added normalized OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, and Gemini
+  GenerateContent adapters for request translation plus streaming/non-stream text, tool, usage,
+  and completion events.
+- Provider traffic now uses incremental DNS-pinned HTTPS with TLS SNI, no redirects, byte/deadline
+  limits, backpressure, and caller-abort socket propagation.
+- Added the authenticated managed inference route and Supabase resolver. Chat uses only the
+  signed-in user's explicit catalog selection; flash uses only the hidden admin-selected route.
+  The binding is fixed before execution, and transient retries never change route or model.
+- Provider capabilities and route/runtime ceilings are checked before credentials are decrypted.
+  Usage rows contain only user/route/status/token/latency/error metadata—never prompts, responses,
+  provider URLs, or secrets.
+- Review fixes covered typed retry policy, normalized adapter errors, provider-native tool-result
+  semantics, explicit Anthropic no-tool behavior, response byte-limit retry prevention, and SSE
+  disconnect handling.
+- Verification: backend **29 suites / 120 tests**, backend/root TypeScript, scoped ESLint, design
+  limits, and `git diff --check` passed. Adapter implementation was delegated and committed as
+  `a171d8b`; controller integration and security review followed.

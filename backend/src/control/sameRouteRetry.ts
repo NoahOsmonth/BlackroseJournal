@@ -45,7 +45,8 @@ function isTransient(error: unknown): boolean {
       || (error.code !== undefined && TRANSIENT_CODES.has(error.code));
   }
   if (typeof error !== 'object' || error === null) return false;
-  const value = error as { status?: unknown; code?: unknown };
+  const value = error as { status?: unknown; code?: unknown; retryable?: unknown };
+  if (typeof value.retryable === 'boolean') return value.retryable;
   return (typeof value.status === 'number' && TRANSIENT_STATUSES.has(value.status))
     || (typeof value.code === 'string' && TRANSIENT_CODES.has(value.code));
 }
