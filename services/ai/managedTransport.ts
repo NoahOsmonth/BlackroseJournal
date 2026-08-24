@@ -7,6 +7,7 @@ import {
     type NormalizedInferenceRequest,
 } from '@blackrose/ai-control-plane-contracts';
 import { getSupabaseClient } from '@/services/supabase/supabaseClient';
+import { runAccountBoundOperation } from '@/services/account/accountRuntime';
 import type { DirectChatOptions, DirectChatRequest } from './directTransport';
 
 export interface PreparedManagedChatRequest {
@@ -15,7 +16,12 @@ export interface PreparedManagedChatRequest {
     body: NormalizedInferenceRequest;
 }
 
-type ManagedSessionProvider = () => Promise<string | null>;
+interface ManagedSessionIdentity {
+    readonly accessToken: string;
+    readonly userId: string;
+}
+
+type ManagedSessionProvider = (signal?: AbortSignal) => Promise<ManagedSessionIdentity | null>;
 
 const defaultSessionProvider: ManagedSessionProvider = async () => {
     const client = getSupabaseClient();
@@ -23,7 +29,9 @@ const defaultSessionProvider: ManagedSessionProvider = async () => {
     const { data, error } = await client.auth.getSession();
     if (error) throw new Error('Unable to verify the managed AI session.');
     if (data.session?.user?.is_anonymous) return null;
-    return data.session?.access_token ?? null;
+    const accessToken = data.session?.access_token;
+    const userId = data.session?.user?.id;
+    return accessToken && userId ? { accessToken, userId } : null;
 };
 
 let sessionProvider: ManagedSessionProvider = defaultSessionProvider;
@@ -122,30 +130,38 @@ export async function prepareManagedChatRequest(
     payload: DirectChatRequest,
     options: DirectChatOptions = {}
 ): Promise<PreparedManagedChatRequest> {
-    const accessToken = await sessionProvider();
-    if (!accessToken) throw new Error('Sign in to use managed AI.');
-    const normalizedMessages = normalizeMessages(payload.messages);
-    const tools = normalizeTools(payload.tools);
-    return {
-        url: gatewayUrl(),
-        headers: {
-            'Content-Type': 'application/json',
-            Accept: payload.stream ? 'text/event-stream' : 'application/json',
-            Authorization: `Bearer ${accessToken}`,
-            ...(options.headers ?? {}),
-        },
-        body: {
-            purpose: options.modelPurpose === 'flash' ? 'flash' : 'chat',
-            ...normalizedMessages,
-            ...(tools ? { tools } : {}),
-            ...(payload.tools?.length ? { toolChoice: normalizeToolChoice(payload.tool_choice) ?? 'auto' } : {}),
-            ...(payload.response_format ? { responseFormat: payload.response_format } : {}),
-            ...(payload.temperature !== undefined ? { temperature: payload.temperature } : {}),
-            ...(payload.top_p !== undefined ? { topP: payload.top_p } : {}),
-            ...(payload.max_tokens !== undefined ? { maxOutputTokens: payload.max_tokens } : {}),
-            stream: payload.stream ?? false,
-        },
-    };
+    return runAccountBoundOperation('managed-inference-session', async ({ accountId, signal }) => {
+        const session = await sessionProvider(signal);
+        if (signal.aborted) {
+            throw new Error('Managed AI request was cancelled by an account switch.');
+        }
+        if (!session) throw new Error('Sign in to use managed AI.');
+        if (!accountId || session.userId !== accountId) {
+            throw new Error('Managed AI session does not match the active account.');
+        }
+        const normalizedMessages = normalizeMessages(payload.messages);
+        const tools = normalizeTools(payload.tools);
+        return {
+            url: gatewayUrl(),
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: payload.stream ? 'text/event-stream' : 'application/json',
+                Authorization: `Bearer ${session.accessToken}`,
+                ...(options.headers ?? {}),
+            },
+            body: {
+                purpose: options.modelPurpose === 'flash' ? 'flash' : 'chat',
+                ...normalizedMessages,
+                ...(tools ? { tools } : {}),
+                ...(payload.tools?.length ? { toolChoice: normalizeToolChoice(payload.tool_choice) ?? 'auto' } : {}),
+                ...(payload.response_format ? { responseFormat: payload.response_format } : {}),
+                ...(payload.temperature !== undefined ? { temperature: payload.temperature } : {}),
+                ...(payload.top_p !== undefined ? { topP: payload.top_p } : {}),
+                ...(payload.max_tokens !== undefined ? { maxOutputTokens: payload.max_tokens } : {}),
+                stream: payload.stream ?? false,
+            },
+        };
+    });
 }
 
 interface ToolCallAccumulator {

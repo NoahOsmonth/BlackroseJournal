@@ -2,6 +2,7 @@ import { getResolvedDirectConfig, type ResolvedDirectConfig } from './directConf
 import { getAiTransportMode } from './aiTransport';
 import { getManagedModelSelection, loadManagedCatalogSnapshot } from './managedCatalog';
 import { accountScopedStorage } from '@/services/account/accountScopedStorage';
+import { runAccountBoundOperation } from '@/services/account/accountRuntime';
 import {
     DEFAULT_FALLBACK_CONTEXT_WINDOW,
     getKnownContextWindow,
@@ -113,12 +114,15 @@ export function resetModelContextStorageAdapter(): void {
 }
 
 export async function clearModelContextCache(): Promise<void> {
-    await storageAdapter.removeItem(MODEL_CONTEXT_CACHE_KEY);
+    await runAccountBoundOperation('model-context', async () => {
+        await storageAdapter.removeItem(MODEL_CONTEXT_CACHE_KEY);
+    });
 }
 
 export async function detectActiveModelContextWindow(
     options: { forceRefresh?: boolean } = {}
 ): Promise<ModelContextInfo> {
+    return runAccountBoundOperation('model-context', async ({ signal }) => {
     if (await getAiTransportMode() === 'managed') {
         const snapshot = await loadManagedCatalogSnapshot();
         const selection = getManagedModelSelection(snapshot.catalog, snapshot.preference);
@@ -147,8 +151,10 @@ export async function detectActiveModelContextWindow(
     if (cached && !options.forceRefresh) return toInfo(config, cached);
 
     const detected = await fetchDefaultContext(config).catch(() => fallbackContext(config.model));
+    if (signal.aborted) throw new Error('Model context request cancelled by an account switch.');
     await saveCache(key, detected);
     return toInfo(config, detected);
+    });
 }
 
 export function formatContextWindow(value: number): string {

@@ -1,10 +1,22 @@
 export type AccountTeardown = () => void | Promise<void>;
 export type AccountChangeListener = (accountId: string | null) => void;
+export interface AccountOperationContext {
+    readonly accountId: string | null;
+    readonly signal: AbortSignal;
+}
+
+interface ActiveAccountOperation {
+    readonly owner: string;
+    readonly controller: AbortController;
+    completion: Promise<void>;
+}
 
 let activeAccountId: string | null = null;
 let switchQueue: Promise<void> = Promise.resolve();
 const teardownHandlers = new Set<AccountTeardown>();
 const accountChangeListeners = new Set<AccountChangeListener>();
+const activeOperations = new Set<ActiveAccountOperation>();
+let acceptsAccountOperations = true;
 
 export function getActiveAccountId(): string | null {
     return activeAccountId;
@@ -41,6 +53,46 @@ async function runTeardownHandlers(): Promise<void> {
     }
 }
 
+async function quiesceAccountOperations(): Promise<void> {
+    acceptsAccountOperations = false;
+    const operations = Array.from(activeOperations);
+    operations.forEach((operation) => operation.controller.abort());
+    await Promise.allSettled(operations.map((operation) => operation.completion));
+}
+
+export function runAccountBoundOperation<T>(
+    owner: string,
+    operation: (context: AccountOperationContext) => Promise<T>
+): Promise<T> {
+    if (!acceptsAccountOperations) {
+        return Promise.reject(new Error('Account switch is in progress.'));
+    }
+    const normalizedOwner = owner.trim();
+    if (!normalizedOwner) {
+        return Promise.reject(new Error('Account operation owner is required.'));
+    }
+    const accountId = activeAccountId;
+    if (!accountId && process.env.NODE_ENV !== 'test') {
+        return Promise.reject(new Error(
+            'Account-bound operation is unavailable before auth bootstrap completes.'
+        ));
+    }
+    const controller = new AbortController();
+    const record: ActiveAccountOperation = {
+        owner: normalizedOwner,
+        controller,
+        completion: Promise.resolve(),
+    };
+    const result = Promise.resolve().then(() => operation({
+        accountId,
+        signal: controller.signal,
+    }));
+    record.completion = result.then(() => undefined, () => undefined);
+    activeOperations.add(record);
+    void record.completion.finally(() => activeOperations.delete(record));
+    return result;
+}
+
 function enqueueSwitch(operation: () => Promise<void>): Promise<void> {
     const result = switchQueue.then(operation, operation);
     switchQueue = result.catch(() => undefined);
@@ -57,11 +109,17 @@ export function activateAccount(accountId: string): Promise<void> {
         if (activeAccountId === normalizedId) {
             return;
         }
-        if (activeAccountId) {
-            await runTeardownHandlers();
+        acceptsAccountOperations = false;
+        try {
+            if (activeAccountId) {
+                await quiesceAccountOperations();
+                await runTeardownHandlers();
+            }
+            activeAccountId = normalizedId;
+            notifyAccountChange();
+        } finally {
+            acceptsAccountOperations = true;
         }
-        activeAccountId = normalizedId;
-        notifyAccountChange();
     });
 }
 
@@ -70,8 +128,14 @@ export function clearActiveAccount(): Promise<void> {
         if (!activeAccountId) {
             return;
         }
-        await runTeardownHandlers();
-        activeAccountId = null;
-        notifyAccountChange();
+        acceptsAccountOperations = false;
+        try {
+            await quiesceAccountOperations();
+            await runTeardownHandlers();
+            activeAccountId = null;
+            notifyAccountChange();
+        } finally {
+            acceptsAccountOperations = true;
+        }
     });
 }

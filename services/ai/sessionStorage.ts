@@ -11,6 +11,7 @@
  */
 
 import { accountScopedStorage as AsyncStorage } from '@/services/account/accountScopedStorage';
+import { runAccountBoundOperation } from '@/services/account/accountRuntime';
 import type { Message } from './chatTypes';
 import { normalizeTemporalMessageMetadata } from './messageTemporalMetadata';
 
@@ -53,6 +54,15 @@ const SESSION_MODES: ReadonlySet<ChatSessionMode> = new Set([
 ]);
 
 let storageAdapter: StorageAdapter = AsyncStorage;
+let sessionMutationQueue: Promise<unknown> = Promise.resolve();
+
+function withSessionMutation<T>(task: () => Promise<T>): Promise<T> {
+    return runAccountBoundOperation('ai-session-storage', async () => {
+        const run = sessionMutationQueue.then(task, task);
+        sessionMutationQueue = run.catch(() => undefined);
+        return run;
+    });
+}
 
 export function setChatSessionStorageAdapter(adapter: StorageAdapter): void {
     storageAdapter = adapter;
@@ -146,13 +156,15 @@ async function writeSessions(sessions: ChatSession[]): Promise<void> {
 }
 
 export async function loadSessions(): Promise<ChatSession[]> {
-    try {
-        const json = await storageAdapter.getItem(CHAT_SESSIONS_KEY);
-        if (!json) return [];
-        return sanitizeSessions(JSON.parse(json));
-    } catch {
-        return [];
-    }
+    return runAccountBoundOperation('ai-session-storage-read', async () => {
+        try {
+            const json = await storageAdapter.getItem(CHAT_SESSIONS_KEY);
+            if (!json) return [];
+            return sanitizeSessions(JSON.parse(json));
+        } catch {
+            return [];
+        }
+    });
 }
 
 export async function getSession(conversationId: string): Promise<ChatSession | null> {
@@ -165,43 +177,50 @@ export async function saveSession(session: ChatSession): Promise<void> {
     const sanitized = sanitizeSession(session);
     if (!sanitized) return;
 
-    const sessions = await loadSessions();
-    const existing = sessions.find(
-        (item) => item.conversationId === sanitized.conversationId
-    );
-    const next: ChatSession = {
-        ...sanitized,
-        createdAt: existing?.createdAt ?? sanitized.createdAt,
-        updatedAt: Date.now(),
-    };
-
-    const others = sessions.filter(
-        (item) => item.conversationId !== sanitized.conversationId
-    );
-    await writeSessions(capSessions([next, ...others]));
+    await withSessionMutation(async () => {
+        const sessions = await loadSessions();
+        const existing = sessions.find(
+            (item) => item.conversationId === sanitized.conversationId
+        );
+        const next: ChatSession = {
+            ...sanitized,
+            createdAt: existing?.createdAt ?? sanitized.createdAt,
+            updatedAt: Date.now(),
+        };
+        const others = sessions.filter(
+            (item) => item.conversationId !== sanitized.conversationId
+        );
+        await writeSessions(capSessions([next, ...others]));
+    });
 }
 
 export async function removeSession(conversationId: string): Promise<void> {
     if (!conversationId) return;
-    const sessions = await loadSessions();
-    const next = sessions.filter((item) => item.conversationId !== conversationId);
-    if (next.length === sessions.length) return;
-    await writeSessions(next);
+    await withSessionMutation(async () => {
+        const sessions = await loadSessions();
+        const next = sessions.filter((item) => item.conversationId !== conversationId);
+        if (next.length === sessions.length) return;
+        await writeSessions(next);
+    });
 }
 
 export async function removeJournalChatSessions(): Promise<void> {
-    const sessions = await loadSessions();
-    const next = sessions.filter((session) => (
-        session.mode !== 'freeform' && session.mode !== 'continue'
-    ));
-    if (next.length === sessions.length) return;
-    await writeSessions(next);
+    await withSessionMutation(async () => {
+        const sessions = await loadSessions();
+        const next = sessions.filter((session) => (
+            session.mode !== 'freeform' && session.mode !== 'continue'
+        ));
+        if (next.length === sessions.length) return;
+        await writeSessions(next);
+    });
 }
 
 export async function removeAllChatSessions(): Promise<void> {
-    const sessions = await loadSessions();
-    if (sessions.length === 0) return;
-    await writeSessions([]);
+    await withSessionMutation(async () => {
+        const sessions = await loadSessions();
+        if (sessions.length === 0) return;
+        await writeSessions([]);
+    });
 }
 
 function isActive(session: ChatSession, now: number): boolean {
@@ -223,12 +242,14 @@ function capSessions(sessions: ChatSession[]): ChatSession[] {
 }
 
 export async function pruneStaleSessions(): Promise<ChatSession[]> {
-    const now = Date.now();
-    const sessions = await loadSessions();
-    const fresh = sessions.filter((session) => now - session.updatedAt <= MAX_AGE_MS);
-    const capped = capSessions(fresh);
-    if (capped.length !== sessions.length) {
-        await writeSessions(capped);
-    }
-    return capped;
+    return withSessionMutation(async () => {
+        const now = Date.now();
+        const sessions = await loadSessions();
+        const fresh = sessions.filter((session) => now - session.updatedAt <= MAX_AGE_MS);
+        const capped = capSessions(fresh);
+        if (capped.length !== sessions.length) {
+            await writeSessions(capped);
+        }
+        return capped;
+    });
 }

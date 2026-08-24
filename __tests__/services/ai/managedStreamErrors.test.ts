@@ -11,6 +11,7 @@ import {
     resetManagedTransportSessionProvider,
     setManagedTransportSessionProvider,
 } from '../../../services/ai/managedTransport';
+import { activateAccount, clearActiveAccount } from '../../../services/account/accountRuntime';
 
 const payload = {
     model: 'ignored', messages: [{ role: 'user' as const, content: 'hello' }],
@@ -29,15 +30,19 @@ describe('managed stream terminal errors', () => {
     const originalFetch = global.fetch;
     const originalXhr = globalThis.XMLHttpRequest;
 
-    beforeEach(() => {
+    beforeEach(async () => {
         process.env.EXPO_PUBLIC_AGENT_BASE_URL = 'https://gateway.example';
-        setManagedTransportSessionProvider(async () => 'token');
+        await activateAccount('account-a');
+        setManagedTransportSessionProvider(async () => ({
+            accessToken: 'token', userId: 'account-a',
+        }));
     });
 
-    afterEach(() => {
+    afterEach(async () => {
         global.fetch = originalFetch;
         globalThis.XMLHttpRequest = originalXhr;
         resetManagedTransportSessionProvider();
+        await clearActiveAccount();
     });
 
     it('rejects a fetch stream that emits partial text before a normalized error', async () => {

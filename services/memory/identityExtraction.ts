@@ -32,6 +32,7 @@ import {
     fetchDirectJsonCompletion,
 } from '@/services/ai/jsonCompletion';
 import { INSIGHTS_TEMPERATURE } from '@/services/ai/generationSettings';
+import { runAccountBoundOperation } from '@/services/account/accountRuntime';
 import {
     applyIdentityPatch,
     getIdentityProfile,
@@ -305,7 +306,7 @@ export interface ExtractIdentityOptions {
  *
  * Production: writes only after a successful AI structured extract.
  */
-export async function extractAndApplyIdentity(
+async function extractAndApplyIdentityForAccount(
     userText: string,
     options: ExtractIdentityOptions = {},
 ): Promise<IdentityProfile | null> {
@@ -368,6 +369,16 @@ export async function extractAndApplyIdentity(
     } finally {
         if (extractInFlight === run) extractInFlight = null;
     }
+}
+
+export function extractAndApplyIdentity(
+    userText: string,
+    options: ExtractIdentityOptions = {},
+): Promise<IdentityProfile | null> {
+    return runAccountBoundOperation(
+        'identity-extraction',
+        () => extractAndApplyIdentityForAccount(userText, options),
+    );
 }
 
 /**

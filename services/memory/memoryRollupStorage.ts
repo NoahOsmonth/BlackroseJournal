@@ -7,6 +7,7 @@
  */
 
 import { accountScopedStorage as AsyncStorage } from '@/services/account/accountScopedStorage';
+import { runAccountBoundOperation } from '@/services/account/accountRuntime';
 import type {
     MemoryRollup,
     MemoryRollupIndex,
@@ -36,9 +37,11 @@ export function resetMemoryRollupStorageAdapter(): void {
 let writeQueue: Promise<unknown> = Promise.resolve();
 
 function withRollupLock<T>(task: () => Promise<T>): Promise<T> {
-    const run = writeQueue.then(task, task);
-    writeQueue = run.catch(() => undefined);
-    return run;
+    return runAccountBoundOperation('memory-rollup-storage', async () => {
+        const run = writeQueue.then(task, task);
+        writeQueue = run.catch(() => undefined);
+        return run;
+    });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -219,6 +222,7 @@ export async function listMemoryRollupIndex(
 export async function listMemoryRollups(
     options: MemoryRollupListOptions = {},
 ): Promise<MemoryRollup[]> {
+    return runAccountBoundOperation('memory-rollup-read', async () => {
     const entries = await listMemoryRollupIndex(options);
     const out: MemoryRollup[] = [];
     for (const entry of entries) {
@@ -226,6 +230,7 @@ export async function listMemoryRollups(
         if (row) out.push(row);
     }
     return out;
+    });
 }
 
 export async function clearMemoryRollups(): Promise<void> {

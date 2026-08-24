@@ -4,6 +4,7 @@ import {
     resetManagedTransportSessionProvider,
     setManagedTransportSessionProvider,
 } from '../../../services/ai/managedTransport';
+import { activateAccount, clearActiveAccount } from '../../../services/account/accountRuntime';
 
 const payload = {
     model: 'must-not-cross-boundary',
@@ -21,15 +22,19 @@ describe('managedTransport', () => {
     const originalFetch = global.fetch;
     const originalBaseUrl = process.env.EXPO_PUBLIC_AGENT_BASE_URL;
 
-    beforeEach(() => {
+    beforeEach(async () => {
         process.env.EXPO_PUBLIC_AGENT_BASE_URL = 'https://gateway.example';
-        setManagedTransportSessionProvider(async () => 'verified-access-token');
+        await activateAccount('account-a');
+        setManagedTransportSessionProvider(async () => ({
+            accessToken: 'verified-access-token', userId: 'account-a',
+        }));
     });
 
-    afterEach(() => {
+    afterEach(async () => {
         global.fetch = originalFetch;
         process.env.EXPO_PUBLIC_AGENT_BASE_URL = originalBaseUrl;
         resetManagedTransportSessionProvider();
+        await clearActiveAccount();
     });
 
     it('builds an authenticated normalized request without a client-selected provider model', async () => {
@@ -45,6 +50,32 @@ describe('managedTransport', () => {
             stream: false,
         });
         expect(request.body).not.toHaveProperty('model');
+    });
+
+    it('rejects a valid Supabase session that belongs to a different local account', async () => {
+        setManagedTransportSessionProvider(async () => ({
+            accessToken: 'token-for-b', userId: 'account-b',
+        }));
+
+        await expect(prepareManagedChatRequest(payload)).rejects.toThrow(
+            'Managed AI session does not match the active account.'
+        );
+    });
+
+    it('holds account teardown until delayed managed session preparation settles', async () => {
+        let resolveSession!: (session: { accessToken: string; userId: string }) => void;
+        setManagedTransportSessionProvider(() => new Promise((resolve) => {
+            resolveSession = resolve;
+        }));
+        const preparing = prepareManagedChatRequest(payload);
+        const switching = activateAccount('account-b');
+        await Promise.resolve();
+
+        resolveSession({ accessToken: 'token-a', userId: 'account-a' });
+        await expect(preparing).rejects.toThrow(
+            'Managed AI request was cancelled by an account switch.'
+        );
+        await switching;
     });
 
     it('preserves assistant tool-call history for later managed agent rounds', async () => {

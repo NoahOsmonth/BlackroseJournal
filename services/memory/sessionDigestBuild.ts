@@ -20,6 +20,7 @@ import {
     normalizeEventDate,
 } from '@/utils/date';
 import { upsertSessionDigest } from './sessionDigestStorage';
+import { runAccountBoundOperation } from '@/services/account/accountRuntime';
 import type { SessionDigest, SessionDigestSourceKind } from './sessionDigest.types';
 
 const DIGEST_SYSTEM_PROMPT = `You summarize a finished journaling session for later recall.
@@ -162,7 +163,7 @@ function fallbackSummary(transcript: string, wordCount: number): ParsedDigestFie
 /**
  * Build + persist a session digest. Soft-fails to null (Finish must not block).
  */
-export async function buildAndSaveSessionDigest(
+async function buildAndSaveSessionDigestForAccount(
     input: BuildSessionDigestInput,
 ): Promise<SessionDigest | null> {
     try {
@@ -195,4 +196,13 @@ export async function buildAndSaveSessionDigest(
         console.warn('buildAndSaveSessionDigest failed:', error);
         return null;
     }
+}
+
+export function buildAndSaveSessionDigest(
+    input: BuildSessionDigestInput,
+): Promise<SessionDigest | null> {
+    return runAccountBoundOperation(
+        'session-digest-build',
+        () => buildAndSaveSessionDigestForAccount(input),
+    );
 }
