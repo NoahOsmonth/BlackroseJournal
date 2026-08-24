@@ -2482,3 +2482,18 @@
 - Fresh verification after a clean local reset: all Supabase pgTAP tests passed (4 files,
   286 tests); `supabase db lint` found no schema errors. The security advisor reports only the
   pre-existing `public.set_updated_at` mutable-search-path warning, not a new control-plane issue.
+
+### Task 2 review fix round 1
+
+- Existing-row publication now requires both provider and locked catalog expected revisions;
+  stale cross-provider metadata/route replacement raises `PT409` without partial writes.
+- Provider and provider-model archive derive withdrawals only from their active chat routes and
+  leave a catalog row available when another active chat route survives.
+- Route update/delete reverse guards clear the selected flash route transactionally when it is
+  disabled, archived, repurposed, or deleted; a replacement selected in the same transaction is
+  preserved.
+- Authenticated preference writes are column-scoped to `selected_model_id`; user id, initial
+  revision, creation timestamp, and update timestamp remain server-owned.
+- TDD RED: the focused review suite failed 17/23 assertions before the migration repair. Focused
+  GREEN passed 3 files / 93 tests; full pgTAP passed 5 files / 309 tests. DB lint remains clean,
+  and the security advisor still reports only the pre-existing `public.set_updated_at` warning.

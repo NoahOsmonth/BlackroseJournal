@@ -90,7 +90,7 @@ select extensions.throws_ok($sql$
   select control.publish_catalog_model(
     '20000000-0000-4000-8000-000000000001',
     '30000000-0000-4000-8000-000000000001',
-    1,
+    1, null,
     'Model A', 'managed/model-a',
     '{"streaming":true,"tools":true,"vision":false,"jsonObject":true,"jsonSchema":false}',
     65536, 10, 'chat'
@@ -103,7 +103,7 @@ select extensions.throws_ok($sql$
   select control.publish_catalog_model(
     '20000000-0000-4000-8000-000000000001',
     '30000000-0000-4000-8000-000000000001',
-    0,
+    0, null,
     'Model A', 'managed/model-a',
     '{"streaming":true,"tools":true,"vision":false,"jsonObject":true,"jsonSchema":false}',
     65536, 10, 'chat'
@@ -123,7 +123,7 @@ select extensions.lives_ok($sql$
   select control.publish_catalog_model(
     '20000000-0000-4000-8000-000000000001',
     '30000000-0000-4000-8000-000000000001',
-    1,
+    1, null,
     'Model A', 'managed/model-a',
     '{"streaming":true,"tools":true,"vision":false,"jsonObject":true,"jsonSchema":false}',
     65536, 10, 'chat'
@@ -154,8 +154,8 @@ select extensions.is(
   'authenticated clients can read the safe catalog'
 );
 select extensions.lives_ok($sql$
-  insert into public.user_ai_preferences (user_id, selected_model_id)
-  select '10000000-0000-4000-8000-000000000001', id
+  insert into public.user_ai_preferences (selected_model_id)
+  select id
   from public.ai_catalog_models where public_model_id = 'managed/model-a'
 $sql$, 'user A can select an available catalog model');
 select extensions.throws_ok($sql$
@@ -178,11 +178,11 @@ select extensions.is(
   'user B cannot read user A preference'
 );
 select extensions.lives_ok($sql$
-  update public.user_ai_preferences set updated_at = clock_timestamp()
+  update public.user_ai_preferences set selected_model_id = selected_model_id
 $sql$, 'user B update attempt is safely filtered by RLS');
 select extensions.lives_ok($sql$
-  insert into public.user_ai_preferences (user_id, selected_model_id)
-  select '10000000-0000-4000-8000-000000000002', id
+  insert into public.user_ai_preferences (selected_model_id)
+  select id
   from public.ai_catalog_models where public_model_id = 'managed/model-a'
 $sql$, 'user B can create only its own preference');
 reset role;
@@ -242,7 +242,7 @@ select extensions.lives_ok($sql$
   select control.publish_catalog_model(
     '20000000-0000-4000-8000-000000000001',
     '30000000-0000-4000-8000-000000000001',
-    2,
+    2, 2,
     'Model A', 'managed/model-a',
     '{"streaming":true,"tools":true,"vision":false,"jsonObject":true,"jsonSchema":false}',
     65536, 10, 'chat'
@@ -267,7 +267,7 @@ select extensions.is(
 select extensions.lives_ok($sql$
   select control.publish_catalog_model(
     '20000000-0000-4000-8000-000000000001',
-    '30000000-0000-4000-8000-000000000002', 3,
+    '30000000-0000-4000-8000-000000000002', 3, null,
     'Model B', 'managed/model-b',
     '{"streaming":true,"tools":false,"vision":false,"jsonObject":true,"jsonSchema":false}',
     32768, 20, 'chat'

@@ -331,6 +331,35 @@ create trigger runtime_settings_active_flash_route
 before insert or update of active_flash_route_id on control.runtime_settings
 for each row execute function control.ensure_active_flash_route();
 
+create function control.clear_selected_flash_route()
+returns trigger
+language plpgsql
+set search_path = ''
+as $function$
+begin
+  if tg_op = 'DELETE' then
+    update control.runtime_settings
+    set active_flash_route_id = null
+    where active_flash_route_id = old.id;
+    return old;
+  end if;
+
+  if new.purpose <> 'flash' or new.state <> 'active' then
+    update control.runtime_settings
+    set active_flash_route_id = null
+    where active_flash_route_id = old.id;
+  end if;
+  return new;
+end;
+$function$;
+
+create trigger model_routes_clear_selected_flash_on_update
+before update of purpose, state on control.model_routes
+for each row execute function control.clear_selected_flash_route();
+create trigger model_routes_clear_selected_flash_on_delete
+before delete on control.model_routes
+for each row execute function control.clear_selected_flash_route();
+
 create function control.bump_catalog_revision()
 returns bigint
 language plpgsql
@@ -352,6 +381,7 @@ create function control.publish_catalog_model(
   p_provider_id uuid,
   p_provider_model_id uuid,
   p_expected_provider_revision bigint,
+  p_expected_catalog_revision bigint,
   p_label text,
   p_public_model_id text,
   p_capabilities jsonb,
@@ -406,6 +436,10 @@ begin
   for update;
 
   if found then
+    if p_expected_catalog_revision is null
+      or v_catalog.revision <> p_expected_catalog_revision then
+      raise exception using errcode = 'PT409', message = 'REVISION_CONFLICT';
+    end if;
     update public.ai_catalog_models
     set label = p_label,
         capabilities = p_capabilities,
@@ -415,6 +449,9 @@ begin
     where id = v_catalog.id
     returning * into v_catalog;
   else
+    if p_expected_catalog_revision is not null then
+      raise exception using errcode = 'PT409', message = 'REVISION_CONFLICT';
+    end if;
     insert into public.ai_catalog_models (
       label, public_model_id, capabilities, context_window, availability, sort_order
     ) values (
@@ -493,6 +530,7 @@ set search_path = ''
 as $function$
 declare
   v_provider control.providers%rowtype;
+  v_affected_catalog_ids uuid[];
   v_withdrawn integer;
 begin
   select * into v_provider
@@ -510,6 +548,15 @@ begin
     return v_provider;
   end if;
 
+  select coalesce(array_agg(distinct route.catalog_model_id), array[]::uuid[])
+  into v_affected_catalog_ids
+  from control.model_routes route
+  join control.provider_models model on model.id = route.provider_model_id
+  where model.provider_id = p_provider_id
+    and route.purpose = 'chat'
+    and route.state = 'active'
+    and route.catalog_model_id is not null;
+
   update control.providers
   set state = 'archived', archived_at = clock_timestamp()
   where id = p_provider_id
@@ -520,18 +567,6 @@ begin
   where provider_id = p_provider_id
     and state <> 'archived';
 
-  update public.ai_catalog_models catalog
-  set availability = 'unavailable'
-  where catalog.availability <> 'unavailable'
-    and exists (
-      select 1
-      from control.model_routes route
-      join control.provider_models model on model.id = route.provider_model_id
-      where route.catalog_model_id = catalog.id
-        and model.provider_id = p_provider_id
-    );
-  get diagnostics v_withdrawn = row_count;
-
   update control.model_routes route
   set state = 'archived'
   where route.state <> 'archived'
@@ -540,6 +575,19 @@ begin
       where model.id = route.provider_model_id
         and model.provider_id = p_provider_id
     );
+
+  update public.ai_catalog_models catalog
+  set availability = 'unavailable'
+  where catalog.id = any(v_affected_catalog_ids)
+    and catalog.availability <> 'unavailable'
+    and not exists (
+      select 1
+      from control.model_routes remaining_route
+      where remaining_route.catalog_model_id = catalog.id
+        and remaining_route.purpose = 'chat'
+        and remaining_route.state = 'active'
+    );
+  get diagnostics v_withdrawn = row_count;
 
   if v_withdrawn > 0 then
     perform control.bump_catalog_revision();
@@ -558,6 +606,7 @@ set search_path = ''
 as $function$
 declare
   v_provider_model control.provider_models%rowtype;
+  v_affected_catalog_ids uuid[];
   v_withdrawn integer;
 begin
   select * into v_provider_model
@@ -575,25 +624,36 @@ begin
     return v_provider_model;
   end if;
 
+  select coalesce(array_agg(distinct route.catalog_model_id), array[]::uuid[])
+  into v_affected_catalog_ids
+  from control.model_routes route
+  where route.provider_model_id = p_provider_model_id
+    and route.purpose = 'chat'
+    and route.state = 'active'
+    and route.catalog_model_id is not null;
+
   update control.provider_models
   set state = 'archived'
   where id = p_provider_model_id
   returning * into v_provider_model;
 
-  update public.ai_catalog_models catalog
-  set availability = 'unavailable'
-  where catalog.availability <> 'unavailable'
-    and exists (
-      select 1 from control.model_routes route
-      where route.catalog_model_id = catalog.id
-        and route.provider_model_id = p_provider_model_id
-    );
-  get diagnostics v_withdrawn = row_count;
-
   update control.model_routes
   set state = 'archived'
   where provider_model_id = p_provider_model_id
     and state <> 'archived';
+
+  update public.ai_catalog_models catalog
+  set availability = 'unavailable'
+  where catalog.id = any(v_affected_catalog_ids)
+    and catalog.availability <> 'unavailable'
+    and not exists (
+      select 1
+      from control.model_routes remaining_route
+      where remaining_route.catalog_model_id = catalog.id
+        and remaining_route.purpose = 'chat'
+        and remaining_route.state = 'active'
+    );
+  get diagnostics v_withdrawn = row_count;
 
   if v_withdrawn > 0 then
     perform control.bump_catalog_revision();
@@ -641,7 +701,9 @@ grant select on table
   public.ai_catalog_models,
   public.ai_catalog_revision
 to authenticated;
-grant select, insert, update on table public.user_ai_preferences to authenticated;
+grant select on table public.user_ai_preferences to authenticated;
+grant insert (selected_model_id) on table public.user_ai_preferences to authenticated;
+grant update (selected_model_id) on table public.user_ai_preferences to authenticated;
 grant all on table
   public.ai_catalog_models,
   public.ai_catalog_revision,
@@ -656,9 +718,10 @@ grant all on all sequences in schema control to service_role;
 revoke all on function control.bump_row_revision() from public, anon, authenticated;
 revoke all on function control.ensure_catalog_model_selectable() from public, anon, authenticated;
 revoke all on function control.ensure_active_flash_route() from public, anon, authenticated;
+revoke all on function control.clear_selected_flash_route() from public, anon, authenticated;
 revoke all on function control.bump_catalog_revision() from public, anon, authenticated;
 revoke all on function control.publish_catalog_model(
-  uuid, uuid, bigint, text, text, jsonb, integer, integer, text
+  uuid, uuid, bigint, bigint, text, text, jsonb, integer, integer, text
 ) from public, anon, authenticated;
 revoke all on function control.archive_catalog_model(uuid, bigint)
   from public, anon, authenticated;
@@ -669,7 +732,7 @@ revoke all on function control.archive_provider(uuid, bigint)
 
 grant execute on function control.bump_catalog_revision() to service_role;
 grant execute on function control.publish_catalog_model(
-  uuid, uuid, bigint, text, text, jsonb, integer, integer, text
+  uuid, uuid, bigint, bigint, text, text, jsonb, integer, integer, text
 ) to service_role;
 grant execute on function control.archive_catalog_model(uuid, bigint) to service_role;
 grant execute on function control.archive_provider_model(uuid, bigint) to service_role;

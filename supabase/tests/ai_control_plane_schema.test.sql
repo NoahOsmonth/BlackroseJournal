@@ -20,7 +20,7 @@ select extensions.has_table('control', 'usage_events', 'usage events are private
 select extensions.has_table('control', 'rekey_jobs', 'rekey jobs are private');
 select extensions.has_function(
   'control', 'publish_catalog_model',
-  array['uuid', 'uuid', 'bigint', 'text', 'text', 'jsonb', 'integer', 'integer', 'text'],
+  array['uuid', 'uuid', 'bigint', 'bigint', 'text', 'text', 'jsonb', 'integer', 'integer', 'text'],
   'transactional publish function exists'
 );
 select extensions.has_function(
@@ -88,9 +88,15 @@ select extensions.ok(
       and not has_table_privilege('authenticated', m.oid, 'UPDATE')
       and has_table_privilege('authenticated', r.oid, 'SELECT')
       and has_table_privilege('authenticated', p.oid, 'SELECT')
-      and has_table_privilege('authenticated', p.oid, 'INSERT')
-      and has_table_privilege('authenticated', p.oid, 'UPDATE')
+      and not has_table_privilege('authenticated', p.oid, 'INSERT')
+      and not has_table_privilege('authenticated', p.oid, 'UPDATE')
       and not has_table_privilege('authenticated', p.oid, 'DELETE')
+      and has_column_privilege('authenticated', p.oid, 'selected_model_id', 'INSERT')
+      and has_column_privilege('authenticated', p.oid, 'selected_model_id', 'UPDATE')
+      and not has_column_privilege('authenticated', p.oid, 'revision', 'INSERT')
+      and not has_column_privilege('authenticated', p.oid, 'revision', 'UPDATE')
+      and not has_column_privilege('authenticated', p.oid, 'created_at', 'INSERT')
+      and not has_column_privilege('authenticated', p.oid, 'updated_at', 'UPDATE')
     from pg_class m
     join pg_namespace mn on mn.oid = m.relnamespace and mn.nspname = 'public'
     join pg_class r on r.relname = 'ai_catalog_revision'
