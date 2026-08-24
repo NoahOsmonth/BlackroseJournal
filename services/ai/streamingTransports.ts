@@ -8,6 +8,7 @@ import {
 import { fetchAiChatCompletion, parseAiSseLine, prepareAiChatRequest } from './aiTransport';
 import { isModelCachedUnavailable } from './directTransport';
 import { appendChunk, buildResponseError, readNonStreamingResponse } from './sseParser';
+import { acquireAccountOperationLease } from '@/services/account/accountRuntime';
 
 type ReadableStreamLike = {
     getReader: () => { read: () => Promise<{ done: boolean; value?: Uint8Array }> };
@@ -51,8 +52,11 @@ export async function streamChatWithXhr(
         return { ok: false, usage: null };
     }
     const { request } = prepared;
+    const xhr = new globalThis.XMLHttpRequest();
+    const accountLease = prepared.mode === 'managed'
+        ? acquireAccountOperationLease('managed-inference-xhr')
+        : null;
     return new Promise((resolve, reject) => {
-        const xhr = new globalThis.XMLHttpRequest();
         const accumulator: ChatAccumulator = { content: '', reasoning: '', usage: null };
         let buffer = '';
         let consumedLength = 0;
@@ -60,9 +64,22 @@ export async function streamChatWithXhr(
         const settle = (callback: () => void) => {
             if (settled) return;
             settled = true;
+            accountLease?.signal.removeEventListener('abort', abortForAccountSwitch);
+            accountLease?.release();
             callback();
         };
+        const abortForAccountSwitch = () => {
+            if (settled) return;
+            try {
+                xhr.abort();
+            } finally {
+                settle(() => reject(new Error(
+                    'Managed AI request was cancelled by an account switch.'
+                )));
+            }
+        };
         const processIncoming = () => {
+            if (settled || accountLease?.signal.aborted) return;
             const incoming = xhr.responseText.slice(consumedLength);
             consumedLength = xhr.responseText.length;
             if (!incoming) return;
@@ -90,10 +107,6 @@ export async function streamChatWithXhr(
                 appendChunk(accumulator, parsed, onChunk);
             }
         };
-        xhr.open('POST', request.url, true);
-        Object.entries(request.headers).forEach(([key, value]) => {
-            xhr.setRequestHeader(key, value);
-        });
         xhr.onreadystatechange = () => {
             if (xhr.readyState === 3 || xhr.readyState === 4) processIncoming();
         };
@@ -118,7 +131,25 @@ export async function streamChatWithXhr(
         xhr.onerror = () => {
             settle(() => reject(new Error('AI request failed using XMLHttpRequest streaming fallback.')));
         };
-        xhr.send(JSON.stringify(request.body));
+        xhr.onabort = () => {
+            settle(() => reject(new Error(
+                'Managed AI request was cancelled by an account switch.'
+            )));
+        };
+        accountLease?.signal.addEventListener('abort', abortForAccountSwitch, { once: true });
+        try {
+            xhr.open('POST', request.url, true);
+            Object.entries(request.headers).forEach(([key, value]) => {
+                xhr.setRequestHeader(key, value);
+            });
+            if (accountLease?.signal.aborted) {
+                abortForAccountSwitch();
+                return;
+            }
+            xhr.send(JSON.stringify(request.body));
+        } catch (error) {
+            settle(() => reject(error));
+        }
     });
 }
 

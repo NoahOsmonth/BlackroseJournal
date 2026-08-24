@@ -4,6 +4,9 @@ export interface AccountOperationContext {
     readonly accountId: string | null;
     readonly signal: AbortSignal;
 }
+export interface AccountOperationLease extends AccountOperationContext {
+    release(): void;
+}
 
 interface ActiveAccountOperation {
     readonly owner: string;
@@ -64,33 +67,52 @@ export function runAccountBoundOperation<T>(
     owner: string,
     operation: (context: AccountOperationContext) => Promise<T>
 ): Promise<T> {
+    let lease: AccountOperationLease;
+    try {
+        lease = acquireAccountOperationLease(owner);
+    } catch (error) {
+        return Promise.reject(error);
+    }
+    return Promise.resolve()
+        .then(() => operation(lease))
+        .finally(() => lease.release());
+}
+
+export function acquireAccountOperationLease(owner: string): AccountOperationLease {
     if (!acceptsAccountOperations) {
-        return Promise.reject(new Error('Account switch is in progress.'));
+        throw new Error('Account switch is in progress.');
     }
     const normalizedOwner = owner.trim();
     if (!normalizedOwner) {
-        return Promise.reject(new Error('Account operation owner is required.'));
+        throw new Error('Account operation owner is required.');
     }
     const accountId = activeAccountId;
     if (!accountId && process.env.NODE_ENV !== 'test') {
-        return Promise.reject(new Error(
+        throw new Error(
             'Account-bound operation is unavailable before auth bootstrap completes.'
-        ));
+        );
     }
     const controller = new AbortController();
+    let releaseCompletion!: () => void;
+    const completion = new Promise<void>((resolve) => { releaseCompletion = resolve; });
     const record: ActiveAccountOperation = {
         owner: normalizedOwner,
         controller,
-        completion: Promise.resolve(),
+        completion,
     };
-    const result = Promise.resolve().then(() => operation({
+    activeOperations.add(record);
+    let released = false;
+    const lease: AccountOperationLease = {
         accountId,
         signal: controller.signal,
-    }));
-    record.completion = result.then(() => undefined, () => undefined);
-    activeOperations.add(record);
-    void record.completion.finally(() => activeOperations.delete(record));
-    return result;
+        release() {
+            if (released) return;
+            released = true;
+            activeOperations.delete(record);
+            releaseCompletion();
+        },
+    };
+    return lease;
 }
 
 function enqueueSwitch(operation: () => Promise<void>): Promise<void> {

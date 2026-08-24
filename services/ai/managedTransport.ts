@@ -7,7 +7,10 @@ import {
     type NormalizedInferenceRequest,
 } from '@blackrose/ai-control-plane-contracts';
 import { getSupabaseClient } from '@/services/supabase/supabaseClient';
-import { runAccountBoundOperation } from '@/services/account/accountRuntime';
+import {
+    acquireAccountOperationLease,
+    runAccountBoundOperation,
+} from '@/services/account/accountRuntime';
 import type { DirectChatOptions, DirectChatRequest } from './directTransport';
 
 export interface PreparedManagedChatRequest {
@@ -292,42 +295,129 @@ function convertManagedSseLine(line: string): string {
     }
 }
 
-async function convertSseResponse(response: Response): Promise<Response> {
-    if (!response.body) return response;
+interface ConvertedSseResponse {
+    readonly response: Response;
+    readonly ownsAccountLease: boolean;
+}
+
+function accountSwitchCancellationError(): Error {
+    return new Error('Managed AI request was cancelled by an account switch.');
+}
+
+function managedCancellationError(
+    accountSignal: AbortSignal,
+    callerSignal?: AbortSignal,
+): Error {
+    if (accountSignal.aborted) return accountSwitchCancellationError();
+    if (callerSignal?.reason instanceof Error) return callerSignal.reason;
+    return new Error('Managed AI request was cancelled.');
+}
+
+function composeAbortSignals(signals: readonly (AbortSignal | undefined)[]): {
+    signal: AbortSignal;
+    cleanup(): void;
+} {
+    const controller = new AbortController();
+    const activeSignals = signals.filter((signal): signal is AbortSignal => Boolean(signal));
+    const onAbort = (event: Event) => {
+        const source = event.target as AbortSignal;
+        if (!controller.signal.aborted) controller.abort(source.reason);
+    };
+    activeSignals.forEach((signal) => {
+        if (signal.aborted && !controller.signal.aborted) {
+            controller.abort(signal.reason);
+        } else {
+            signal.addEventListener('abort', onAbort, { once: true });
+        }
+    });
+    return {
+        signal: controller.signal,
+        cleanup: () => activeSignals.forEach((signal) => (
+            signal.removeEventListener('abort', onAbort)
+        )),
+    };
+}
+
+async function convertSseResponse(
+    response: Response,
+    signal: AbortSignal,
+    accountSignal: AbortSignal,
+    callerSignal: AbortSignal | undefined,
+    finalizeLease: () => void,
+): Promise<ConvertedSseResponse> {
+    if (!response.body) return { response, ownsAccountLease: false };
     if (typeof globalThis.ReadableStream !== 'function') {
         const transcript = await response.text();
         const converted = transcript.split(/\r?\n/)
             .map(convertManagedSseLine)
             .join('');
-        return new Response(converted, {
-            status: response.status,
-            statusText: response.statusText,
-            headers: { 'content-type': 'text/event-stream' },
-        });
+        return {
+            response: new Response(converted, {
+                status: response.status,
+                statusText: response.statusText,
+                headers: { 'content-type': 'text/event-stream' },
+            }),
+            ownsAccountLease: false,
+        };
     }
     const reader = response.body.getReader();
     const decoder = new TextDecoder('utf-8');
     const encoder = new TextEncoder();
     let buffer = '';
+    let streamController: ReadableStreamDefaultController<Uint8Array> | null = null;
+    let terminated = false;
+    let finalized = false;
+    const finalize = () => {
+        if (finalized) return;
+        finalized = true;
+        signal.removeEventListener('abort', onAbort);
+        finalizeLease();
+    };
+    const onAbort = () => {
+        if (terminated) return;
+        terminated = true;
+        const error = managedCancellationError(accountSignal, callerSignal);
+        const upstreamCancellation = reader.cancel(error);
+        streamController?.error(error);
+        void upstreamCancellation.catch(() => undefined);
+        finalize();
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+    if (signal.aborted) onAbort();
     const body = new globalThis.ReadableStream<Uint8Array>({
         async pull(controller) {
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) {
-                    if (buffer.trim()) processLine(buffer, controller);
-                    controller.close();
-                    return;
+            streamController = controller;
+            try {
+                while (!terminated) {
+                    const { done, value } = await reader.read();
+                    if (signal.aborted) throw accountSwitchCancellationError();
+                    if (done) {
+                        if (buffer.trim()) processLine(buffer, controller);
+                        terminated = true;
+                        controller.close();
+                        finalize();
+                        return;
+                    }
+                    buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n');
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() ?? '';
+                    let emitted = false;
+                    for (const line of lines) emitted = processLine(line, controller) || emitted;
+                    if (emitted) return;
                 }
-                buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n');
-                const lines = buffer.split('\n');
-                buffer = lines.pop() ?? '';
-                let emitted = false;
-                for (const line of lines) emitted = processLine(line, controller) || emitted;
-                if (emitted) return;
+            } catch (error) {
+                if (!terminated) {
+                    terminated = true;
+                    controller.error(error);
+                    finalize();
+                }
             }
         },
-        cancel(reason) {
-            return reader.cancel(reason);
+        async cancel(reason) {
+            if (terminated) return;
+            terminated = true;
+            finalize();
+            await reader.cancel(reason);
         },
     });
     function processLine(line: string, controller: ReadableStreamDefaultController<Uint8Array>): boolean {
@@ -336,26 +426,63 @@ async function convertSseResponse(response: Response): Promise<Response> {
         controller.enqueue(encoder.encode(converted));
         return true;
     }
-    return new Response(body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: { 'content-type': 'text/event-stream' },
-    });
+    return {
+        response: new Response(body, {
+            status: response.status,
+            statusText: response.statusText,
+            headers: { 'content-type': 'text/event-stream' },
+        }),
+        ownsAccountLease: true,
+    };
 }
 
 export async function fetchManagedChatCompletion(
     payload: DirectChatRequest,
     options: DirectChatOptions = {}
 ): Promise<Response> {
-    const request = await prepareManagedChatRequest(payload, options);
-    const response = await fetch(request.url, {
-        method: 'POST',
-        headers: request.headers,
-        body: JSON.stringify(request.body),
-        ...(options.signal ? { signal: options.signal } : {}),
-    });
-    if (!response.ok) return response;
-    if (payload.stream) return await convertSseResponse(response);
-    const raw = await response.json();
-    return convertNonStreamingEvents(raw);
+    const lease = acquireAccountOperationLease('managed-inference-fetch');
+    const composed = composeAbortSignals([lease.signal, options.signal]);
+    let responseOwnsLease = false;
+    const release = () => {
+        composed.cleanup();
+        lease.release();
+    };
+    try {
+        const request = await prepareManagedChatRequest(payload, {
+            ...options,
+            signal: composed.signal,
+        });
+        if (composed.signal.aborted) {
+            throw managedCancellationError(lease.signal, options.signal);
+        }
+        const response = await fetch(request.url, {
+            method: 'POST',
+            headers: request.headers,
+            body: JSON.stringify(request.body),
+            signal: composed.signal,
+        });
+        if (!response.ok) {
+            const body = await response.arrayBuffer();
+            return new Response(body, {
+                status: response.status,
+                statusText: response.statusText,
+                headers: response.headers,
+            });
+        }
+        if (payload.stream) {
+            const converted = await convertSseResponse(
+                response,
+                composed.signal,
+                lease.signal,
+                options.signal,
+                release,
+            );
+            responseOwnsLease = converted.ownsAccountLease;
+            return converted.response;
+        }
+        const raw = await response.json();
+        return convertNonStreamingEvents(raw);
+    } finally {
+        if (!responseOwnsLease) release();
+    }
 }

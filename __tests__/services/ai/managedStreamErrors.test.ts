@@ -78,4 +78,54 @@ describe('managed stream terminal errors', () => {
         await expect(streamChatWithXhr(payload, jest.fn(), jest.fn()))
             .rejects.toThrow('Provider failed.');
     });
+
+    it('aborts partial managed XHR and suppresses stale progress after an account switch', async () => {
+        let resolveSent!: () => void;
+        const sent = new Promise<void>((resolve) => { resolveSent = resolve; });
+        let instance!: {
+            responseText: string;
+            onprogress: (() => void) | null;
+            onabort: (() => void) | null;
+            abort: jest.Mock;
+        };
+        class PartialXhr {
+            responseText = '';
+            readyState = 3;
+            status = 200;
+            onreadystatechange: (() => void) | null = null;
+            onprogress: (() => void) | null = null;
+            onload: (() => void) | null = null;
+            onerror: (() => void) | null = null;
+            onabort: (() => void) | null = null;
+            abort = jest.fn(() => this.onabort?.());
+            open() { /* no-op */ }
+            setRequestHeader() { /* no-op */ }
+            send() {
+                instance = this;
+                this.responseText = 'data: {"type":"text_delta","text":"from-a"}\n\n';
+                this.onprogress?.();
+                resolveSent();
+            }
+        }
+        globalThis.XMLHttpRequest = PartialXhr as unknown as typeof XMLHttpRequest;
+        const onChunk = jest.fn();
+        const streaming = streamChatWithXhr(payload, onChunk, jest.fn());
+        await sent;
+        expect(onChunk).toHaveBeenCalledWith('from-a', undefined);
+
+        await activateAccount('account-b');
+        instance.responseText += [
+            'data: {"type":"text_delta","text":"stale-a"}',
+            'data: {"type":"completion","reason":"stop"}',
+            'data: [DONE]',
+            '',
+        ].join('\n\n');
+        instance.onprogress?.();
+
+        await expect(streaming).rejects.toThrow(
+            'Managed AI request was cancelled by an account switch.'
+        );
+        expect(instance.abort).toHaveBeenCalledTimes(1);
+        expect(onChunk).toHaveBeenCalledTimes(1);
+    });
 });

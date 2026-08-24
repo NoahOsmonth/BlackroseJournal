@@ -141,6 +141,63 @@ describe('managedTransport', () => {
         expect(text).toContain('data: [DONE]');
     });
 
+    it('aborts a partial managed fetch stream on account switch before stale chunks arrive', async () => {
+        let upstream!: ReadableStreamDefaultController<Uint8Array>;
+        const encoder = new TextEncoder();
+        global.fetch = jest.fn(async () => new Response(new ReadableStream<Uint8Array>({
+            start(controller) {
+                upstream = controller;
+            },
+        }), { headers: { 'content-type': 'text/event-stream' } })) as unknown as typeof fetch;
+        const response = await fetchManagedChatCompletion({ ...payload, stream: true });
+        const reader = response.body!.getReader();
+        upstream.enqueue(encoder.encode('data: {"type":"text_delta","text":"from-a"}\n\n'));
+        const first = await reader.read();
+        expect(new TextDecoder().decode(first.value)).toContain('from-a');
+
+        const pending = expect(reader.read()).rejects.toThrow(
+            'Managed AI request was cancelled by an account switch.'
+        );
+        await activateAccount('account-b');
+        upstream.enqueue(encoder.encode(
+            'data: {"type":"text_delta","text":"stale-a"}\n\n'
+        ));
+
+        await pending;
+        await expect(reader.read()).rejects.toThrow(
+            'Managed AI request was cancelled by an account switch.'
+        );
+    });
+
+    it('preserves caller cancellation reason while releasing the managed stream lease', async () => {
+        global.fetch = jest.fn(async () => new Response(new ReadableStream<Uint8Array>({
+            start() { /* stays open until cancellation */ },
+        }), { headers: { 'content-type': 'text/event-stream' } })) as unknown as typeof fetch;
+        const caller = new AbortController();
+        const response = await fetchManagedChatCompletion(
+            { ...payload, stream: true },
+            { signal: caller.signal }
+        );
+        const pending = expect(response.body!.getReader().read()).rejects.toThrow('caller stopped');
+
+        caller.abort(new Error('caller stopped'));
+
+        await pending;
+        await expect(activateAccount('account-b')).resolves.toBeUndefined();
+    });
+
+    it('cancels an unread upstream stream so account switching cannot hang', async () => {
+        const upstream = new ReadableStream<Uint8Array>({
+            start() { /* stays open until cancellation */ },
+        });
+        global.fetch = jest.fn(async () => new Response(upstream, {
+            headers: { 'content-type': 'text/event-stream' },
+        })) as unknown as typeof fetch;
+        await fetchManagedChatCompletion({ ...payload, stream: true });
+
+        await expect(activateAccount('account-b')).resolves.toBeUndefined();
+    });
+
     it('converts a buffered SSE fallback when the runtime has no global Web Stream constructor', async () => {
         const upstream = new Response([
             'data: {"type":"text_delta","text":"Hi"}',
