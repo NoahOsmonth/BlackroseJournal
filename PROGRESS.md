@@ -2462,3 +2462,35 @@
   route-specific state parser; memory metadata is an exact safe DTO in both directions;
   catalog rows expose only `publicModelId`; and admin provider responses use exact safe
   display/discovery metadata shapes with no arbitrary JSON or authorization headers.
+
+## 2026-08-24 — AI control plane Task 3: gateway security primitives
+
+- Added dependency-injected Supabase access-token verification against bounded/cached JWKS
+  responses using Node cryptography. Verification requires an asymmetric supported
+  algorithm, exact key id, valid signature, issuer, authenticated audience/role, expiry,
+  and a non-empty subject; returned principals exclude user-controlled metadata.
+- Added an explicit `AdminAuthorizer` boundary backed by an administrative data owner rather
+  than JWT metadata, plus fail-closed managed-route authentication and origin guards. Managed
+  authentication now runs before JSON body parsing; existing legacy API-key routes remain
+  unchanged.
+- Added context-bound, versioned AES-256-GCM credential envelopes and an external
+  `MasterKeyProvider`; only key version and ciphertext envelope metadata are serializable.
+  Production startup rejects missing JWT/JWKS/master-key configuration.
+- Added recursive non-mutating redaction for prompts, message content, authorization values,
+  credentials, provider keys, JWTs, and error details.
+- Added HTTPS-only provider endpoint resolution that rejects credentials, fragments,
+  loopback/private/link-local/reserved/multicast IPv4 and IPv6, transition-address bypasses,
+  mixed public/private DNS answers, empty answers, and oversized answer sets. The result
+  includes all validated addresses for connection pinning by protocol adapters.
+- Added immutable hard request ceilings and bounded transient retry. At most three attempts
+  receive the same frozen route/model binding; permanent failures are never retried and total
+  retry time is capped.
+- TDD RED evidence: the first backend run failed all missing security-module imports and
+  showed managed paths returning 404; a follow-up real HTTP test failed 400 instead of 401
+  because JSON parsing preceded auth; an IPv6 transition-address probe was accepted. GREEN
+  changes were applied only after each observed failure.
+- Fresh verification: backend tests passed **12 suites / 31 tests**; root and backend
+  TypeScript passed; changed-file ESLint passed with zero errors; design validation passed
+  with zero errors and four unrelated existing near-limit warnings; `git diff --check`
+  passed. Full root ESLint remains blocked by four pre-existing UI errors in `BottomNav.tsx`
+  and `CustomModelSettingsSection.tsx`; no unrelated UI files were changed.

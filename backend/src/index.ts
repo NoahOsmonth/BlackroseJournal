@@ -4,6 +4,7 @@ import { createApp } from './app';
 import { loadConfig } from './config/ai';
 import { getServerConfig } from './config/serverConfig';
 import { createReadinessController } from './readiness';
+import { createManagedAccessFromEnvironment } from './security/securityConfig';
 import { registerChatWebSocket } from './ws/chatWebSocket';
 
 const readiness = createReadinessController({
@@ -17,8 +18,10 @@ const readiness = createReadinessController({
   },
 });
 const config = getServerConfig(readiness);
+const managedAccess = createManagedAccessFromEnvironment(process.env);
 const app = createApp({
   serverConfig: config,
+  managedAccess,
 });
 
 const server = http.createServer(app);
