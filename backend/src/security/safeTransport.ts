@@ -42,7 +42,24 @@ export interface SafeTransportOptions {
 }
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
-const SENSITIVE_HEADERS = new Set(['authorization', 'cookie', 'proxy-authorization']);
+const SENSITIVE_HEADER_TOKENS = new Set([
+  'apikey', 'auth', 'authentication', 'authorization', 'cookie',
+  'credential', 'credentials', 'key', 'password', 'secret', 'secrets',
+  'token', 'tokens',
+]);
+
+function identifierTokens(value: string): string[] {
+  return value
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+}
+
+function isCredentialHeader(name: string): boolean {
+  return identifierTokens(name).some((token) => SENSITIVE_HEADER_TOKENS.has(token));
+}
 
 function normalizeHeaders(headers: IncomingHttpHeaders): Record<string, string> {
   const output: Record<string, string> = {};
@@ -155,7 +172,7 @@ export async function requestSafeHttps(
         throw new Error('Safe transport cross-origin redirect limit exceeded.');
       }
       headers = Object.fromEntries(
-        Object.entries(headers).filter(([key]) => !SENSITIVE_HEADERS.has(key.toLowerCase())),
+        Object.entries(headers).filter(([key]) => !isCredentialHeader(key)),
       );
     }
     if (response.status === 303) {

@@ -65,4 +65,39 @@ describe('pinned SSRF-safe HTTPS transport', () => {
     }), /redirect limit/i);
     assert.equal(hopRequests, 2);
   });
+
+  it('removes every credential-bearing header before an allowed cross-origin redirect', async () => {
+    const seenHeaders: Array<Readonly<Record<string, string>>> = [];
+    await requestSafeHttps('https://api.example/start', {
+      lookup: async () => [{ address: '93.184.216.34', family: 4 }],
+      headers: {
+        Authorization: 'Bearer provider-secret',
+        apikey: 'provider-secret',
+        'X-API-Key': 'provider-secret',
+        'x-goog-api-key': 'provider-secret',
+        'x-provider-token': 'provider-secret',
+        'x-client-secret-value': 'provider-secret',
+        'custom-auth-header': 'provider-secret',
+        'x-api-version': '2026-08-24',
+        'x-safe-label': 'visible',
+      },
+      requestHop: async (request): Promise<SafeTransportResponse> => {
+        seenHeaders.push(request.headers);
+        if (seenHeaders.length === 1) {
+          return {
+            status: 302,
+            headers: { location: 'https://other.example/next' },
+            body: Buffer.alloc(0),
+          };
+        }
+        return { status: 200, headers: {}, body: Buffer.from('ok') };
+      },
+      maxCrossOriginRedirects: 1,
+    });
+
+    assert.deepEqual(seenHeaders[1], {
+      'x-api-version': '2026-08-24',
+      'x-safe-label': 'visible',
+    });
+  });
 });

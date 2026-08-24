@@ -206,4 +206,51 @@ describe('Supabase JWT verifier', () => {
     await assert.rejects(() => provider.getJwks(), AuthenticationError);
     assert.ok(pulls < 100, `expected bounded streaming reads, received ${pulls} chunks`);
   });
+
+  it('rate-limits unknown-kid refreshes and recovers after the rotation interval', async () => {
+    let requests = 0;
+    let rotated = false;
+    let now = Date.now();
+    const provider = createRemoteJwksProvider({
+      jwksUrl: `${ISSUER}/.well-known/jwks.json`,
+      cacheTtlMs: 60_000,
+      fetcher: async () => {
+        requests += 1;
+        return new Response(JSON.stringify({
+          keys: [{
+            ...publicJwk,
+            alg: 'RS256',
+            kid: rotated ? 'rotated-key' : KEY_ID,
+            key_ops: ['verify'],
+          }],
+        }), { status: 200 });
+      },
+    });
+    const verifier = createSupabaseJwtVerifier({
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      jwksProvider: provider,
+      clock: () => new Date(now),
+      unknownKidRefreshCooldownMs: 30_000,
+    });
+
+    await assert.rejects(
+      () => verifier.verify(signJwt(claims(), { alg: 'RS256', kid: 'forged-a' })),
+      AuthenticationError,
+    );
+    await assert.rejects(
+      () => verifier.verify(signJwt(claims(), { alg: 'RS256', kid: 'forged-b' })),
+      AuthenticationError,
+    );
+    assert.equal(requests, 2, 'one initial fetch and only one unknown-kid refresh');
+
+    rotated = true;
+    now += 30_001;
+    const principal = await verifier.verify(signJwt(claims(), {
+      alg: 'RS256',
+      kid: 'rotated-key',
+    }));
+    assert.equal(principal.userId, 'user-123');
+    assert.equal(requests, 3, 'rotation is fetched after the cooldown');
+  });
 });

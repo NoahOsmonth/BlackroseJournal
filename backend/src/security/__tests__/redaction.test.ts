@@ -62,4 +62,28 @@ describe('deep redaction', () => {
       safe: 'upstream included [REDACTED]',
     });
   });
+
+  it('redacts tokenized sensitive fields without matching innocent substrings', () => {
+    assert.deepEqual(redactSensitive({
+      secret_value: 'hidden',
+      token_expiry: 'hidden',
+      provider_key_value: 'hidden',
+      nestedClientSecretValue: 'hidden',
+      systemInstruction: 'hidden',
+      monkeyBusiness: 'visible',
+      hockeyScore: 'visible',
+      tokenizerVersion: 'visible',
+      secretaryName: 'visible',
+    }), {
+      secret_value: '[REDACTED]',
+      token_expiry: '[REDACTED]',
+      provider_key_value: '[REDACTED]',
+      nestedClientSecretValue: '[REDACTED]',
+      systemInstruction: '[REDACTED]',
+      monkeyBusiness: 'visible',
+      hockeyScore: 'visible',
+      tokenizerVersion: 'visible',
+      secretaryName: 'visible',
+    });
+  });
 });

@@ -2519,3 +2519,23 @@
   repository wiring then failed **1/4**, and exact issuer preservation failed **1/5** before
   their implementations. Fresh GREEN: backend **13 suites / 43 tests**, root/backend TypeScript,
   and scoped ESLint all passed.
+
+### Task 3 security review fix round 2
+
+- Unknown attacker-controlled JWT key ids can no longer invalidate and refetch JWKS on every
+  token. The verifier has a global refresh cooldown plus a bounded 128-entry negative-kid
+  cache; one refresh remains available after the policy interval for legitimate signing-key
+  rotation.
+- Allowed cross-origin provider redirects now tokenize header names and remove compact,
+  separator-based, camelCase, standard, and custom credential headers (`apikey`, API keys,
+  auth, token, secret, password, cookie, and credential forms). Non-credential metadata such
+  as `x-api-version` remains intact.
+- Deep redaction now tokenizes separators and camelCase boundaries. It catches
+  `secret_value`, `token_expiry`, `provider_key_value`, nested client-secret forms, and system
+  instructions while avoiding substring false positives such as `monkey`, `hockey`,
+  `tokenizer`, and `secretary`.
+- TDD RED: JWT refresh test **8/9 passed, 1 failed** (3 fetches vs allowed 2); safe transport
+  **2/3 passed, 1 failed** (seven credential headers forwarded); redaction **3/4 passed,
+  1 failed** (four boundary fields leaked). Follow-up anti-over-redaction/preservation probes
+  each failed **1/3** and **1/4** before refinement. GREEN: backend **13 suites / 46 tests**,
+  backend/root TypeScript, scoped ESLint, and `git diff --check` passed.

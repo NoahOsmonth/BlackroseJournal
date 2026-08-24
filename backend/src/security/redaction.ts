@@ -1,10 +1,9 @@
 const REDACTED = '[REDACTED]';
-const SENSITIVE_NAMES = [
-  'authorization', 'authorizationheader', 'cookie', 'credential', 'credentials',
-  'secret', 'clientsecret', 'token', 'accesstoken', 'refreshtoken', 'apikey',
-  'providerkey', 'password', 'prompt', 'inputprompt', 'message', 'messages',
-  'content', 'systeminstruction',
-] as const;
+const SENSITIVE_TOKENS = new Set([
+  'apikey', 'authorization', 'cookie', 'credential', 'credentials', 'content',
+  'key', 'message', 'messages', 'password', 'prompt', 'secret', 'secrets',
+  'systeminstruction', 'token', 'tokens',
+]);
 const STRING_PATTERNS: RegExp[] = [
   /\bBearer\s+[A-Za-z0-9._~+\/-]+=*/gi,
   /\bsk-(?:or-v1-|nano-)?[A-Za-z0-9_-]{12,}\b/g,
@@ -12,8 +11,14 @@ const STRING_PATTERNS: RegExp[] = [
 ];
 
 function isSensitiveKey(key: string): boolean {
-  const normalized = key.replace(/[^a-z0-9]/gi, '').toLowerCase();
-  return SENSITIVE_NAMES.some((name) => normalized === name || normalized.endsWith(name));
+  const tokens = key
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+  return tokens.some((token) => SENSITIVE_TOKENS.has(token))
+    || tokens.some((token, index) => token === 'system' && tokens[index + 1] === 'instruction');
 }
 
 function redactString(value: string, opaqueSecrets: readonly string[]): string {

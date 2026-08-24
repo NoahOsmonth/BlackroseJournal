@@ -65,6 +65,7 @@ export interface SupabaseJwtVerifierOptions {
   jwksProvider: JwksProvider;
   clock?: () => Date;
   clockSkewSeconds?: number;
+  unknownKidRefreshCooldownMs?: number;
 }
 
 const MAX_TOKEN_BYTES = 16 * 1024;
@@ -156,6 +157,20 @@ export function createSupabaseJwtVerifier(
 ): AccessTokenVerifier {
   const issuer = options.issuer;
   const clockSkewSeconds = Math.max(0, Math.min(options.clockSkewSeconds ?? 0, 60));
+  const unknownKidRefreshCooldownMs = Math.max(
+    1_000,
+    Math.min(options.unknownKidRefreshCooldownMs ?? 60_000, 10 * 60_000),
+  );
+  const negativeKids = new Map<string, number>();
+  let nextUnknownKidRefreshAt = 0;
+
+  const rememberUnknownKid = (kid: string, expiresAt: number): void => {
+    if (negativeKids.size >= 128) {
+      const oldest = negativeKids.keys().next().value;
+      if (typeof oldest === 'string') negativeKids.delete(oldest);
+    }
+    negativeKids.set(kid, expiresAt);
+  };
   return {
     async verify(token: string): Promise<AuthenticatedPrincipal> {
       if (!token || Buffer.byteLength(token, 'utf8') > MAX_TOKEN_BYTES) {
@@ -171,14 +186,26 @@ export function createSupabaseJwtVerifier(
         throw new AuthenticationError();
       });
       let jwk = jwks.keys.find((item) => item.kid === header.kid);
-      if (!jwk && options.jwksProvider.invalidate) {
+      const refreshNow = (options.clock?.() ?? new Date()).getTime();
+      const negativeUntil = negativeKids.get(header.kid) ?? 0;
+      if (
+        !jwk
+        && options.jwksProvider.invalidate
+        && negativeUntil <= refreshNow
+        && refreshNow >= nextUnknownKidRefreshAt
+      ) {
+        nextUnknownKidRefreshAt = refreshNow + unknownKidRefreshCooldownMs;
         options.jwksProvider.invalidate();
         jwks = await options.jwksProvider.getJwks().catch(() => {
           throw new AuthenticationError();
         });
         jwk = jwks.keys.find((item) => item.kid === header.kid);
       }
-      if (!jwk) throw new AuthenticationError();
+      if (!jwk) {
+        rememberUnknownKid(header.kid, refreshNow + unknownKidRefreshCooldownMs);
+        throw new AuthenticationError();
+      }
+      negativeKids.delete(header.kid);
       let signature: Buffer;
       try {
         signature = Buffer.from(parts[2], 'base64url');
