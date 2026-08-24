@@ -33,11 +33,18 @@ jest.mock('../../services/supabase/syncQueue', () => ({
 import { renderHook, act, waitFor, cleanup } from '@testing-library/react-native';
 import { useGoalsContext } from '../../hooks/goals/useGoalsContext';
 import { createGoal } from '../../services/goals/goalsStorage';
+import { activateAccount, clearActiveAccount } from '../../services/account/accountRuntime';
 
 describe('useGoalsContext', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
         mockAsyncStorageStore.clear();
         cleanup();
+        await activateAccount('goals-context-user');
+    });
+
+    afterEach(async () => {
+        cleanup();
+        await clearActiveAccount();
     });
 
     it('starts loading and returns undefined context until goals load', async () => {

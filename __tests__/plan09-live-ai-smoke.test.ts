@@ -31,6 +31,8 @@ import {
     saveIntentionChatDraft,
 } from '../services/intentions/intentionChatCompletion';
 import { generateEntryTitle } from '../services/ai';
+import { activateAccount, clearActiveAccount } from '../services/account/accountRuntime';
+import { getAccountScopedStorageKey } from '../services/account/accountScopedStorage';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_AGENT_BASE_URL ?? 'http://localhost:8787';
 
@@ -47,6 +49,11 @@ async function backendUp(): Promise<boolean> {
 describe('Live AI title generation (Plan 09 Phase B)', () => {
     beforeEach(async () => {
         await AsyncStorage.clear();
+        await activateAccount('live-ai-user');
+    });
+
+    afterEach(async () => {
+        await clearActiveAccount();
     });
 
     it('returns a real AI title for the morning flow', async () => {
@@ -77,7 +84,9 @@ describe('Live AI title generation (Plan 09 Phase B)', () => {
             title,
         });
 
-        const stored = JSON.parse((await AsyncStorage.getItem('@intention_checkins')) ?? '{}');
+        const stored = JSON.parse((await AsyncStorage.getItem(
+            getAccountScopedStorageKey('@intention_checkins')
+        )) ?? '{}');
         const checkIns = Object.values(stored) as { type: string; title: string; status: string }[];
         const morning = checkIns.find((c) => c.type === 'morning');
         expect(morning).toBeDefined();
@@ -109,7 +118,9 @@ describe('Live AI title generation (Plan 09 Phase B)', () => {
             title,
         });
 
-        const stored = JSON.parse((await AsyncStorage.getItem('@intention_checkins')) ?? '{}');
+        const stored = JSON.parse((await AsyncStorage.getItem(
+            getAccountScopedStorageKey('@intention_checkins')
+        )) ?? '{}');
         const checkIns = Object.values(stored) as { type: string; title: string }[];
         const evening = checkIns.find((c) => c.type === 'evening');
         expect(evening).toBeDefined();
@@ -130,7 +141,9 @@ describe('Live AI title generation (Plan 09 Phase B)', () => {
             title: undefined, // simulate AI failure
         });
 
-        const stored = JSON.parse((await AsyncStorage.getItem('@intention_checkins')) ?? '{}');
+        const stored = JSON.parse((await AsyncStorage.getItem(
+            getAccountScopedStorageKey('@intention_checkins')
+        )) ?? '{}');
         const checkIns = Object.values(stored) as { type: string; title: string }[];
         const morning = checkIns.find((c) => c.type === 'morning');
         expect(morning).toBeDefined();
@@ -148,7 +161,9 @@ describe('Live AI title generation (Plan 09 Phase B)', () => {
         });
 
         expect(draftId).toBeTruthy();
-        const stored = JSON.parse((await AsyncStorage.getItem('@intention_checkins')) ?? '{}');
+        const stored = JSON.parse((await AsyncStorage.getItem(
+            getAccountScopedStorageKey('@intention_checkins')
+        )) ?? '{}');
         const draft = stored[draftId as string];
         expect(draft).toBeDefined();
         expect(draft.status).toBe('draft');

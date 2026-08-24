@@ -33,6 +33,8 @@ import {
     resetSessionDigestStorageAdapter,
     setSessionDigestStorageAdapter,
 } from '../services/memory/sessionDigestStorage';
+import { activateAccount, clearActiveAccount } from '../services/account/accountRuntime';
+import { getAccountScopedStorageKey } from '../services/account/accountScopedStorage';
 
 function sessionDigestAdapter() {
     return {
@@ -53,21 +55,23 @@ function sessionDigestAdapter() {
 }
 
 describe('localBackup', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
         mockStore.clear();
         setSessionDigestStorageAdapter(sessionDigestAdapter());
+        await activateAccount('backup-user');
         jest.useFakeTimers();
         jest.setSystemTime(new Date('2026-02-06T12:00:00Z'));
     });
 
-    afterEach(() => {
+    afterEach(async () => {
+        await clearActiveAccount();
         resetSessionDigestStorageAdapter();
         jest.useRealTimers();
     });
 
     it('creates an on-device backup from existing local data', async () => {
-        mockStore.set('@journal_entries', '{"entry-1":{"title":"Morning"}}');
-        mockStore.set('@goals', '{"goal-1":{"title":"Walk"}}');
+        mockStore.set(getAccountScopedStorageKey('@journal_entries'), '{"entry-1":{"title":"Morning"}}');
+        mockStore.set(getAccountScopedStorageKey('@goals'), '{"goal-1":{"title":"Walk"}}');
         mockStore.set('@ai_response_feedback', '{"feedback-1":{"value":"up"}}');
         mockStore.set('@rosebud_local_memory', '{"memory-1":{"title":"Rest"}}');
         mockStore.set('@blackrose_custom_ai_provider', '{"enabled":true}');
@@ -82,16 +86,18 @@ describe('localBackup', () => {
     });
 
     it('restores a backup and removes local keys absent from the snapshot', async () => {
-        mockStore.set('@journal_entries', '{"entry-1":{"title":"Morning"}}');
+        const journalKey = getAccountScopedStorageKey('@journal_entries');
+        const goalsKey = getAccountScopedStorageKey('@goals');
+        mockStore.set(journalKey, '{"entry-1":{"title":"Morning"}}');
         const backup = await createLocalBackup('Before edits');
-        mockStore.set('@journal_entries', '{"entry-1":{"title":"Changed"}}');
-        mockStore.set('@goals', '{"goal-1":{"title":"Temporary"}}');
+        mockStore.set(journalKey, '{"entry-1":{"title":"Changed"}}');
+        mockStore.set(goalsKey, '{"goal-1":{"title":"Temporary"}}');
 
         const result = await restoreLocalBackup(backup.id);
 
         expect(result.status).toBe('restored');
-        expect(mockStore.get('@journal_entries')).toBe('{"entry-1":{"title":"Morning"}}');
-        expect(mockStore.has('@goals')).toBe(false);
+        expect(mockStore.get(journalKey)).toBe('{"entry-1":{"title":"Morning"}}');
+        expect(mockStore.has(goalsKey)).toBe(false);
     });
 
     it('handles corrupt backup metadata as missing backup data', async () => {

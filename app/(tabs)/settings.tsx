@@ -29,6 +29,7 @@ import {
     memorySummary,
 } from '@/components/settings';
 import { useAuthSession } from '@/hooks/auth/useAuthSession';
+import { useAuthActions } from '@/hooks/auth/useAuthActions';
 import { useLocalBackups } from '@/hooks/backup/useLocalBackups';
 import { useIdentityProfile } from '@/hooks/memory/useIdentityProfile';
 import { useLocalMemories } from '@/hooks/memory/useLocalMemories';
@@ -36,7 +37,6 @@ import { useCustomAiModels } from '@/hooks/settings/useCustomAiModels';
 import { useGenerationSettings } from '@/hooks/settings/useGenerationSettings';
 import { useTabNavigation } from '@/hooks/navigation/useTabNavigation';
 import { useThemeSettings } from '@/hooks/useThemeSettings';
-import { signOut } from '@/services/auth/authService';
 import { useClearJournalHistory } from '@/hooks/journal/useClearJournalHistory';
 import { useJournalExport } from '@/hooks/journal/useJournalExport';
 import { useSeedDemoData } from '@/hooks/seed/useSeedDemoData';
@@ -61,6 +61,7 @@ export default function SettingsScreen() {
         resetColorTheme,
     } = useThemeSettings();
     const { user, isLoading: isAuthLoading } = useAuthSession();
+    const { signOut } = useAuthActions();
     const { latestBackup, isBusy, createBackup, restoreBackup } = useLocalBackups();
     const memory = useLocalMemories();
     const identity = useIdentityProfile();

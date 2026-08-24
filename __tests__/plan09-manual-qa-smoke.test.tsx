@@ -42,6 +42,8 @@ import {
 import { saveJournalEntryMemories } from '../services/memory/localMemory';
 import { generateEntryTitle } from '../services/ai';
 import type { JournalEntry } from '../services/journal/journalStorage.types';
+import { activateAccount, clearActiveAccount } from '../services/account/accountRuntime';
+import { getAccountScopedStorageKey } from '../services/account/accountScopedStorage';
 
 const store = (AsyncStorage as unknown as { __getStore: () => Map<string, string> }).__getStore();
 const clearStore = (AsyncStorage as unknown as { __clear: () => void }).__clear;
@@ -63,8 +65,13 @@ async function realGenerateEntryTitle(entryText: string): Promise<string> {
 }
 
 describe('Plan 09 manual-QA smoke test', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
         clearStore();
+        await activateAccount('manual-qa-user');
+    });
+
+    afterEach(async () => {
+        await clearActiveAccount();
     });
 
     it('QA1-QA3: goals CRUD produces the right gaps and survives reload', async () => {
@@ -86,7 +93,7 @@ describe('Plan 09 manual-QA smoke test', () => {
         expect(goals.some((g) => g.title === 'Stretch before bed' && g.type === 'habit')).toBe(true);
 
         // Re-read from the storage layer to confirm persistence
-        const stored = JSON.parse(store.get('@goals') ?? '{}');
+        const stored = JSON.parse(store.get(getAccountScopedStorageKey('@goals')) ?? '{}');
         expect(Object.keys(stored).length).toBe(3);
     });
 
@@ -187,7 +194,7 @@ describe('Plan 09 manual-QA smoke test', () => {
         });
 
         expect(draftId).toBeTruthy();
-        const stored = JSON.parse(store.get('@intention_checkins') ?? '{}');
+        const stored = JSON.parse(store.get(getAccountScopedStorageKey('@intention_checkins')) ?? '{}');
         const draft = stored[draftId as string];
         expect(draft).toBeDefined();
         expect(draft.status).toBe('draft');
@@ -219,8 +226,8 @@ describe('Plan 09 manual-QA smoke test', () => {
         const map = {
             [journalEntry.id]: journalEntry,
         };
-        store.set('@journal_entries', JSON.stringify(map));
-        const rehydrated = JSON.parse(store.get('@journal_entries') ?? '{}');
+        store.set(getAccountScopedStorageKey('@journal_entries'), JSON.stringify(map));
+        const rehydrated = JSON.parse(store.get(getAccountScopedStorageKey('@journal_entries')) ?? '{}');
         expect(rehydrated[journalEntry.id].title).toBe('A calm morning');
         expect(rehydrated[journalEntry.id].messages[0].content).toContain('slow mornings');
     });

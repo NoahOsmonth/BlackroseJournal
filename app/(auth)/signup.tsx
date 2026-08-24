@@ -1,4 +1,4 @@
-import { signUpWithEmail } from '@/services/auth/authService';
+import { useAuthActions } from '@/hooks/auth/useAuthActions';
 import { AuthFormSkeleton } from '@/components/auth/AuthFormSkeleton';
 import { useAuthSession } from '@/hooks/auth/useAuthSession';
 import { useRouter } from 'expo-router';
@@ -17,6 +17,7 @@ function FieldLabel({ text }: { text: string }) {
 export default function SignupScreen() {
     const router = useRouter();
     const { isLoading } = useAuthSession();
+    const { signUp } = useAuthActions();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -46,7 +47,7 @@ export default function SignupScreen() {
         setStatus(null);
 
         try {
-            await signUpWithEmail(trimmedEmail, password);
+            await signUp(trimmedEmail, password);
             setStatus({
                 type: 'success',
                 message: 'Account created. Check your email to verify, then sign in.',
@@ -57,13 +58,13 @@ export default function SignupScreen() {
         } finally {
             setIsSubmitting(false);
         }
-    }, [email, password, confirmPassword, isSubmitting]);
+    }, [email, password, confirmPassword, isSubmitting, signUp]);
 
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
             <View className="flex-1 max-w-md mx-auto w-full px-6 pt-6">
                 <Pressable onPress={() => router.back()} className="mb-4">
-                    <Text className="text-sm text-primary font-semibold">Back</Text>
+                    <Text className="text-sm text-primary font-semibold dark:text-primary">Back</Text>
                 </Pressable>
 
                 <Text className="text-3xl font-serif font-bold text-text-light dark:text-text-dark">
@@ -133,7 +134,7 @@ export default function SignupScreen() {
                         disabled={isSubmitting}
                         className={`mt-5 rounded-xl py-3 ${isSubmitting ? 'bg-primary/70' : 'bg-primary'}`}
                     >
-                        <Text className="text-white font-semibold text-center">
+                        <Text className="text-white font-semibold text-center dark:text-white">
                             {isSubmitting ? 'Creating account...' : 'Create account'}
                         </Text>
                     </Pressable>
@@ -143,7 +144,7 @@ export default function SignupScreen() {
                             Already have an account?{' '}
                         </Text>
                         <Pressable onPress={() => router.replace('/login')}>
-                            <Text className="text-sm text-primary font-semibold">Sign in</Text>
+                            <Text className="text-sm text-primary font-semibold dark:text-primary">Sign in</Text>
                         </Pressable>
                     </View>
                 </View>

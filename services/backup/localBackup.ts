@@ -19,6 +19,7 @@ import {
     SESSION_DIGEST_SCHEMA_VERSION,
 } from '@/services/memory/sessionDigestStorage';
 import type { SessionDigest } from '@/services/memory/sessionDigest.types';
+import { getAccountScopedStorageKey } from '@/services/account/accountScopedStorage';
 
 export const LOCAL_BACKUP_INDEX_KEY = '@blackrose_local_backups';
 
@@ -51,6 +52,19 @@ export const LOCAL_BACKUP_DATA_KEYS = [
 ] as const;
 
 export type LocalBackupDataKey = typeof LOCAL_BACKUP_DATA_KEYS[number];
+
+const ACCOUNT_SCOPED_BACKUP_KEYS = new Set<LocalBackupDataKey>([
+    '@journal_entries',
+    '@intentions',
+    '@intention_checkins',
+    '@goals',
+]);
+
+function resolveBackupStorageKey(key: LocalBackupDataKey): string {
+    return ACCOUNT_SCOPED_BACKUP_KEYS.has(key)
+        ? getAccountScopedStorageKey(key)
+        : key;
+}
 
 export interface LocalBackupManifest {
     readonly id: string;
@@ -247,7 +261,7 @@ async function readBackupItem(
     }
     return {
         key,
-        value: await AsyncStorage.getItem(key),
+        value: await AsyncStorage.getItem(resolveBackupStorageKey(key)),
     };
 }
 
@@ -301,10 +315,10 @@ export async function restoreLocalBackup(
             return;
         }
         if (!item || item.value === null) {
-            await AsyncStorage.removeItem(key);
+            await AsyncStorage.removeItem(resolveBackupStorageKey(key));
             return;
         }
-        await AsyncStorage.setItem(key, item.value);
+        await AsyncStorage.setItem(resolveBackupStorageKey(key), item.value);
     }));
 
     return { status: 'restored', restoredKeys: backup.itemCount };

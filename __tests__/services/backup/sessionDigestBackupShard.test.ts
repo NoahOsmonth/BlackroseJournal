@@ -46,6 +46,7 @@ import {
     upsertSessionDigest,
 } from '../../../services/memory/sessionDigestStorage';
 import type { SessionDigest } from '../../../services/memory/sessionDigest.types';
+import { activateAccount, clearActiveAccount } from '../../../services/account/accountRuntime';
 
 function adapterFromMockStore() {
     return {
@@ -81,12 +82,14 @@ function makeDigest(i: number): SessionDigest {
 }
 
 describe('session digest backup stays sharded', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
         mockStore.clear();
         setSessionDigestStorageAdapter(adapterFromMockStore());
+        await activateAccount('backup-user');
     });
 
-    afterEach(() => {
+    afterEach(async () => {
+        await clearActiveAccount();
         resetSessionDigestStorageAdapter();
         mockStore.clear();
     });

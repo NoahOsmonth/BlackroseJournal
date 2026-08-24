@@ -64,10 +64,16 @@ import {
     listSavedInsights,
     createSavedInsight,
 } from '../../services/saved-insights/savedInsightsStorage';
+import { activateAccount, clearActiveAccount } from '../../services/account/accountRuntime';
 
 describe('useClearJournalHistory', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
         mockAsyncStorageStore.clear();
+        await activateAccount('clear-history-user');
+    });
+
+    afterEach(async () => {
+        await clearActiveAccount();
     });
 
     it('clears journal entries, intention check-ins, memories, chat sessions, insights, and saved insights', async () => {

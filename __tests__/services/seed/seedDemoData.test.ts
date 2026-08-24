@@ -67,14 +67,17 @@ import { listCheckIns, listIntentions } from '../../../services/intentions/inten
 import { listGoals } from '../../../services/goals/goalsStorage';
 import { listMemoryAtoms } from '../../../services/memory/localMemory';
 import { getLocalDateKey } from '../../../utils/date';
+import { activateAccount, clearActiveAccount } from '../../../services/account/accountRuntime';
 
 describe('seedDemoData', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
         mockStore.clear();
         setDemoSeedEnabledForTests(true);
+        await activateAccount('seed-user');
     });
 
-    afterEach(() => {
+    afterEach(async () => {
+        await clearActiveAccount();
         setDemoSeedEnabledForTests(null);
     });
 

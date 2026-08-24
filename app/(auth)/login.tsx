@@ -1,5 +1,5 @@
 import { useAuthSession } from '@/hooks/auth/useAuthSession';
-import { signInWithEmail } from '@/services/auth/authService';
+import { useAuthActions } from '@/hooks/auth/useAuthActions';
 import { AuthFormSkeleton } from '@/components/auth/AuthFormSkeleton';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
@@ -17,6 +17,7 @@ function FieldLabel({ text }: { text: string }) {
 export default function LoginScreen() {
     const router = useRouter();
     const { user, isLoading } = useAuthSession();
+    const { signIn } = useAuthActions();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [status, setStatus] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
@@ -37,7 +38,7 @@ export default function LoginScreen() {
         setStatus(null);
 
         try {
-            await signInWithEmail(trimmedEmail, password);
+            await signIn(trimmedEmail, password);
             setStatus({ type: 'success', message: 'Signed in successfully.' });
             router.replace('/(tabs)/settings');
         } catch (error) {
@@ -46,13 +47,13 @@ export default function LoginScreen() {
         } finally {
             setIsSubmitting(false);
         }
-    }, [email, password, isSubmitting, router]);
+    }, [email, password, isSubmitting, router, signIn]);
 
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
             <View className="flex-1 max-w-md mx-auto w-full px-6 pt-6">
                 <Pressable onPress={() => router.back()} className="mb-4">
-                    <Text className="text-sm text-primary font-semibold">Back</Text>
+                    <Text className="text-sm text-primary font-semibold dark:text-primary">Back</Text>
                 </Pressable>
 
                 <Text className="text-3xl font-serif font-bold text-text-light dark:text-text-dark">
@@ -78,7 +79,7 @@ export default function LoginScreen() {
                                 onPress={() => router.replace('/(tabs)/settings')}
                                 className="mt-4 bg-primary rounded-xl py-3"
                             >
-                                <Text className="text-white font-semibold text-center">Go to Settings</Text>
+                                <Text className="text-white font-semibold text-center dark:text-white">Go to Settings</Text>
                             </Pressable>
                         </View>
                     ) : (
@@ -126,7 +127,7 @@ export default function LoginScreen() {
                                 disabled={isSubmitting}
                                 className={`mt-5 rounded-xl py-3 ${isSubmitting ? 'bg-primary/70' : 'bg-primary'}`}
                             >
-                                <Text className="text-white font-semibold text-center">
+                                <Text className="text-white font-semibold text-center dark:text-white">
                                     {isSubmitting ? 'Signing in...' : 'Sign in'}
                                 </Text>
                             </Pressable>
@@ -135,7 +136,7 @@ export default function LoginScreen() {
                                 onPress={() => router.push('/forgot-password')}
                                 className="mt-4"
                             >
-                                <Text className="text-sm text-primary font-semibold text-center">
+                                <Text className="text-sm text-primary font-semibold text-center dark:text-primary">
                                     Forgot password?
                                 </Text>
                             </Pressable>
@@ -145,7 +146,7 @@ export default function LoginScreen() {
                                     New here?{' '}
                                 </Text>
                                 <Pressable onPress={() => router.push('/signup')}>
-                                    <Text className="text-sm text-primary font-semibold">Create account</Text>
+                                    <Text className="text-sm text-primary font-semibold dark:text-primary">Create account</Text>
                                 </Pressable>
                             </View>
                         </View>
