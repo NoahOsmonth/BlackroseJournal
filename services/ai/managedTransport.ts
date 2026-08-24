@@ -200,10 +200,17 @@ function toolCallsJson(accumulator: EventAccumulator): unknown[] | undefined {
 function normalizedErrorResponse(event: EventAccumulator['error']): Response {
     const error = event?.error;
     const status = error?.status && error.status >= 400 && error.status <= 599 ? error.status : 502;
-    return Response.json({ error: {
+    return jsonResponse({ error: {
         type: error?.code ?? 'upstream_error',
         message: error?.message ?? 'Managed AI request failed.',
-    } }, { status });
+    } }, status);
+}
+
+function jsonResponse(value: unknown, status = 200): Response {
+    return new Response(JSON.stringify(value), {
+        status,
+        headers: { 'content-type': 'application/json' },
+    });
 }
 
 function convertNonStreamingEvents(raw: unknown): Response {
@@ -213,7 +220,7 @@ function convertNonStreamingEvents(raw: unknown): Response {
     for (const rawEvent of rawEvents) appendEvent(accumulator, parseNormalizedInferenceEvent(rawEvent));
     if (accumulator.error) return normalizedErrorResponse(accumulator.error);
     const toolCalls = toolCallsJson(accumulator);
-    return Response.json({
+    return jsonResponse({
         choices: [{
             message: {
                 content: accumulator.content,
@@ -256,13 +263,37 @@ export function managedEventToOpenAiSse(event: NormalizedInferenceEvent): string
     } })}\n\n`;
 }
 
-function convertSseResponse(response: Response): Response {
+function convertManagedSseLine(line: string): string {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('data:')) return '';
+    const data = trimmed.slice(5).trim();
+    if (data === '[DONE]') return 'data: [DONE]\n\n';
+    if (!data) return '';
+    try {
+        return managedEventToOpenAiSse(parseNormalizedInferenceEvent(JSON.parse(data)));
+    } catch {
+        return '';
+    }
+}
+
+async function convertSseResponse(response: Response): Promise<Response> {
     if (!response.body) return response;
+    if (typeof globalThis.ReadableStream !== 'function') {
+        const transcript = await response.text();
+        const converted = transcript.split(/\r?\n/)
+            .map(convertManagedSseLine)
+            .join('');
+        return new Response(converted, {
+            status: response.status,
+            statusText: response.statusText,
+            headers: { 'content-type': 'text/event-stream' },
+        });
+    }
     const reader = response.body.getReader();
     const decoder = new TextDecoder('utf-8');
     const encoder = new TextEncoder();
     let buffer = '';
-    const body = new ReadableStream<Uint8Array>({
+    const body = new globalThis.ReadableStream<Uint8Array>({
         async pull(controller) {
             while (true) {
                 const { done, value } = await reader.read();
@@ -284,26 +315,15 @@ function convertSseResponse(response: Response): Response {
         },
     });
     function processLine(line: string, controller: ReadableStreamDefaultController<Uint8Array>): boolean {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith('data:')) return false;
-        const data = trimmed.slice(5).trim();
-        if (data === '[DONE]') {
-            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-            return true;
-        }
-        if (!data) return false;
-        try {
-            const event = parseNormalizedInferenceEvent(JSON.parse(data));
-            controller.enqueue(encoder.encode(managedEventToOpenAiSse(event)));
-            return true;
-        } catch {
-            return false;
-        }
+        const converted = convertManagedSseLine(line);
+        if (!converted) return false;
+        controller.enqueue(encoder.encode(converted));
+        return true;
     }
     return new Response(body, {
         status: response.status,
         statusText: response.statusText,
-        headers: { ...Object.fromEntries(response.headers.entries()), 'content-type': 'text/event-stream' },
+        headers: { 'content-type': 'text/event-stream' },
     });
 }
 
@@ -319,7 +339,7 @@ export async function fetchManagedChatCompletion(
         ...(options.signal ? { signal: options.signal } : {}),
     });
     if (!response.ok) return response;
-    if (payload.stream) return convertSseResponse(response);
+    if (payload.stream) return await convertSseResponse(response);
     const raw = await response.json();
     return convertNonStreamingEvents(raw);
 }

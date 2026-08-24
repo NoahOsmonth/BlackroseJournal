@@ -109,4 +109,22 @@ describe('managedTransport', () => {
         expect(text).toContain('"finish_reason":"stop"');
         expect(text).toContain('data: [DONE]');
     });
+
+    it('converts a buffered SSE fallback when the runtime has no global Web Stream constructor', async () => {
+        const upstream = new Response([
+            'data: {"type":"text_delta","text":"Hi"}',
+            'data: {"type":"completion","reason":"stop"}',
+            'data: [DONE]',
+            '',
+        ].join('\n'), { headers: { 'content-type': 'text/event-stream' } });
+        global.fetch = jest.fn(async () => upstream) as unknown as typeof fetch;
+        const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'ReadableStream');
+        Object.defineProperty(globalThis, 'ReadableStream', { configurable: true, value: undefined });
+        try {
+            const response = await fetchManagedChatCompletion({ ...payload, stream: true });
+            await expect(response.text()).resolves.toContain('"content":"Hi"');
+        } finally {
+            if (descriptor) Object.defineProperty(globalThis, 'ReadableStream', descriptor);
+        }
+    });
 });
