@@ -1,5 +1,5 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import { Stack, useSegments } from 'expo-router';
 import { TransitionProvider } from 'expo-transition-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -44,6 +44,7 @@ SplashScreen.preventAutoHideAsync().catch(() => { });
 export default function RootLayout() {
     useThemeSettings();
     const auth = useAuthSession();
+    const segments = useSegments();
     const colorScheme = useColorScheme();
     const [appReady, setAppReady] = useState(false);
 
@@ -110,11 +111,17 @@ export default function RootLayout() {
                 <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
                     <AppErrorBoundary>
                         <SupabaseStatusBanner />
-                        <LegacyDataOwnershipGate accountId={auth.user?.id ?? null}>
-                                <TransitionProvider>
-                                    <Stack screenOptions={{ headerShown: false }}>
-                                        <Stack.Screen name="(auth)" />
-                                        <Stack.Protected guard={auth.isAuthenticated}>
+                        <LegacyDataOwnershipGate
+                            accountId={auth.user?.id ?? null}
+                            enabled={segments[0] !== '(auth)'}
+                        >
+                            <TransitionProvider>
+                                <Stack screenOptions={{ headerShown: false }}>
+                                    <Stack.Screen name="(auth)" />
+                                    <Stack.Protected
+                                        key={auth.user?.id ?? 'signed-out'}
+                                        guard={auth.isAuthenticated}
+                                    >
                                         <Stack.Screen name="index" />
                                         <Stack.Screen name="(tabs)" />
                                         <Stack.Screen name="chat" />

@@ -104,6 +104,18 @@ describe('useGoalsContext', () => {
         await waitFor(() => expect(result.current.goalsContext).toContain('- Auto-updated goal (Goal)'));
     });
 
+    it('rebinds to the next account after an account switch', async () => {
+        await createGoal({ title: 'User A goal', type: 'goal' });
+        const { result } = renderHook(() => useGoalsContext());
+        await waitFor(() => expect(result.current.goalsContext).toContain('User A goal'));
+
+        await act(async () => {
+            await activateAccount('user-b');
+        });
+
+        await waitFor(() => expect(result.current.goalsContext).toBeUndefined());
+    });
+
     it('prioritizes goals linked to the provided intentionId', async () => {
         await act(async () => {
             await createGoal({ title: 'Linked goal', type: 'goal', intentionId: 'int-1' });

@@ -453,6 +453,31 @@ export async function hasLegacyIntentions(): Promise<boolean> {
     return intentions !== null || checkIns !== null;
 }
 
+async function importSnapshot<T>(key: string, value: string | null): Promise<void> {
+    if (value === null) {
+        await AsyncStorage.removeItem(getAccountScopedStorageKey(key));
+        return;
+    }
+    let items: Record<string, T> = {};
+    try {
+        const parsed = JSON.parse(value) as unknown;
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            items = parsed as Record<string, T>;
+        }
+    } catch {
+        // Corrupt backup payload restores the owner's safe empty default.
+    }
+    await saveMap(key, items);
+}
+
+export function importIntentionsSnapshot(value: string | null): Promise<void> {
+    return withMutationLock(() => importSnapshot<Intention>(INTENTIONS_KEY, value));
+}
+
+export function importCheckInsSnapshot(value: string | null): Promise<void> {
+    return withMutationLock(() => importSnapshot<IntentionCheckIn>(CHECKINS_KEY, value));
+}
+
 registerAccountTeardown(async () => {
     await mutationQueue;
     await Promise.all([

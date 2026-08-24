@@ -6,12 +6,26 @@ import { LoadingBar } from '@/components/ui/LoadingBar';
 
 interface LegacyDataOwnershipGateProps extends PropsWithChildren {
     readonly accountId: string | null;
+    readonly enabled?: boolean;
 }
 
 export function LegacyDataOwnershipGate({
     accountId,
     children,
+    enabled = true,
 }: LegacyDataOwnershipGateProps) {
+    if (!enabled) return children;
+    return (
+        <ActiveLegacyDataOwnershipGate accountId={accountId}>
+            {children}
+        </ActiveLegacyDataOwnershipGate>
+    );
+}
+
+function ActiveLegacyDataOwnershipGate({
+    accountId,
+    children,
+}: Omit<LegacyDataOwnershipGateProps, 'enabled'>) {
     const migration = useLegacyDataOwnership(accountId);
 
     if (!accountId || (!migration.isChecking && !migration.needsConfirmation)) {

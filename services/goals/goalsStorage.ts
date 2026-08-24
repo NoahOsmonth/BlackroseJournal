@@ -306,6 +306,26 @@ export async function hasLegacyGoals(): Promise<boolean> {
     return (await AsyncStorage.getItem(GOALS_KEY)) !== null;
 }
 
+export function importGoalsSnapshot(value: string | null): Promise<void> {
+    return withMutationLock(async () => {
+        if (value === null) {
+            await AsyncStorage.removeItem(getAccountScopedStorageKey(GOALS_KEY));
+        } else {
+            let goals: Record<string, GoalItem> = {};
+            try {
+                const parsed = JSON.parse(value) as unknown;
+                if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                    goals = parsed as Record<string, GoalItem>;
+                }
+            } catch {
+                // Corrupt backup payload restores the owner's safe empty default.
+            }
+            await saveGoalsMap(goals);
+        }
+        notifyGoalsChanges();
+    });
+}
+
 registerAccountTeardown(async () => {
     await mutationQueue;
     if (syncPromise) {
@@ -314,5 +334,4 @@ registerAccountTeardown(async () => {
     hasPulledRemote = false;
     hasPushedLocal = false;
     syncPromise = null;
-    goalsChangeListeners.clear();
 });

@@ -216,6 +216,10 @@ export default function SettingsScreen() {
                 Alert.alert('Backup missing', 'The selected local backup could not be found.');
                 return;
             }
+            if (result.status === 'account-mismatch') {
+                Alert.alert('Backup unavailable', 'This backup belongs to a different account.');
+                return;
+            }
             Alert.alert('Backup restored', `${result.restoredKeys} local data groups restored.`);
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Failed to restore backup.';

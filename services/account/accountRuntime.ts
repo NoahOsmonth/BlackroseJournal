@@ -1,8 +1,10 @@
 export type AccountTeardown = () => void | Promise<void>;
+export type AccountChangeListener = (accountId: string | null) => void;
 
 let activeAccountId: string | null = null;
 let switchQueue: Promise<void> = Promise.resolve();
 const teardownHandlers = new Set<AccountTeardown>();
+const accountChangeListeners = new Set<AccountChangeListener>();
 
 export function getActiveAccountId(): string | null {
     return activeAccountId;
@@ -22,13 +24,20 @@ export function registerAccountTeardown(handler: AccountTeardown): () => void {
     };
 }
 
+export function subscribeActiveAccount(listener: AccountChangeListener): () => void {
+    accountChangeListeners.add(listener);
+    return () => {
+        accountChangeListeners.delete(listener);
+    };
+}
+
+function notifyAccountChange(): void {
+    accountChangeListeners.forEach((listener) => listener(activeAccountId));
+}
+
 async function runTeardownHandlers(): Promise<void> {
     for (const handler of teardownHandlers) {
-        try {
-            await handler();
-        } catch (error) {
-            console.warn('[account] Runtime teardown failed:', error);
-        }
+        await handler();
     }
 }
 
@@ -52,6 +61,7 @@ export function activateAccount(accountId: string): Promise<void> {
             await runTeardownHandlers();
         }
         activeAccountId = normalizedId;
+        notifyAccountChange();
     });
 }
 
@@ -62,5 +72,6 @@ export function clearActiveAccount(): Promise<void> {
         }
         await runTeardownHandlers();
         activeAccountId = null;
+        notifyAccountChange();
     });
 }

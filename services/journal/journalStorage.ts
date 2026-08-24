@@ -303,6 +303,25 @@ export async function hasLegacyJournalEntries(): Promise<boolean> {
     return (await storageAdapter.getItem(STORAGE_KEY)) !== null;
 }
 
+export function importJournalEntriesSnapshot(value: string | null): Promise<void> {
+    return withMutationLock(async () => {
+        if (value === null) {
+            await storageAdapter.removeItem(getAccountScopedStorageKey(STORAGE_KEY));
+            return;
+        }
+        let entries: Record<string, JournalEntry> = {};
+        try {
+            const parsed = JSON.parse(value) as unknown;
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                entries = parsed as Record<string, JournalEntry>;
+            }
+        } catch {
+            // Corrupt backup payload restores the owner's safe empty default.
+        }
+        await saveAllEntries(entries);
+    });
+}
+
 registerAccountTeardown(async () => {
     await mutationQueue;
     if (remoteSyncPromise) {

@@ -38,15 +38,16 @@ import {
     LOCAL_BACKUP_INDEX_KEY,
     restoreLocalBackup,
 } from '../../../services/backup/localBackup';
-import { SESSION_DIGEST_BACKUP_BUNDLE_KEY } from '../../../services/memory/sessionDigestStorage';
 import {
     getSessionDigest,
     resetSessionDigestStorageAdapter,
+    SESSION_DIGEST_BACKUP_BUNDLE_KEY,
     setSessionDigestStorageAdapter,
     upsertSessionDigest,
 } from '../../../services/memory/sessionDigestStorage';
 import type { SessionDigest } from '../../../services/memory/sessionDigest.types';
 import { activateAccount, clearActiveAccount } from '../../../services/account/accountRuntime';
+import { getAccountScopedStorageKey } from '../../../services/account/accountScopedStorage';
 
 function adapterFromMockStore() {
     return {
@@ -112,19 +113,19 @@ describe('session digest backup stays sharded', () => {
 
         // Sharded backup keys exist (one per digest).
         const backupDigestKeys = Array.from(mockStore.keys()).filter((k) =>
-            k.startsWith(BACKUP_SESSION_DIGEST_KEY_PREFIX),
+            k.startsWith(getAccountScopedStorageKey(BACKUP_SESSION_DIGEST_KEY_PREFIX)),
         );
         expect(backupDigestKeys.length).toBe(COUNT);
 
         // Index record must stay small: no embedding arrays inside LOCAL_BACKUP_INDEX_KEY.
-        const indexJson = mockStore.get(LOCAL_BACKUP_INDEX_KEY) ?? '';
+        const indexJson = mockStore.get(getAccountScopedStorageKey(LOCAL_BACKUP_INDEX_KEY)) ?? '';
         expect(indexJson.includes('"embedding"')).toBe(false);
         expect(indexJson.length).toBeLessThan(500_000); // well under 2MB
 
         // Meta item lists sessionIds only.
-        const parsed = JSON.parse(indexJson) as Array<{
-            items: Array<{ key: string; value: string | null }>;
-        }>;
+        const parsed = JSON.parse(indexJson) as {
+            items: { key: string; value: string | null }[];
+        }[];
         const digestItem = parsed[0]?.items.find(
             (it) => it.key === SESSION_DIGEST_BACKUP_BUNDLE_KEY,
         );
@@ -138,15 +139,6 @@ describe('session digest backup stays sharded', () => {
         const sampleKey = backupSessionDigestRecordKey(backup.id, 'sess_0000');
         expect(mockStore.has(sampleKey)).toBe(true);
 
-        // eslint-disable-next-line no-console
-        console.log(
-            '[backup-diag] 150 digests: backupKeys=',
-            backupDigestKeys.length,
-            'indexBytes=',
-            indexJson.length,
-            'hasBundleKey=',
-            mockStore.has(SESSION_DIGEST_BACKUP_BUNDLE_KEY),
-        );
     });
 
     it('restore from sharded backup reloads a digest after clear', async () => {
@@ -165,5 +157,13 @@ describe('session digest backup stays sharded', () => {
         expect(result.status).toBe('restored');
         const loaded = await getSessionDigest('sess_0007');
         expect(loaded?.oneLineSummary).toContain('Session 7');
+    });
+
+    it('uses different shard body keys for different creator accounts', async () => {
+        const userAKey = backupSessionDigestRecordKey('backup-1', 'session-1');
+        await activateAccount('user-b');
+        const userBKey = backupSessionDigestRecordKey('backup-1', 'session-1');
+
+        expect(userAKey).not.toBe(userBKey);
     });
 });

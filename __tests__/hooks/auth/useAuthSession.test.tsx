@@ -1,75 +1,66 @@
 /* eslint-disable import/first */
 
-import { act, renderHook, waitFor } from '@testing-library/react-native';
+import { act, renderHook } from '@testing-library/react-native';
 
-const mockUnsubscribe = jest.fn();
-let mockAuthListener: ((event: string, session: unknown) => void) | null = null;
-const mockClient = {
-    auth: {
-        onAuthStateChange: jest.fn((listener: (event: string, session: unknown) => void) => {
-            mockAuthListener = listener;
-            return { data: { subscription: { unsubscribe: mockUnsubscribe } } };
-        }),
-    },
+type TestSnapshot = {
+    authState: {
+        status: 'signed-out' | 'authenticated' | 'offline';
+        account: { id: string; email: string | null; lastAuthenticatedAt: number } | null;
+        session: { user: { id: string; email?: string | null } } | null;
+    };
+    isLoading: boolean;
 };
-const mockBootstrapAuth = jest.fn();
-const mockHandleAuthSessionChange = jest.fn();
 
-jest.mock('../../../services/supabase/supabaseClient', () => ({
-    getSupabaseClient: jest.fn(() => mockClient),
-}));
+let mockSnapshot: TestSnapshot = {
+    authState: { status: 'signed-out', account: null, session: null },
+    isLoading: true,
+};
+let mockListener: (() => void) | null = null;
 
-jest.mock('../../../services/auth/authBootstrap', () => ({
-    bootstrapAuth: (...args: unknown[]) => mockBootstrapAuth(...args),
-    handleAuthSessionChange: (...args: unknown[]) => mockHandleAuthSessionChange(...args),
+jest.mock('../../../services/auth/authCoordinator', () => ({
+    getAuthCoordinatorSnapshot: () => mockSnapshot,
+    subscribeAuthCoordinator: (listener: () => void) => {
+        mockListener = listener;
+        return () => { mockListener = null; };
+    },
 }));
 
 import { useAuthSession } from '../../../hooks/auth/useAuthSession';
 
 describe('useAuthSession', () => {
     beforeEach(() => {
-        mockAuthListener = null;
-        mockUnsubscribe.mockClear();
-        mockBootstrapAuth.mockReset();
-        mockHandleAuthSessionChange.mockReset();
+        mockSnapshot = {
+            authState: { status: 'signed-out', account: null, session: null },
+            isLoading: true,
+        };
+        mockListener = null;
     });
 
-    it('holds loading until bootstrap opens the account namespace', async () => {
-        mockBootstrapAuth.mockResolvedValue({
-            status: 'offline',
-            account: { id: 'user-a', email: 'a@example.com', lastAuthenticatedAt: 1 },
-            session: null,
-        });
-
+    it('maps the shared coordinator loading snapshot', () => {
         const { result } = renderHook(() => useAuthSession());
 
         expect(result.current.isLoading).toBe(true);
-        await waitFor(() => expect(result.current.isLoading).toBe(false));
-        expect(result.current.user).toEqual({ id: 'user-a', email: 'a@example.com' });
-        expect(result.current.isOffline).toBe(true);
+        expect(result.current.isAuthenticated).toBe(false);
     });
 
-    it('applies auth events through account-switch teardown and unsubscribes', async () => {
-        mockBootstrapAuth.mockResolvedValue({
-            status: 'authenticated',
-            account: { id: 'user-a', email: 'a@example.com', lastAuthenticatedAt: 1 },
-            session: { user: { id: 'user-a', email: 'a@example.com' } },
-        });
-        mockHandleAuthSessionChange.mockResolvedValue({
-            status: 'authenticated',
-            account: { id: 'user-b', email: 'b@example.com', lastAuthenticatedAt: 2 },
-            session: { user: { id: 'user-b', email: 'b@example.com' } },
-        });
-
-        const { result, unmount } = renderHook(() => useAuthSession());
-        await waitFor(() => expect(result.current.user?.id).toBe('user-a'));
-
-        await act(async () => {
-            mockAuthListener?.('SIGNED_IN', { user: { id: 'user-b' } });
+    it('updates all auth fields from an offline coordinator snapshot', () => {
+        const { result } = renderHook(() => useAuthSession());
+        act(() => {
+            mockSnapshot = {
+                authState: {
+                    status: 'offline',
+                    account: {
+                        id: 'user-a', email: 'a@example.com', lastAuthenticatedAt: 1,
+                    },
+                    session: null,
+                },
+                isLoading: false,
+            };
+            mockListener?.();
         });
 
-        await waitFor(() => expect(result.current.user?.id).toBe('user-b'));
-        unmount();
-        expect(mockUnsubscribe).toHaveBeenCalledTimes(1);
+        expect(result.current.user).toEqual({ id: 'user-a', email: 'a@example.com' });
+        expect(result.current.isAuthenticated).toBe(true);
+        expect(result.current.isOffline).toBe(true);
     });
 });

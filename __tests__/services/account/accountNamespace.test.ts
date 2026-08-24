@@ -82,6 +82,17 @@ describe('account-scoped persistence', () => {
         unsubscribe();
     });
 
+    it('keeps the current account active when required teardown fails', async () => {
+        const unsubscribe = registerAccountTeardown(async () => {
+            throw new Error('flush failed');
+        });
+        await activateAccount('user-a');
+
+        await expect(activateAccount('user-b')).rejects.toThrow('flush failed');
+        expect(getActiveAccountId()).toBe('user-a');
+        unsubscribe();
+    });
+
     it('claims a legacy key once without overwriting existing account data', async () => {
         storage.values.set('@journal_entries', '{"legacy":true}');
         await activateAccount('user-a');

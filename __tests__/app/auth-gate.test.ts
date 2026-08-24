@@ -7,7 +7,7 @@ describe('root authentication route gate', () => {
     it('protects app routes while keeping password recovery reachable', () => {
         expect(source).toMatch(/Stack\.Screen name="\(auth\)"/);
         expect(source).not.toMatch(/Stack\.Protected guard=\{!auth\.isAuthenticated\}/);
-        expect(source).toMatch(/Stack\.Protected guard=\{auth\.isAuthenticated\}[\s\S]*name="\(tabs\)"/);
+        expect(source).toMatch(/Stack\.Protected[\s\S]*guard=\{auth\.isAuthenticated\}[\s\S]*name="\(tabs\)"/);
     });
 
     it('does not start account-bound seed work before the account resolves', () => {

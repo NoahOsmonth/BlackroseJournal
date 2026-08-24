@@ -17,7 +17,12 @@ export interface AuthSessionLike {
 
 interface AuthSessionResponse {
     readonly data: { readonly session: AuthSessionLike | null };
-    readonly error: { readonly message: string } | null;
+    readonly error: {
+        readonly message: string;
+        readonly name?: string;
+        readonly status?: number;
+        readonly code?: string;
+    } | null;
 }
 
 export interface AuthBootstrapClient {
@@ -36,6 +41,16 @@ export type AuthBootstrapState = {
     readonly session: null;
 };
 
+export type AuthTransitionIntent = {
+    readonly type: 'session';
+    readonly session: AuthSessionLike;
+} | {
+    readonly type: 'offline';
+    readonly account: RememberedAccount;
+} | {
+    readonly type: 'signed-out';
+};
+
 async function openSessionAccount(
     session: AuthSessionLike,
     status: 'authenticated' = 'authenticated'
@@ -50,46 +65,78 @@ async function openSessionAccount(
     return { status, account, session };
 }
 
-async function openRememberedAccountOffline(): Promise<AuthBootstrapState> {
+async function resolveRememberedAccountOffline(): Promise<AuthTransitionIntent> {
     const account = await loadRememberedAccount();
-    if (!account) {
-        await clearActiveAccount();
-        return { status: 'signed-out', account: null, session: null };
-    }
-    await activateAccount(account.id);
-    return { status: 'offline', account, session: null };
+    return account ? { type: 'offline', account } : { type: 'signed-out' };
 }
 
-export async function bootstrapAuth(
+function isNetworkTransportFailure(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return false;
+    const candidate = error as {
+        message?: unknown;
+        name?: unknown;
+        status?: unknown;
+        code?: unknown;
+    };
+    if (candidate.status === 0 || candidate.name === 'AuthRetryableFetchError') return true;
+    if (candidate.code === 'NETWORK_ERROR' || candidate.code === 'ETIMEDOUT') return true;
+    if (typeof candidate.message !== 'string') return false;
+    return /network request failed|failed to fetch|fetch failed|network unavailable|\boffline\b|timed? out/i
+        .test(candidate.message);
+}
+
+export async function resolveAuthBootstrap(
     client: AuthBootstrapClient | null
-): Promise<AuthBootstrapState> {
+): Promise<AuthTransitionIntent> {
     if (!client) {
-        return openRememberedAccountOffline();
+        return { type: 'signed-out' };
     }
 
     try {
         const { data, error } = await client.auth.getSession();
         if (error) {
-            return openRememberedAccountOffline();
+            return isNetworkTransportFailure(error)
+                ? resolveRememberedAccountOffline()
+                : { type: 'signed-out' };
         }
         if (data.session && !data.session.user.is_anonymous) {
-            return openSessionAccount(data.session);
+            return { type: 'session', session: data.session };
         }
-        await clearRememberedAccount();
-        await clearActiveAccount();
-        return { status: 'signed-out', account: null, session: null };
-    } catch {
-        return openRememberedAccountOffline();
+        return { type: 'signed-out' };
+    } catch (error) {
+        return isNetworkTransportFailure(error)
+            ? resolveRememberedAccountOffline()
+            : { type: 'signed-out' };
     }
+}
+
+export async function applyAuthTransition(
+    intent: AuthTransitionIntent
+): Promise<AuthBootstrapState> {
+    if (intent.type === 'session') {
+        return openSessionAccount(intent.session);
+    }
+    if (intent.type === 'offline') {
+        await activateAccount(intent.account.id);
+        return { status: 'offline', account: intent.account, session: null };
+    }
+    await clearRememberedAccount();
+    await clearActiveAccount();
+    return { status: 'signed-out', account: null, session: null };
+}
+
+export async function bootstrapAuth(
+    client: AuthBootstrapClient | null
+): Promise<AuthBootstrapState> {
+    return applyAuthTransition(await resolveAuthBootstrap(client));
 }
 
 export async function handleAuthSessionChange(
     session: AuthSessionLike | null
 ): Promise<AuthBootstrapState> {
-    if (session && !session.user.is_anonymous) {
-        return openSessionAccount(session);
-    }
-    await clearRememberedAccount();
-    await clearActiveAccount();
-    return { status: 'signed-out', account: null, session: null };
+    return applyAuthTransition(
+        session && !session.user.is_anonymous
+            ? { type: 'session', session }
+            : { type: 'signed-out' }
+    );
 }

@@ -81,6 +81,41 @@ describe('auth bootstrap', () => {
         expect(getActiveAccountId()).toBe('user-a');
     });
 
+    it('denies offline reopen for an authentication error', async () => {
+        await rememberAuthenticatedAccount({ id: 'user-a', email: 'a@example.com' });
+        const client = createClient({
+            data: { session: null },
+            error: { message: 'Invalid Refresh Token: Already Used' },
+        });
+
+        await expect(bootstrapAuth(client)).resolves.toEqual({
+            status: 'signed-out', account: null, session: null,
+        });
+        await expect(loadRememberedAccount()).resolves.toBeNull();
+        expect(getActiveAccountId()).toBeNull();
+    });
+
+    it('denies offline reopen when Supabase is not configured', async () => {
+        await rememberAuthenticatedAccount({ id: 'user-a', email: 'a@example.com' });
+
+        await expect(bootstrapAuth(null)).resolves.toEqual({
+            status: 'signed-out', account: null, session: null,
+        });
+        await expect(loadRememberedAccount()).resolves.toBeNull();
+    });
+
+    it('denies offline reopen for an unclassified exception', async () => {
+        await rememberAuthenticatedAccount({ id: 'user-a', email: 'a@example.com' });
+        const client: AuthBootstrapClient = {
+            auth: { getSession: async () => { throw new Error('configuration invalid'); } },
+        };
+
+        await expect(bootstrapAuth(client)).resolves.toEqual({
+            status: 'signed-out', account: null, session: null,
+        });
+        await expect(loadRememberedAccount()).resolves.toBeNull();
+    });
+
     it('does not treat a clean signed-out result as offline access', async () => {
         await rememberAuthenticatedAccount({ id: 'user-a', email: 'a@example.com' });
         const client = createClient({ data: { session: null }, error: null });

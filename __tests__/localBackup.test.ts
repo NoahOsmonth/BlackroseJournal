@@ -35,6 +35,7 @@ import {
 } from '../services/memory/sessionDigestStorage';
 import { activateAccount, clearActiveAccount } from '../services/account/accountRuntime';
 import { getAccountScopedStorageKey } from '../services/account/accountScopedStorage';
+import { createGoal, subscribeGoalsChanges } from '../services/goals/goalsStorage';
 
 function sessionDigestAdapter() {
     return {
@@ -107,5 +108,37 @@ describe('localBackup', () => {
         await expect(restoreLocalBackup('backup-missing')).resolves.toEqual({
             status: 'missing',
         });
+    });
+
+    it('rejects backup metadata created by a different account', async () => {
+        const userAJournalKey = getAccountScopedStorageKey('@journal_entries');
+        mockStore.set(userAJournalKey, '{"entry-a":{"title":"A"}}');
+        const backup = await createLocalBackup('User A');
+        const userAIndex = mockStore.get(
+            getAccountScopedStorageKey('@blackrose_local_backups')
+        ) ?? '';
+
+        await activateAccount('user-b');
+        const userBJournalKey = getAccountScopedStorageKey('@journal_entries');
+        mockStore.set(userBJournalKey, '{"entry-b":{"title":"B"}}');
+        mockStore.set(getAccountScopedStorageKey('@blackrose_local_backups'), userAIndex);
+
+        await expect(restoreLocalBackup(backup.id)).resolves.toEqual({
+            status: 'account-mismatch',
+        });
+        expect(mockStore.get(userBJournalKey)).toBe('{"entry-b":{"title":"B"}}');
+    });
+
+    it('restores account-owned goals through the owner import notification path', async () => {
+        await createGoal({ title: 'Backed up goal', type: 'goal' });
+        const backup = await createLocalBackup('Goals');
+        await createGoal({ title: 'Later goal', type: 'goal' });
+        const listener = jest.fn();
+        const unsubscribe = subscribeGoalsChanges(listener);
+
+        await restoreLocalBackup(backup.id);
+
+        expect(listener).toHaveBeenCalled();
+        unsubscribe();
     });
 });

@@ -49,4 +49,16 @@ describe('LegacyDataOwnershipGate', () => {
         fireEvent.press(screen.getByText('Continue with an empty account'));
         expect(mockContinueWithoutLegacyData).toHaveBeenCalledTimes(1);
     });
+
+    it('does not inspect or block an auth recovery route', () => {
+        mockUseLegacyDataOwnership.mockClear();
+        const screen = render(
+            <LegacyDataOwnershipGate accountId="user-a" enabled={false}>
+                <Text>Set a new password</Text>
+            </LegacyDataOwnershipGate>
+        );
+
+        expect(screen.getByText('Set a new password')).toBeTruthy();
+        expect(mockUseLegacyDataOwnership).not.toHaveBeenCalled();
+    });
 });

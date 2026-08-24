@@ -20,6 +20,16 @@ import {
 } from '@/services/memory/sessionDigestStorage';
 import type { SessionDigest } from '@/services/memory/sessionDigest.types';
 import { getAccountScopedStorageKey } from '@/services/account/accountScopedStorage';
+import {
+    registerAccountTeardown,
+    requireActiveAccountId,
+} from '@/services/account/accountRuntime';
+import { importJournalEntriesSnapshot } from '@/services/journal/journalStorage';
+import { importGoalsSnapshot } from '@/services/goals/goalsStorage';
+import {
+    importCheckInsSnapshot,
+    importIntentionsSnapshot,
+} from '@/services/intentions/intentionsStorage';
 
 export const LOCAL_BACKUP_INDEX_KEY = '@blackrose_local_backups';
 
@@ -79,7 +89,8 @@ interface LocalBackupItem {
 }
 
 interface StoredLocalBackup extends LocalBackupManifest {
-    readonly schemaVersion: 1;
+    readonly schemaVersion: 2;
+    readonly accountId: string;
     readonly items: readonly LocalBackupItem[];
 }
 
@@ -92,14 +103,25 @@ interface SessionDigestBackupMeta {
 
 export type RestoreLocalBackupResult =
     | { readonly status: 'restored'; readonly restoredKeys: number }
+    | { readonly status: 'account-mismatch' }
     | { readonly status: 'missing' };
+
+let backupMutationQueue: Promise<void> = Promise.resolve();
+
+function withBackupMutationLock<T>(operation: () => Promise<T>): Promise<T> {
+    const result = backupMutationQueue.then(operation, operation);
+    backupMutationQueue = result.then(() => undefined, () => undefined);
+    return result;
+}
 
 function generateBackupId(): string {
     return `backup_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export function backupSessionDigestRecordKey(backupId: string, sessionId: string): string {
-    return `${BACKUP_SESSION_DIGEST_KEY_PREFIX}${backupId}:${sessionId}`;
+    return getAccountScopedStorageKey(
+        `${BACKUP_SESSION_DIGEST_KEY_PREFIX}${backupId}:${sessionId}`
+    );
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -118,7 +140,8 @@ function isBackupItem(value: unknown): value is LocalBackupItem {
 
 function isStoredBackup(value: unknown): value is StoredLocalBackup {
     return isObject(value)
-        && value.schemaVersion === 1
+        && value.schemaVersion === 2
+        && typeof value.accountId === 'string'
         && typeof value.id === 'string'
         && typeof value.name === 'string'
         && typeof value.createdAt === 'number'
@@ -142,7 +165,7 @@ function parseStoredBackups(json: string): readonly StoredLocalBackup[] {
 }
 
 async function loadStoredBackups(): Promise<readonly StoredLocalBackup[]> {
-    const json = await AsyncStorage.getItem(LOCAL_BACKUP_INDEX_KEY);
+    const json = await AsyncStorage.getItem(getAccountScopedStorageKey(LOCAL_BACKUP_INDEX_KEY));
     if (!json) {
         return [];
     }
@@ -158,7 +181,10 @@ async function loadStoredBackups(): Promise<readonly StoredLocalBackup[]> {
 }
 
 async function saveStoredBackups(backups: readonly StoredLocalBackup[]): Promise<void> {
-    await AsyncStorage.setItem(LOCAL_BACKUP_INDEX_KEY, JSON.stringify(backups));
+    await AsyncStorage.setItem(
+        getAccountScopedStorageKey(LOCAL_BACKUP_INDEX_KEY),
+        JSON.stringify(backups)
+    );
 }
 
 function parseDigestMeta(value: string | null | undefined): SessionDigestBackupMeta | null {
@@ -278,68 +304,94 @@ export async function listLocalBackups(): Promise<LocalBackupManifest[]> {
 }
 
 export async function createLocalBackup(name?: string): Promise<LocalBackupManifest> {
-    const createdAt = Date.now();
-    const id = generateBackupId();
-    const items = await Promise.all(
-        LOCAL_BACKUP_DATA_KEYS.map((key) => readBackupItem(key, id)),
-    );
-    const backup: StoredLocalBackup = {
-        id,
-        name: resolveBackupName(name, createdAt),
-        createdAt,
-        itemCount: items.filter((item) => item.value !== null).length,
-        schemaVersion: 1,
-        items,
-    };
+    return withBackupMutationLock(async () => {
+        const accountId = requireActiveAccountId();
+        const createdAt = Date.now();
+        const id = generateBackupId();
+        const items = await Promise.all(
+            LOCAL_BACKUP_DATA_KEYS.map((key) => readBackupItem(key, id)),
+        );
+        const backup: StoredLocalBackup = {
+            id,
+            accountId,
+            name: resolveBackupName(name, createdAt),
+            createdAt,
+            itemCount: items.filter((item) => item.value !== null).length,
+            schemaVersion: 2,
+            items,
+        };
+        const backups = await loadStoredBackups();
+        await saveStoredBackups([backup, ...backups]);
+        return toManifest(backup);
+    });
+}
 
-    const backups = await loadStoredBackups();
-    // Index stores meta only for digests (sessionIds). Full vectors live in
-    // sharded @blackrose_local_backup_session_digest:<id>:<sessionId> keys.
-    await saveStoredBackups([backup, ...backups]);
-    return toManifest(backup);
+async function restoreBackupItem(item: LocalBackupItem | undefined): Promise<void> {
+    const value = item?.value ?? null;
+    switch (item?.key) {
+        case '@journal_entries':
+            return importJournalEntriesSnapshot(value);
+        case '@goals':
+            return importGoalsSnapshot(value);
+        case '@intentions':
+            return importIntentionsSnapshot(value);
+        case '@intention_checkins':
+            return importCheckInsSnapshot(value);
+        default:
+            return;
+    }
 }
 
 export async function restoreLocalBackup(
     backupId: string
 ): Promise<RestoreLocalBackupResult> {
-    const backups = await loadStoredBackups();
-    const backup = backups.find((item) => item.id === backupId);
-    if (!backup) {
-        return { status: 'missing' };
-    }
+    return withBackupMutationLock(async () => {
+        const accountId = requireActiveAccountId();
+        const backups = await loadStoredBackups();
+        const backup = backups.find((item) => item.id === backupId);
+        if (!backup) return { status: 'missing' };
+        if (backup.accountId !== accountId) return { status: 'account-mismatch' };
 
-    await Promise.all(LOCAL_BACKUP_DATA_KEYS.map(async (key) => {
-        const item = backup.items.find((backupItem) => backupItem.key === key);
-        if (key === SESSION_DIGEST_BACKUP_BUNDLE_KEY) {
-            await restoreShardedDigestBackup(item?.value ?? null);
-            return;
-        }
-        if (!item || item.value === null) {
-            await AsyncStorage.removeItem(resolveBackupStorageKey(key));
-            return;
-        }
-        await AsyncStorage.setItem(resolveBackupStorageKey(key), item.value);
-    }));
+        await Promise.all(LOCAL_BACKUP_DATA_KEYS.map(async (key) => {
+            const item = backup.items.find((backupItem) => backupItem.key === key);
+            if (key === SESSION_DIGEST_BACKUP_BUNDLE_KEY) {
+                await restoreShardedDigestBackup(item?.value ?? null);
+                return;
+            }
+            if (ACCOUNT_SCOPED_BACKUP_KEYS.has(key)) {
+                await restoreBackupItem(item ?? { key, value: null });
+                return;
+            }
+            if (!item || item.value === null) {
+                await AsyncStorage.removeItem(key);
+                return;
+            }
+            await AsyncStorage.setItem(key, item.value);
+        }));
 
-    return { status: 'restored', restoredKeys: backup.itemCount };
+        if (requireActiveAccountId() !== accountId) {
+            throw new Error('Active account changed during backup restore.');
+        }
+        return { status: 'restored', restoredKeys: backup.itemCount };
+    });
 }
 
 export async function deleteLocalBackup(backupId: string): Promise<boolean> {
-    const backups = await loadStoredBackups();
-    const target = backups.find((backup) => backup.id === backupId);
-    if (!target) {
-        return false;
-    }
-
-    const digestItem = target.items.find(
-        (item) => item.key === SESSION_DIGEST_BACKUP_BUNDLE_KEY,
-    );
-    const meta = parseDigestMeta(digestItem?.value ?? null);
-    if (meta) {
-        await removeShardedDigestBackup(meta.backupId, meta.sessionIds);
-    }
-
-    const nextBackups = backups.filter((backup) => backup.id !== backupId);
-    await saveStoredBackups(nextBackups);
-    return true;
+    return withBackupMutationLock(async () => {
+        const accountId = requireActiveAccountId();
+        const backups = await loadStoredBackups();
+        const target = backups.find((backup) => backup.id === backupId);
+        if (!target || target.accountId !== accountId) return false;
+        const digestItem = target.items.find(
+            (item) => item.key === SESSION_DIGEST_BACKUP_BUNDLE_KEY,
+        );
+        const meta = parseDigestMeta(digestItem?.value ?? null);
+        if (meta) await removeShardedDigestBackup(meta.backupId, meta.sessionIds);
+        await saveStoredBackups(backups.filter((backup) => backup.id !== backupId));
+        return true;
+    });
 }
+
+registerAccountTeardown(async () => {
+    await backupMutationQueue;
+});
