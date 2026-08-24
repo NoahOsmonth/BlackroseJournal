@@ -2609,3 +2609,17 @@
 - Fresh clean-reset verification passed focused control-plane pgTAP (4 files / 105 tests), full
   pgTAP (6 files / 321 tests), and DB lint with no schema errors. Advisors report no new finding;
   only the pre-existing mutable-search-path and legacy RLS performance warnings remain.
+# 2026-08-24 — AI control plane Task 6: authenticated memory gateway
+
+- Added authenticated retain, recall, reflect, rebuild, and clear routes under
+  `/v1/memory`, using the merged Supabase JWT principal.
+- Added stable versioned base32(HMAC-SHA256) per-user bank derivation. Client
+  bank selectors are rejected recursively and internal user/bank identifiers
+  are stripped from responses and deep-redacted from failure logs.
+- Added bounded request schemas, item/query ceilings, response-byte limits,
+  abort deadlines, generic upstream errors, and two-user isolation coverage.
+- Added private server-only Hindsight configuration and changed the deployment
+  script to loopback-only ports with no direct browser CORS proxy. The legacy
+  shared bank remains quarantined and is never read or copied.
+- Mobile Hindsight migration and account-owned rebuild orchestration remain
+  intentionally deferred to Task 10.
