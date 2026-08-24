@@ -2462,3 +2462,23 @@
   route-specific state parser; memory metadata is an exact safe DTO in both directions;
   catalog rows expose only `publicModelId`; and admin provider responses use exact safe
   display/discovery metadata shapes with no arbitrary JSON or authorization headers.
+
+## 2026-08-24 — AI control plane Task 2: portable Supabase control schema
+
+- Added one additive migration for the authenticated-safe managed catalog, per-user model
+  preferences, and the private `control` schema (providers, encrypted credential envelopes,
+  discovery inventory, routes, runtime settings, admins, audit/usage events, and rekey jobs).
+- Added enum/check constraints, foreign-key/query indexes, monotonic row/catalog revisions,
+  least-privilege grants, deny-by-default RLS, and authenticated owner policies for preferences.
+- Added service-only transactional publish and catalog/provider-model/provider archive functions.
+  Stale expected revisions raise `PT409`; archives preserve history, withdraw dependent catalog
+  rows, disable/archive routes, preserve user selections, and bump catalog revision once.
+- Realtime includes only `public.ai_catalog_models` and `public.ai_catalog_revision` from the new
+  surface; preferences and every `control` table remain unpublished.
+- TDD evidence: the pre-migration schema suite failed 25/25 assertions; targeted RED runs also
+  caught an invalid flash-route assignment, the missing flash-route FK index, and the absent
+  provider-model archive path. A deliberate local-only permissive RLS sabotage made cross-user
+  read/update assertions fail, then a clean reset restored GREEN.
+- Fresh verification after a clean local reset: all Supabase pgTAP tests passed (4 files,
+  286 tests); `supabase db lint` found no schema errors. The security advisor reports only the
+  pre-existing `public.set_updated_at` mutable-search-path warning, not a new control-plane issue.
