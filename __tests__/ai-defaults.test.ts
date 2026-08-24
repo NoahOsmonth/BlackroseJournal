@@ -23,6 +23,16 @@ jest.mock('../services/ai/directConfig', () => ({
     }),
 }));
 
+jest.mock('../services/ai/customModels', () => {
+    const actual = jest.requireActual('../services/ai/customModels');
+    return {
+        ...actual,
+        loadCustomAiProviderSettings: jest.fn(async () => ({
+            ...actual.getDefaultCustomAiProviderSettings(), enabled: true,
+        })),
+    };
+});
+
 function mockChatResponse(content: string): Response {
     return new Response(JSON.stringify({
         choices: [{ message: { content, reasoning: '' } }],
