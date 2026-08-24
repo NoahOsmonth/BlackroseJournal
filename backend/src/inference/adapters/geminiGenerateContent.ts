@@ -31,7 +31,15 @@ export const geminiGenerateContentAdapter: ProviderAdapter = {
           if (message.role !== 'tool') {
             return {
               role: message.role === 'assistant' ? 'model' : 'user',
-              parts: geminiParts(message.content),
+              parts: [
+                ...geminiParts(message.content),
+                ...(message.toolCalls ?? []).map((call) => ({
+                  functionCall: {
+                    name: call.name,
+                    args: asRecord(JSON.parse(call.arguments) as unknown),
+                  },
+                })),
+              ],
             };
           }
           const output = typeof message.content === 'string'

@@ -35,7 +35,15 @@ describe('client network contracts', () => {
   test('validates normalized inference requests', () => {
     const request = {
       purpose: 'chat',
-      messages: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }],
+      messages: [
+        { role: 'user', content: [{ type: 'text', text: 'Hello' }] },
+        {
+          role: 'assistant',
+          content: '',
+          toolCalls: [{ id: 'call-1', name: 'get_clock', arguments: '{"timezone":"Asia/Manila"}' }],
+        },
+        { role: 'tool', toolCallId: 'call-1', content: '2026-08-24T12:00:00+08:00' },
+      ],
       systemInstruction: 'Be helpful.',
       tools: [
         {
@@ -56,6 +64,22 @@ describe('client network contracts', () => {
     expect(() =>
       parseNormalizedInferenceRequest({ ...request, modelId: 'bypass-route' }),
     ).toThrow('inferenceRequest.modelId: unexpected field');
+    expect(() => parseNormalizedInferenceRequest({
+      ...request,
+      messages: [{
+        role: 'assistant',
+        content: '',
+        toolCalls: [{ id: 'call-1', name: 'get_clock', arguments: '{}', secret: 'nope' }],
+      }],
+    })).toThrow('inferenceRequest.messages[0].toolCalls[0].secret: unexpected field');
+    expect(() => parseNormalizedInferenceRequest({
+      ...request,
+      messages: [{
+        role: 'assistant',
+        content: '',
+        toolCalls: [{ id: 'call-1', name: 'get_clock', arguments: '{bad-json' }],
+      }],
+    })).toThrow('inferenceRequest.messages[0].toolCalls[0].arguments');
   });
 
   test('validates every normalized inference event and error', () => {

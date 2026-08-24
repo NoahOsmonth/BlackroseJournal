@@ -27,6 +27,11 @@ export const openAiChatCompletionsAdapter: ProviderAdapter = {
           content: openAiContent(message.content),
           ...(message.name ? { name: message.name } : {}),
           ...(message.toolCallId ? { tool_call_id: message.toolCallId } : {}),
+          ...(message.toolCalls ? { tool_calls: message.toolCalls.map((call) => ({
+            id: call.id,
+            type: 'function',
+            function: { name: call.name, arguments: call.arguments },
+          })) } : {}),
         })),
       ],
       stream: input.request.stream,

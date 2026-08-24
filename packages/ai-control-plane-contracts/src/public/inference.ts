@@ -25,6 +25,13 @@ export interface InferenceMessage {
   content: string | InferenceContentPart[];
   name?: string;
   toolCallId?: string;
+  toolCalls?: InferenceMessageToolCall[];
+}
+
+export interface InferenceMessageToolCall {
+  id: string;
+  name: string;
+  arguments: string;
 }
 
 export interface InferenceTool {
@@ -111,19 +118,48 @@ const parseContentPart = (value: unknown, path: string): InferenceContentPart =>
   return result as unknown as InferenceContentPart;
 };
 
+const parseMessageToolCall = (value: unknown, path: string): InferenceMessageToolCall => {
+  const record = expectRecord(value, path);
+  expectExactKeys(record, ['id', 'name', 'arguments'], path);
+  if (typeof record.arguments !== 'string') {
+    throw new ContractValidationError(`${path}.arguments`, 'expected a string');
+  }
+  try {
+    expectJsonObject(JSON.parse(record.arguments) as unknown, `${path}.arguments`);
+  } catch (error) {
+    if (error instanceof ContractValidationError) throw error;
+    throw new ContractValidationError(`${path}.arguments`, 'expected a serialized JSON object');
+  }
+  return {
+    id: expectString(record.id, `${path}.id`),
+    name: expectString(record.name, `${path}.name`),
+    arguments: record.arguments,
+  };
+};
+
 const parseMessage = (value: unknown, path: string): InferenceMessage => {
   const record = expectRecord(value, path);
-  expectExactKeys(record, ['role', 'content', 'name', 'toolCallId'], path);
+  expectExactKeys(record, ['role', 'content', 'name', 'toolCallId', 'toolCalls'], path);
+  const role = expectEnum(record.role, ['system', 'user', 'assistant', 'tool'], `${path}.role`);
+  const toolCalls = record.toolCalls === undefined
+    ? undefined
+    : expectArray(record.toolCalls, `${path}.toolCalls`, parseMessageToolCall);
+  if (toolCalls && role !== 'assistant') {
+    throw new ContractValidationError(`${path}.toolCalls`, 'expected only on an assistant message');
+  }
   const content =
     typeof record.content === 'string'
-      ? expectString(record.content, `${path}.content`)
+      ? record.content.length > 0 || (role === 'assistant' && (toolCalls?.length ?? 0) > 0)
+        ? record.content
+        : expectString(record.content, `${path}.content`)
       : expectArray(record.content, `${path}.content`, parseContentPart);
   const result: Record<string, unknown> = {
-    role: expectEnum(record.role, ['system', 'user', 'assistant', 'tool'], `${path}.role`),
+    role,
     content,
   };
   includeOptional(result, 'name', record.name, expectString, path);
   includeOptional(result, 'toolCallId', record.toolCallId, expectString, path);
+  if (toolCalls !== undefined) result.toolCalls = toolCalls;
   return result as unknown as InferenceMessage;
 };
 

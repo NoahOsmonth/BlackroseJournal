@@ -14,18 +14,36 @@ import {
 
 export const openAiResponsesAdapter: ProviderAdapter = {
   buildRequest(input) {
+    const responseInput = input.request.messages.flatMap((message): unknown[] => {
+      if (message.role === 'tool') {
+        return [{
+          type: 'function_call_output',
+          call_id: message.toolCallId ?? message.name ?? '',
+          output: typeof message.content === 'string'
+            ? message.content
+            : message.content.filter((part) => part.type === 'text')
+              .map((part) => part.text).join('\n'),
+        }];
+      }
+      const content = inputContent(message.content).map((part) => {
+        const record = asRecord(part);
+        return message.role === 'assistant' && record.type === 'input_text'
+          ? { ...record, type: 'output_text' }
+          : part;
+      });
+      return [
+        ...(content.length > 0 ? [{ role: message.role, content }] : []),
+        ...(message.toolCalls ?? []).map((call) => ({
+          type: 'function_call',
+          call_id: call.id,
+          name: call.name,
+          arguments: call.arguments,
+        })),
+      ];
+    });
     const body: Record<string, unknown> = {
       model: input.modelId,
-      input: input.request.messages.map((message) => message.role === 'tool'
-        ? {
-            type: 'function_call_output',
-            call_id: message.toolCallId ?? message.name ?? '',
-            output: typeof message.content === 'string'
-              ? message.content
-              : message.content.filter((part) => part.type === 'text')
-                .map((part) => part.text).join('\n'),
-          }
-        : { role: message.role, content: inputContent(message.content) }),
+      input: responseInput,
       stream: input.request.stream,
     };
     put(body, 'instructions', input.request.systemInstruction);

@@ -35,7 +35,18 @@ export const anthropicMessagesAdapter: ProviderAdapter = {
                   : message.content.filter((part) => part.type === 'text').map((part) => part.text).join('\n'),
               }],
             }
-          : { role: message.role, content: blockContent(message.content) }),
+          : {
+              role: message.role,
+              content: [
+                ...blockContent(message.content),
+                ...(message.toolCalls ?? []).map((call) => ({
+                  type: 'tool_use',
+                  id: call.id,
+                  name: call.name,
+                  input: asRecord(JSON.parse(call.arguments) as unknown),
+                })),
+              ],
+            }),
       max_tokens: input.request.maxOutputTokens ?? 1024,
       stream: input.request.stream,
     };
