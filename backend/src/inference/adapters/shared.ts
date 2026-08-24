@@ -21,6 +21,26 @@ export const asString = (value: unknown): string | undefined =>
 export const asNumber = (value: unknown): number =>
   typeof value === 'number' && Number.isFinite(value) ? value : 0;
 
+export function assertNoProviderErrorPayload(value: unknown): void {
+  const root = asRecord(value);
+  const response = asRecord(root.response);
+  const type = asString(root.type)?.toLowerCase();
+  const status = asString(root.status)?.toLowerCase();
+  const responseStatus = asString(response.status)?.toLowerCase();
+  const hasError = (root.error !== undefined && root.error !== null)
+    || (response.error !== undefined && response.error !== null);
+  if (
+    hasError
+    || type === 'error'
+    || type === 'response.error'
+    || type === 'response.failed'
+    || status === 'failed'
+    || responseStatus === 'failed'
+  ) {
+    throw new Error('Provider returned an error payload.');
+  }
+}
+
 export const put = (
   target: Record<string, unknown>,
   key: string,
@@ -115,7 +135,11 @@ export async function* readSseJson(response: Response): AsyncGenerator<Record<st
         .filter((line) => line.startsWith('data:'))
         .map((line) => line.slice(5).trimStart())
         .join('\n');
-      if (data && data !== '[DONE]') yield asRecord(JSON.parse(data) as unknown);
+      if (data && data !== '[DONE]') {
+        const parsed = asRecord(JSON.parse(data) as unknown);
+        assertNoProviderErrorPayload(parsed);
+        yield parsed;
+      }
       boundary = buffer.indexOf('\n\n');
     }
     if (done) break;
@@ -124,5 +148,9 @@ export async function* readSseJson(response: Response): AsyncGenerator<Record<st
     .filter((line) => line.startsWith('data:'))
     .map((line) => line.slice(5).trimStart())
     .join('\n');
-  if (data && data !== '[DONE]') yield asRecord(JSON.parse(data) as unknown);
+  if (data && data !== '[DONE]') {
+    const parsed = asRecord(JSON.parse(data) as unknown);
+    assertNoProviderErrorPayload(parsed);
+    yield parsed;
+  }
 }

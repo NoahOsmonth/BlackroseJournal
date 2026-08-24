@@ -11,6 +11,7 @@ import {
   SafeProviderTransportError,
 } from './safeProviderTransport';
 import type { ExecuteProviderInferenceInput, ProviderAdapter } from './types';
+import { assertNoProviderErrorPayload } from './shared';
 
 export type {
   ExecuteProviderInferenceInput,
@@ -148,6 +149,7 @@ export async function* executeProviderInference(
     } catch {
       throw new ProviderAdapterError('upstream_error', false);
     }
+    assertNoProviderErrorPayload(value);
     yield* adapter.parseNonStream(value);
   } catch (error) {
     if (error instanceof ProviderAdapterError) throw error;

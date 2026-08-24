@@ -4,7 +4,7 @@ import type {
   NormalizedInferenceEvent,
   ProviderProtocol,
 } from '../../../../../packages/ai-control-plane-contracts/src';
-import { executeProviderInference } from '../index';
+import { executeProviderInference, ProviderAdapterError } from '../index';
 
 const streamedResponse = (source: string): Response => {
   const bytes = new TextEncoder().encode(source);
@@ -36,6 +36,22 @@ const parseFixture = async (
 };
 
 describe('provider streaming response parsing', () => {
+  it('rejects HTTP-200 provider error frames for every protocol', async () => {
+    const fixtures: [ProviderProtocol, unknown][] = [
+      ['openai-chat-completions', { error: { message: 'secret upstream detail' } }],
+      ['openai-responses', { type: 'response.failed', response: { error: { message: 'secret upstream detail' } } }],
+      ['anthropic-messages', { type: 'error', error: { message: 'secret upstream detail' } }],
+      ['gemini-generate-content', { error: { message: 'secret upstream detail' } }],
+    ];
+    for (const [protocol, frame] of fixtures) {
+      await assert.rejects(
+        () => parseFixture(protocol, `data: ${JSON.stringify(frame)}\n\n`),
+        (error: unknown) => error instanceof ProviderAdapterError
+          && !error.message.includes('secret upstream detail'),
+      );
+    }
+  });
+
   it('normalizes OpenAI Chat Completions SSE split across transport chunks', async () => {
     const events = await parseFixture('openai-chat-completions', [
       ': keepalive',
