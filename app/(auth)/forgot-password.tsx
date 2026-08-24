@@ -1,4 +1,4 @@
-import { sendPasswordResetEmail } from '@/services/auth/authService';
+import { useAuthActions } from '@/hooks/auth/useAuthActions';
 import { AuthFormSkeleton } from '@/components/auth/AuthFormSkeleton';
 import { useAuthSession } from '@/hooks/auth/useAuthSession';
 import { useRouter } from 'expo-router';
@@ -17,6 +17,7 @@ function FieldLabel({ text }: { text: string }) {
 export default function ForgotPasswordScreen() {
     const router = useRouter();
     const { isLoading } = useAuthSession();
+    const { sendPasswordReset } = useAuthActions();
     const [email, setEmail] = useState('');
     const [status, setStatus] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -34,7 +35,7 @@ export default function ForgotPasswordScreen() {
         setStatus(null);
 
         try {
-            await sendPasswordResetEmail(trimmedEmail);
+            await sendPasswordReset(trimmedEmail);
             setStatus({
                 type: 'success',
                 message: 'Password reset email sent. Check your inbox to continue.',
@@ -45,13 +46,13 @@ export default function ForgotPasswordScreen() {
         } finally {
             setIsSubmitting(false);
         }
-    }, [email, isSubmitting]);
+    }, [email, isSubmitting, sendPasswordReset]);
 
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
             <View className="flex-1 max-w-md mx-auto w-full px-6 pt-6">
                 <Pressable onPress={() => router.back()} className="mb-4">
-                    <Text className="text-sm text-primary font-semibold">Back</Text>
+                    <Text className="text-sm text-primary font-semibold dark:text-primary">Back</Text>
                 </Pressable>
 
                 <Text className="text-3xl font-serif font-bold text-text-light dark:text-text-dark">
@@ -95,13 +96,13 @@ export default function ForgotPasswordScreen() {
                         disabled={isSubmitting}
                         className={`mt-5 rounded-xl py-3 ${isSubmitting ? 'bg-primary/70' : 'bg-primary'}`}
                     >
-                        <Text className="text-white font-semibold text-center">
+                        <Text className="text-white font-semibold text-center dark:text-white">
                             {isSubmitting ? 'Sending...' : 'Send reset email'}
                         </Text>
                     </Pressable>
 
                     <Pressable onPress={() => router.replace('/login')} className="mt-6">
-                        <Text className="text-sm text-primary font-semibold text-center">
+                        <Text className="text-sm text-primary font-semibold text-center dark:text-primary">
                             Back to sign in
                         </Text>
                     </Pressable>

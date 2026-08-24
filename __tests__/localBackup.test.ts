@@ -33,6 +33,9 @@ import {
     resetSessionDigestStorageAdapter,
     setSessionDigestStorageAdapter,
 } from '../services/memory/sessionDigestStorage';
+import { activateAccount, clearActiveAccount } from '../services/account/accountRuntime';
+import { getAccountScopedStorageKey } from '../services/account/accountScopedStorage';
+import { createGoal, subscribeGoalsChanges } from '../services/goals/goalsStorage';
 
 function sessionDigestAdapter() {
     return {
@@ -53,24 +56,26 @@ function sessionDigestAdapter() {
 }
 
 describe('localBackup', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
         mockStore.clear();
         setSessionDigestStorageAdapter(sessionDigestAdapter());
+        await activateAccount('backup-user');
         jest.useFakeTimers();
         jest.setSystemTime(new Date('2026-02-06T12:00:00Z'));
     });
 
-    afterEach(() => {
+    afterEach(async () => {
+        await clearActiveAccount();
         resetSessionDigestStorageAdapter();
         jest.useRealTimers();
     });
 
     it('creates an on-device backup from existing local data', async () => {
-        mockStore.set('@journal_entries', '{"entry-1":{"title":"Morning"}}');
-        mockStore.set('@goals', '{"goal-1":{"title":"Walk"}}');
-        mockStore.set('@ai_response_feedback', '{"feedback-1":{"value":"up"}}');
-        mockStore.set('@rosebud_local_memory', '{"memory-1":{"title":"Rest"}}');
-        mockStore.set('@blackrose_custom_ai_provider', '{"enabled":true}');
+        mockStore.set(getAccountScopedStorageKey('@journal_entries'), '{"entry-1":{"title":"Morning"}}');
+        mockStore.set(getAccountScopedStorageKey('@goals'), '{"goal-1":{"title":"Walk"}}');
+        mockStore.set(getAccountScopedStorageKey('@ai_response_feedback'), '{"feedback-1":{"value":"up"}}');
+        mockStore.set(getAccountScopedStorageKey('@rosebud_local_memory'), '{"memory-1":{"title":"Rest"}}');
+        mockStore.set(getAccountScopedStorageKey('@blackrose_custom_ai_provider'), '{"enabled":true}');
         mockStore.set('@blackrose_color_theme', '{"schemaVersion":1}');
 
         const backup = await createLocalBackup('Friday backup');
@@ -82,24 +87,58 @@ describe('localBackup', () => {
     });
 
     it('restores a backup and removes local keys absent from the snapshot', async () => {
-        mockStore.set('@journal_entries', '{"entry-1":{"title":"Morning"}}');
+        const journalKey = getAccountScopedStorageKey('@journal_entries');
+        const goalsKey = getAccountScopedStorageKey('@goals');
+        mockStore.set(journalKey, '{"entry-1":{"title":"Morning"}}');
         const backup = await createLocalBackup('Before edits');
-        mockStore.set('@journal_entries', '{"entry-1":{"title":"Changed"}}');
-        mockStore.set('@goals', '{"goal-1":{"title":"Temporary"}}');
+        mockStore.set(journalKey, '{"entry-1":{"title":"Changed"}}');
+        mockStore.set(goalsKey, '{"goal-1":{"title":"Temporary"}}');
 
         const result = await restoreLocalBackup(backup.id);
 
         expect(result.status).toBe('restored');
-        expect(mockStore.get('@journal_entries')).toBe('{"entry-1":{"title":"Morning"}}');
-        expect(mockStore.has('@goals')).toBe(false);
+        expect(mockStore.get(journalKey)).toBe('{"entry-1":{"title":"Morning"}}');
+        expect(mockStore.has(goalsKey)).toBe(false);
     });
 
     it('handles corrupt backup metadata as missing backup data', async () => {
-        mockStore.set('@blackrose_local_backups', 'not-json');
+        mockStore.set(getAccountScopedStorageKey('@blackrose_local_backups'), 'not-json');
 
         await expect(listLocalBackups()).resolves.toEqual([]);
         await expect(restoreLocalBackup('backup-missing')).resolves.toEqual({
             status: 'missing',
         });
+    });
+
+    it('rejects backup metadata created by a different account', async () => {
+        const userAJournalKey = getAccountScopedStorageKey('@journal_entries');
+        mockStore.set(userAJournalKey, '{"entry-a":{"title":"A"}}');
+        const backup = await createLocalBackup('User A');
+        const userAIndex = mockStore.get(
+            getAccountScopedStorageKey('@blackrose_local_backups')
+        ) ?? '';
+
+        await activateAccount('user-b');
+        const userBJournalKey = getAccountScopedStorageKey('@journal_entries');
+        mockStore.set(userBJournalKey, '{"entry-b":{"title":"B"}}');
+        mockStore.set(getAccountScopedStorageKey('@blackrose_local_backups'), userAIndex);
+
+        await expect(restoreLocalBackup(backup.id)).resolves.toEqual({
+            status: 'account-mismatch',
+        });
+        expect(mockStore.get(userBJournalKey)).toBe('{"entry-b":{"title":"B"}}');
+    });
+
+    it('restores account-owned goals through the owner import notification path', async () => {
+        await createGoal({ title: 'Backed up goal', type: 'goal' });
+        const backup = await createLocalBackup('Goals');
+        await createGoal({ title: 'Later goal', type: 'goal' });
+        const listener = jest.fn();
+        const unsubscribe = subscribeGoalsChanges(listener);
+
+        await restoreLocalBackup(backup.id);
+
+        expect(listener).toHaveBeenCalled();
+        unsubscribe();
     });
 });

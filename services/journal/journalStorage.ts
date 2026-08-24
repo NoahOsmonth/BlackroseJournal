@@ -21,6 +21,11 @@ import {
     queueJournalEntryDelete,
     queueJournalEntryUpsert,
 } from './journalRemote';
+import {
+    claimLegacyStorageKey,
+    getAccountScopedStorageKey,
+} from '@/services/account/accountScopedStorage';
+import { registerAccountTeardown } from '@/services/account/accountRuntime';
 
 const STORAGE_KEY = '@journal_entries';
 
@@ -29,6 +34,7 @@ let storageAdapter: StorageAdapter = AsyncStorage;
 let hasPulledRemote = false;
 let hasPushedLocal = false;
 let remoteSyncPromise: Promise<void> | null = null;
+let mutationQueue: Promise<void> = Promise.resolve();
 
 export function setStorageAdapter(adapter: StorageAdapter): void {
     storageAdapter = adapter;
@@ -47,12 +53,29 @@ function generateId(): string {
 }
 
 async function getAllEntriesMap(): Promise<Record<string, JournalEntry>> {
-    const data = await storageAdapter.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : {};
+    const data = await storageAdapter.getItem(getAccountScopedStorageKey(STORAGE_KEY));
+    if (!data) return {};
+    try {
+        const parsed = JSON.parse(data) as unknown;
+        return parsed && typeof parsed === 'object'
+            ? parsed as Record<string, JournalEntry>
+            : {};
+    } catch {
+        return {};
+    }
 }
 
 async function saveAllEntries(entries: Record<string, JournalEntry>): Promise<void> {
-    await storageAdapter.setItem(STORAGE_KEY, JSON.stringify(entries));
+    await storageAdapter.setItem(
+        getAccountScopedStorageKey(STORAGE_KEY),
+        JSON.stringify(entries)
+    );
+}
+
+function withMutationLock<T>(operation: () => Promise<T>): Promise<T> {
+    const result = mutationQueue.then(operation, operation);
+    mutationQueue = result.then(() => undefined, () => undefined);
+    return result;
 }
 
 async function syncFromRemoteIfNeeded(): Promise<void> {
@@ -114,9 +137,11 @@ export async function createEntry(input: JournalEntryCreateInput): Promise<Journ
         updatedAt,
     };
 
-    const entries = await getAllEntriesMap();
-    entries[entry.id] = entry;
-    await saveAllEntries(entries);
+    await withMutationLock(async () => {
+        const entries = await getAllEntriesMap();
+        entries[entry.id] = entry;
+        await saveAllEntries(entries);
+    });
 
     try {
         await queueJournalEntryUpsert(entry);
@@ -143,20 +168,23 @@ export async function updateEntry(
     id: string,
     input: JournalEntryUpdateInput
 ): Promise<JournalEntry | null> {
-    const entries = await getAllEntriesMap();
-    const existing = entries[id];
+    const updated = await withMutationLock(async () => {
+        const entries = await getAllEntriesMap();
+        const existing = entries[id];
+        if (!existing) return null;
 
-    if (!existing) return null;
+        const next: JournalEntry = {
+            ...existing,
+            ...input,
+            messages: input.messages ?? existing.messages,
+            updatedAt: Date.now(),
+        };
+        entries[id] = next;
+        await saveAllEntries(entries);
+        return next;
+    });
 
-    const updated: JournalEntry = {
-        ...existing,
-        ...input,
-        messages: input.messages ?? existing.messages,
-        updatedAt: Date.now(),
-    };
-
-    entries[id] = updated;
-    await saveAllEntries(entries);
+    if (!updated) return null;
 
     try {
         await queueJournalEntryUpsert(updated);
@@ -171,12 +199,14 @@ export async function updateEntry(
  * Delete an entry by ID
  */
 export async function deleteEntry(id: string): Promise<boolean> {
-    const entries = await getAllEntriesMap();
-
-    if (!entries[id]) return false;
-
-    delete entries[id];
-    await saveAllEntries(entries);
+    const deleted = await withMutationLock(async () => {
+        const entries = await getAllEntriesMap();
+        if (!entries[id]) return false;
+        delete entries[id];
+        await saveAllEntries(entries);
+        return true;
+    });
+    if (!deleted) return false;
     try {
         await queueJournalEntryDelete(id);
     } catch (error) {
@@ -241,7 +271,9 @@ export async function clearAllEntries(): Promise<void> {
         }
     }));
 
-    await storageAdapter.removeItem(STORAGE_KEY);
+    await withMutationLock(() => storageAdapter.removeItem(
+        getAccountScopedStorageKey(STORAGE_KEY)
+    ));
 
     try {
         await removeSyncTasksForTable(JOURNAL_TABLE);
@@ -260,3 +292,42 @@ export async function getAllEntriesForExport(): Promise<string> {
     const list = await listEntries();
     return JSON.stringify(list, null, 2);
 }
+
+export function migrateLegacyJournalEntriesToActiveAccount(): Promise<void> {
+    return withMutationLock(async () => {
+        await claimLegacyStorageKey(STORAGE_KEY, storageAdapter);
+    });
+}
+
+export async function hasLegacyJournalEntries(): Promise<boolean> {
+    return (await storageAdapter.getItem(STORAGE_KEY)) !== null;
+}
+
+export function importJournalEntriesSnapshot(value: string | null): Promise<void> {
+    return withMutationLock(async () => {
+        if (value === null) {
+            await storageAdapter.removeItem(getAccountScopedStorageKey(STORAGE_KEY));
+            return;
+        }
+        let entries: Record<string, JournalEntry> = {};
+        try {
+            const parsed = JSON.parse(value) as unknown;
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                entries = parsed as Record<string, JournalEntry>;
+            }
+        } catch {
+            // Corrupt backup payload restores the owner's safe empty default.
+        }
+        await saveAllEntries(entries);
+    });
+}
+
+registerAccountTeardown(async () => {
+    await mutationQueue;
+    if (remoteSyncPromise) {
+        await remoteSyncPromise.catch(() => undefined);
+    }
+    hasPulledRemote = false;
+    hasPushedLocal = false;
+    remoteSyncPromise = null;
+});

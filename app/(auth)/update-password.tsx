@@ -1,5 +1,4 @@
-import { extractAuthLinkTokens } from '@/services/auth/authLinking';
-import { getSupabaseClient } from '@/services/supabase/supabaseClient';
+import { useAuthActions } from '@/hooks/auth/useAuthActions';
 import { AuthFormSkeleton } from '@/components/auth/AuthFormSkeleton';
 import { useRouter } from 'expo-router';
 import * as Linking from 'expo-linking';
@@ -19,6 +18,10 @@ function FieldLabel({ text }: { text: string }) {
 export default function UpdatePasswordScreen() {
     const router = useRouter();
     const { user, isLoading } = useAuthSession();
+    const {
+        applyPasswordRecoveryUrl,
+        updatePassword,
+    } = useAuthActions();
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [status, setStatus] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
@@ -34,44 +37,17 @@ export default function UpdatePasswordScreen() {
             return;
         }
 
-        const tokens = extractAuthLinkTokens(url);
-        if (tokens.errorDescription) {
-            setStatus({ type: 'error', message: tokens.errorDescription });
-            setIsProcessingLink(false);
-            return;
-        }
-
-        if (tokens.type && tokens.type !== 'recovery') {
-            setStatus({ type: 'error', message: 'This link is not valid for password recovery.' });
-            setIsProcessingLink(false);
-            return;
-        }
-
-        if (!tokens.accessToken || !tokens.refreshToken) {
-            setIsProcessingLink(false);
-            return;
-        }
-
-        const client = getSupabaseClient();
-        if (!client) {
-            setStatus({ type: 'error', message: 'Supabase is not configured yet.' });
-            setIsProcessingLink(false);
-            return;
-        }
-
-        const { error } = await client.auth.setSession({
-            access_token: tokens.accessToken,
-            refresh_token: tokens.refreshToken,
-        });
-
-        if (error) {
-            setStatus({ type: 'error', message: error.message });
-        } else {
-            setHasRecoverySession(true);
+        try {
+            setHasRecoverySession(await applyPasswordRecoveryUrl(url));
+        } catch (error) {
+            setStatus({
+                type: 'error',
+                message: error instanceof Error ? error.message : 'Invalid recovery link.',
+            });
         }
 
         setIsProcessingLink(false);
-    }, []);
+    }, [applyPasswordRecoveryUrl]);
 
     useEffect(() => {
         let isMounted = true;
@@ -115,20 +91,11 @@ export default function UpdatePasswordScreen() {
             return;
         }
 
-        const client = getSupabaseClient();
-        if (!client) {
-            setStatus({ type: 'error', message: 'Supabase is not configured yet.' });
-            return;
-        }
-
         setIsSubmitting(true);
         setStatus(null);
 
         try {
-            const { error } = await client.auth.updateUser({ password });
-            if (error) {
-                throw new Error(error.message);
-            }
+            await updatePassword(password);
 
             setStatus({ type: 'success', message: 'Password updated. You can sign in now.' });
             setTimeout(() => {
@@ -140,13 +107,13 @@ export default function UpdatePasswordScreen() {
         } finally {
             setIsSubmitting(false);
         }
-    }, [canReset, password, confirmPassword, isSubmitting, router]);
+    }, [canReset, password, confirmPassword, isSubmitting, router, updatePassword]);
 
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
             <View className="flex-1 max-w-md mx-auto w-full px-6 pt-6">
                 <Pressable onPress={() => router.back()} className="mb-4">
-                    <Text className="text-sm text-primary font-semibold">Back</Text>
+                    <Text className="text-sm text-primary font-semibold dark:text-primary">Back</Text>
                 </Pressable>
 
                 <Text className="text-3xl font-serif font-bold text-text-light dark:text-text-dark">
@@ -211,7 +178,7 @@ export default function UpdatePasswordScreen() {
                                 disabled={isSubmitting}
                                 className={`mt-5 rounded-xl py-3 ${isSubmitting ? 'bg-primary/70' : 'bg-primary'}`}
                             >
-                                <Text className="text-white font-semibold text-center">
+                                <Text className="text-white font-semibold text-center dark:text-white">
                                     {isSubmitting ? 'Updating...' : 'Update password'}
                                 </Text>
                             </Pressable>

@@ -29,6 +29,11 @@ import { extractIdentityFromSessionTranscript } from '../memory/identityExtracti
 import { retainCheckInToHindsight } from '../memory/hindsight/hindsightRetain';
 import { saveIntentionCheckInMemories } from '../memory/localMemory';
 import { buildAndSaveSessionDigest } from '../memory/sessionDigestBuild';
+import {
+    claimLegacyStorageKey,
+    getAccountScopedStorageKey,
+} from '@/services/account/accountScopedStorage';
+import { registerAccountTeardown } from '@/services/account/accountRuntime';
 
 const INTENTIONS_KEY = '@intentions';
 const CHECKINS_KEY = '@intention_checkins';
@@ -40,18 +45,33 @@ let hasPushedCheckIns = false;
 
 let intentionsSyncPromise: Promise<void> | null = null;
 let checkInsSyncPromise: Promise<void> | null = null;
+let mutationQueue: Promise<void> = Promise.resolve();
 
 function generateId(prefix: string): string {
     return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 async function loadMap<T>(key: string): Promise<Record<string, T>> {
-    const json = await AsyncStorage.getItem(key);
-    return json ? (JSON.parse(json) as Record<string, T>) : {};
+    const json = await AsyncStorage.getItem(getAccountScopedStorageKey(key));
+    if (!json) return {};
+    try {
+        const parsed = JSON.parse(json) as unknown;
+        return parsed && typeof parsed === 'object'
+            ? parsed as Record<string, T>
+            : {};
+    } catch {
+        return {};
+    }
 }
 
 async function saveMap<T>(key: string, data: Record<string, T>): Promise<void> {
-    await AsyncStorage.setItem(key, JSON.stringify(data));
+    await AsyncStorage.setItem(getAccountScopedStorageKey(key), JSON.stringify(data));
+}
+
+function withMutationLock<T>(operation: () => Promise<T>): Promise<T> {
+    const result = mutationQueue.then(operation, operation);
+    mutationQueue = result.then(() => undefined, () => undefined);
+    return result;
 }
 
 async function syncIntentionsFromRemoteIfNeeded(): Promise<void> {
@@ -67,8 +87,10 @@ async function syncIntentionsFromRemoteIfNeeded(): Promise<void> {
             const remote = await fetchRemoteIntentions();
             if (remote) {
                 hasPulledIntentions = true;
-                const merged = mergeIntentions(local, remote);
-                await saveMap(INTENTIONS_KEY, merged);
+                await withMutationLock(async () => {
+                    const latest = await loadMap<Intention>(INTENTIONS_KEY);
+                    await saveMap(INTENTIONS_KEY, mergeIntentions(latest, remote));
+                });
             }
         }
 
@@ -104,8 +126,10 @@ async function syncCheckInsFromRemoteIfNeeded(): Promise<void> {
             const remote = await fetchRemoteCheckIns();
             if (remote) {
                 hasPulledCheckIns = true;
-                const merged = mergeCheckIns(local, remote);
-                await saveMap(CHECKINS_KEY, merged);
+                await withMutationLock(async () => {
+                    const latest = await loadMap<IntentionCheckIn>(CHECKINS_KEY);
+                    await saveMap(CHECKINS_KEY, mergeCheckIns(latest, remote));
+                });
             }
         }
 
@@ -154,9 +178,11 @@ export async function createIntention(input: IntentionCreateInput): Promise<Inte
         updatedAt: now,
     };
 
-    const map = await loadMap<Intention>(INTENTIONS_KEY);
-    map[intention.id] = intention;
-    await saveMap(INTENTIONS_KEY, map);
+    await withMutationLock(async () => {
+        const map = await loadMap<Intention>(INTENTIONS_KEY);
+        map[intention.id] = intention;
+        await saveMap(INTENTIONS_KEY, map);
+    });
 
     try {
         await queueIntentionUpsert(intention);
@@ -171,20 +197,20 @@ export async function updateIntention(
     id: string,
     updates: IntentionUpdateInput
 ): Promise<Intention | null> {
-    const map = await loadMap<Intention>(INTENTIONS_KEY);
-    const existing = map[id];
-    if (!existing) {
-        return null;
-    }
-
-    const updated: Intention = {
-        ...existing,
-        ...updates,
-        updatedAt: Date.now(),
-    };
-
-    map[id] = updated;
-    await saveMap(INTENTIONS_KEY, map);
+    const updated = await withMutationLock(async () => {
+        const map = await loadMap<Intention>(INTENTIONS_KEY);
+        const existing = map[id];
+        if (!existing) return null;
+        const next: Intention = {
+            ...existing,
+            ...updates,
+            updatedAt: Date.now(),
+        };
+        map[id] = next;
+        await saveMap(INTENTIONS_KEY, map);
+        return next;
+    });
+    if (!updated) return null;
 
     try {
         await queueIntentionUpsert(updated);
@@ -200,12 +226,14 @@ export async function archiveIntention(id: string): Promise<Intention | null> {
 }
 
 export async function deleteIntention(id: string): Promise<boolean> {
-    const map = await loadMap<Intention>(INTENTIONS_KEY);
-    if (!map[id]) {
-        return false;
-    }
-    delete map[id];
-    await saveMap(INTENTIONS_KEY, map);
+    const deleted = await withMutationLock(async () => {
+        const map = await loadMap<Intention>(INTENTIONS_KEY);
+        if (!map[id]) return false;
+        delete map[id];
+        await saveMap(INTENTIONS_KEY, map);
+        return true;
+    });
+    if (!deleted) return false;
 
     try {
         await queueIntentionDelete(id);
@@ -267,9 +295,11 @@ export async function createCheckIn(
         updatedAt,
     };
 
-    const map = await loadMap<IntentionCheckIn>(CHECKINS_KEY);
-    map[checkIn.id] = checkIn;
-    await saveMap(CHECKINS_KEY, map);
+    await withMutationLock(async () => {
+        const map = await loadMap<IntentionCheckIn>(CHECKINS_KEY);
+        map[checkIn.id] = checkIn;
+        await saveMap(CHECKINS_KEY, map);
+    });
 
     try {
         await queueCheckInUpsert(checkIn);
@@ -315,22 +345,22 @@ export async function updateCheckIn(
     id: string,
     updates: IntentionCheckInUpdateInput
 ): Promise<IntentionCheckIn | null> {
-    const map = await loadMap<IntentionCheckIn>(CHECKINS_KEY);
-    const existing = map[id];
-    if (!existing) {
-        return null;
-    }
-
-    const updated: IntentionCheckIn = {
-        ...existing,
-        ...updates,
-        title: updates.title ? updates.title.trim() : existing.title,
-        summary: updates.summary ? updates.summary.trim() : existing.summary,
-        updatedAt: Date.now(),
-    };
-
-    map[id] = updated;
-    await saveMap(CHECKINS_KEY, map);
+    const updated = await withMutationLock(async () => {
+        const map = await loadMap<IntentionCheckIn>(CHECKINS_KEY);
+        const existing = map[id];
+        if (!existing) return null;
+        const next: IntentionCheckIn = {
+            ...existing,
+            ...updates,
+            title: updates.title ? updates.title.trim() : existing.title,
+            summary: updates.summary ? updates.summary.trim() : existing.summary,
+            updatedAt: Date.now(),
+        };
+        map[id] = next;
+        await saveMap(CHECKINS_KEY, map);
+        return next;
+    });
+    if (!updated) return null;
 
     try {
         await queueCheckInUpsert(updated);
@@ -372,12 +402,14 @@ export async function updateCheckIn(
 }
 
 export async function deleteCheckIn(id: string): Promise<boolean> {
-    const map = await loadMap<IntentionCheckIn>(CHECKINS_KEY);
-    if (!map[id]) {
-        return false;
-    }
-    delete map[id];
-    await saveMap(CHECKINS_KEY, map);
+    const deleted = await withMutationLock(async () => {
+        const map = await loadMap<IntentionCheckIn>(CHECKINS_KEY);
+        if (!map[id]) return false;
+        delete map[id];
+        await saveMap(CHECKINS_KEY, map);
+        return true;
+    });
+    if (!deleted) return false;
 
     try {
         await queueCheckInDelete(id);
@@ -389,13 +421,73 @@ export async function deleteCheckIn(id: string): Promise<boolean> {
 }
 
 export async function clearAllIntentions(): Promise<void> {
-    const map = await loadMap<Intention>(INTENTIONS_KEY);
-    await Promise.all(Object.keys(map).map(async (id) => queueIntentionDelete(id)));
-    await AsyncStorage.removeItem(INTENTIONS_KEY);
+    const ids = await withMutationLock(async () => {
+        const map = await loadMap<Intention>(INTENTIONS_KEY);
+        await AsyncStorage.removeItem(getAccountScopedStorageKey(INTENTIONS_KEY));
+        return Object.keys(map);
+    });
+    await Promise.all(ids.map(async (id) => queueIntentionDelete(id)));
 }
 
 export async function clearAllCheckIns(): Promise<void> {
-    const map = await loadMap<IntentionCheckIn>(CHECKINS_KEY);
-    await Promise.all(Object.keys(map).map(async (id) => queueCheckInDelete(id)));
-    await AsyncStorage.removeItem(CHECKINS_KEY);
+    const ids = await withMutationLock(async () => {
+        const map = await loadMap<IntentionCheckIn>(CHECKINS_KEY);
+        await AsyncStorage.removeItem(getAccountScopedStorageKey(CHECKINS_KEY));
+        return Object.keys(map);
+    });
+    await Promise.all(ids.map(async (id) => queueCheckInDelete(id)));
 }
+
+export function migrateLegacyIntentionsToActiveAccount(): Promise<void> {
+    return withMutationLock(async () => {
+        await claimLegacyStorageKey(INTENTIONS_KEY);
+        await claimLegacyStorageKey(CHECKINS_KEY);
+    });
+}
+
+export async function hasLegacyIntentions(): Promise<boolean> {
+    const [intentions, checkIns] = await Promise.all([
+        AsyncStorage.getItem(INTENTIONS_KEY),
+        AsyncStorage.getItem(CHECKINS_KEY),
+    ]);
+    return intentions !== null || checkIns !== null;
+}
+
+async function importSnapshot<T>(key: string, value: string | null): Promise<void> {
+    if (value === null) {
+        await AsyncStorage.removeItem(getAccountScopedStorageKey(key));
+        return;
+    }
+    let items: Record<string, T> = {};
+    try {
+        const parsed = JSON.parse(value) as unknown;
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            items = parsed as Record<string, T>;
+        }
+    } catch {
+        // Corrupt backup payload restores the owner's safe empty default.
+    }
+    await saveMap(key, items);
+}
+
+export function importIntentionsSnapshot(value: string | null): Promise<void> {
+    return withMutationLock(() => importSnapshot<Intention>(INTENTIONS_KEY, value));
+}
+
+export function importCheckInsSnapshot(value: string | null): Promise<void> {
+    return withMutationLock(() => importSnapshot<IntentionCheckIn>(CHECKINS_KEY, value));
+}
+
+registerAccountTeardown(async () => {
+    await mutationQueue;
+    await Promise.all([
+        intentionsSyncPromise?.catch(() => undefined),
+        checkInsSyncPromise?.catch(() => undefined),
+    ]);
+    hasPulledIntentions = false;
+    hasPushedIntentions = false;
+    hasPulledCheckIns = false;
+    hasPushedCheckIns = false;
+    intentionsSyncPromise = null;
+    checkInsSyncPromise = null;
+});

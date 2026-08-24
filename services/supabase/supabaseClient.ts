@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
+import { AppState, Platform, type NativeEventSubscription } from 'react-native';
 import { isRemoteDataSyncEnabled } from '@/services/data/dataProvider';
 import { getSupabaseConfig } from './supabaseConfig';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -10,15 +11,33 @@ const MISSING_CONFIG_MESSAGE =
 let supabaseClient: SupabaseClient | null = null;
 let hasWarnedMissingConfig = false;
 let sessionPromise: Promise<SupabaseClient | null> | null = null;
+let authRefreshSubscription: NativeEventSubscription | null = null;
 
 export function setSupabaseClient(client: SupabaseClient | null): void {
     supabaseClient = client;
 }
 
 export function resetSupabaseClient(): void {
+    authRefreshSubscription?.remove();
+    authRefreshSubscription = null;
+    supabaseClient?.auth.stopAutoRefresh?.();
     supabaseClient = null;
     hasWarnedMissingConfig = false;
     sessionPromise = null;
+}
+
+function registerAuthRefreshLifecycle(client: SupabaseClient): void {
+    if (Platform.OS === 'web' || authRefreshSubscription) return;
+    if (AppState.currentState === 'active') {
+        client.auth.startAutoRefresh();
+    }
+    authRefreshSubscription = AppState.addEventListener('change', (state) => {
+        if (state === 'active') {
+            client.auth.startAutoRefresh();
+        } else {
+            client.auth.stopAutoRefresh();
+        }
+    });
 }
 
 export function getSupabaseClient(): SupabaseClient | null {
@@ -43,6 +62,7 @@ export function getSupabaseClient(): SupabaseClient | null {
             detectSessionInUrl: false,
         },
     });
+    registerAuthRefreshLifecycle(supabaseClient);
 
     return supabaseClient;
 }

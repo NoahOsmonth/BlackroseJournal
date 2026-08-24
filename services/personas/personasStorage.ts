@@ -2,7 +2,7 @@
  * Personas storage service
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { accountScopedStorage as AsyncStorage } from '@/services/account/accountScopedStorage';
 import { isRemoteDataSyncEnabled } from '@/services/data/dataProvider';
 import { Persona, PersonaCreateInput, PersonaUpdateInput } from './personasStorage.types';
 import {

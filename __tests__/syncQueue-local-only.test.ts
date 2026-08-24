@@ -24,12 +24,15 @@ import {
     resetSyncQueueStorageAdapter,
     setSyncQueueStorageAdapter,
 } from '../services/supabase/syncQueue';
+import { activateAccount, clearActiveAccount } from '../services/account/accountRuntime';
+import { getAccountScopedStorageKey } from '../services/account/accountScopedStorage';
 
 describe('syncQueue local-only default', () => {
     const originalDataProvider = process.env.EXPO_PUBLIC_DATA_PROVIDER;
     const originalRemoteFlag = process.env.EXPO_PUBLIC_ENABLE_REMOTE_DATA_SYNC;
 
-    afterEach(() => {
+    afterEach(async () => {
+        await clearActiveAccount();
         process.env.EXPO_PUBLIC_DATA_PROVIDER = originalDataProvider;
         process.env.EXPO_PUBLIC_ENABLE_REMOTE_DATA_SYNC = originalRemoteFlag;
         mockGetItem.mockClear();
@@ -54,6 +57,8 @@ describe('syncQueue local-only default', () => {
     });
 
     it('removeSyncTasksForTable drops only tasks for the given table', async () => {
+        process.env.EXPO_PUBLIC_DATA_PROVIDER = 'remote';
+        await activateAccount('queue-user');
         const store = new Map<string, string>();
         setSyncQueueStorageAdapter({
             getItem: (key) => Promise.resolve(store.get(key) ?? null),
@@ -62,18 +67,19 @@ describe('syncQueue local-only default', () => {
                 return Promise.resolve();
             },
         });
-        store.set('@supabase_sync_queue', JSON.stringify([
-            { id: 't1', table: 'journal_entries', operation: 'upsert', payload: { id: 'e1' }, createdAt: 1 },
-            { id: 't2', table: 'goals', operation: 'upsert', payload: { id: 'g1' }, createdAt: 2 },
+        const queueKey = getAccountScopedStorageKey('@supabase_sync_queue');
+        store.set(queueKey, JSON.stringify([
+            { id: 't1', accountId: 'queue-user', table: 'journal_entries', operation: 'upsert', payload: { id: 'e1' }, createdAt: 1 },
+            { id: 't2', accountId: 'queue-user', table: 'goals', operation: 'upsert', payload: { id: 'g1' }, createdAt: 2 },
             {
-                id: 't3', table: 'journal_entries', operation: 'delete',
+                id: 't3', accountId: 'queue-user', table: 'journal_entries', operation: 'delete',
                 primaryKey: 'id', primaryValue: 'e2', createdAt: 3,
             },
         ]));
 
         await removeSyncTasksForTable('journal_entries');
 
-        const savedQueue = JSON.parse(store.get('@supabase_sync_queue') ?? '[]');
+        const savedQueue = JSON.parse(store.get(queueKey) ?? '[]');
         expect(savedQueue).toHaveLength(1);
         expect(savedQueue[0].table).toBe('goals');
 

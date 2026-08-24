@@ -1,4 +1,5 @@
 import { getResolvedDirectConfig, type ResolvedDirectConfig } from './directConfig';
+import { accountScopedStorage } from '@/services/account/accountScopedStorage';
 import {
     DEFAULT_FALLBACK_CONTEXT_WINDOW,
     getKnownContextWindow,
@@ -28,16 +29,7 @@ interface CachedModelContext {
 
 export const MODEL_CONTEXT_CACHE_KEY = '@blackrose_model_context_cache';
 
-async function getAsyncStorage(): Promise<StorageAdapter> {
-    const module = await import('@react-native-async-storage/async-storage');
-    return module.default;
-}
-
-const asyncStorageAdapter: StorageAdapter = {
-    getItem: async (key) => (await getAsyncStorage()).getItem(key),
-    setItem: async (key, value) => (await getAsyncStorage()).setItem(key, value),
-    removeItem: async (key) => (await getAsyncStorage()).removeItem(key),
-};
+const asyncStorageAdapter: StorageAdapter = accountScopedStorage;
 
 let storageAdapter: StorageAdapter = asyncStorageAdapter;
 

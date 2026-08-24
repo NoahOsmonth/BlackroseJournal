@@ -12,6 +12,7 @@ import {
     IntentionCheckInCreateInput,
     IntentionCheckInUpdateInput,
 } from '@/services/intentions/intentionsStorage.types';
+import { useActiveAccountId } from '@/hooks/account/useActiveAccountId';
 
 interface UseIntentionCheckInsReturn {
     checkIns: IntentionCheckIn[];
@@ -26,6 +27,7 @@ interface UseIntentionCheckInsReturn {
 }
 
 export function useIntentionCheckIns(): UseIntentionCheckInsReturn {
+    const accountId = useActiveAccountId();
     const [checkIns, setCheckIns] = useState<IntentionCheckIn[]>([]);
     const [completed, setCompleted] = useState<IntentionCheckIn[]>([]);
     const [drafts, setDrafts] = useState<IntentionCheckIn[]>([]);
@@ -52,8 +54,15 @@ export function useIntentionCheckIns(): UseIntentionCheckInsReturn {
     }, []);
 
     useEffect(() => {
-        refresh();
-    }, [refresh]);
+        if (accountId) {
+            void refresh();
+        } else {
+            setCheckIns([]);
+            setCompleted([]);
+            setDrafts([]);
+            setIsLoading(false);
+        }
+    }, [accountId, refresh]);
 
     const create = useCallback(async (input: IntentionCheckInCreateInput) => {
         const checkIn = await createCheckIn(input);

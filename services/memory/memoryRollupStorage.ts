@@ -6,7 +6,7 @@
  *   @rosebud_memory_rollup:<kind>:<periodKey>
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { accountScopedStorage as AsyncStorage } from '@/services/account/accountScopedStorage';
 import type {
     MemoryRollup,
     MemoryRollupIndex,

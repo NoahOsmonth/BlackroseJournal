@@ -19,6 +19,7 @@ import {
     JournalEntryUpdateInput,
 } from '@/services/journal/journalStorage.types';
 import { useCallback, useEffect, useState } from 'react';
+import { useActiveAccountId } from '@/hooks/account/useActiveAccountId';
 
 interface UseJournalEntriesReturn {
     entries: JournalEntry[];
@@ -34,6 +35,7 @@ interface UseJournalEntriesReturn {
 }
 
 export function useJournalEntries(): UseJournalEntriesReturn {
+    const accountId = useActiveAccountId();
     const [entries, setEntries] = useState<JournalEntry[]>([]);
     const [drafts, setDrafts] = useState<JournalEntry[]>([]);
     const [completed, setCompleted] = useState<JournalEntry[]>([]);
@@ -60,8 +62,15 @@ export function useJournalEntries(): UseJournalEntriesReturn {
     }, []);
 
     useEffect(() => {
-        refresh();
-    }, [refresh]);
+        if (accountId) {
+            void refresh();
+        } else {
+            setEntries([]);
+            setDrafts([]);
+            setCompleted([]);
+            setIsLoading(false);
+        }
+    }, [accountId, refresh]);
 
     const create = useCallback(
         async (input: JournalEntryCreateInput): Promise<JournalEntry> => {

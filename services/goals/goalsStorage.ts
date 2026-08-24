@@ -12,23 +12,43 @@ import {
     queueGoalDelete,
     queueGoalUpsert,
 } from './goalsRemote';
+import {
+    claimLegacyStorageKey,
+    getAccountScopedStorageKey,
+} from '@/services/account/accountScopedStorage';
+import { registerAccountTeardown } from '@/services/account/accountRuntime';
 
 const GOALS_KEY = '@goals';
 let hasPulledRemote = false;
 let hasPushedLocal = false;
 let syncPromise: Promise<void> | null = null;
+let mutationQueue: Promise<void> = Promise.resolve();
 
 function generateId(): string {
     return `goal_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 async function loadGoalsMap(): Promise<Record<string, GoalItem>> {
-    const json = await AsyncStorage.getItem(GOALS_KEY);
-    return json ? (JSON.parse(json) as Record<string, GoalItem>) : {};
+    const json = await AsyncStorage.getItem(getAccountScopedStorageKey(GOALS_KEY));
+    if (!json) return {};
+    try {
+        const parsed = JSON.parse(json) as unknown;
+        return parsed && typeof parsed === 'object'
+            ? parsed as Record<string, GoalItem>
+            : {};
+    } catch {
+        return {};
+    }
 }
 
 async function saveGoalsMap(map: Record<string, GoalItem>): Promise<void> {
-    await AsyncStorage.setItem(GOALS_KEY, JSON.stringify(map));
+    await AsyncStorage.setItem(getAccountScopedStorageKey(GOALS_KEY), JSON.stringify(map));
+}
+
+function withMutationLock<T>(operation: () => Promise<T>): Promise<T> {
+    const result = mutationQueue.then(operation, operation);
+    mutationQueue = result.then(() => undefined, () => undefined);
+    return result;
 }
 
 type GoalsChangeListener = () => void;
@@ -64,8 +84,10 @@ async function syncFromRemoteIfNeeded(): Promise<void> {
             const remote = await fetchRemoteGoals();
             if (remote) {
                 hasPulledRemote = true;
-                const merged = mergeGoals(local, remote);
-                await saveGoalsMap(merged);
+                await withMutationLock(async () => {
+                    const latest = await loadGoalsMap();
+                    await saveGoalsMap(mergeGoals(latest, remote));
+                });
             }
         }
 
@@ -120,9 +142,11 @@ export async function createGoal(input: GoalCreateInput): Promise<GoalItem> {
         updatedAt,
     };
 
-    const map = await loadGoalsMap();
-    map[goal.id] = goal;
-    await saveGoalsMap(map);
+    await withMutationLock(async () => {
+        const map = await loadGoalsMap();
+        map[goal.id] = goal;
+        await saveGoalsMap(map);
+    });
 
     try {
         await queueGoalUpsert(goal);
@@ -138,21 +162,21 @@ export async function updateGoal(
     id: string,
     updates: GoalUpdateInput
 ): Promise<GoalItem | null> {
-    const map = await loadGoalsMap();
-    const existing = map[id];
-    if (!existing) {
-        return null;
-    }
-
-    const updated: GoalItem = {
-        ...existing,
-        ...updates,
-        title: updates.title ? updates.title.trim() : existing.title,
-        updatedAt: Date.now(),
-    };
-
-    map[id] = updated;
-    await saveGoalsMap(map);
+    const updated = await withMutationLock(async () => {
+        const map = await loadGoalsMap();
+        const existing = map[id];
+        if (!existing) return null;
+        const next: GoalItem = {
+            ...existing,
+            ...updates,
+            title: updates.title ? updates.title.trim() : existing.title,
+            updatedAt: Date.now(),
+        };
+        map[id] = next;
+        await saveGoalsMap(map);
+        return next;
+    });
+    if (!updated) return null;
 
     try {
         await queueGoalUpsert(updated);
@@ -165,13 +189,14 @@ export async function updateGoal(
 }
 
 export async function deleteGoal(id: string): Promise<boolean> {
-    const map = await loadGoalsMap();
-    if (!map[id]) {
-        return false;
-    }
-
-    delete map[id];
-    await saveGoalsMap(map);
+    const deleted = await withMutationLock(async () => {
+        const map = await loadGoalsMap();
+        if (!map[id]) return false;
+        delete map[id];
+        await saveGoalsMap(map);
+        return true;
+    });
+    if (!deleted) return false;
 
     try {
         await queueGoalDelete(id);
@@ -187,23 +212,35 @@ export async function toggleGoalCompletion(
     id: string,
     dateKey?: string
 ): Promise<GoalItem | null> {
-    const goal = await getGoal(id);
-    if (!goal) {
-        return null;
-    }
-
-    if (goal.type === 'habit') {
-        const key = dateKey ?? getLocalDateKey(new Date());
-        const completions = new Set(goal.habitCompletions ?? []);
-        if (completions.has(key)) {
-            completions.delete(key);
+    const updated = await withMutationLock(async () => {
+        const map = await loadGoalsMap();
+        const goal = map[id];
+        if (!goal) return null;
+        const next = { ...goal, updatedAt: Date.now() };
+        if (goal.type === 'habit') {
+            const key = dateKey ?? getLocalDateKey(new Date());
+            const completions = new Set(goal.habitCompletions ?? []);
+            if (completions.has(key)) {
+                completions.delete(key);
+            } else {
+                completions.add(key);
+            }
+            next.habitCompletions = Array.from(completions);
         } else {
-            completions.add(key);
+            next.completed = !goal.completed;
         }
-        return updateGoal(id, { habitCompletions: Array.from(completions) });
+        map[id] = next;
+        await saveGoalsMap(map);
+        return next;
+    });
+    if (!updated) return null;
+    try {
+        await queueGoalUpsert(updated);
+    } catch (error) {
+        console.warn('Failed to queue goal sync:', error);
     }
-
-    return updateGoal(id, { completed: !goal.completed });
+    notifyGoalsChanges();
+    return updated;
 }
 
 export async function markIntentionGoalComplete(
@@ -223,9 +260,11 @@ export async function markIntentionGoalComplete(
         updatedAt: now,
     };
 
-    const map = await loadGoalsMap();
-    map[goal.id] = goal;
-    await saveGoalsMap(map);
+    await withMutationLock(async () => {
+        const map = await loadGoalsMap();
+        map[goal.id] = goal;
+        await saveGoalsMap(map);
+    });
 
     try {
         await queueGoalUpsert(goal);
@@ -248,8 +287,51 @@ export async function listHabits(): Promise<GoalItem[]> {
 }
 
 export async function clearAllGoals(): Promise<void> {
-    const map = await loadGoalsMap();
-    await Promise.all(Object.keys(map).map(async (id) => queueGoalDelete(id)));
-    await AsyncStorage.removeItem(GOALS_KEY);
+    const ids = await withMutationLock(async () => {
+        const map = await loadGoalsMap();
+        await AsyncStorage.removeItem(getAccountScopedStorageKey(GOALS_KEY));
+        return Object.keys(map);
+    });
+    await Promise.all(ids.map(async (id) => queueGoalDelete(id)));
     notifyGoalsChanges();
 }
+
+export function migrateLegacyGoalsToActiveAccount(): Promise<void> {
+    return withMutationLock(async () => {
+        await claimLegacyStorageKey(GOALS_KEY);
+    });
+}
+
+export async function hasLegacyGoals(): Promise<boolean> {
+    return (await AsyncStorage.getItem(GOALS_KEY)) !== null;
+}
+
+export function importGoalsSnapshot(value: string | null): Promise<void> {
+    return withMutationLock(async () => {
+        if (value === null) {
+            await AsyncStorage.removeItem(getAccountScopedStorageKey(GOALS_KEY));
+        } else {
+            let goals: Record<string, GoalItem> = {};
+            try {
+                const parsed = JSON.parse(value) as unknown;
+                if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                    goals = parsed as Record<string, GoalItem>;
+                }
+            } catch {
+                // Corrupt backup payload restores the owner's safe empty default.
+            }
+            await saveGoalsMap(goals);
+        }
+        notifyGoalsChanges();
+    });
+}
+
+registerAccountTeardown(async () => {
+    await mutationQueue;
+    if (syncPromise) {
+        await syncPromise.catch(() => undefined);
+    }
+    hasPulledRemote = false;
+    hasPushedLocal = false;
+    syncPromise = null;
+});

@@ -14,7 +14,7 @@
  * + record is serialized). JSON.parse is always try/catch with safe defaults.
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { accountScopedStorage as AsyncStorage } from '@/services/account/accountScopedStorage';
 import type {
     SessionDigest,
     SessionDigestIndex,

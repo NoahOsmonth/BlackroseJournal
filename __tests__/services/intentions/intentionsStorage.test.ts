@@ -47,6 +47,7 @@ import {
     updateCheckIn,
     clearAllCheckIns,
     listCheckIns,
+    migrateLegacyIntentionsToActiveAccount,
 } from '../../../services/intentions/intentionsStorage';
 import { retainCheckInToHindsight } from '../../../services/memory/hindsight/hindsightRetain';
 import {
@@ -55,6 +56,7 @@ import {
     setMemoryStorageAdapter,
 } from '../../../services/memory/localMemory';
 import type { StorageAdapter } from '../../../services/journal/journalStorage.types';
+import { activateAccount, clearActiveAccount } from '../../../services/account/accountRuntime';
 
 const mockedRetain = retainCheckInToHindsight as jest.MockedFunction<
     typeof retainCheckInToHindsight
@@ -76,13 +78,15 @@ function createMemoryAdapter(): StorageAdapter {
 }
 
 describe('intentionsStorage', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
         mockAsyncStorageStore.clear();
         setMemoryStorageAdapter(createMemoryAdapter());
         mockedRetain.mockClear();
+        await activateAccount('test-account');
     });
 
-    afterEach(() => {
+    afterEach(async () => {
+        await clearActiveAccount();
         resetMemoryStorageAdapter();
     });
 
@@ -199,6 +203,30 @@ describe('intentionsStorage', () => {
 
         await clearAllCheckIns();
 
+        await expect(listCheckIns()).resolves.toEqual([]);
+    });
+
+    it('isolates check-ins and claims legacy intention stores idempotently', async () => {
+        mockAsyncStorageStore.set('@intention_checkins', JSON.stringify({
+            legacy: {
+                id: 'legacy',
+                type: 'morning',
+                title: 'Legacy check-in',
+                summary: '',
+                mood: 'Reflective',
+                messages: [],
+                status: 'draft',
+                createdAt: 1,
+                updatedAt: 1,
+            },
+        }));
+
+        await migrateLegacyIntentionsToActiveAccount();
+        await expect(listCheckIns()).resolves.toEqual([
+            expect.objectContaining({ id: 'legacy' }),
+        ]);
+
+        await activateAccount('other-account');
         await expect(listCheckIns()).resolves.toEqual([]);
     });
 });
