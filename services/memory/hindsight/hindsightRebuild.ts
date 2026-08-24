@@ -1,5 +1,7 @@
 import { accountScopedStorage } from '@/services/account/accountScopedStorage';
-import { getActiveAccountId } from '@/services/account/accountRuntime';
+import {
+    getActiveAccountId, runAccountBoundOperation,
+} from '@/services/account/accountRuntime';
 import { listCompleted } from '@/services/journal/journalStorage';
 import type { JournalEntry } from '@/services/journal/journalStorage.types';
 import { listCompletedCheckIns } from '@/services/intentions/intentionsStorage';
@@ -53,25 +55,32 @@ export function ensurePrivateHindsightRebuild(
     accountId: string,
     dependencies: HindsightRebuildDependencies = defaultDependencies,
 ): Promise<HindsightRebuildResult> {
-    return enqueue(async () => {
-        if (getActiveAccountId() !== accountId) return 'stale-account';
-        if (await loadState()) return 'already-complete';
+    return runAccountBoundOperation('hindsight-private-rebuild', ({ accountId: leasedAccountId,
+        signal }) => enqueue(async () => {
+        const isStale = () => signal.aborted || leasedAccountId !== accountId
+            || getActiveAccountId() !== accountId;
+        if (isStale()) return 'stale-account';
+        if (await loadState()) return isStale() ? 'stale-account' : 'already-complete';
         const [journals, checkIns] = await Promise.all([
             dependencies.listJournals(), dependencies.listCheckIns(),
         ]);
-        if (getActiveAccountId() !== accountId) return 'stale-account';
+        if (isStale()) return 'stale-account';
         const items = newestBoundedItems(journals, checkIns);
         const succeeded = items.length > 0
             ? await dependencies.rebuild(items, accountId)
             : await dependencies.clear(accountId);
-        if (!succeeded || getActiveAccountId() !== accountId) return 'failed';
+        if (isStale()) return 'stale-account';
+        if (!succeeded) return 'failed';
         await accountScopedStorage.setItem(REBUILD_STATE_KEY, JSON.stringify({
             schemaVersion: SCHEMA_VERSION, completedAt: Date.now(),
         } satisfies RebuildState));
-        return 'rebuilt';
-    });
+        return isStale() ? 'stale-account' : 'rebuilt';
+    })).catch(() => 'failed');
 }
 
 export function clearHindsightRebuildState(): Promise<void> {
-    return enqueue(() => accountScopedStorage.removeItem(REBUILD_STATE_KEY));
+    return runAccountBoundOperation(
+        'hindsight-rebuild-state',
+        () => enqueue(() => accountScopedStorage.removeItem(REBUILD_STATE_KEY))
+    );
 }

@@ -4,7 +4,9 @@ import {
     parseMemoryRebuildResponse, parseMemoryRetainResponse,
     type MemoryMetadata, type MemoryRebuildItem,
 } from '@blackrose/ai-control-plane-contracts';
-import { getActiveAccountId } from '@/services/account/accountRuntime';
+import {
+    getActiveAccountId, runAccountBoundOperation, type AccountOperationContext,
+} from '@/services/account/accountRuntime';
 import { getSupabaseClient } from '@/services/supabase/supabaseClient';
 import { getHindsightConfig } from './hindsightConfig';
 
@@ -33,15 +35,15 @@ export function notifyHindsightChanged(): void { listeners.forEach((listener) =>
 
 async function request(
     path: string, body: unknown, timeoutMs: number, method: 'POST' | 'DELETE' = 'POST',
-    expectedAccountId?: string,
+    context: AccountOperationContext, expectedAccountId?: string,
 ): Promise<unknown | null> {
     const config = getHindsightConfig();
     if (!config.enabled) return null;
     const session = await sessionProvider().catch(() => null);
-    const activeAccountId = getActiveAccountId();
-    if (!session || (activeAccountId && session.userId !== activeAccountId)
-        || (expectedAccountId && session.userId !== expectedAccountId)) return null;
+    if (!session || !isCurrentAccount(context, session.userId, expectedAccountId)) return null;
     const controller = new AbortController();
+    const abortForAccountSwitch = () => controller.abort();
+    context.signal.addEventListener('abort', abortForAccountSwitch);
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
         const response = await fetch(`${config.baseUrl}${path}`, {
@@ -50,12 +52,42 @@ async function request(
                 ...(method === 'POST' ? { 'Content-Type': 'application/json' } : {}) },
             ...(method === 'POST' ? { body: JSON.stringify(body) } : {}), signal: controller.signal,
         });
-        if (!response.ok) return null;
-        return await response.json();
+        if (!response.ok || !isCurrentAccount(context, session.userId, expectedAccountId)) return null;
+        const data: unknown = await response.json();
+        return isCurrentAccount(context, session.userId, expectedAccountId) ? data : null;
     } catch (error) {
-        console.warn(`Hindsight gateway ${path} unavailable:`, error);
+        if (!context.signal.aborted) {
+            console.warn(`Hindsight gateway ${path} unavailable:`, error);
+        }
         return null;
-    } finally { clearTimeout(timer); }
+    } finally {
+        clearTimeout(timer);
+        context.signal.removeEventListener('abort', abortForAccountSwitch);
+    }
+}
+
+function isCurrentAccount(
+    context: AccountOperationContext,
+    sessionAccountId: string,
+    expectedAccountId?: string,
+): boolean {
+    if (context.signal.aborted) return false;
+    if (context.accountId && sessionAccountId !== context.accountId) return false;
+    if (expectedAccountId && sessionAccountId !== expectedAccountId) return false;
+    const activeAccountId = getActiveAccountId();
+    return !context.accountId || activeAccountId === context.accountId;
+}
+
+async function runHindsightOperation<T>(
+    owner: string,
+    fallback: T,
+    operation: (context: AccountOperationContext) => Promise<T>,
+): Promise<T> {
+    try {
+        return await runAccountBoundOperation(owner, operation);
+    } catch {
+        return fallback;
+    }
 }
 
 function inferMetadata(item: HindsightRetainItem): MemoryMetadata | undefined {
@@ -67,27 +99,35 @@ function inferMetadata(item: HindsightRetainItem): MemoryMetadata | undefined {
 
 export async function hindsightRetain(items: HindsightRetainItem[]): Promise<boolean> {
     if (items.length === 0) return false;
-    for (const item of items) {
-        const metadata = inferMetadata(item);
-        const data = await request('/v1/memory/retain', {
-            documentId: item.document_id, content: item.content,
-            createdAt: new Date(item.timestamp).toISOString(), ...(metadata ? { metadata } : {}),
-        }, TIMEOUTS.retain);
-        try { if (!parseMemoryRetainResponse(data).retained) return false; } catch { return false; }
-    }
-    notifyHindsightChanged(); return true;
+    return runHindsightOperation('hindsight-retain', false, async (context) => {
+        for (const item of items) {
+            const metadata = inferMetadata(item);
+            const data = await request('/v1/memory/retain', {
+                documentId: item.document_id, content: item.content,
+                createdAt: new Date(item.timestamp).toISOString(), ...(metadata ? { metadata } : {}),
+            }, TIMEOUTS.retain, 'POST', context);
+            try { if (!parseMemoryRetainResponse(data).retained) return false; } catch { return false; }
+        }
+        if (context.signal.aborted) return false;
+        notifyHindsightChanged(); return true;
+    });
 }
 
 export async function hindsightRecall(query: string, opts: { limit?: number } = {}): Promise<HindsightRecallHit[] | null> {
     if (!query.trim()) return null;
-    const data = await request('/v1/memory/recall', { query: query.trim(), limit: opts.limit ?? 6 }, TIMEOUTS.recall);
-    try {
-        const hits = parseMemoryRecallResponse(data).results.map((result) => ({
-            content: result.content, similarity: result.score, documentId: result.documentId,
-            ...(result.metadata?.writtenAt ? { timestamp: Date.parse(result.metadata.writtenAt) } : {}),
-        }));
-        return dedupeRecallHits(hits, Math.max(1, opts.limit ?? 6));
-    } catch { return null; }
+    return runHindsightOperation('hindsight-recall', null, async (context) => {
+        const data = await request('/v1/memory/recall', {
+            query: query.trim(), limit: opts.limit ?? 6,
+        }, TIMEOUTS.recall, 'POST', context);
+        try {
+            const hits = parseMemoryRecallResponse(data).results.map((result) => ({
+                content: result.content, similarity: result.score, documentId: result.documentId,
+                ...(result.metadata?.writtenAt ? { timestamp: Date.parse(result.metadata.writtenAt) } : {}),
+            }));
+            return context.signal.aborted
+                ? null : dedupeRecallHits(hits, Math.max(1, opts.limit ?? 6));
+        } catch { return null; }
+    });
 }
 
 const NEAR_DUP_JACCARD = 0.55;
@@ -112,8 +152,14 @@ export function dedupeRecallHits<T extends { content: string; similarity: number
 
 export async function hindsightReflect(query: string): Promise<string | null> {
     if (!query.trim()) return null;
-    const data = await request('/v1/memory/reflect', { query: query.trim() }, TIMEOUTS.reflect);
-    try { return parseMemoryReflectResponse(data).reflection; } catch { return null; }
+    return runHindsightOperation('hindsight-reflect', null, async (context) => {
+        const data = await request('/v1/memory/reflect', {
+            query: query.trim(),
+        }, TIMEOUTS.reflect, 'POST', context);
+        try {
+            return context.signal.aborted ? null : parseMemoryReflectResponse(data).reflection;
+        } catch { return null; }
+    });
 }
 
 export async function hindsightRebuild(items: HindsightRetainItem[], expectedAccountId?: string): Promise<boolean> {
@@ -124,21 +170,30 @@ export async function hindsightRebuild(items: HindsightRetainItem[], expectedAcc
             content: item.content, createdAt: new Date(item.timestamp).toISOString(),
             ...(metadata ? { metadata } : {}) };
     });
-    const data = await request('/v1/memory/rebuild', { items: records }, TIMEOUTS.rebuild, 'POST', expectedAccountId);
-    try {
-        const succeeded = parseMemoryRebuildResponse(data).accepted === records.length;
-        if (succeeded) notifyHindsightChanged();
-        return succeeded;
-    } catch { return false; }
+    return runHindsightOperation('hindsight-rebuild', false, async (context) => {
+        const data = await request('/v1/memory/rebuild', {
+            items: records,
+        }, TIMEOUTS.rebuild, 'POST', context, expectedAccountId);
+        try {
+            const succeeded = !context.signal.aborted
+                && parseMemoryRebuildResponse(data).accepted === records.length;
+            if (succeeded) notifyHindsightChanged();
+            return succeeded;
+        } catch { return false; }
+    });
 }
 
 export async function hindsightClear(expectedAccountId?: string): Promise<boolean> {
-    const data = await request('/v1/memory', undefined, TIMEOUTS.clear, 'DELETE', expectedAccountId);
-    try {
-        const succeeded = parseMemoryClearResponse(data).cleared;
-        if (succeeded) notifyHindsightChanged();
-        return succeeded;
-    } catch { return false; }
+    return runHindsightOperation('hindsight-clear', false, async (context) => {
+        const data = await request(
+            '/v1/memory', undefined, TIMEOUTS.clear, 'DELETE', context, expectedAccountId
+        );
+        try {
+            const succeeded = !context.signal.aborted && parseMemoryClearResponse(data).cleared;
+            if (succeeded) notifyHindsightChanged();
+            return succeeded;
+        } catch { return false; }
+    });
 }
 
 export async function hindsightHealth(): Promise<boolean> {

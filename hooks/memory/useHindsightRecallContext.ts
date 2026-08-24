@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+    getActiveAccountId, subscribeActiveAccount,
+} from '@/services/account/accountRuntime';
 import { subscribeHindsightChanges } from '@/services/memory/hindsight/hindsightClient';
 import { buildHindsightRecallContext } from '@/services/memory/hindsight/hindsightRecall';
 
@@ -28,12 +31,27 @@ export function useHindsightRecallContext({
 }: UseHindsightRecallContextOptions = {}): UseHindsightRecallContextReturn {
     const [context, setContext] = useState<string | undefined>();
     const [isLoading, setIsLoading] = useState(enabled);
-    const lastResolvedRef = useRef<{ query: string; value: string | undefined } | null>(null);
+    const accountRef = useRef(getActiveAccountId());
+    const generationRef = useRef(0);
+    const lastResolvedRef = useRef<{
+        accountId: string | null;
+        query: string;
+        value: string | undefined;
+    } | null>(null);
     const inflightRef = useRef<Map<string, Promise<string | undefined>>>(new Map());
 
     const resolve = useCallback(
         async (override?: string): Promise<string | undefined> => {
             const q = (override ?? query)?.trim() ?? '';
+            const runtimeAccountId = getActiveAccountId();
+            if (accountRef.current !== runtimeAccountId) {
+                accountRef.current = runtimeAccountId;
+                generationRef.current += 1;
+                lastResolvedRef.current = null;
+                inflightRef.current.clear();
+            }
+            const accountId = accountRef.current;
+            const generation = generationRef.current;
             if (!enabled || !q) {
                 setContext(undefined);
                 setIsLoading(false);
@@ -41,16 +59,21 @@ export function useHindsightRecallContext({
             }
 
             const cached = lastResolvedRef.current;
-            if (cached && cached.query === q) {
+            if (cached && cached.accountId === accountId && cached.query === q) {
                 setContext(cached.value);
                 setIsLoading(false);
                 return cached.value;
             }
 
-            const existing = inflightRef.current.get(q);
+            const requestKey = `${accountId ?? ''}\u0000${q}`;
+            const isCurrentRequest = () => generationRef.current === generation
+                && accountRef.current === accountId
+                && getActiveAccountId() === accountId;
+            const existing = inflightRef.current.get(requestKey);
             if (existing) {
                 setIsLoading(true);
                 const value = await existing;
+                if (!isCurrentRequest()) return undefined;
                 setContext(value);
                 setIsLoading(false);
                 return value;
@@ -60,15 +83,17 @@ export function useHindsightRecallContext({
             const pending = buildHindsightRecallContext(q, { limit })
                 .catch(() => undefined)
                 .then((value) => {
-                    lastResolvedRef.current = { query: q, value };
+                    if (!isCurrentRequest()) return undefined;
+                    lastResolvedRef.current = { accountId, query: q, value };
                     return value;
                 })
                 .finally(() => {
-                    inflightRef.current.delete(q);
+                    inflightRef.current.delete(requestKey);
                 });
-            inflightRef.current.set(q, pending);
+            inflightRef.current.set(requestKey, pending);
 
             const value = await pending;
+            if (!isCurrentRequest()) return undefined;
             setContext(value);
             setIsLoading(false);
             return value;
@@ -79,6 +104,17 @@ export function useHindsightRecallContext({
     const refresh = useCallback(async () => {
         await resolve();
     }, [resolve]);
+
+    useEffect(() => {
+        return subscribeActiveAccount((accountId) => {
+            accountRef.current = accountId;
+            generationRef.current += 1;
+            lastResolvedRef.current = null;
+            inflightRef.current.clear();
+            setContext(undefined);
+            setIsLoading(false);
+        });
+    }, []);
 
     useEffect(() => {
         refresh().catch(() => undefined);

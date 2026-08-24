@@ -5,12 +5,20 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
         removeItem: jest.fn(async () => undefined) },
 }));
 
-import { activateAccount, clearActiveAccount } from '../../../services/account/accountRuntime';
+import {
+    activateAccount, clearActiveAccount, getActiveAccountId,
+} from '../../../services/account/accountRuntime';
 import { resetAccountStorageAdapter, setAccountStorageAdapter } from '../../../services/account/accountScopedStorage';
 import { clearHindsightRebuildState, ensurePrivateHindsightRebuild }
     from '../../../services/memory/hindsight/hindsightRebuild';
 import type { HindsightRebuildDependencies } from '../../../services/memory/hindsight/hindsightRebuild';
 import type { HindsightRetainItem } from '../../../services/memory/hindsight/hindsightClient';
+
+function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((nextResolve) => { resolve = nextResolve; });
+    return { promise, resolve };
+}
 
 describe('private Hindsight rebuild', () => {
     const values = new Map<string, string>();
@@ -62,6 +70,33 @@ describe('private Hindsight rebuild', () => {
             listCheckIns: async () => { throw new Error('must not read'); },
             rebuild: async () => true, clear: async () => true,
         })).resolves.toBe('stale-account');
+    });
+
+    it('keeps account b hidden until an account-a rebuild read has quiesced', async () => {
+        const readStarted = deferred<void>();
+        const releaseRead = deferred<[]>();
+        const rebuilding = ensurePrivateHindsightRebuild('account-a', {
+            listJournals: async () => {
+                readStarted.resolve();
+                return releaseRead.promise;
+            },
+            listCheckIns: async () => [],
+            rebuild: async () => true,
+            clear: async () => true,
+        });
+        await readStarted.promise;
+
+        let switchFinished = false;
+        const switching = activateAccount('account-b').then(() => { switchFinished = true; });
+        await new Promise<void>((resolve) => { setImmediate(resolve); });
+        const switchedBeforeRelease = switchFinished;
+        const accountBeforeRelease = getActiveAccountId();
+
+        releaseRead.resolve([]);
+        await expect(rebuilding).resolves.toBe('stale-account');
+        await switching;
+        expect(switchedBeforeRelease).toBe(false);
+        expect(accountBeforeRelease).toBe('account-a');
     });
 
     it('clears its account-scoped completion marker', async () => {
