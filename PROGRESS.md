@@ -2550,3 +2550,62 @@
   also hit one unrelated intermittent random-base64 regex failure). GREEN: backend
   **13 suites / 47 tests** passed; backend/root TypeScript, scoped ESLint, and
   `git diff --check` passed.
+## 2026-08-24 — AI control plane Task 2: portable Supabase control schema
+
+- Added one additive migration for the authenticated-safe managed catalog, per-user model
+  preferences, and the private `control` schema (providers, encrypted credential envelopes,
+  discovery inventory, routes, runtime settings, admins, audit/usage events, and rekey jobs).
+- Added enum/check constraints, foreign-key/query indexes, monotonic row/catalog revisions,
+  least-privilege grants, deny-by-default RLS, and authenticated owner policies for preferences.
+- Added service-only transactional publish and catalog/provider-model/provider archive functions.
+  Stale expected revisions raise `PT409`; archives preserve history, withdraw dependent catalog
+  rows, disable/archive routes, preserve user selections, and bump catalog revision once.
+- Realtime includes only `public.ai_catalog_models` and `public.ai_catalog_revision` from the new
+  surface; preferences and every `control` table remain unpublished.
+- TDD evidence: the pre-migration schema suite failed 25/25 assertions; targeted RED runs also
+  caught an invalid flash-route assignment, the missing flash-route FK index, and the absent
+  provider-model archive path. A deliberate local-only permissive RLS sabotage made cross-user
+  read/update assertions fail, then a clean reset restored GREEN.
+- Fresh verification after a clean local reset: all Supabase pgTAP tests passed (4 files,
+  286 tests); `supabase db lint` found no schema errors. The security advisor reports only the
+  pre-existing `public.set_updated_at` mutable-search-path warning, not a new control-plane issue.
+
+### Task 2 review fix round 1
+
+- Existing-row publication now requires both provider and locked catalog expected revisions;
+  stale cross-provider metadata/route replacement raises `PT409` without partial writes.
+- Provider and provider-model archive derive withdrawals only from their active chat routes and
+  leave a catalog row available when another active chat route survives.
+- Route update/delete reverse guards clear the selected flash route transactionally when it is
+  disabled, archived, repurposed, or deleted; a replacement selected in the same transaction is
+  preserved.
+- Authenticated preference writes are column-scoped to `selected_model_id`; user id, initial
+  revision, creation timestamp, and update timestamp remain server-owned.
+- TDD RED: the focused review suite failed 17/23 assertions before the migration repair. Focused
+  GREEN passed 3 files / 93 tests; full pgTAP passed 5 files / 309 tests. DB lint remains clean,
+  and the security advisor still reports only the pre-existing `public.set_updated_at` warning.
+
+### Task 2 review fix round 2
+
+- Publication CAS now means the singleton `ai_catalog_revision`, not a model row revision. Every
+  new or existing publish locks that singleton first and rejects null/stale expectations as
+  typed `PT409` before provider, catalog, or route mutation.
+- Successful publish increments the locked singleton once and assigns that resulting global
+  revision to the inserted/updated catalog row. A dedicated row trigger preserves an explicitly
+  newer global revision while retaining monotonic protection for other catalog updates.
+- TDD RED covered unrelated-catalog staleness and new-row expectations; the pre-repair review
+  suite failed 13/30 and the updated behavior suite failed 21/43. Final focused pgTAP passed
+  3 files / 100 tests; full pgTAP passed 5 files / 316 tests; DB lint stayed clean.
+
+### Task 2 review fix round 3
+
+- Every catalog-changing gateway now acquires the singleton `ai_catalog_revision` row lock first.
+  Publication continues with provider, provider-model, and catalog locks; archive paths now use
+  the same order, with provider-model archive locking its parent provider before the model row.
+- This removes the opposing publish/archive lock sequence that could deadlock as SQLSTATE
+  `40P01`. Revision increments remain transactional and reentrant after the singleton is held.
+- A catalog-driven pgTAP regression inspects all five catalog mutators and guards the global lock
+  sequence. RED failed the three archive assertions (3/5); GREEN passed 5/5.
+- Fresh clean-reset verification passed focused control-plane pgTAP (4 files / 105 tests), full
+  pgTAP (6 files / 321 tests), and DB lint with no schema errors. Advisors report no new finding;
+  only the pre-existing mutable-search-path and legacy RLS performance warnings remain.
