@@ -14,15 +14,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LoadingBar } from '@/components/ui/LoadingBar';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import type { CustomAiModel } from '@/services/ai/customModels';
+import type { ChatModelOption } from '@/features/chat/modelPicker.types';
 import { FreeOnlyPill } from './FreeModelBadge';
 import { ModelPickerRow } from './ModelPickerRow';
 
 export type ChatModelPickerSheetProps = {
     readonly visible: boolean;
     readonly mode?: 'managed' | 'byok';
-    readonly models: readonly CustomAiModel[];
-    readonly recentModels?: readonly CustomAiModel[];
+    readonly models: readonly ChatModelOption[];
+    readonly recentModels?: readonly ChatModelOption[];
     readonly selectedId: string | null;
     readonly freeOnly: boolean;
     readonly hostLabel: string;
@@ -39,7 +39,7 @@ export type ChatModelPickerSheetProps = {
 type ListItem =
     | { type: 'note' }
     | { type: 'section'; title: string }
-    | { type: 'model'; model: CustomAiModel };
+    | { type: 'model'; model: ChatModelOption };
 
 function ModelRowSkeleton({ index }: { index: number }) {
     return (

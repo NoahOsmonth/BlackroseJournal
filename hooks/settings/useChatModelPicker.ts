@@ -5,15 +5,15 @@ import { useCustomAiModels } from '@/hooks/settings/useCustomAiModels';
 import { useActiveModelContext } from '@/hooks/settings/useActiveModelContext';
 import { useManagedAiCatalog } from '@/hooks/settings/useManagedAiCatalog';
 import { filterFreeModels, hostLabelFromBaseUrl, isFreeModelId } from '@/utils/ai/modelDisplay';
-import type { CustomAiModel } from '@/services/ai/customModels';
+import type { ChatModelOption } from '@/features/chat/modelPicker.types';
 
 export interface UseChatModelPickerReturn {
     mode: 'managed' | 'byok';
     visible: boolean;
     open: () => void;
     close: () => void;
-    models: CustomAiModel[];
-    recentModels: CustomAiModel[];
+    models: ChatModelOption[];
+    recentModels: ChatModelOption[];
     selectedModelId: string | null;
     freeOnly: boolean;
     hostLabel: string;
@@ -37,14 +37,14 @@ export function useChatModelPicker(options?: {
 
     const mode = customAi.settings.enabled ? 'byok' : 'managed';
     const freeOnly = mode === 'byok' ? customAi.settings.freeOnly : false;
-    const models = useMemo<CustomAiModel[]>(() => {
+    const models = useMemo<ChatModelOption[]>(() => {
         if (mode === 'managed') {
             return managedAi.models.map((model) => ({
                 id: model.id,
                 name: model.label,
-                ownedBy: 'Blackrose',
+                publicId: model.publicModelId,
                 contextWindow: model.contextWindow,
-                contextWindowSource: 'api' as const,
+                availability: model.availability,
             }));
         }
         const list = freeOnly
@@ -54,13 +54,13 @@ export function useChatModelPicker(options?: {
     }, [customAi.settings.models, freeOnly, managedAi.models, mode]);
 
     const recentModels = useMemo(() => {
-        const byId = new Map<string, CustomAiModel>(
-            models.map((model): [string, CustomAiModel] => [model.id, model])
+        const byId = new Map<string, ChatModelOption>(
+            models.map((model): [string, ChatModelOption] => [model.id, model])
         );
         if (mode === 'managed') return [];
         return customAi.settings.recentModelIds
             .map((id) => byId.get(id))
-            .filter((model): model is CustomAiModel => Boolean(model));
+            .filter((model): model is ChatModelOption => Boolean(model));
     }, [customAi.settings.recentModelIds, mode, models]);
 
     const hostLabel = mode === 'managed'

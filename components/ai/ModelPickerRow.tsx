@@ -4,12 +4,12 @@ import { Pressable, Text, View } from 'react-native';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { formatContextWindow } from '@/services/ai/modelContext';
-import type { CustomAiModel } from '@/services/ai/customModels';
+import type { ChatModelOption } from '@/features/chat/modelPicker.types';
 import { formatPickerModelName, isFreeModelId } from '@/utils/ai/modelDisplay';
 import { FreeModelBadge } from './FreeModelBadge';
 
 type ModelPickerRowProps = {
-    readonly model: CustomAiModel;
+    readonly model: ChatModelOption;
     readonly selected: boolean;
     readonly onPress: () => void;
 };
@@ -21,14 +21,18 @@ export function ModelPickerRow({ model, selected, onPress }: ModelPickerRowProps
         : (isDark ? '#9CA3AF' : '#6B7280');
     const free = isFreeModelId(model.id);
     const displayName = model.name ?? formatPickerModelName(model.id);
+    const unavailable = model.availability === 'unavailable';
 
     return (
         <Pressable
             onPress={onPress}
+            disabled={unavailable}
             accessibilityRole="radio"
-            accessibilityState={{ selected }}
+            accessibilityState={{ selected, disabled: unavailable }}
             accessibilityLabel={`Select ${displayName}`}
             className={`flex-row items-start gap-3 rounded-xl border px-3 py-3 active:opacity-80 ${
+                unavailable ? 'opacity-50 ' : ''
+            }${
                 selected
                     ? 'border-primary bg-primary/10 dark:bg-primary/20'
                     : 'border-divider-light dark:border-divider-dark bg-transparent'
@@ -57,7 +61,7 @@ export function ModelPickerRow({ model, selected, onPress }: ModelPickerRowProps
                     ellipsizeMode="middle"
                     className="text-xs text-subtext-light dark:text-subtext-dark"
                 >
-                    {model.id}
+                    {model.publicId ?? model.id}
                 </Text>
             </View>
         </Pressable>

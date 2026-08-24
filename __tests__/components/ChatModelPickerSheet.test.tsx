@@ -28,16 +28,20 @@ const freeModel = {
 
 describe('ChatModelPickerSheet', () => {
     it('shows managed models without asking for a user API key', () => {
+        const onSelect = jest.fn();
         render(
             <ChatModelPickerSheet
                 visible
                 mode="managed"
-                models={[{ ...freeModel, id: 'managed-1', name: 'Rose Large' }]}
+                models={[{
+                    ...freeModel, id: 'managed-1', name: 'Rose Large',
+                    availability: 'unavailable',
+                }]}
                 selectedId="withdrawn-model"
                 freeOnly={false}
                 hostLabel="Blackrose managed"
                 hasApiKey={false}
-                onSelect={jest.fn()}
+                onSelect={onSelect}
                 onClose={jest.fn()}
             />
         );
@@ -46,6 +50,8 @@ describe('ChatModelPickerSheet', () => {
         expect(screen.getByText('Rose Large')).toBeTruthy();
         expect(screen.queryByText('Add an API key')).toBeNull();
         expect(screen.getByText(/selected managed model is no longer available/i)).toBeTruthy();
+        fireEvent.press(screen.getByLabelText('Select Rose Large'));
+        expect(onSelect).not.toHaveBeenCalled();
     });
 
     it('lists free models and selects one', () => {
