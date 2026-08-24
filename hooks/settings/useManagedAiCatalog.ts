@@ -36,7 +36,8 @@ function getErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : 'Managed AI is unavailable.';
 }
 
-export function useManagedAiCatalog(): UseManagedAiCatalogReturn {
+export function useManagedAiCatalog(options: { enabled?: boolean } = {}): UseManagedAiCatalogReturn {
+    const enabled = options.enabled ?? true;
     const auth = useAuthSession();
     const accountId = auth.user?.id ?? null;
     const [snapshot, setSnapshot] = useState<ManagedCatalogSnapshot>(EMPTY_SNAPSHOT);
@@ -52,7 +53,7 @@ export function useManagedAiCatalog(): UseManagedAiCatalogReturn {
     }, []);
 
     const refresh = useCallback(async () => {
-        if (!accountId || auth.isOffline) return;
+        if (!enabled || !accountId || auth.isOffline) return;
         setIsRefreshing(true);
         setError(null);
         try {
@@ -64,7 +65,7 @@ export function useManagedAiCatalog(): UseManagedAiCatalogReturn {
         } finally {
             if (mountedRef.current) setIsRefreshing(false);
         }
-    }, [accountId, auth.isOffline]);
+    }, [accountId, auth.isOffline, enabled]);
 
     useEffect(() => {
         let current = true;
@@ -72,6 +73,11 @@ export function useManagedAiCatalog(): UseManagedAiCatalogReturn {
         setSnapshot(EMPTY_SNAPSHOT);
         setError(null);
         setIsLoading(true);
+
+        if (!enabled) {
+            setIsLoading(false);
+            return () => { current = false; };
+        }
 
         const unsubscribeChanges = subscribeManagedCatalogChanges((next) => {
             if (current) setSnapshot(next);
@@ -97,9 +103,10 @@ export function useManagedAiCatalog(): UseManagedAiCatalogReturn {
             stopRealtime?.();
             unsubscribeChanges();
         };
-    }, [accountId, auth.isOffline, refresh]);
+    }, [accountId, auth.isOffline, enabled, refresh]);
 
     const selectModel = useCallback(async (modelId: string) => {
+        if (!enabled) throw new Error('Managed AI mode is disabled.');
         setIsUpdatingPreference(true);
         setError(null);
         try {
@@ -116,7 +123,7 @@ export function useManagedAiCatalog(): UseManagedAiCatalogReturn {
         } finally {
             if (mountedRef.current) setIsUpdatingPreference(false);
         }
-    }, [snapshot.preference?.revision]);
+    }, [enabled, snapshot.preference?.revision]);
 
     const selection = useMemo(
         () => getManagedModelSelection(snapshot.catalog, snapshot.preference),

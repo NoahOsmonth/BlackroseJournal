@@ -31,7 +31,9 @@ export function useChatModelPicker(options?: {
 }): UseChatModelPickerReturn {
     const router = useRouter();
     const customAi = useCustomAiModels();
-    const managedAi = useManagedAiCatalog();
+    const managedAi = useManagedAiCatalog({
+        enabled: !customAi.isLoading && !customAi.settings.enabled,
+    });
     const { refresh: refreshContext } = useActiveModelContext();
     const [visible, setVisible] = useState(false);
 

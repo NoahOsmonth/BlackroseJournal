@@ -140,4 +140,13 @@ describe('useManagedAiCatalog', () => {
         expect(mockRefreshCatalog).not.toHaveBeenCalled();
         expect(mockLoadPreference).not.toHaveBeenCalled();
     });
+
+    it('does not load or subscribe while managed mode is disabled', async () => {
+        const { result } = renderHook(() => useManagedAiCatalog({ enabled: false }));
+
+        await waitFor(() => expect(result.current.isLoading).toBe(false));
+        expect(mockStartRealtime).not.toHaveBeenCalled();
+        expect(mockRefreshCatalog).not.toHaveBeenCalled();
+        expect(mockLoadPreference).not.toHaveBeenCalled();
+    });
 });
