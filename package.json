@@ -17,6 +17,7 @@
     "test": "npm run test:run",
     "test:run": "jest --runInBand",
     "test:run:verbose": "npm run test:run -- --verbose",
+    "test:control-plane-live": "node scripts/control-plane/live-probe.js",
     "check:design": "node scripts/check-design-limits.js",
     "check:legacy-shim": "node scripts/check-legacy-shim.js",
     "reset-project": "node scripts/reset-project.js"
