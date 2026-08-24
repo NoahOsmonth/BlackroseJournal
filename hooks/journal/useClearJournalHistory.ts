@@ -11,6 +11,9 @@ import { clearRollupAttempts } from '@/services/memory/memoryRollupBuild';
 import { removeAllChatSessions } from '@/services/ai/sessionStorage';
 import { clearAllEntries } from '@/services/journal/journalStorage';
 import { clearAllCheckIns } from '@/services/intentions/intentionsStorage';
+import { getActiveAccountId } from '@/services/account/accountRuntime';
+import { hindsightClear } from '@/services/memory/hindsight/hindsightClient';
+import { clearHindsightRebuildState } from '@/services/memory/hindsight/hindsightRebuild';
 
 interface UseClearJournalHistoryReturn {
     clearAll: () => Promise<void>;
@@ -22,6 +25,7 @@ export function useClearJournalHistory(): UseClearJournalHistoryReturn {
 
     const clearAll = useCallback(async () => {
         setIsClearing(true);
+        const accountId = getActiveAccountId();
         try {
             await clearAllEntries();
             await clearAllCheckIns();
@@ -35,6 +39,12 @@ export function useClearJournalHistory(): UseClearJournalHistoryReturn {
             await removeAllChatSessions();
             await clearCachedInsights();
             await clearSavedInsights();
+            await clearHindsightRebuildState();
+            if (accountId) {
+                void hindsightClear(accountId).catch((error) => {
+                    console.warn('Remote Hindsight clear unavailable:', error);
+                });
+            }
         } finally {
             setIsClearing(false);
         }

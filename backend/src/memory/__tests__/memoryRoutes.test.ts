@@ -83,8 +83,12 @@ describe('authenticated memory gateway routes', () => {
   it('isolates two users across retain, recall, reflect, rebuild, and clear', async () => {
     await withGateway(async (baseUrl, seen) => {
       const retainBody = {
-        items: [{ content: 'alpha memory', timestamp: '2026-08-24T00:00:00.000Z', document_id: 'a' }],
+        content: 'alpha memory', documentId: 'a', createdAt: '2026-08-24T00:00:00.000Z',
       };
+      const rebuildBody = { items: [{
+        content: 'alpha memory', documentId: 'a', kind: 'journal',
+        createdAt: '2026-08-24T00:00:00.000Z',
+      }] };
       const responses = [];
       responses.push(await fetch(`${baseUrl}/v1/memory/retain`, {
           method: 'POST', headers: jsonHeaders('alpha-token'), body: JSON.stringify(retainBody),
@@ -96,7 +100,7 @@ describe('authenticated memory gateway routes', () => {
           method: 'POST', headers: jsonHeaders('alpha-token'), body: JSON.stringify({ query: 'pattern' }),
       }));
       responses.push(await fetch(`${baseUrl}/v1/memory/rebuild`, {
-          method: 'POST', headers: jsonHeaders('alpha-token'), body: JSON.stringify(retainBody),
+          method: 'POST', headers: jsonHeaders('alpha-token'), body: JSON.stringify(rebuildBody),
       }));
       responses.push(await fetch(`${baseUrl}/v1/memory`, {
           method: 'DELETE', headers: { authorization: 'Bearer beta-token' },
@@ -156,17 +160,17 @@ describe('authenticated memory gateway routes', () => {
         { path: 'recall', body: { query: '   ' } },
         { path: 'recall', body: { query: 'memory', limit: 51 } },
         { path: 'reflect', body: { query: 'x'.repeat(16_385) } },
-        { path: 'retain', body: { items: [] } },
+        { path: 'retain', body: { content: '' } },
         {
           path: 'retain',
-          body: { items: [{ content: 'x'.repeat(65_537), timestamp: 1, document_id: 'a' }] },
+          body: { content: 'x'.repeat(65_537), createdAt: new Date(1).toISOString(), documentId: 'a' },
         },
         {
           path: 'retain',
-          body: { items: [{ content: 'memory', timestamp: 'not-a-date', document_id: 'a' }] },
+          body: { content: 'memory', createdAt: 'not-a-date', documentId: 'a' },
         },
         { path: 'rebuild', body: { items: Array.from({ length: 501 }, (_, index) => ({
-          content: 'memory', timestamp: 1, document_id: String(index),
+          content: 'memory', createdAt: new Date(1).toISOString(), documentId: String(index), kind: 'journal',
         })) } },
         { path: 'recall', body: { query: 'memory', provider_config: { model: 'ignored' } } },
       ];

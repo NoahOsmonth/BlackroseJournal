@@ -44,6 +44,7 @@ const ACCOUNT_PRIVATE_EXACT_KEYS = [
     '@demo_data_seed_record',
     '@demo_data_seeded',
     '@blackrose_local_backups',
+    '@blackrose_hindsight_rebuild',
 ] as const;
 
 const ACCOUNT_PRIVATE_KEY_PREFIXES = [

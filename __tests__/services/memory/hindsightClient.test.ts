@@ -1,187 +1,89 @@
-import { hindsightRetain, hindsightRecall, hindsightReflect, hindsightHealth, subscribeHindsightChanges, dedupeRecallHits } from '../../../services/memory/hindsight/hindsightClient';
-import { retainJournalEntryToHindsight } from '../../../services/memory/hindsight/hindsightRetain';
+import {
+    dedupeRecallHits, hindsightClear, hindsightRecall, hindsightReflect, hindsightRetain,
+    resetHindsightSessionProvider, setHindsightSessionProvider, subscribeHindsightChanges,
+} from '../../../services/memory/hindsight/hindsightClient';
 
-const JSON_OK = { ok: true, status: 200, json: async () => ({}) } as Response;
-
-describe('hindsightClient', () => {
-    const originalFetch = global.fetch;
+describe('hindsight gateway client', () => {
+    const originalGateway = process.env.EXPO_PUBLIC_AGENT_BASE_URL;
+    let fetchMock: jest.MockedFunction<typeof fetch>;
 
     beforeEach(() => {
-        // NOTE: babel-preset-expo rewrites process.env.EXPO_PUBLIC_* reads to
-        // `expo/virtual/env` (a live reference captured at module load), so we
-        // must mutate the existing process.env object in place rather than
-        // replace it (`process.env = { ...OLD_ENV }` would be invisible).
-        process.env.EXPO_PUBLIC_HINDSIGHT_BASE_URL = 'http://localhost:8888';
-        global.fetch = jest.fn();
+        process.env.EXPO_PUBLIC_AGENT_BASE_URL = 'https://gateway.example/';
+        setHindsightSessionProvider(async () => ({ accessToken: 'account-token', userId: 'account-a' }));
+        fetchMock = jest.fn();
+        global.fetch = fetchMock;
     });
-
     afterEach(() => {
-        delete process.env.EXPO_PUBLIC_HINDSIGHT_BASE_URL;
-        global.fetch = originalFetch;
+        process.env.EXPO_PUBLIC_AGENT_BASE_URL = originalGateway;
+        resetHindsightSessionProvider();
         jest.restoreAllMocks();
     });
 
-    it('retain posts items to the bank and notifies subscribers', async () => {
-        (global.fetch as jest.Mock).mockResolvedValue(JSON_OK);
-        const seen: number[] = [];
-        const unsub = subscribeHindsightChanges(() => seen.push(1));
-        const ok = await hindsightRetain([{ content: 'hello', timestamp: 1700000000000, document_id: 'd1' }]);
-        expect(ok).toBe(true);
-        expect(seen).toEqual([1]);
-        unsub();
-        const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
-        expect(url).toContain('/v1/default/banks/rosebud/memories');
-        expect(init.method).toBe('POST');
-        expect(JSON.parse(init.body).items).toHaveLength(1);
+    it('retains through the authenticated gateway without a client bank selector', async () => {
+        fetchMock.mockResolvedValue(new Response(JSON.stringify({ retained: true }), { status: 200 }));
+        const changes: number[] = [];
+        const unsubscribe = subscribeHindsightChanges(() => changes.push(1));
+        await expect(hindsightRetain([{
+            content: 'hello', timestamp: 1_700_000_000_000, document_id: 'journal_entry:one',
+        }])).resolves.toBe(true);
+        const [url, init] = fetchMock.mock.calls[0];
+        expect(url).toBe('https://gateway.example/v1/memory/retain');
+        expect(init?.headers).toEqual({
+            Accept: 'application/json', Authorization: 'Bearer account-token',
+            'Content-Type': 'application/json',
+        });
+        expect(JSON.parse(String(init?.body))).toEqual({
+            content: 'hello', documentId: 'journal_entry:one',
+            createdAt: '2023-11-14T22:13:20.000Z',
+            metadata: { source: 'journal', sourceId: 'one', completed: true,
+                writtenAt: '2023-11-14T22:13:20.000Z' },
+        });
+        expect(String(init?.body)).not.toContain('bank');
+        expect(changes).toEqual([1]);
+        unsubscribe();
     });
 
-    it('recall normalizes units/results shapes and keeps similarity', async () => {
-        (global.fetch as jest.Mock).mockResolvedValue({
-            ok: true, status: 200,
-            json: async () => ({
-                units: [
-                    { content: 'Maya got married', similarity: 0.91, timestamp: 1700000000000, document_id: 'journal_entry:e1' },
-                ],
-            }),
-        } as Response);
-        const hits = await hindsightRecall('when did Maya get married');
-        expect(hits).toHaveLength(1);
-        expect(hits![0].content).toBe('Maya got married');
-        expect(hits![0].similarity).toBeCloseTo(0.91);
-        expect(hits![0].documentId).toBe('journal_entry:e1');
+    it('normalizes contract-safe recall and reflect responses', async () => {
+        fetchMock
+            .mockResolvedValueOnce(new Response(JSON.stringify({ results: [
+                { documentId: 'j1', content: 'Rest helped', score: 0.8 },
+                { documentId: 'j2', content: 'Today rest helped', score: 0.7 },
+            ] }), { status: 200 }))
+            .mockResolvedValueOnce(new Response(JSON.stringify({ reflection: 'Rest recurs.' }), { status: 200 }));
+        await expect(hindsightRecall(' rest ', { limit: 4 })).resolves.toEqual([
+            { documentId: 'j1', content: 'Rest helped', similarity: 0.8 },
+        ]);
+        await expect(hindsightReflect(' pattern ')).resolves.toBe('Rest recurs.');
+        expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ query: 'rest', limit: 4 });
     });
 
-    it('retain serializes epoch timestamps to ISO strings on the wire', async () => {
-        (global.fetch as jest.Mock).mockResolvedValue(JSON_OK);
-        await hindsightRetain([{ content: 'hello', timestamp: 1700000000000, document_id: 'd1' }]);
-        const [, init] = (global.fetch as jest.Mock).mock.calls[0];
-        expect(JSON.parse(init.body).items[0].timestamp).toBe('2023-11-14T22:13:20.000Z');
-    });
-
-    it('recall normalizes the container result shape (text/scores/occurred_start)', async () => {
-        (global.fetch as jest.Mock).mockResolvedValue({
-            ok: true, status: 200,
-            json: async () => ({
-                results: [
-                    {
-                        id: 'r1',
-                        text: 'Maya got married on July 28, 2026',
-                        type: 'world',
-                        document_id: 'needle_wedding',
-                        occurred_start: '2026-07-28T12:00:00+00:00',
-                        scores: { final: 0.91, semantic: 0.88, reranker: 0.9 },
-                    },
-                ],
-            }),
-        } as Response);
-        const hits = await hindsightRecall('when did Maya get married');
-        expect(hits).toHaveLength(1);
-        expect(hits![0].content).toBe('Maya got married on July 28, 2026');
-        expect(hits![0].similarity).toBeCloseTo(0.91);
-        expect(hits![0].documentId).toBe('needle_wedding');
-        expect(hits![0].timestamp).toBe(Date.parse('2026-07-28T12:00:00+00:00'));
-    });
-
-    it('recall returns null on non-OK status (soft-fail, no throw)', async () => {
-        (global.fetch as jest.Mock).mockResolvedValue({ ok: false, status: 500 } as Response);
+    it('soft-fails when auth or the gateway is unavailable', async () => {
+        jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+        setHindsightSessionProvider(async () => null);
         await expect(hindsightRecall('anything')).resolves.toBeNull();
+        expect(fetchMock).not.toHaveBeenCalled();
+        setHindsightSessionProvider(async () => ({ accessToken: 'token', userId: 'account-a' }));
+        fetchMock.mockRejectedValueOnce(new Error('offline'));
+        await expect(hindsightRetain([{ content: 'x', timestamp: 1, document_id: 'j' }]))
+            .resolves.toBe(false);
     });
 
-    it('recall returns null when disabled', async () => {
-        delete process.env.EXPO_PUBLIC_HINDSIGHT_BASE_URL;
-        await expect(hindsightRecall('anything')).resolves.toBeNull();
-        expect(global.fetch).not.toHaveBeenCalled();
+    it('clears only through the authenticated bankless gateway route', async () => {
+        fetchMock.mockResolvedValue(new Response(JSON.stringify({ cleared: true }), { status: 200 }));
+        await expect(hindsightClear()).resolves.toBe(true);
+        expect(fetchMock.mock.calls[0][0]).toBe('https://gateway.example/v1/memory');
+        expect(fetchMock.mock.calls[0][1]?.method).toBe('DELETE');
+        expect(fetchMock.mock.calls[0][1]?.body).toBeUndefined();
     });
 
-    it('recall returns null on network failure', async () => {
-        (global.fetch as jest.Mock).mockRejectedValue(new TypeError('Network request failed'));
-        await expect(hindsightRecall('anything')).resolves.toBeNull();
-    });
-
-    it('aborts (timeouts) and returns null', async () => {
-        jest.useFakeTimers();
-        try {
-            (global.fetch as jest.Mock).mockImplementation((_url: string, init: { signal?: AbortSignal }) =>
-                new Promise((_resolve, reject) => {
-                    init.signal?.addEventListener('abort', () => reject(new Error('Aborted')));
-                })
-            );
-            const pending = hindsightRecall('anything');
-            await jest.advanceTimersByTimeAsync(10_001);
-            await expect(pending).resolves.toBeNull();
-        } finally {
-            jest.useRealTimers();
-        }
-    });
-
-    it('reflect normalizes string and object responses', async () => {
-        (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: true, status: 200, json: async () => 'A grounded reflection' } as Response);
-        await expect(hindsightReflect('question')).resolves.toBe('A grounded reflection');
-        (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ reflection: 'Object form' }) } as Response);
-        await expect(hindsightReflect('question')).resolves.toBe('Object form');
-        (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ text: 'Container text form' }) } as Response);
-        await expect(hindsightReflect('question')).resolves.toBe('Container text form');
-    });
-
-    it('health returns false when disabled or failing', async () => {
-        (global.fetch as jest.Mock).mockResolvedValue({ ok: true, status: 200 } as Response);
-        await expect(hindsightHealth()).resolves.toBe(true); // fetch mocked ok
-        delete process.env.EXPO_PUBLIC_HINDSIGHT_BASE_URL;
-        await expect(hindsightHealth()).resolves.toBe(false);
-    });
-
-    it('finish-path retain does not throw when Hindsight is down', async () => {
-        // Plan Task 13 Step 3 (B2 offline safety): with the base URL unset the
-        // client is disabled, so the finish-path retain must soft-fail (false,
-        // no fetch, no throw). A user line is included so the item builder
-        // actually produces a retain item and the disabled-config branch is
-        // exercised (with messages: [] the call would return false trivially
-        // without ever checking the config).
-        delete process.env.EXPO_PUBLIC_HINDSIGHT_BASE_URL;
-        const ok = await retainJournalEntryToHindsight({
-            id: 'x',
-            status: 'completed',
-            messages: [
-                { id: 'u1', role: 'user', content: 'I got a lilac scarf from Grandma.', timestamp: 1 },
-            ],
-            createdAt: 1,
-            updatedAt: 1,
-        } as never);
-        expect(ok).toBe(false);
-        expect(global.fetch).not.toHaveBeenCalled();
-    });
-
-    it('dedupeRecallHits collapses near-duplicate units and keeps distinct facts', () => {
-        // Mirrors the live bank failure: ~20 near-identical "called Priya"
-        // extraction variants drown the distinct Vancouver-move fact.
-        const hits = [
-            { content: 'User called Priya; she had just finished a pottery class. | When: May 13', similarity: 0.98 },
-            { content: 'User called Priya, who had just finished a pottery class. | When: on May 14', similarity: 0.97 },
-            { content: 'Priya moved abroad to Vancouver on July 22, 2025; her flight departed at 7am.', similarity: 0.92 },
-        ];
-        const kept = dedupeRecallHits(hits);
-        expect(kept).toHaveLength(2);
-        expect(kept[0].content).toContain('pottery class');
-        expect(kept[1].content).toContain('Vancouver');
-    });
-
-    it('dedupeRecallHits keeps the highest-similarity representative of a cluster', () => {
-        const hits = [
-            { content: 'Maya got married in the garden', similarity: 0.9 },
-            { content: 'Maya got married in her parents garden', similarity: 0.95 },
-        ];
-        const kept = dedupeRecallHits(hits);
-        expect(kept).toHaveLength(1);
-        expect(kept[0].content).toContain('parents garden');
-    });
-
-    it('dedupeRecallHits caps to the requested limit', () => {
-        const hits = [
-            { content: 'One fact', similarity: 0.99 },
-            { content: 'Another distinct fact', similarity: 0.9 },
-            { content: 'Third separate fact', similarity: 0.8 },
-        ];
-        const kept = dedupeRecallHits(hits, 2);
-        expect(kept).toHaveLength(2);
+    it('deduplicates near-identical recall hits by descending score', () => {
+        expect(dedupeRecallHits([
+            { content: 'called Priya after work', similarity: 0.7 },
+            { content: 'After work I called Priya', similarity: 0.9 },
+            { content: 'slept early', similarity: 0.5 },
+        ], 2)).toEqual([
+            { content: 'After work I called Priya', similarity: 0.9 },
+            { content: 'slept early', similarity: 0.5 },
+        ]);
     });
 });

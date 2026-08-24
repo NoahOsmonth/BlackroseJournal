@@ -1,259 +1,146 @@
-/**
- * Hindsight REST client — soft-fail, timed, device-executed.
- * Never throws into the chat/finish path: every public function returns
- * null/false and console.warns on failure (model: embeddingsTransport.ts).
- *
- * Wire contract verified against the local Hindsight container v0.9.1
- * (http://localhost:8888): the API is served under `/v1/default/banks/{bank_id}`
- * — retain = POST .../memories, recall = POST .../memories/recall,
- * reflect = POST .../reflect, health = GET /health.
- */
+/** Authenticated, bankless Hindsight gateway client. All operations soft-fail. */
+import {
+    parseMemoryClearResponse, parseMemoryRecallResponse, parseMemoryReflectResponse,
+    parseMemoryRebuildResponse, parseMemoryRetainResponse,
+    type MemoryMetadata, type MemoryRebuildItem,
+} from '@blackrose/ai-control-plane-contracts';
+import { getActiveAccountId } from '@/services/account/accountRuntime';
+import { getSupabaseClient } from '@/services/supabase/supabaseClient';
 import { getHindsightConfig } from './hindsightConfig';
 
-export interface HindsightRetainItem {
-    content: string;
-    timestamp: number;
-    document_id: string;
-}
-
-export interface HindsightRecallHit {
-    content: string;
-    similarity: number;
-    timestamp?: number;
-    documentId?: string;
-}
-
-// retain is fire-and-forget on the finish path; the container's first retain
-// of a new document_id runs a synchronous LLM extraction pass measured up to
-// ~19s (idempotent fast upsert afterwards), so keep the timeout above that.
-// On the populated 168-doc bank the container answers recall in 3.5-5.7s and
-// reflect in 21-63s (quality-battery measurements, 2026-08-18); timeouts are
-// ceilings, not target latencies, and must sit above those tails.
-const TIMEOUTS = { recall: 10000, retain: 20000, reflect: 70000, health: 1500 } as const;
-
+export interface HindsightRetainItem { content: string; timestamp: number; document_id: string }
+export interface HindsightRecallHit { content: string; similarity: number; timestamp?: number; documentId?: string }
+interface HindsightSession { accessToken: string; userId: string }
+type HindsightSessionProvider = () => Promise<HindsightSession | null>;
+const TIMEOUTS = { recall: 10000, retain: 20000, reflect: 70000, rebuild: 70000, clear: 10000 } as const;
 type ChangeListener = () => void;
 const listeners = new Set<ChangeListener>();
 
+const defaultSessionProvider: HindsightSessionProvider = async () => {
+    const client = getSupabaseClient();
+    if (!client) return null;
+    const { data, error } = await client.auth.getSession();
+    if (error || !data.session || data.session.user.is_anonymous) return null;
+    return { accessToken: data.session.access_token, userId: data.session.user.id };
+};
+let sessionProvider: HindsightSessionProvider = defaultSessionProvider;
+export function setHindsightSessionProvider(provider: HindsightSessionProvider): void { sessionProvider = provider; }
+export function resetHindsightSessionProvider(): void { sessionProvider = defaultSessionProvider; }
 export function subscribeHindsightChanges(listener: ChangeListener): () => void {
-    listeners.add(listener);
-    return () => {
-        listeners.delete(listener);
-    };
+    listeners.add(listener); return () => { listeners.delete(listener); };
 }
-
-export function notifyHindsightChanged(): void {
-    listeners.forEach((listener) => listener());
-}
-
-function bankPath(bank: string, suffix: string): string {
-    return `/v1/default/banks/${encodeURIComponent(bank)}${suffix}`;
-}
+export function notifyHindsightChanged(): void { listeners.forEach((listener) => listener()); }
 
 async function request(
-    path: string,
-    body: unknown,
-    timeoutMs: number,
-    method: 'POST' | 'GET' = 'POST'
+    path: string, body: unknown, timeoutMs: number, method: 'POST' | 'DELETE' = 'POST',
+    expectedAccountId?: string,
 ): Promise<unknown | null> {
     const config = getHindsightConfig();
     if (!config.enabled) return null;
-
+    const session = await sessionProvider().catch(() => null);
+    const activeAccountId = getActiveAccountId();
+    if (!session || (activeAccountId && session.userId !== activeAccountId)
+        || (expectedAccountId && session.userId !== expectedAccountId)) return null;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
         const response = await fetch(`${config.baseUrl}${path}`, {
             method,
-            headers: {
-                'Content-Type': 'application/json',
-                ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}),
-            },
-            body: method === 'POST' ? JSON.stringify(body) : undefined,
-            signal: controller.signal,
+            headers: { Accept: 'application/json', Authorization: `Bearer ${session.accessToken}`,
+                ...(method === 'POST' ? { 'Content-Type': 'application/json' } : {}) },
+            ...(method === 'POST' ? { body: JSON.stringify(body) } : {}), signal: controller.signal,
         });
-        if (!response.ok) {
-            console.warn(`Hindsight ${path} failed: ${response.status}`);
-            return null;
-        }
+        if (!response.ok) return null;
         return await response.json();
     } catch (error) {
-        console.warn(`Hindsight ${path} unavailable:`, error);
+        console.warn(`Hindsight gateway ${path} unavailable:`, error);
         return null;
-    } finally {
-        clearTimeout(timer);
-    }
+    } finally { clearTimeout(timer); }
 }
 
-export async function hindsightRetain(
-    items: HindsightRetainItem[],
-    opts: { bank?: string } = {}
-): Promise<boolean> {
+function inferMetadata(item: HindsightRetainItem): MemoryMetadata | undefined {
+    const match = /^(journal_entry|intention_checkin):(.+)$/.exec(item.document_id);
+    if (!match) return undefined;
+    return { source: match[1] === 'journal_entry' ? 'journal' : 'check_in', sourceId: match[2],
+        completed: true, writtenAt: new Date(item.timestamp).toISOString() };
+}
+
+export async function hindsightRetain(items: HindsightRetainItem[]): Promise<boolean> {
     if (items.length === 0) return false;
-    const config = getHindsightConfig();
-    if (!config.enabled) return false;
-    const bank = opts.bank ?? config.bank;
-    // MemoryItem.timestamp is an ISO 8601 datetime string on the wire.
-    const wireItems = items.map((item) => ({
-        content: item.content,
-        timestamp: new Date(item.timestamp).toISOString(),
-        document_id: item.document_id,
-    }));
-    const result = await request(
-        bankPath(bank, '/memories'),
-        { items: wireItems },
-        TIMEOUTS.retain
-    );
-    if (result === null) return false;
-    notifyHindsightChanged();
-    return true;
+    for (const item of items) {
+        const metadata = inferMetadata(item);
+        const data = await request('/v1/memory/retain', {
+            documentId: item.document_id, content: item.content,
+            createdAt: new Date(item.timestamp).toISOString(), ...(metadata ? { metadata } : {}),
+        }, TIMEOUTS.retain);
+        try { if (!parseMemoryRetainResponse(data).retained) return false; } catch { return false; }
+    }
+    notifyHindsightChanged(); return true;
 }
 
-export async function hindsightRecall(
-    query: string,
-    opts: { bank?: string; limit?: number; strategies?: string[] } = {}
-): Promise<HindsightRecallHit[] | null> {
+export async function hindsightRecall(query: string, opts: { limit?: number } = {}): Promise<HindsightRecallHit[] | null> {
     if (!query.trim()) return null;
-    const config = getHindsightConfig();
-    if (!config.enabled) return null;
-    const bank = opts.bank ?? config.bank;
-    const body: Record<string, unknown> = {
-        query: query.trim(),
-        limit: opts.limit ?? 6,
-    };
-    if (opts.strategies) body.strategies = opts.strategies;
-    const data = await request(
-        bankPath(bank, '/memories/recall'),
-        body,
-        TIMEOUTS.recall
-    );
-    const hits = normalizeRecallResponse(data);
-    return hits ? dedupeRecallHits(hits, Math.max(1, opts.limit ?? 6)) : null;
+    const data = await request('/v1/memory/recall', { query: query.trim(), limit: opts.limit ?? 6 }, TIMEOUTS.recall);
+    try {
+        const hits = parseMemoryRecallResponse(data).results.map((result) => ({
+            content: result.content, similarity: result.score, documentId: result.documentId,
+            ...(result.metadata?.writtenAt ? { timestamp: Date.parse(result.metadata.writtenAt) } : {}),
+        }));
+        return dedupeRecallHits(hits, Math.max(1, opts.limit ?? 6));
+    } catch { return null; }
 }
 
-// The container returns ~90-100 recall hits regardless of `limit` and, without
-// dedup, near-identical auto-extracted units (e.g. 20 "called Priya" variants)
-// drown out distinct facts. Collapse near-duplicates by word-set Jaccard and
-// cap to the requested limit so the context block and tool stay bounded.
 const NEAR_DUP_JACCARD = 0.55;
 const TOKEN_RE = /[a-z0-9]+/g;
-
-function tokenSet(content: string): Set<string> {
-    return new Set(content.toLowerCase().match(TOKEN_RE) ?? []);
-}
-
+function tokenSet(content: string): Set<string> { return new Set(content.toLowerCase().match(TOKEN_RE) ?? []); }
 function jaccard(a: Set<string>, b: Set<string>): number {
     if (a.size === 0 || b.size === 0) return 0;
     let intersection = 0;
-    a.forEach((token) => {
-        if (b.has(token)) intersection += 1;
-    });
+    a.forEach((token) => { if (b.has(token)) intersection += 1; });
     return intersection / (a.size + b.size - intersection);
 }
-
-export function dedupeRecallHits<T extends { content: string; similarity: number }>(
-    hits: T[],
-    limit?: number
-): T[] {
-    const sorted = [...hits].sort((x, y) => y.similarity - x.similarity);
-    const kept: T[] = [];
-    const keptTokens: Set<string>[] = [];
-    for (const hit of sorted) {
+export function dedupeRecallHits<T extends { content: string; similarity: number }>(hits: T[], limit?: number): T[] {
+    const kept: T[] = []; const keptTokens: Set<string>[] = [];
+    for (const hit of [...hits].sort((a, b) => b.similarity - a.similarity)) {
         const tokens = tokenSet(hit.content);
-        if (keptTokens.some((k) => jaccard(k, tokens) >= NEAR_DUP_JACCARD)) continue;
-        kept.push(hit);
-        keptTokens.push(tokens);
+        if (keptTokens.some((existing) => jaccard(existing, tokens) >= NEAR_DUP_JACCARD)) continue;
+        kept.push(hit); keptTokens.push(tokens);
         if (limit !== undefined && kept.length >= limit) break;
     }
     return kept;
 }
 
-function readScoresFinal(scores: unknown): number {
-    if (typeof scores !== 'object' || scores === null) return 0;
-    const final = (scores as Record<string, unknown>).final;
-    return typeof final === 'number' && Number.isFinite(final) ? final : 0;
-}
-
-function readRecallTimestamp(u: Record<string, unknown>): number | undefined {
-    const direct = u.timestamp;
-    if (typeof direct === 'number') return direct;
-    const occurred = u.occurred_start;
-    if (typeof occurred === 'string') {
-        const ms = Date.parse(occurred);
-        return Number.isNaN(ms) ? undefined : ms;
-    }
-    return undefined;
-}
-
-function normalizeRecallHit(unit: unknown): HindsightRecallHit {
-    const u = (unit ?? {}) as Record<string, unknown>;
-    const content =
-        typeof u.content === 'string' ? u.content
-        : typeof u.text === 'string' ? u.text
-        : '';
-    const similarity =
-        typeof u.similarity === 'number'
-            ? u.similarity
-            : readScoresFinal(u.scores);
-    const timestamp = readRecallTimestamp(u);
-    const documentId =
-        typeof u.document_id === 'string' ? u.document_id
-        : typeof u.documentId === 'string' ? u.documentId
-        : undefined;
-    return { content, similarity, timestamp, documentId };
-}
-
-function normalizeRecallResponse(data: unknown): HindsightRecallHit[] | null {
-    if (!data) return null;
-    const record = data as Record<string, unknown>;
-    const raw = Array.isArray(data)
-        ? data
-        : Array.isArray(record.units)
-          ? record.units
-          : Array.isArray(record.results)
-            ? record.results
-            : null;
-    if (!raw) return null;
-    return raw
-        .map(normalizeRecallHit)
-        .filter((hit) => hit.content.length > 0);
-}
-
-export async function hindsightReflect(
-    query: string,
-    opts: { bank?: string } = {}
-): Promise<string | null> {
+export async function hindsightReflect(query: string): Promise<string | null> {
     if (!query.trim()) return null;
-    const config = getHindsightConfig();
-    if (!config.enabled) return null;
-    const bank = opts.bank ?? config.bank;
-    const data = await request(
-        bankPath(bank, '/reflect'),
-        { query: query.trim() },
-        TIMEOUTS.reflect
-    );
-    if (typeof data === 'string') return data;
-    if (data && typeof data === 'object') {
-        const record = data as Record<string, unknown>;
-        const reflection = record.reflection;
-        if (typeof reflection === 'string') return reflection;
-        const text = record.text;
-        if (typeof text === 'string') return text;
-    }
-    return null;
+    const data = await request('/v1/memory/reflect', { query: query.trim() }, TIMEOUTS.reflect);
+    try { return parseMemoryReflectResponse(data).reflection; } catch { return null; }
+}
+
+export async function hindsightRebuild(items: HindsightRetainItem[], expectedAccountId?: string): Promise<boolean> {
+    if (items.length === 0) return hindsightClear(expectedAccountId);
+    const records: MemoryRebuildItem[] = items.map((item) => {
+        const metadata = inferMetadata(item);
+        return { documentId: item.document_id, kind: metadata?.source === 'check_in' ? 'check_in' : 'journal',
+            content: item.content, createdAt: new Date(item.timestamp).toISOString(),
+            ...(metadata ? { metadata } : {}) };
+    });
+    const data = await request('/v1/memory/rebuild', { items: records }, TIMEOUTS.rebuild, 'POST', expectedAccountId);
+    try {
+        const succeeded = parseMemoryRebuildResponse(data).accepted === records.length;
+        if (succeeded) notifyHindsightChanged();
+        return succeeded;
+    } catch { return false; }
+}
+
+export async function hindsightClear(expectedAccountId?: string): Promise<boolean> {
+    const data = await request('/v1/memory', undefined, TIMEOUTS.clear, 'DELETE', expectedAccountId);
+    try {
+        const succeeded = parseMemoryClearResponse(data).cleared;
+        if (succeeded) notifyHindsightChanged();
+        return succeeded;
+    } catch { return false; }
 }
 
 export async function hindsightHealth(): Promise<boolean> {
-    const config = getHindsightConfig();
-    if (!config.enabled) return false;
-    try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), TIMEOUTS.health);
-        const response = await fetch(`${config.baseUrl}/health`, {
-            method: 'GET',
-            signal: controller.signal,
-        });
-        clearTimeout(timer);
-        return response.ok;
-    } catch {
-        return false;
-    }
+    return Boolean(getHindsightConfig().enabled && await sessionProvider().catch(() => null));
 }

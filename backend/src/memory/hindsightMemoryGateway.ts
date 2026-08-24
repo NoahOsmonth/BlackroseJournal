@@ -1,6 +1,11 @@
 import { createMemoryBankDeriver } from './memoryBank';
 import type { MemoryGatewayConfig } from './memoryConfig';
 import { redactSensitive } from '../security/redaction';
+import { createHash } from 'node:crypto';
+import type {
+  MemoryRecallRequest, MemoryRebuildRequest, MemoryReflectRequest, MemoryRetainRequest,
+  MemoryMetadata, MemoryRecallResult,
+} from '../../../packages/ai-control-plane-contracts/src';
 
 export interface HindsightMemoryGateway {
   retain(userId: string, body: unknown): Promise<unknown>;
@@ -129,15 +134,90 @@ export function createHindsightMemoryGateway(
   };
 
   return {
-    retain: (userId, body) => request(userId, 'retain', '/memories', 'POST', body),
-    recall: (userId, body) => request(userId, 'recall', '/memories/recall', 'POST', body),
-    reflect: (userId, body) => request(userId, 'reflect', '/reflect', 'POST', body),
-    async rebuild(userId, body) {
-      await request(userId, 'rebuild_clear', '/memories', 'DELETE');
-      return request(userId, 'rebuild_retain', '/memories', 'POST', body);
+    async retain(userId, body) {
+      const item = body as MemoryRetainRequest;
+      await request(userId, 'retain', '/memories', 'POST', {
+        items: [toHindsightItem(item)],
+      });
+      return { retained: true };
     },
-    clear: (userId) => request(userId, 'clear', '/memories', 'DELETE'),
+    async recall(userId, body) {
+      const input = body as MemoryRecallRequest;
+      const raw = await request(userId, 'recall', '/memories/recall', 'POST', {
+        query: input.query, limit: input.limit ?? 6,
+      });
+      return { results: normalizeRecallResults(raw) };
+    },
+    async reflect(userId, body) {
+      const input = body as MemoryReflectRequest;
+      const raw = await request(userId, 'reflect', '/reflect', 'POST', { query: input.query });
+      return { reflection: normalizeReflection(raw) };
+    },
+    async rebuild(userId, body) {
+      const input = body as MemoryRebuildRequest;
+      await request(userId, 'rebuild_clear', '/memories', 'DELETE');
+      await request(userId, 'rebuild_retain', '/memories', 'POST', {
+        items: input.items.map(toHindsightItem),
+      });
+      return { accepted: input.items.length };
+    },
+    async clear(userId) {
+      await request(userId, 'clear', '/memories', 'DELETE');
+      return { cleared: true };
+    },
   };
+}
+
+function toHindsightItem(item: MemoryRetainRequest): Record<string, string> {
+  const createdAt = item.createdAt ?? new Date().toISOString();
+  const documentId = item.documentId ?? `memory:${createHash('sha256')
+    .update(`${createdAt}\0${item.content}`, 'utf8').digest('hex')}`;
+  return { content: item.content, timestamp: createdAt, document_id: documentId };
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === 'object' ? value as Record<string, unknown> : {};
+}
+
+function sourceMetadata(documentId: string, writtenAt?: string): MemoryMetadata | undefined {
+  const match = /^(journal_entry|intention_checkin):(.+)$/.exec(documentId);
+  if (!match && !writtenAt) return undefined;
+  return {
+    ...(match ? { source: match[1] === 'journal_entry' ? 'journal' as const : 'check_in' as const,
+      sourceId: match[2], completed: true } : {}),
+    ...(writtenAt ? { writtenAt } : {}),
+  };
+}
+
+function normalizeRecallResults(value: unknown): MemoryRecallResult[] {
+  const container = record(value);
+  const units = Array.isArray(value) ? value
+    : Array.isArray(container.units) ? container.units
+      : Array.isArray(container.results) ? container.results : [];
+  return units.flatMap((unit): MemoryRecallResult[] => {
+    const item = record(unit);
+    const content = typeof item.content === 'string' ? item.content
+      : typeof item.text === 'string' ? item.text : '';
+    if (!content) return [];
+    const scores = record(item.scores);
+    const rawScore = typeof item.similarity === 'number' ? item.similarity
+      : typeof item.score === 'number' ? item.score
+        : typeof scores.final === 'number' ? scores.final : 0;
+    const score = Math.max(0, Math.min(1, Number.isFinite(rawScore) ? rawScore : 0));
+    const documentId = typeof item.document_id === 'string' ? item.document_id
+      : typeof item.documentId === 'string' ? item.documentId : '';
+    const writtenAt = typeof item.occurred_start === 'string' ? item.occurred_start
+      : typeof item.timestamp === 'string' ? item.timestamp : undefined;
+    const metadata = sourceMetadata(documentId, writtenAt);
+    return [{ documentId, content, score, ...(metadata ? { metadata } : {}) }];
+  });
+}
+
+function normalizeReflection(value: unknown): string {
+  if (typeof value === 'string') return value;
+  const item = record(value);
+  if (typeof item.reflection === 'string') return item.reflection;
+  return typeof item.text === 'string' ? item.text : '';
 }
 
 function identifierTokens(value: string): string[] {

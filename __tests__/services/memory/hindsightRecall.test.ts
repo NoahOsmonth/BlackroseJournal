@@ -45,7 +45,7 @@ describe('hindsightRecall block builder', () => {
 
     it('passes query and limit through', async () => {
         mockedRecall.mockResolvedValue([hit()]);
-        await buildHindsightRecallContext('wedding', { limit: 3, bank: 'test' });
-        expect(mockedRecall).toHaveBeenCalledWith('wedding', { limit: 3, bank: 'test' });
+        await buildHindsightRecallContext('wedding', { limit: 3 });
+        expect(mockedRecall).toHaveBeenCalledWith('wedding', { limit: 3 });
     });
 });

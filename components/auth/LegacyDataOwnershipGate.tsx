@@ -3,6 +3,7 @@ import type { PropsWithChildren } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LoadingBar } from '@/components/ui/LoadingBar';
+import { useHindsightRebuild } from '@/hooks/memory/useHindsightRebuild';
 
 interface LegacyDataOwnershipGateProps extends PropsWithChildren {
     readonly accountId: string | null;
@@ -27,6 +28,10 @@ function ActiveLegacyDataOwnershipGate({
     children,
 }: Omit<LegacyDataOwnershipGateProps, 'enabled'>) {
     const migration = useLegacyDataOwnership(accountId);
+    useHindsightRebuild(
+        accountId,
+        Boolean(accountId && !migration.isChecking && !migration.needsConfirmation)
+    );
 
     if (!accountId || (!migration.isChecking && !migration.needsConfirmation)) {
         return children;
