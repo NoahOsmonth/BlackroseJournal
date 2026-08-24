@@ -40,7 +40,8 @@ describe('managed inference limiter boundary', () => {
     let decrypted = 0;
     let executed = 0;
     const limiter: ManagedInferenceLimiter = {
-      acquire: async () => { throw new ManagedInferenceLimitError(7); },
+      acquireUser: async () => { throw new ManagedInferenceLimitError(7); },
+      acquireRoute: async () => { throw new Error('must not acquire route'); },
     };
     const service = createManagedInferenceService({
       limiter,
@@ -57,11 +58,35 @@ describe('managed inference limiter boundary', () => {
     assert.deepEqual({ resolved, decrypted, executed }, { resolved: 0, decrypted: 0, executed: 0 });
   });
 
+  it('rejects a saturated fixed route after resolution but before decryption or upstream', async () => {
+    let releasedUsers = 0;
+    let decrypted = 0;
+    let executed = 0;
+    const limiter: ManagedInferenceLimiter = {
+      acquireUser: async () => ({ release: () => { releasedUsers += 1; } }),
+      acquireRoute: async () => { throw new ManagedInferenceLimitError(5); },
+    };
+    const service = createManagedInferenceService({
+      limiter,
+      repository: { resolveRoute: async () => binding, appendUsage: async () => undefined },
+      masterKeys,
+      decryptCredential: async () => { decrypted += 1; return 'secret'; },
+      execute: () => { executed += 1; return (async function* empty() {})(); },
+    });
+
+    await assert.rejects(() => collect(service.execute('user-1', request)), ManagedInferenceLimitError);
+    assert.deepEqual({ releasedUsers, decrypted, executed }, { releasedUsers: 1, decrypted: 0, executed: 0 });
+  });
+
   it('releases concurrency after upstream errors and caller aborts', async () => {
     let acquired = 0;
     let released = 0;
     const limiter: ManagedInferenceLimiter = {
-      acquire: async () => {
+      acquireUser: async () => {
+        acquired += 1;
+        return { release: async () => { released += 1; } };
+      },
+      acquireRoute: async () => {
         acquired += 1;
         return { release: async () => { released += 1; } };
       },
@@ -84,13 +109,13 @@ describe('managed inference limiter boundary', () => {
     });
 
     await collect(service.execute('user-1', request));
-    assert.equal(released, 1);
+    assert.equal(released, 2);
     mode = 'abort';
     const controller = new AbortController();
     const iterator = service.execute('user-1', request, controller.signal)[Symbol.asyncIterator]();
     assert.deepEqual(await iterator.next(), { done: false, value: { type: 'text_delta', text: 'started' } });
     controller.abort();
     while (!(await iterator.next()).done) { /* drain */ }
-    assert.deepEqual({ acquired, released }, { acquired: 2, released: 2 });
+    assert.deepEqual({ acquired, released }, { acquired: 4, released: 4 });
   });
 });

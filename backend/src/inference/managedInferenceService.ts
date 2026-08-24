@@ -19,6 +19,7 @@ import {
   createInMemoryManagedInferenceLimiter,
   DEFAULT_MANAGED_INFERENCE_LIMIT_POLICY,
   type ManagedInferenceLimiter,
+  type ManagedInferenceLimitLease,
 } from './managedInferenceLimiter';
 
 export interface ProviderInferenceInput {
@@ -138,12 +139,17 @@ export function createManagedInferenceService(deps: ManagedInferenceServiceDepen
       const startedAt = now();
       let inputTokens: number | undefined;
       let outputTokens: number | undefined;
-      const lease = await limiter.acquire({
+      const estimatedInputTokens = Math.max(
+        1,
+        Buffer.byteLength(JSON.stringify(request), 'utf8'),
+      );
+      const userLease = await limiter.acquireUser({
         userId,
         // One token per UTF-8 byte is a provider-independent, conservative pre-route estimate.
-        estimatedInputTokens: Math.max(1, Buffer.byteLength(JSON.stringify(request), 'utf8')),
+        estimatedInputTokens,
         requestedOutputTokens: request.maxOutputTokens,
       });
+      let routeLease: ManagedInferenceLimitLease | undefined;
       try {
         const binding = await deps.repository.resolveRoute(userId, request.purpose);
         if (!binding) {
@@ -157,6 +163,11 @@ export function createManagedInferenceService(deps: ManagedInferenceServiceDepen
           });
           return;
         }
+        routeLease = await limiter.acquireRoute({
+          routeId: binding.routeId,
+          estimatedInputTokens,
+          requestedOutputTokens: request.maxOutputTokens,
+        });
         let status: 'succeeded' | 'failed' | 'cancelled' = 'succeeded';
         let errorCode: NormalizedInferenceError['code'] | undefined;
         let sawCompletion = false;
@@ -254,7 +265,10 @@ export function createManagedInferenceService(deps: ManagedInferenceServiceDepen
         const usage = inputTokens === undefined && outputTokens === undefined
           ? undefined
           : { inputTokens, outputTokens };
-        await Promise.resolve(lease.release(usage)).catch(() => undefined);
+        if (routeLease) {
+          await Promise.resolve(routeLease.release(usage)).catch(() => undefined);
+        }
+        await Promise.resolve(userLease.release(usage)).catch(() => undefined);
       }
     },
   };

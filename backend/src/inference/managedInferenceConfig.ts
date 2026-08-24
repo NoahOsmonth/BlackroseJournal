@@ -3,6 +3,7 @@ import { executeProviderInference } from './adapters';
 import {
   createInMemoryManagedInferenceLimiter,
   DEFAULT_MANAGED_INFERENCE_LIMIT_POLICY,
+  type ManagedInferenceLimiter,
   type ManagedInferenceLimitPolicy,
 } from './managedInferenceLimiter';
 import { createManagedInferenceService, type ManagedInferenceService } from './managedInferenceService';
@@ -19,8 +20,12 @@ const CONFIG_KEYS = [
   'AI_MANAGED_MAX_CONCURRENT_PER_USER',
   'AI_MANAGED_REQUESTS_PER_WINDOW',
   'AI_MANAGED_TOKENS_PER_WINDOW',
+  'AI_MANAGED_MAX_CONCURRENT_PER_ROUTE',
+  'AI_MANAGED_ROUTE_REQUESTS_PER_WINDOW',
+  'AI_MANAGED_ROUTE_TOKENS_PER_WINDOW',
   'AI_MANAGED_LIMIT_WINDOW_MS',
   'AI_MANAGED_DEFAULT_OUTPUT_RESERVATION',
+  'AI_MANAGED_LIMITER_MODE',
 ] as const;
 
 function required(env: Environment, key: string): string {
@@ -64,6 +69,24 @@ export function loadManagedInferenceLimitPolicy(env: Environment): ManagedInfere
       DEFAULT_MANAGED_INFERENCE_LIMIT_POLICY.maxTokensPerWindow,
       1_000_000_000,
     ),
+    maxConcurrentPerRoute: positiveInteger(
+      env,
+      'AI_MANAGED_MAX_CONCURRENT_PER_ROUTE',
+      DEFAULT_MANAGED_INFERENCE_LIMIT_POLICY.maxConcurrentPerRoute,
+      1_000,
+    ),
+    maxRequestsPerRouteWindow: positiveInteger(
+      env,
+      'AI_MANAGED_ROUTE_REQUESTS_PER_WINDOW',
+      DEFAULT_MANAGED_INFERENCE_LIMIT_POLICY.maxRequestsPerRouteWindow,
+      10_000_000,
+    ),
+    maxTokensPerRouteWindow: positiveInteger(
+      env,
+      'AI_MANAGED_ROUTE_TOKENS_PER_WINDOW',
+      DEFAULT_MANAGED_INFERENCE_LIMIT_POLICY.maxTokensPerRouteWindow,
+      10_000_000_000,
+    ),
     windowMs: positiveInteger(
       env,
       'AI_MANAGED_LIMIT_WINDOW_MS',
@@ -82,9 +105,23 @@ export function loadManagedInferenceLimitPolicy(env: Environment): ManagedInfere
 export function createManagedInferenceFromEnvironment(
   env: Environment,
   fetcher?: typeof fetch,
+  distributedLimiter?: ManagedInferenceLimiter,
 ): ManagedInferenceService | undefined {
   const configured = CONFIG_KEYS.some((key) => Boolean(env[key]?.trim()));
   if (env.NODE_ENV !== 'production' && !configured) return undefined;
+  const limiterMode = env.AI_MANAGED_LIMITER_MODE?.trim();
+  if (env.NODE_ENV === 'production' && !limiterMode) {
+    throw new Error('Required managed inference configuration is missing: AI_MANAGED_LIMITER_MODE.');
+  }
+  if (limiterMode && limiterMode !== 'single-instance' && limiterMode !== 'distributed') {
+    throw new Error('Managed inference limiter configuration is invalid: AI_MANAGED_LIMITER_MODE.');
+  }
+  if (limiterMode === 'distributed' && !distributedLimiter) {
+    throw new Error('A distributed limiter must be injected for AI_MANAGED_LIMITER_MODE=distributed.');
+  }
+  if (limiterMode === 'single-instance' && distributedLimiter) {
+    throw new Error('A distributed limiter cannot be used in single-instance mode.');
+  }
   const security = loadManagedSecurityConfig(env);
   const restUrl = required(env, 'SUPABASE_CONTROL_REST_URL');
   const secretKey = required(env, 'SUPABASE_SECRET_KEY');
@@ -105,6 +142,7 @@ export function createManagedInferenceFromEnvironment(
     }),
     masterKeys: security.masterKeyProvider,
     execute: executeProviderInference,
-    limiter: createInMemoryManagedInferenceLimiter(loadManagedInferenceLimitPolicy(env)),
+    limiter: distributedLimiter
+      ?? createInMemoryManagedInferenceLimiter(loadManagedInferenceLimitPolicy(env)),
   });
 }
