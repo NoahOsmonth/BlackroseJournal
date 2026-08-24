@@ -2509,3 +2509,16 @@
 - TDD RED covered unrelated-catalog staleness and new-row expectations; the pre-repair review
   suite failed 13/30 and the updated behavior suite failed 21/43. Final focused pgTAP passed
   3 files / 100 tests; full pgTAP passed 5 files / 316 tests; DB lint stayed clean.
+
+### Task 2 review fix round 3
+
+- Every catalog-changing gateway now acquires the singleton `ai_catalog_revision` row lock first.
+  Publication continues with provider, provider-model, and catalog locks; archive paths now use
+  the same order, with provider-model archive locking its parent provider before the model row.
+- This removes the opposing publish/archive lock sequence that could deadlock as SQLSTATE
+  `40P01`. Revision increments remain transactional and reentrant after the singleton is held.
+- A catalog-driven pgTAP regression inspects all five catalog mutators and guards the global lock
+  sequence. RED failed the three archive assertions (3/5); GREEN passed 5/5.
+- Fresh clean-reset verification passed focused control-plane pgTAP (4 files / 105 tests), full
+  pgTAP (6 files / 321 tests), and DB lint with no schema errors. Advisors report no new finding;
+  only the pre-existing mutable-search-path and legacy RLS performance warnings remain.

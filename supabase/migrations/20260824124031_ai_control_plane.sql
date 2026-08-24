@@ -515,6 +515,15 @@ as $function$
 declare
   v_catalog public.ai_catalog_models%rowtype;
 begin
+  perform revision
+  from public.ai_catalog_revision
+  where singleton
+  for update;
+
+  if not found then
+    raise exception using errcode = 'P0002', message = 'CATALOG_REVISION_NOT_FOUND';
+  end if;
+
   select * into v_catalog
   from public.ai_catalog_models
   where id = p_catalog_model_id
@@ -558,6 +567,15 @@ declare
   v_affected_catalog_ids uuid[];
   v_withdrawn integer;
 begin
+  perform revision
+  from public.ai_catalog_revision
+  where singleton
+  for update;
+
+  if not found then
+    raise exception using errcode = 'P0002', message = 'CATALOG_REVISION_NOT_FOUND';
+  end if;
+
   select * into v_provider
   from control.providers
   where id = p_provider_id
@@ -630,13 +648,37 @@ language plpgsql
 set search_path = ''
 as $function$
 declare
+  v_provider_id uuid;
   v_provider_model control.provider_models%rowtype;
   v_affected_catalog_ids uuid[];
   v_withdrawn integer;
 begin
+  perform revision
+  from public.ai_catalog_revision
+  where singleton
+  for update;
+
+  if not found then
+    raise exception using errcode = 'P0002', message = 'CATALOG_REVISION_NOT_FOUND';
+  end if;
+
+  select provider.id into v_provider_id
+  from control.providers provider
+  where provider.id = (
+    select model.provider_id
+    from control.provider_models model
+    where model.id = p_provider_model_id
+  )
+  for update of provider;
+
+  if not found then
+    raise exception using errcode = 'P0002', message = 'PROVIDER_MODEL_NOT_FOUND';
+  end if;
+
   select * into v_provider_model
   from control.provider_models
   where id = p_provider_model_id
+    and provider_id = v_provider_id
   for update;
 
   if not found then
