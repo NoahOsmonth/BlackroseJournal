@@ -2497,3 +2497,15 @@
 - TDD RED: the focused review suite failed 17/23 assertions before the migration repair. Focused
   GREEN passed 3 files / 93 tests; full pgTAP passed 5 files / 309 tests. DB lint remains clean,
   and the security advisor still reports only the pre-existing `public.set_updated_at` warning.
+
+### Task 2 review fix round 2
+
+- Publication CAS now means the singleton `ai_catalog_revision`, not a model row revision. Every
+  new or existing publish locks that singleton first and rejects null/stale expectations as
+  typed `PT409` before provider, catalog, or route mutation.
+- Successful publish increments the locked singleton once and assigns that resulting global
+  revision to the inserted/updated catalog row. A dedicated row trigger preserves an explicitly
+  newer global revision while retaining monotonic protection for other catalog updates.
+- TDD RED covered unrelated-catalog staleness and new-row expectations; the pre-repair review
+  suite failed 13/30 and the updated behavior suite failed 21/43. Final focused pgTAP passed
+  3 files / 100 tests; full pgTAP passed 5 files / 316 tests; DB lint stayed clean.

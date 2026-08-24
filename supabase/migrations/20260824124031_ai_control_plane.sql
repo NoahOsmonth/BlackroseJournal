@@ -260,9 +260,23 @@ begin
 end;
 $function$;
 
+create function control.assign_catalog_model_revision()
+returns trigger
+language plpgsql
+set search_path = ''
+as $function$
+begin
+  if new.revision <= old.revision then
+    new.revision := old.revision + 1;
+  end if;
+  new.updated_at := clock_timestamp();
+  return new;
+end;
+$function$;
+
 create trigger ai_catalog_models_revision
 before update on public.ai_catalog_models
-for each row execute function control.bump_row_revision();
+for each row execute function control.assign_catalog_model_revision();
 create trigger user_ai_preferences_revision
 before update on public.user_ai_preferences
 for each row execute function control.bump_row_revision();
@@ -397,9 +411,24 @@ declare
   v_provider control.providers%rowtype;
   v_provider_model control.provider_models%rowtype;
   v_catalog public.ai_catalog_models%rowtype;
+  v_catalog_revision public.ai_catalog_revision%rowtype;
+  v_new_catalog_revision bigint;
 begin
   if p_purpose <> 'chat' then
     raise exception using errcode = '23514', message = 'PUBLIC_CATALOG_REQUIRES_CHAT_ROUTE';
+  end if;
+
+  select * into v_catalog_revision
+  from public.ai_catalog_revision
+  where singleton
+  for update;
+
+  if not found then
+    raise exception using errcode = 'P0002', message = 'CATALOG_REVISION_NOT_FOUND';
+  end if;
+  if p_expected_catalog_revision is null
+    or v_catalog_revision.revision <> p_expected_catalog_revision then
+    raise exception using errcode = 'PT409', message = 'REVISION_CONFLICT';
   end if;
 
   select * into v_provider
@@ -435,27 +464,24 @@ begin
   where public_model_id = p_public_model_id
   for update;
 
+  v_new_catalog_revision := control.bump_catalog_revision();
+
   if found then
-    if p_expected_catalog_revision is null
-      or v_catalog.revision <> p_expected_catalog_revision then
-      raise exception using errcode = 'PT409', message = 'REVISION_CONFLICT';
-    end if;
     update public.ai_catalog_models
     set label = p_label,
         capabilities = p_capabilities,
         context_window = p_context_window,
         availability = 'available',
-        sort_order = p_sort_order
+        sort_order = p_sort_order,
+        revision = v_new_catalog_revision
     where id = v_catalog.id
     returning * into v_catalog;
   else
-    if p_expected_catalog_revision is not null then
-      raise exception using errcode = 'PT409', message = 'REVISION_CONFLICT';
-    end if;
     insert into public.ai_catalog_models (
-      label, public_model_id, capabilities, context_window, availability, sort_order
+      label, public_model_id, capabilities, context_window, availability, sort_order, revision
     ) values (
-      p_label, p_public_model_id, p_capabilities, p_context_window, 'available', p_sort_order
+      p_label, p_public_model_id, p_capabilities, p_context_window, 'available', p_sort_order,
+      v_new_catalog_revision
     ) returning * into v_catalog;
   end if;
 
@@ -474,7 +500,6 @@ begin
   do update set state = 'active', priority = excluded.priority;
 
   update control.providers set updated_at = clock_timestamp() where id = p_provider_id;
-  perform control.bump_catalog_revision();
   return v_catalog;
 end;
 $function$;
@@ -716,6 +741,7 @@ grant all on all tables in schema control to service_role;
 grant all on all sequences in schema control to service_role;
 
 revoke all on function control.bump_row_revision() from public, anon, authenticated;
+revoke all on function control.assign_catalog_model_revision() from public, anon, authenticated;
 revoke all on function control.ensure_catalog_model_selectable() from public, anon, authenticated;
 revoke all on function control.ensure_active_flash_route() from public, anon, authenticated;
 revoke all on function control.clear_selected_flash_route() from public, anon, authenticated;

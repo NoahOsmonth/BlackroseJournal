@@ -27,18 +27,22 @@ insert into control.provider_models (
   ('31000000-0000-4000-8000-000000000003',
    '21000000-0000-4000-8000-000000000001', 'vendor/flash', 'Flash A',
    '{"streaming":false,"tools":false,"vision":false,"jsonObject":true,"jsonSchema":true}',
+   32768),
+  ('31000000-0000-4000-8000-000000000005',
+   '21000000-0000-4000-8000-000000000001', 'vendor/unrelated', 'Unrelated A',
+   '{"streaming":true,"tools":false,"vision":false,"jsonObject":true,"jsonSchema":false}',
    32768);
 
 select extensions.lives_ok($sql$
   select control.publish_catalog_model(
     '21000000-0000-4000-8000-000000000001',
     '31000000-0000-4000-8000-000000000001',
-    1, null,
+    1, 0,
     'Shared Model A', 'managed/shared',
     '{"streaming":true,"tools":true,"vision":false,"jsonObject":true,"jsonSchema":false}',
     65536, 10, 'chat'
   )
-$sql$, 'new catalog publication accepts a null expected catalog revision');
+$sql$, 'new catalog publication accepts the current singleton revision');
 
 select extensions.throws_ok($sql$
   select control.publish_catalog_model(
@@ -72,9 +76,72 @@ select extensions.lives_ok($sql$
     65536, 20, 'chat'
   )
 $sql$, 'matching catalog revision permits an explicit cross-provider route change');
+
+select extensions.lives_ok($sql$
+  select control.publish_catalog_model(
+    '21000000-0000-4000-8000-000000000001',
+    '31000000-0000-4000-8000-000000000005',
+    2, 2,
+    'Unrelated Model', 'managed/unrelated',
+    '{"streaming":true,"tools":false,"vision":false,"jsonObject":true,"jsonSchema":false}',
+    32768, 30, 'chat'
+  )
+$sql$, 'unrelated publication advances the singleton catalog revision');
+select extensions.throws_ok($sql$
+  select control.publish_catalog_model(
+    '21000000-0000-4000-8000-000000000001',
+    '31000000-0000-4000-8000-000000000001',
+    3, 2,
+    'Stale After Unrelated', 'managed/shared',
+    '{"streaming":true,"tools":true,"vision":false,"jsonObject":true,"jsonSchema":false}',
+    65536, 10, 'chat'
+  )
+$sql$, 'PT409', 'REVISION_CONFLICT',
+  'unrelated catalog change invalidates stale singleton revision on unchanged row');
+select extensions.lives_ok($sql$
+  select control.publish_catalog_model(
+    '21000000-0000-4000-8000-000000000001',
+    '31000000-0000-4000-8000-000000000001',
+    3, 3,
+    'Shared Model Current', 'managed/shared',
+    '{"streaming":true,"tools":true,"vision":false,"jsonObject":true,"jsonSchema":false}',
+    65536, 10, 'chat'
+  )
+$sql$, 'current singleton revision updates an otherwise unchanged catalog row');
+select extensions.ok(
+  (select model.revision = catalog.revision
+   from public.ai_catalog_models model cross join public.ai_catalog_revision catalog
+   where model.public_model_id = 'managed/shared' and catalog.singleton),
+  'published row revision equals the resulting singleton catalog revision'
+);
+select extensions.throws_ok($sql$
+  select control.publish_catalog_model(
+    '21000000-0000-4000-8000-000000000001',
+    '31000000-0000-4000-8000-000000000001',
+    4, null,
+    'Null New', 'managed/new-conflict',
+    '{"streaming":true,"tools":true,"vision":false,"jsonObject":true,"jsonSchema":false}',
+    65536, 40, 'chat'
+  )
+$sql$, 'PT409', 'REVISION_CONFLICT', 'null expected revision on new publication is typed conflict');
+select extensions.throws_ok($sql$
+  select control.publish_catalog_model(
+    '21000000-0000-4000-8000-000000000001',
+    '31000000-0000-4000-8000-000000000001',
+    4, 3,
+    'Stale New', 'managed/new-conflict',
+    '{"streaming":true,"tools":true,"vision":false,"jsonObject":true,"jsonSchema":false}',
+    65536, 40, 'chat'
+  )
+$sql$, 'PT409', 'REVISION_CONFLICT', 'stale competing new publication is typed conflict');
+select extensions.is(
+  (select count(*) from public.ai_catalog_models where public_model_id = 'managed/new-conflict'),
+  0::bigint,
+  'typed new-publication conflicts leave no partial row'
+);
 update control.model_routes
 set state = 'active'
-where provider_model_id = '31000000-0000-4000-8000-000000000001';
+where provider_model_id = '31000000-0000-4000-8000-000000000002';
 
 select extensions.lives_ok($sql$
   select control.archive_provider_model('31000000-0000-4000-8000-000000000002', 1)
@@ -86,7 +153,7 @@ select extensions.is(
 );
 select extensions.is(
   (select revision from public.ai_catalog_revision where singleton),
-  2::bigint,
+  4::bigint,
   'provider-model archive without public withdrawal does not bump catalog revision'
 );
 

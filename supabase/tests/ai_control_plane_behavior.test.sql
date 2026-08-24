@@ -90,7 +90,7 @@ select extensions.throws_ok($sql$
   select control.publish_catalog_model(
     '20000000-0000-4000-8000-000000000001',
     '30000000-0000-4000-8000-000000000001',
-    1, null,
+    1, 0,
     'Model A', 'managed/model-a',
     '{"streaming":true,"tools":true,"vision":false,"jsonObject":true,"jsonSchema":false}',
     65536, 10, 'chat'
@@ -103,7 +103,7 @@ select extensions.throws_ok($sql$
   select control.publish_catalog_model(
     '20000000-0000-4000-8000-000000000001',
     '30000000-0000-4000-8000-000000000001',
-    0, null,
+    0, 0,
     'Model A', 'managed/model-a',
     '{"streaming":true,"tools":true,"vision":false,"jsonObject":true,"jsonSchema":false}',
     65536, 10, 'chat'
@@ -123,7 +123,7 @@ select extensions.lives_ok($sql$
   select control.publish_catalog_model(
     '20000000-0000-4000-8000-000000000001',
     '30000000-0000-4000-8000-000000000001',
-    1, null,
+    1, 0,
     'Model A', 'managed/model-a',
     '{"streaming":true,"tools":true,"vision":false,"jsonObject":true,"jsonSchema":false}',
     65536, 10, 'chat'
@@ -267,7 +267,7 @@ select extensions.is(
 select extensions.lives_ok($sql$
   select control.publish_catalog_model(
     '20000000-0000-4000-8000-000000000001',
-    '30000000-0000-4000-8000-000000000002', 3, null,
+    '30000000-0000-4000-8000-000000000002', 3, 4,
     'Model B', 'managed/model-b',
     '{"streaming":true,"tools":false,"vision":false,"jsonObject":true,"jsonSchema":false}',
     32768, 20, 'chat'
