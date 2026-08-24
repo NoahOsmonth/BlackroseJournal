@@ -152,17 +152,51 @@ describe('client network contracts', () => {
     expect(() => parser(request)).toThrow('unexpected field');
   });
 
+  test('rejects nested bank data in memory request metadata', () => {
+    expect(() =>
+      parseMemoryRetainRequest({
+        content: 'entry',
+        metadata: { source: 'journal', context: { bankId: 'user-bank' } },
+      }),
+    ).toThrow('memoryRetainRequest.metadata.context: unexpected field');
+  });
+
+  test('rejects secret data in memory response metadata', () => {
+    expect(() =>
+      parseMemoryRecallResponse({
+        results: [
+          {
+            documentId: 'journal-1',
+            content: 'entry',
+            score: 0.9,
+            metadata: { source: 'journal', apiKey: 'plaintext-secret' },
+          },
+        ],
+      }),
+    ).toThrow('memoryRecallResponse.results[0].metadata.apiKey: unexpected field');
+  });
+
   test('validates revision conflicts without accepting secret state', () => {
     const conflict = {
       code: 'revision_conflict',
       message: 'The resource changed.',
       currentRevision: 9,
-      currentState: { id: 'catalog-model-1', availability: 'unavailable' },
+      currentState: {
+        selectedModelId: 'catalog-model-1',
+        revision: 9,
+        updatedAt: '2026-08-24T01:00:00.000Z',
+      },
     };
 
-    expect(parseRevisionConflict(conflict)).toEqual(conflict);
-    expect(() => parseRevisionConflict({ ...conflict, credential: 'secret' })).toThrow(
-      'revisionConflict.credential: unexpected field',
-    );
+    expect(parseRevisionConflict(conflict, parseUserAiPreference)).toEqual(conflict);
+    expect(() =>
+      parseRevisionConflict(
+        {
+          ...conflict,
+          currentState: { ...conflict.currentState, credential: 'secret' },
+        },
+        parseUserAiPreference,
+      ),
+    ).toThrow('userAiPreference.credential: unexpected field');
   });
 });

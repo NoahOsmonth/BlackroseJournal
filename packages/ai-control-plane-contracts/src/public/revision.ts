@@ -2,20 +2,23 @@ import {
   ContractValidationError,
   expectExactKeys,
   expectInteger,
-  expectJsonValue,
   expectRecord,
   expectString,
-  JsonValue,
 } from '../validation';
 
-export interface RevisionConflict<TState extends JsonValue = JsonValue> {
+export interface RevisionConflict<TState> {
   code: 'revision_conflict';
   message: string;
   currentRevision: number;
   currentState: TState;
 }
 
-export const parseRevisionConflict = (value: unknown): RevisionConflict => {
+export type RevisionStateParser<TState> = (value: unknown) => TState;
+
+export const parseRevisionConflict = <TState>(
+  value: unknown,
+  parseCurrentState: RevisionStateParser<TState>,
+): RevisionConflict<TState> => {
   const path = 'revisionConflict';
   const record = expectRecord(value, path);
   expectExactKeys(record, ['code', 'message', 'currentRevision', 'currentState'], path);
@@ -26,6 +29,6 @@ export const parseRevisionConflict = (value: unknown): RevisionConflict => {
     code: 'revision_conflict',
     message: expectString(record.message, `${path}.message`),
     currentRevision: expectInteger(record.currentRevision, `${path}.currentRevision`),
-    currentState: expectJsonValue(record.currentState, `${path}.currentState`),
+    currentState: parseCurrentState(record.currentState),
   };
 };

@@ -21,7 +21,7 @@ export interface ModelCapabilities {
 export interface PublicCatalogModel {
   id: string;
   label: string;
-  modelId: string;
+  publicModelId: string;
   capabilities: ModelCapabilities;
   contextWindow: number;
   availability: CatalogModelAvailability;
@@ -65,7 +65,7 @@ export const parsePublicCatalogModel = (
     [
       'id',
       'label',
-      'modelId',
+      'publicModelId',
       'capabilities',
       'contextWindow',
       'availability',
@@ -79,7 +79,7 @@ export const parsePublicCatalogModel = (
   return {
     id: expectString(record.id, `${path}.id`),
     label: expectString(record.label, `${path}.label`),
-    modelId: expectString(record.modelId, `${path}.modelId`),
+    publicModelId: expectString(record.publicModelId, `${path}.publicModelId`),
     capabilities: parseModelCapabilities(record.capabilities, `${path}.capabilities`),
     contextWindow: expectInteger(record.contextWindow, `${path}.contextWindow`, 1),
     availability: expectEnum(

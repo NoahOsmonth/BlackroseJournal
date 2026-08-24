@@ -2458,3 +2458,7 @@
   3 suites / 19 tests, and the package-scoped TypeScript and ESLint gates pass.
 - Root TypeScript remains blocked by missing pre-existing backend `express`/`cors` modules in
   this worktree; the root compiler reports no contract-package or contract-test errors.
+- Review fix round 1 tightened the frozen boundaries: revision conflicts now require a
+  route-specific state parser; memory metadata is an exact safe DTO in both directions;
+  catalog rows expose only `publicModelId`; and admin provider responses use exact safe
+  display/discovery metadata shapes with no arbitrary JSON or authorization headers.

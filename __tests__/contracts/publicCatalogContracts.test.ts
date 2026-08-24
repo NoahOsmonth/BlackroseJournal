@@ -6,7 +6,7 @@ const safeCatalogResponse = () => ({
     {
       id: 'catalog-model-1',
       label: 'Rosebud Chat',
-      modelId: 'upstream/model-1',
+      publicModelId: 'rosebud-chat',
       capabilities: {
         streaming: true,
         tools: true,
@@ -48,4 +48,19 @@ describe('public catalog contracts', () => {
       'catalog.models[0].providerId: unexpected field',
     );
   });
+
+  test.each(['modelId', 'providerModelId', 'upstreamModelId'])(
+    'rejects the provider-facing %s identifier in a public catalog row',
+    (unsafeKey) => {
+      const response = safeCatalogResponse();
+      const unsafeResponse = {
+        ...response,
+        models: [{ ...response.models[0], [unsafeKey]: 'provider/model-1' }],
+      };
+
+      expect(() => parseCatalogResponse(unsafeResponse)).toThrow(
+        `catalog.models[0].${unsafeKey}: unexpected field`,
+      );
+    },
+  );
 });

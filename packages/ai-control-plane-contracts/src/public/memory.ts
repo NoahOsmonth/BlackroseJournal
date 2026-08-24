@@ -4,15 +4,20 @@ import {
   expectEnum,
   expectExactKeys,
   expectInteger,
-  expectJsonObject,
   expectNumber,
   expectRecord,
   expectString,
   includeOptional,
-  JsonValue,
 } from '../validation';
 
-export type MemoryMetadata = { [key: string]: JsonValue };
+export type MemoryMetadataSource = 'journal' | 'check_in';
+
+export interface MemoryMetadata {
+  source?: MemoryMetadataSource;
+  sourceId?: string;
+  completed?: boolean;
+  writtenAt?: string;
+}
 
 export interface MemoryRetainRequest {
   documentId?: string;
@@ -58,8 +63,17 @@ export interface MemoryReflectResponse { reflection: string }
 export interface MemoryRebuildResponse { accepted: number }
 export interface MemoryClearResponse { cleared: boolean }
 
-const parseMetadata = (value: unknown, path: string): MemoryMetadata =>
-  expectJsonObject(value, path);
+const parseMetadata = (value: unknown, path: string): MemoryMetadata => {
+  const record = expectRecord(value, path);
+  expectExactKeys(record, ['source', 'sourceId', 'completed', 'writtenAt'], path);
+  const result: Record<string, unknown> = {};
+  includeOptional(result, 'source', record.source, (item, itemPath) =>
+    expectEnum(item, ['journal', 'check_in'], itemPath), path);
+  includeOptional(result, 'sourceId', record.sourceId, expectString, path);
+  includeOptional(result, 'completed', record.completed, expectBoolean, path);
+  includeOptional(result, 'writtenAt', record.writtenAt, expectString, path);
+  return result as MemoryMetadata;
+};
 
 export const parseMemoryRetainRequest = (value: unknown): MemoryRetainRequest => {
   const path = 'memoryRetainRequest';

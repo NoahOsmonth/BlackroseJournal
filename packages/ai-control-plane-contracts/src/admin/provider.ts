@@ -29,6 +29,15 @@ export interface ProviderCredentialMetadata {
   updatedAt: string;
 }
 
+export interface ProviderDisplayMetadata {
+  label: string;
+  description?: string;
+}
+
+export interface ProviderDiscoveryMetadata {
+  modelsPath: string;
+}
+
 export interface AdminProvider {
   id: string;
   name: string;
@@ -36,8 +45,8 @@ export interface AdminProvider {
   baseUrl: string;
   state: ProviderState;
   revision: number;
-  displayMetadata?: { [key: string]: JsonValue };
-  discoveryConfig?: { [key: string]: JsonValue };
+  displayMetadata?: ProviderDisplayMetadata;
+  discoveryConfig?: ProviderDiscoveryMetadata;
   credentialMetadata?: ProviderCredentialMetadata;
   createdAt: string;
   updatedAt: string;
@@ -85,6 +94,30 @@ const parseCredentialMetadata = (
   return result as unknown as ProviderCredentialMetadata;
 };
 
+const parseDisplayMetadata = (
+  value: unknown,
+  path: string,
+): ProviderDisplayMetadata => {
+  const record = expectRecord(value, path);
+  expectExactKeys(record, ['label', 'description'], path);
+  const result: Record<string, unknown> = {
+    label: expectString(record.label, `${path}.label`),
+  };
+  includeOptional(result, 'description', record.description, expectString, path);
+  return result as unknown as ProviderDisplayMetadata;
+};
+
+const parseDiscoveryMetadata = (
+  value: unknown,
+  path: string,
+): ProviderDiscoveryMetadata => {
+  const record = expectRecord(value, path);
+  expectExactKeys(record, ['modelsPath'], path);
+  return {
+    modelsPath: expectString(record.modelsPath, `${path}.modelsPath`),
+  };
+};
+
 export const parseAdminProvider = (value: unknown): AdminProvider => {
   const path = 'adminProvider';
   const record = expectRecord(value, path);
@@ -115,8 +148,14 @@ export const parseAdminProvider = (value: unknown): AdminProvider => {
     createdAt: expectString(record.createdAt, `${path}.createdAt`),
     updatedAt: expectString(record.updatedAt, `${path}.updatedAt`),
   };
-  includeOptional(result, 'displayMetadata', record.displayMetadata, expectJsonObject, path);
-  includeOptional(result, 'discoveryConfig', record.discoveryConfig, expectJsonObject, path);
+  includeOptional(result, 'displayMetadata', record.displayMetadata, parseDisplayMetadata, path);
+  includeOptional(
+    result,
+    'discoveryConfig',
+    record.discoveryConfig,
+    parseDiscoveryMetadata,
+    path,
+  );
   includeOptional(
     result,
     'credentialMetadata',

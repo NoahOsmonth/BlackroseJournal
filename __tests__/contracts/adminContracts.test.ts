@@ -1,6 +1,25 @@
 import * as adminContracts from '../../packages/ai-control-plane-contracts/src/admin';
 import * as publicContracts from '../../packages/ai-control-plane-contracts/src';
 
+const safeAdminProvider = () => ({
+  id: 'provider-1',
+  name: 'Provider',
+  protocol: 'openai-responses',
+  baseUrl: 'https://provider.example/v1',
+  state: 'active',
+  revision: 1,
+  displayMetadata: { label: 'Managed Provider', description: 'Primary route' },
+  discoveryConfig: { modelsPath: '/models' },
+  credentialMetadata: {
+    label: 'primary',
+    lastFour: '1234',
+    keyVersion: 2,
+    updatedAt: '2026-08-24T00:00:00.000Z',
+  },
+  createdAt: '2026-08-24T00:00:00.000Z',
+  updatedAt: '2026-08-24T00:00:00.000Z',
+});
+
 describe('admin control-plane contracts', () => {
   test.each([
     'openai-chat-completions',
@@ -91,5 +110,28 @@ describe('admin control-plane contracts', () => {
         updatedAt: '2026-08-24T00:00:00.000Z',
       }),
     ).toThrow('adminProvider.credential: unexpected field');
+  });
+
+  test('accepts only explicit safe provider response metadata', () => {
+    const provider = safeAdminProvider();
+
+    expect(adminContracts.parseAdminProvider(provider)).toEqual(provider);
+  });
+
+  test.each([
+    [
+      'display metadata authorization',
+      { displayMetadata: { label: 'Provider', authorization: 'Bearer secret' } },
+      'adminProvider.displayMetadata.authorization: unexpected field',
+    ],
+    [
+      'discovery configuration headers',
+      { discoveryConfig: { modelsPath: '/models', headers: { apiKey: 'secret' } } },
+      'adminProvider.discoveryConfig.headers: unexpected field',
+    ],
+  ])('rejects %s in provider responses', (_name, unsafeFields, expectedError) => {
+    expect(() =>
+      adminContracts.parseAdminProvider({ ...safeAdminProvider(), ...unsafeFields }),
+    ).toThrow(expectedError);
   });
 });
