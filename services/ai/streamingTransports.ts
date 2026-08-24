@@ -5,8 +5,9 @@ import {
     CompleteCallback,
     StreamingCallback,
 } from './chatTypes';
-import { fetchDirectChatCompletion, isModelCachedUnavailable, prepareDirectChatRequest } from './directTransport';
-import { appendChunk, buildResponseError, parseSseLine, readNonStreamingResponse } from './sseParser';
+import { fetchAiChatCompletion, parseAiSseLine, prepareAiChatRequest } from './aiTransport';
+import { isModelCachedUnavailable } from './directTransport';
+import { appendChunk, buildResponseError, readNonStreamingResponse } from './sseParser';
 
 type ReadableStreamLike = {
     getReader: () => { read: () => Promise<{ done: boolean; value?: Uint8Array }> };
@@ -29,7 +30,7 @@ function hasFinalContent(accumulator: ChatAccumulator): boolean {
 }
 
 export async function fetchChatCompletion(payload: ChatRequestPayload): Promise<Response> {
-    return fetchDirectChatCompletion(payload);
+    return fetchAiChatCompletion(payload);
 }
 
 /** PR8c: stream result includes usage when the provider emits a usage chunk. */
@@ -44,9 +45,12 @@ export async function streamChatWithXhr(
     onComplete: CompleteCallback
 ): Promise<StreamXhrResult> {
     if (!hasXmlHttpRequest()) return { ok: false, usage: null };
+    const prepared = await prepareAiChatRequest(payload);
     // Fix 5: skip XHR when primary model is known-unavailable (let fetch+self-heal handle it)
-    if (isModelCachedUnavailable(payload.model)) return { ok: false, usage: null };
-    const request = await prepareDirectChatRequest(payload);
+    if (prepared.mode === 'byok' && isModelCachedUnavailable(payload.model)) {
+        return { ok: false, usage: null };
+    }
+    const { request } = prepared;
     return new Promise((resolve, reject) => {
         const xhr = new globalThis.XMLHttpRequest();
         const accumulator: ChatAccumulator = { content: '', reasoning: '', usage: null };
@@ -66,7 +70,7 @@ export async function streamChatWithXhr(
             const lines = buffer.split('\n');
             buffer = lines.pop() || '';
             for (const line of lines) {
-                const parsed = parseSseLine(line);
+                const parsed = parseAiSseLine(line, prepared.mode);
                 if (!parsed) continue;
                 if (parsed.done) {
                     settle(() => {
@@ -115,4 +119,3 @@ export async function streamChatWithXhr(
 }
 
 export { buildResponseError, hasReadableStream, readNonStreamingResponse };
-

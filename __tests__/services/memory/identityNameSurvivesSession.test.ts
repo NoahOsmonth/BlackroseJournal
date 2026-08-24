@@ -19,11 +19,11 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
     },
 }));
 
-jest.mock('../../../services/ai/directTransport', () => ({
-    fetchDirectChatCompletion: jest.fn(),
+jest.mock('../../../services/ai/aiTransport', () => ({
+    fetchAiChatCompletion: jest.fn(),
 }));
 
-import { fetchDirectChatCompletion } from '../../../services/ai/directTransport';
+import { fetchAiChatCompletion } from '../../../services/ai/aiTransport';
 import { THERAPIST_SYSTEM_PROMPT } from '../../../constants/aiPrompts';
 import { FLOWS, composeSystemPrompt } from '../../../features/chat/flows';
 import {
@@ -52,7 +52,7 @@ function createInMemoryAdapter() {
     };
 }
 
-const mockFetch = jest.mocked(fetchDirectChatCompletion);
+const mockFetch = jest.mocked(fetchAiChatCompletion);
 
 function mockIdentityLlm(name = 'Sigurd'): void {
     mockFetch.mockResolvedValue({

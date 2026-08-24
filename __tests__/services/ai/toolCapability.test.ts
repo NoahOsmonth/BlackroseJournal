@@ -2,6 +2,7 @@ import {
     clearToolsUnsupportedCache,
     isMarkedToolsUnsupported,
     markToolsUnsupported,
+    resolveManagedToolCapability,
     resolveToolCapability,
 } from '../../../services/ai/tools/toolCapability';
 
@@ -43,5 +44,10 @@ describe('resolveToolCapability', () => {
     it('defaults agent-default to hybrid', () => {
         expect(resolveToolCapability('agent-default').mode).toBe('hybrid');
         expect(resolveToolCapability(undefined).mode).toBe('hybrid');
+    });
+
+    it('honors the managed catalog tool capability instead of model-name guessing', () => {
+        expect(resolveManagedToolCapability('openai/gpt-5', false).mode).toBe('inject_only');
+        expect(resolveManagedToolCapability('openai/gpt-5', true).mode).toBe('structured');
     });
 });

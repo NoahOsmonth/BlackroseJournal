@@ -2664,3 +2664,22 @@
 - Verification: backend **29 suites / 120 tests**, backend/root TypeScript, scoped ESLint, design
   limits, and `git diff --check` passed. Adapter implementation was delegated and committed as
   `a171d8b`; controller integration and security review followed.
+
+# 2026-08-24 — AI control plane Task 8: managed catalog and BYOK separation
+
+- Added a versioned, account-scoped managed catalog cache with serialized writes, authenticated
+  catalog/preference APIs, realtime revision subscriptions, burst-safe atomic refetches, offline
+  cache behavior, and teardown on account switch.
+- The shared chat engine now has a strict mode boundary: BYOK-on uses only the device-direct
+  OpenRouter/custom provider; BYOK-off uses only the authenticated managed gateway. Client model
+  ids and provider details never cross the managed inference boundary.
+- Managed gateway responses are normalized back into the existing chat/agent consumers for
+  streaming, non-streaming, usage, and tool calls. Assistant tool-call history is preserved by
+  the normalized contract and translated across all four provider protocols.
+- Both chat surfaces now show only the active mode's models. Managed selection is explicit and
+  persisted server-side; a withdrawn selection remains unavailable and is never silently replaced.
+  Managed chat budgeting and tool capability resolve from the local catalog cache without model
+  discovery during a turn.
+- Verification: focused catalog, hook, transport, picker, chat service, agent-loop, structured
+  extraction, context, and provider-adapter suites passed; root TypeScript passed. Catalog/realtime
+  work was delegated as `99046fb`; normalized tool history was delegated as `250a3b1`.

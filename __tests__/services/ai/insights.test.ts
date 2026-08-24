@@ -5,7 +5,7 @@ import {
     generateStreakHaiku,
     generateWeeklyInsights,
 } from '../../../services/ai/insights';
-import { fetchDirectChatCompletion } from '../../../services/ai/directTransport';
+import { fetchAiChatCompletion } from '../../../services/ai/aiTransport';
 
 jest.mock('../../../services/ai/directConfig', () => ({
     getDirectConfig: () => ({
@@ -16,12 +16,12 @@ jest.mock('../../../services/ai/directConfig', () => ({
     }),
 }));
 
-jest.mock('../../../services/ai/directTransport', () => ({
-    fetchDirectChatCompletion: jest.fn(),
+jest.mock('../../../services/ai/aiTransport', () => ({
+    fetchAiChatCompletion: jest.fn(),
 }));
 
-const mockFetchDirect = fetchDirectChatCompletion as jest.MockedFunction<
-    typeof fetchDirectChatCompletion
+const mockFetchDirect = fetchAiChatCompletion as jest.MockedFunction<
+    typeof fetchAiChatCompletion
 >;
 
 function mockResponse(status: number, content: unknown): Response {

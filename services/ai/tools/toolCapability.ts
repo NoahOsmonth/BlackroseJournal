@@ -94,6 +94,13 @@ export function resolveToolCapability(modelId: string | undefined | null): ToolC
     return hybridCapability();
 }
 
+export function resolveManagedToolCapability(
+    modelId: string | undefined | null,
+    supportsTools: boolean
+): ToolCapability {
+    return supportsTools ? resolveToolCapability(modelId) : injectOnlyCapability();
+}
+
 function structuredCapability(): ToolCapability {
     return {
         mode: 'structured',

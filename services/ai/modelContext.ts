@@ -1,4 +1,6 @@
 import { getResolvedDirectConfig, type ResolvedDirectConfig } from './directConfig';
+import { getAiTransportMode } from './aiTransport';
+import { getManagedModelSelection, loadManagedCatalogSnapshot } from './managedCatalog';
 import { accountScopedStorage } from '@/services/account/accountScopedStorage';
 import {
     DEFAULT_FALLBACK_CONTEXT_WINDOW,
@@ -17,7 +19,7 @@ export interface ModelContextInfo {
     model: string;
     contextWindow: number;
     source: ContextWindowSource;
-    providerSource: ResolvedDirectConfig['source'];
+    providerSource: ResolvedDirectConfig['source'] | 'managed';
 }
 
 interface CachedModelContext {
@@ -117,6 +119,19 @@ export async function clearModelContextCache(): Promise<void> {
 export async function detectActiveModelContextWindow(
     options: { forceRefresh?: boolean } = {}
 ): Promise<ModelContextInfo> {
+    if (await getAiTransportMode() === 'managed') {
+        const snapshot = await loadManagedCatalogSnapshot();
+        const selection = getManagedModelSelection(snapshot.catalog, snapshot.preference);
+        if (!selection.model || selection.availability === 'unavailable') {
+            throw new Error('Choose an available managed AI model before chatting.');
+        }
+        return {
+            model: selection.model.publicModelId,
+            contextWindow: selection.model.contextWindow,
+            source: 'api',
+            providerSource: 'managed',
+        };
+    }
     const config = await getResolvedDirectConfig();
     if (config.source === 'custom' && config.contextWindow) {
         return {

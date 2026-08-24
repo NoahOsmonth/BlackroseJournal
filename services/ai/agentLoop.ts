@@ -19,7 +19,7 @@ import {
     type GenerationSettings,
     sanitizeGenerationSettings,
 } from './generationSettings';
-import { fetchDirectChatCompletion } from './directTransport';
+import { fetchAiChatCompletion } from './aiTransport';
 import { HISTORY_TOOL_DEFINITIONS, executeToolCalls, toOpenAiToolSpecs } from './tools';
 import {
     formatToolResultsForModel,
@@ -361,7 +361,7 @@ async function completeWithTools(
     model: string,
     sendTools: boolean
 ): Promise<unknown> {
-    const response = await fetchDirectChatCompletion({
+    const response = await fetchAiChatCompletion({
         model,
         messages: agentMessages as unknown as { role: string; content: string }[],
         stream: false,
@@ -399,7 +399,7 @@ async function completeWithoutTools(
     settings: GenerationSettings,
     model: string
 ): Promise<{ content: string; reasoning: string; usage: AgentLoopResult['usage'] }> {
-    const response = await fetchDirectChatCompletion({
+    const response = await fetchAiChatCompletion({
         model,
         messages: agentMessages as unknown as { role: string; content: string }[],
         stream: false,

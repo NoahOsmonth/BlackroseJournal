@@ -476,8 +476,7 @@ export default function IntentionChatScreen() {
                     feedbackModalProps={feedbackModalProps}
                 />
 
-                <ChatModelPickerSheet
-                    visible={modelPicker.visible}
+                <ChatModelPickerSheet visible={modelPicker.visible} mode={modelPicker.mode}
                     models={modelPicker.models}
                     recentModels={modelPicker.recentModels}
                     selectedId={modelPicker.selectedModelId}

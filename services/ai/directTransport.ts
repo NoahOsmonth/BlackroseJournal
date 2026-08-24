@@ -42,7 +42,7 @@ export interface DirectChatOptions {
     signal?: AbortSignal;
 }
 
-interface PreparedDirectChatRequest {
+export interface PreparedDirectChatRequest {
     url: string;
     headers: Record<string, string>;
     body: DirectChatRequest;
@@ -401,4 +401,3 @@ export async function fetchDirectChatCompletion(
 
 export { DirectConfigError, getDirectConfig, getResolvedDirectConfig } from './directConfig';
 export type { DirectConfig, ResolvedDirectConfig } from './directConfig';
-

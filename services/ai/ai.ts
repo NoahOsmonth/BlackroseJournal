@@ -23,6 +23,8 @@ import {
 } from './conversationCompact';
 import { getKnownContextWindow } from './customModels';
 import { getResolvedDirectConfig } from './directConfig';
+import { getAiTransportMode } from './aiTransport';
+import { getManagedModelSelection, loadManagedCatalogSnapshot } from './managedCatalog';
 import { augmentSystemPromptForTurn } from './historyPrefetch';
 import {
     attachRealUsage,
@@ -45,7 +47,9 @@ import { stripToolCallSyntax } from './tools/parseTextToolCalls';
 import {
     logToolTelemetry,
     markToolsUnsupported,
+    resolveManagedToolCapability,
     resolveToolCapability,
+    type ToolCapability,
 } from './tools/toolCapability';
 
 export {
@@ -71,30 +75,56 @@ function normalizeUnknownError(error: unknown): Error {
     }
 }
 
-/** Local-only context window resolve — no network hang on mobile offline. */
-async function resolveContextWindow(): Promise<number> {
+interface LocalAiRuntime {
+    contextWindow: number;
+    modelId: string;
+    capability: ToolCapability;
+}
+
+/** Local-only runtime resolve — never waits on catalog/provider discovery during chat. */
+async function resolveLocalAiRuntime(): Promise<LocalAiRuntime> {
+    if (await getAiTransportMode() === 'managed') {
+        const snapshot = await loadManagedCatalogSnapshot();
+        const selection = getManagedModelSelection(snapshot.catalog, snapshot.preference);
+        if (selection.model && selection.availability !== 'unavailable') {
+            return {
+                contextWindow: selection.model.contextWindow,
+                modelId: selection.model.publicModelId,
+                capability: resolveManagedToolCapability(
+                    selection.model.publicModelId,
+                    selection.model.capabilities.tools
+                ),
+            };
+        }
+        return {
+            contextWindow: DEFAULT_COMPACT_CONTEXT_WINDOW,
+            modelId: 'managed-unselected',
+            capability: resolveManagedToolCapability('managed-unselected', false),
+        };
+    }
     try {
         const config = await getResolvedDirectConfig();
         if (config.contextWindow && config.contextWindow > 0) {
-            return config.contextWindow;
+            return {
+                contextWindow: config.contextWindow,
+                modelId: config.model,
+                capability: resolveToolCapability(config.model),
+            };
         }
         const known = getKnownContextWindow(config.model);
-        if (known && known > 0) return known;
+        return {
+            contextWindow: known && known > 0 ? known : DEFAULT_COMPACT_CONTEXT_WINDOW,
+            modelId: config.model || DEFAULT_DIRECT_MODEL,
+            capability: resolveToolCapability(config.model),
+        };
     } catch {
         // Missing key / offline — fall through.
     }
-    return DEFAULT_COMPACT_CONTEXT_WINDOW;
-}
-
-/** Resolve active model id for capability routing (local settings only). */
-async function resolveActiveModelId(): Promise<string> {
-    try {
-        const config = await getResolvedDirectConfig();
-        if (config.model) return config.model;
-    } catch {
-        // Missing key / offline.
-    }
-    return DEFAULT_DIRECT_MODEL;
+    return {
+        contextWindow: DEFAULT_COMPACT_CONTEXT_WINDOW,
+        modelId: DEFAULT_DIRECT_MODEL,
+        capability: resolveToolCapability(DEFAULT_DIRECT_MODEL),
+    };
 }
 
 export async function streamChat(
@@ -119,9 +149,10 @@ export async function streamChat(
             messages
         );
 
-        const contextWindow = await resolveContextWindow();
-        const activeModelId = await resolveActiveModelId();
-        const capability = resolveToolCapability(activeModelId);
+        const runtime = await resolveLocalAiRuntime();
+        const contextWindow = runtime.contextWindow;
+        const activeModelId = runtime.modelId;
+        const capability = runtime.capability;
         const outputReserve = Math.min(
             DEFAULT_OUTPUT_RESERVE,
             Math.max(512, Math.floor(contextWindow * 0.12))
@@ -286,7 +317,7 @@ export async function completeChat(
     systemPrompt: string,
     options?: { conversationId?: string; generation?: StreamChatOptions['generation'] }
 ): Promise<ChatAccumulator> {
-    const contextWindow = await resolveContextWindow();
+    const contextWindow = (await resolveLocalAiRuntime()).contextWindow;
     const compactResult = compactConversationIfNeeded(messages, {
         systemPrompt,
         contextWindow,

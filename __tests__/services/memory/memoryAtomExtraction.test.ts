@@ -1,10 +1,10 @@
 /* eslint-disable import/first */
 
-jest.mock('../../../services/ai/directTransport', () => ({
-    fetchDirectChatCompletion: jest.fn(),
+jest.mock('../../../services/ai/aiTransport', () => ({
+    fetchAiChatCompletion: jest.fn(),
 }));
 
-import { fetchDirectChatCompletion } from '../../../services/ai/directTransport';
+import { fetchAiChatCompletion } from '../../../services/ai/aiTransport';
 import { resetJsonCompletionStateForTests } from '../../../services/ai/jsonCompletion';
 import {
     extractCheckInMemoryAtoms,
@@ -13,7 +13,7 @@ import {
 import type { JournalEntry } from '../../../services/journal/journalStorage.types';
 import type { IntentionCheckIn } from '../../../services/intentions/intentionsStorage.types';
 
-const mockFetch = jest.mocked(fetchDirectChatCompletion);
+const mockFetch = jest.mocked(fetchAiChatCompletion);
 
 function jsonResponse(body: unknown, status = 200): Response {
     return {

@@ -20,6 +20,7 @@ import { ModelPickerRow } from './ModelPickerRow';
 
 export type ChatModelPickerSheetProps = {
     readonly visible: boolean;
+    readonly mode?: 'managed' | 'byok';
     readonly models: readonly CustomAiModel[];
     readonly recentModels?: readonly CustomAiModel[];
     readonly selectedId: string | null;
@@ -51,6 +52,7 @@ function ModelRowSkeleton({ index }: { index: number }) {
 
 export function ChatModelPickerSheet({
     visible,
+    mode = 'byok',
     models,
     recentModels = [],
     selectedId,
@@ -92,14 +94,18 @@ export function ChatModelPickerSheet({
         }
         items.push({
             type: 'section',
-            title: freeOnly ? 'All free models' : 'All models',
+            title: mode === 'managed' ? 'Managed models' : freeOnly ? 'All free models' : 'All models',
         });
         for (const model of filtered) {
             if (showRecent && recentIds.has(model.id)) continue;
             items.push({ type: 'model', model });
         }
         return items;
-    }, [filtered, freeOnly, query, recentModels]);
+    }, [filtered, freeOnly, mode, query, recentModels]);
+
+    const selectedManagedModelMissing = mode === 'managed'
+        && Boolean(selectedId)
+        && !models.some((model) => model.id === selectedId);
 
     const maxHeight = Math.round(height * 0.72);
 
@@ -125,7 +131,7 @@ export function ChatModelPickerSheet({
                             >
                                 {hostLabel}
                             </Text>
-                            {freeOnly ? <FreeOnlyPill /> : (
+                            {mode === 'managed' ? null : freeOnly ? <FreeOnlyPill /> : (
                                 <Text className="text-[10px] font-semibold uppercase text-amber-700 dark:text-amber-300">
                                     Includes paid
                                 </Text>
@@ -164,9 +170,14 @@ export function ChatModelPickerSheet({
                         {error ? (
                             <Text className="text-sm text-red-600 dark:text-red-400">{error}</Text>
                         ) : null}
+                        {selectedManagedModelMissing ? (
+                            <Text className="text-sm text-amber-700 dark:text-amber-300 text-center">
+                                Your selected managed model is no longer available. Choose another model to continue.
+                            </Text>
+                        ) : null}
                     </View>
 
-                    {!hasApiKey ? (
+                    {mode === 'byok' && !hasApiKey ? (
                         <View className="px-4 py-8 items-center gap-3">
                             <Ionicons name="key-outline" size={28} color={iconColor} />
                             <Text className="text-base font-semibold text-text-light dark:text-text-dark text-center">

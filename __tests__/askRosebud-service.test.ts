@@ -1,5 +1,5 @@
 import { askRosebud } from '../services/ask-rosebud/askRosebud';
-import { fetchDirectChatCompletion } from '../services/ai/directTransport';
+import { fetchAiChatCompletion } from '../services/ai/aiTransport';
 import { listGoals } from '../services/goals/goalsStorage';
 
 jest.mock('../services/ai/directConfig', () => ({
@@ -11,16 +11,16 @@ jest.mock('../services/ai/directConfig', () => ({
     }),
 }));
 
-jest.mock('../services/ai/directTransport', () => ({
-    fetchDirectChatCompletion: jest.fn(),
+jest.mock('../services/ai/aiTransport', () => ({
+    fetchAiChatCompletion: jest.fn(),
 }));
 
 jest.mock('../services/goals/goalsStorage', () => ({
     listGoals: jest.fn(),
 }));
 
-const mockFetchDirect = fetchDirectChatCompletion as jest.MockedFunction<
-    typeof fetchDirectChatCompletion
+const mockFetchDirect = fetchAiChatCompletion as jest.MockedFunction<
+    typeof fetchAiChatCompletion
 >;
 const mockListGoals = listGoals as jest.MockedFunction<typeof listGoals>;
 

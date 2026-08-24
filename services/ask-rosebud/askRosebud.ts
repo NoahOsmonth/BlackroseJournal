@@ -1,4 +1,4 @@
-import { fetchDirectChatCompletion } from '@/services/ai/directTransport';
+import { fetchAiChatCompletion } from '@/services/ai/aiTransport';
 import { listGoals } from '@/services/goals/goalsStorage';
 import { buildGoalsContext } from '@/services/goals/goalsPrompt';
 
@@ -80,7 +80,7 @@ export async function askRosebud(
     contextParts.push('Local journal context:');
     contextParts.push(formatEntries(entries));
 
-    const response = await fetchDirectChatCompletion({
+    const response = await fetchAiChatCompletion({
         model: 'agent-default',
         messages: [
             { role: 'system', content: ASK_ROSEBUD_SYSTEM_PROMPT },

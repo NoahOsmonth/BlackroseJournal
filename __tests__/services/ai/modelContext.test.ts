@@ -1,4 +1,6 @@
 import { getResolvedDirectConfig } from '../../../services/ai/directConfig';
+import { getAiTransportMode } from '../../../services/ai/aiTransport';
+import { loadManagedCatalogSnapshot } from '../../../services/ai/managedCatalog';
 import {
     clearModelContextCache,
     detectActiveModelContextWindow,
@@ -17,6 +19,14 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 
 jest.mock('../../../services/ai/directConfig', () => ({
     getResolvedDirectConfig: jest.fn(),
+}));
+jest.mock('../../../services/ai/aiTransport', () => ({
+    getAiTransportMode: jest.fn(),
+}));
+jest.mock('../../../services/ai/managedCatalog', () => ({
+    loadManagedCatalogSnapshot: jest.fn(),
+    getManagedModelSelection: jest.requireActual('../../../services/ai/managedCatalog')
+        .getManagedModelSelection,
 }));
 
 function createStorageAdapter() {
@@ -47,11 +57,13 @@ describe('modelContext service', () => {
     let fetchMock: jest.Mock;
 
     beforeEach(async () => {
+        jest.clearAllMocks();
         setModelContextStorageAdapter(createStorageAdapter());
         await clearModelContextCache();
         fetchMock = jest.fn();
         global.fetch = fetchMock as unknown as typeof fetch;
         jest.mocked(getResolvedDirectConfig).mockResolvedValue(envConfig);
+        jest.mocked(getAiTransportMode).mockResolvedValue('byok');
     });
 
     afterEach(() => {
@@ -101,6 +113,36 @@ describe('modelContext service', () => {
             source: 'fallback',
             providerSource: 'custom',
         });
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('uses the cached explicit managed selection without provider discovery', async () => {
+        jest.mocked(getAiTransportMode).mockResolvedValue('managed');
+        jest.mocked(loadManagedCatalogSnapshot).mockResolvedValue({
+            catalog: {
+                revision: 1,
+                models: [{
+                    id: 'route-1', label: 'Rose Large', publicModelId: 'rose-large',
+                    contextWindow: 96_000, availability: 'available', sortOrder: 0,
+                    capabilities: {
+                        streaming: true, tools: true, vision: false,
+                        jsonObject: true, jsonSchema: false,
+                    },
+                    revision: 1, createdAt: '2026-08-24T00:00:00.000Z',
+                    updatedAt: '2026-08-24T00:00:00.000Z',
+                }],
+            },
+            preference: {
+                selectedModelId: 'route-1', revision: 1,
+                updatedAt: '2026-08-24T00:00:00.000Z',
+            },
+        });
+
+        await expect(detectActiveModelContextWindow()).resolves.toEqual({
+            model: 'rose-large', contextWindow: 96_000,
+            source: 'api', providerSource: 'managed',
+        });
+        expect(getResolvedDirectConfig).not.toHaveBeenCalled();
         expect(fetchMock).not.toHaveBeenCalled();
     });
 });
