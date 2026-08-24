@@ -72,6 +72,8 @@ export interface ParsedSseChunk {
     reasoning?: string;
     done?: boolean;
     usage?: ChatUsage | null;
+    error?: Error;
+    finishReason?: string;
 }
 
 export interface SimulatedStreamingOptions {

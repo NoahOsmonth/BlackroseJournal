@@ -72,6 +72,10 @@ export async function streamChatWithXhr(
             for (const line of lines) {
                 const parsed = parseAiSseLine(line, prepared.mode);
                 if (!parsed) continue;
+                if (parsed.error) {
+                    settle(() => reject(parsed.error));
+                    return;
+                }
                 if (parsed.done) {
                     settle(() => {
                         if (!hasFinalContent(accumulator)) {
