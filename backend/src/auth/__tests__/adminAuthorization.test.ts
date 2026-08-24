@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import {
   AdminAuthorizer,
   AuthorizationError,
+  createControlAdminAuthorizer,
   requireAdmin,
 } from '../adminAuthorization';
 
@@ -22,5 +23,19 @@ describe('explicit admin authorization', () => {
       () => requireAdmin({ userId: 'regular-id', role: 'authenticated' }, authorizer),
       AuthorizationError,
     );
+  });
+
+  it('derives administration from the server-controlled repository only', async () => {
+    const authorizer = createControlAdminAuthorizer({
+      findAdminByUserId: async (userId) => userId === 'admin-id'
+        ? { userId: 'admin-id', role: 'operator' }
+        : null,
+    });
+
+    assert.deepEqual(await authorizer.findAdmin('admin-id'), {
+      userId: 'admin-id',
+      role: 'operator',
+    });
+    assert.equal(await authorizer.findAdmin('regular-id'), null);
   });
 });

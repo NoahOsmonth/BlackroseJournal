@@ -21,10 +21,17 @@ export class RetryExecutionError extends Error {
   }
 }
 
+export class RetryDeadlineExceededError extends Error {
+  constructor() {
+    super('Managed retry deadline exceeded.');
+    this.name = 'RetryDeadlineExceededError';
+  }
+}
+
 export interface SameRouteRetryOptions<T> {
   binding: RouteBinding;
   policy: RetryPolicy;
-  execute(binding: RouteBinding, attempt: number): Promise<T>;
+  execute(binding: RouteBinding, attempt: number, signal: AbortSignal): Promise<T>;
   sleep?: (milliseconds: number) => Promise<void>;
   now?: () => number;
 }
@@ -63,7 +70,24 @@ export async function executeWithSameRouteRetry<T>(
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      return await options.execute(binding, attempt);
+      const remaining = maxTotalMs - (now() - startedAt);
+      if (remaining <= 0) throw new RetryDeadlineExceededError();
+      const controller = new AbortController();
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      const deadline = new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(() => {
+          controller.abort();
+          reject(new RetryDeadlineExceededError());
+        }, remaining);
+      });
+      try {
+        return await Promise.race([
+          options.execute(binding, attempt, controller.signal),
+          deadline,
+        ]);
+      } finally {
+        if (timeout) clearTimeout(timeout);
+      }
     } catch (error) {
       if (!isTransient(error) || attempt === maxAttempts) throw error;
       const elapsed = now() - startedAt;

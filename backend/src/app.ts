@@ -3,6 +3,7 @@ import express from 'express';
 import type { ServerConfig } from './config/serverConfig';
 import {
   createManagedAuthGuard,
+  createManagedAdminGuard,
   createManagedOriginGuard,
   type ManagedAccessDependencies,
 } from './control/managedAccess';
@@ -21,8 +22,13 @@ export function createApp(deps: AppDeps): express.Application {
   const app = express();
   app.use(createManagedOriginGuard(deps.serverConfig.allowedOrigins));
   app.use(
-    ['/v1/ai', '/v1/admin', '/v1/memory'],
+    ['/v1/ai', '/v1/memory'],
     createManagedAuthGuard(deps.managedAccess),
+  );
+  app.use(
+    '/v1/admin',
+    createManagedAuthGuard(deps.managedAccess),
+    createManagedAdminGuard(deps.managedAccess),
   );
   app.use(express.json({ limit: '2mb' }));
   app.use(cors({

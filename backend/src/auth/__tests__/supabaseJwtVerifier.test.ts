@@ -14,6 +14,8 @@ const KEY_ID = 'key-1';
 
 const keyPair = generateKeyPairSync('rsa', { modulusLength: 2048 });
 const publicJwk = keyPair.publicKey.export({ format: 'jwk' });
+const ecKeyPair = generateKeyPairSync('ec', { namedCurve: 'P-256' });
+const ecPublicJwk = ecKeyPair.publicKey.export({ format: 'jwk' });
 
 function base64Url(value: string): string {
   return Buffer.from(value).toString('base64url');
@@ -31,6 +33,17 @@ function signJwt(payload: Record<string, unknown>, header: Record<string, unknow
   signer.update(signingInput);
   signer.end();
   return `${signingInput}.${signer.sign(keyPair.privateKey).toString('base64url')}`;
+}
+
+function signEsJwt(payload: Record<string, unknown>): string {
+  const encodedHeader = base64Url(JSON.stringify({ alg: 'ES256', kid: 'ec-key', typ: 'JWT' }));
+  const encodedPayload = base64Url(JSON.stringify(payload));
+  const signingInput = `${encodedHeader}.${encodedPayload}`;
+  const signer = createSign('SHA256');
+  signer.update(signingInput);
+  signer.end();
+  const signature = signer.sign({ key: ecKeyPair.privateKey, dsaEncoding: 'ieee-p1363' });
+  return `${signingInput}.${signature.toString('base64url')}`;
 }
 
 function claims(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -83,15 +96,50 @@ describe('Supabase JWT verifier', () => {
     });
     const invalidTokens = [
       signJwt(claims({ iss: 'https://attacker.example/auth/v1' })),
+      signJwt(claims({ iss: `${ISSUER}/` })),
       signJwt(claims({ aud: 'anon' })),
       signJwt(claims({ exp: Math.floor(Date.now() / 1000) - 1 })),
       signJwt(claims({ sub: '' })),
       signJwt(claims(), { alg: 'none', kid: KEY_ID }),
+      signJwt(claims(), { alg: 'EdDSA', kid: KEY_ID }),
     ];
 
     for (const token of invalidTokens) {
       await assert.rejects(() => verifier.verify(token), AuthenticationError);
     }
+  });
+
+  it('accepts a valid ES256 token and rejects a malformed ES256 signature', async () => {
+    const verifier = createSupabaseJwtVerifier({
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      jwksProvider: {
+        getJwks: async () => ({
+          keys: [{ ...ecPublicJwk, alg: 'ES256', kid: 'ec-key', key_ops: ['verify'], use: 'sig' }],
+        }),
+      },
+    });
+    const valid = signEsJwt(claims());
+
+    assert.equal((await verifier.verify(valid)).userId, 'user-123');
+    await assert.rejects(
+      () => verifier.verify(`${valid.slice(0, valid.lastIndexOf('.') + 1)}AA`),
+      AuthenticationError,
+    );
+  });
+
+  it('rejects JWKs designated for encryption rather than signatures', async () => {
+    const verifier = createSupabaseJwtVerifier({
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      jwksProvider: {
+        getJwks: async () => ({
+          keys: [{ ...publicJwk, alg: 'RS256', kid: KEY_ID, key_ops: ['verify'], use: 'enc' }],
+        }),
+      },
+    });
+
+    await assert.rejects(() => verifier.verify(signJwt(claims())), AuthenticationError);
   });
 
   it('rejects an unknown key id instead of trying an arbitrary key', async () => {
@@ -134,5 +182,28 @@ describe('Supabase JWT verifier', () => {
 
     assert.deepEqual(await provider.getJwks(), await provider.getJwks());
     assert.equal(requests, 1);
+    provider.invalidate();
+    await provider.getJwks();
+    assert.equal(requests, 2);
+  });
+
+  it('stops reading an oversized JWKS response as soon as the byte limit is crossed', async () => {
+    let pulls = 0;
+    const provider = createRemoteJwksProvider({
+      jwksUrl: `${ISSUER}/.well-known/jwks.json`,
+      fetcher: async () => new Response(new ReadableStream<Uint8Array>({
+        pull(controller) {
+          pulls += 1;
+          if (pulls > 100) {
+            controller.close();
+            return;
+          }
+          controller.enqueue(new Uint8Array(2_048));
+        },
+      }), { status: 200 }),
+    });
+
+    await assert.rejects(() => provider.getJwks(), AuthenticationError);
+    assert.ok(pulls < 100, `expected bounded streaming reads, received ${pulls} chunks`);
   });
 });

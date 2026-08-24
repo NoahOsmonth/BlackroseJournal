@@ -25,6 +25,7 @@ export interface Jwk {
   n?: string;
   x?: string;
   y?: string;
+  use?: string;
 }
 
 export interface JsonWebKeySet {
@@ -33,6 +34,7 @@ export interface JsonWebKeySet {
 
 export interface JwksProvider {
   getJwks(): Promise<JsonWebKeySet>;
+  invalidate?(): void;
 }
 
 export class AuthenticationError extends Error {
@@ -66,7 +68,7 @@ export interface SupabaseJwtVerifierOptions {
 }
 
 const MAX_TOKEN_BYTES = 16 * 1024;
-const SUPPORTED_ALGORITHMS = new Set(['RS256', 'ES256', 'EdDSA']);
+const SUPPORTED_ALGORITHMS = new Set(['RS256', 'ES256']);
 
 function parseJsonRecord(segment: string): Record<string, unknown> {
   if (!/^[A-Za-z0-9_-]+$/.test(segment)) throw new AuthenticationError();
@@ -115,13 +117,13 @@ function parseClaims(value: Record<string, unknown>): JwtClaims {
 
 function importVerificationKey(jwk: Jwk, algorithm: string): KeyObject {
   if (jwk.alg !== undefined && jwk.alg !== algorithm) throw new AuthenticationError();
+  if (jwk.use !== undefined && jwk.use !== 'sig') throw new AuthenticationError();
   if (jwk.key_ops !== undefined && !jwk.key_ops.includes('verify')) {
     throw new AuthenticationError();
   }
   if (
     (algorithm === 'RS256' && jwk.kty !== 'RSA')
     || (algorithm === 'ES256' && (jwk.kty !== 'EC' || jwk.crv !== 'P-256'))
-    || (algorithm === 'EdDSA' && (jwk.kty !== 'OKP' || jwk.crv !== 'Ed25519'))
   ) {
     throw new AuthenticationError();
   }
@@ -138,9 +140,6 @@ function verifyJwtSignature(
   signature: Buffer,
   key: KeyObject,
 ): boolean {
-  if (algorithm === 'EdDSA') {
-    return verifySignature(null, Buffer.from(signingInput), key, signature);
-  }
   if (algorithm === 'ES256') {
     return verifySignature(
       'sha256',
@@ -155,7 +154,7 @@ function verifyJwtSignature(
 export function createSupabaseJwtVerifier(
   options: SupabaseJwtVerifierOptions,
 ): AccessTokenVerifier {
-  const issuer = options.issuer.replace(/\/$/, '');
+  const issuer = options.issuer;
   const clockSkewSeconds = Math.max(0, Math.min(options.clockSkewSeconds ?? 0, 60));
   return {
     async verify(token: string): Promise<AuthenticatedPrincipal> {
@@ -168,10 +167,17 @@ export function createSupabaseJwtVerifier(
       }
       const header = parseHeader(parseJsonRecord(parts[0]));
       const claims = parseClaims(parseJsonRecord(parts[1]));
-      const jwks = await options.jwksProvider.getJwks().catch(() => {
+      let jwks = await options.jwksProvider.getJwks().catch(() => {
         throw new AuthenticationError();
       });
-      const jwk = jwks.keys.find((item) => item.kid === header.kid);
+      let jwk = jwks.keys.find((item) => item.kid === header.kid);
+      if (!jwk && options.jwksProvider.invalidate) {
+        options.jwksProvider.invalidate();
+        jwks = await options.jwksProvider.getJwks().catch(() => {
+          throw new AuthenticationError();
+        });
+        jwk = jwks.keys.find((item) => item.kid === header.kid);
+      }
       if (!jwk) throw new AuthenticationError();
       let signature: Buffer;
       try {
@@ -189,7 +195,7 @@ export function createSupabaseJwtVerifier(
         ? claims.aud === options.audience
         : claims.aud.includes(options.audience);
       if (
-        claims.iss.replace(/\/$/, '') !== issuer
+        claims.iss !== issuer
         || !audienceMatches
         || claims.exp <= now - clockSkewSeconds
         || (claims.nbf !== undefined && claims.nbf > now + clockSkewSeconds)
@@ -212,6 +218,32 @@ export interface RemoteJwksProviderOptions {
   cacheTtlMs?: number;
 }
 
+export interface RemoteJwksProvider extends JwksProvider {
+  invalidate(): void;
+}
+
+async function readBoundedResponse(response: Response, maximumBytes: number): Promise<string> {
+  if (!response.body) throw new AuthenticationError();
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maximumBytes) {
+        await reader.cancel();
+        throw new AuthenticationError();
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)), size).toString('utf8');
+}
+
 function parseJwks(value: unknown): JsonWebKeySet {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new AuthenticationError();
@@ -230,7 +262,7 @@ function parseJwks(value: unknown): JsonWebKeySet {
 
 export function createRemoteJwksProvider(
   options: RemoteJwksProviderOptions,
-): JwksProvider {
+): RemoteJwksProvider {
   const fetcher = options.fetcher ?? fetch;
   const cacheTtlMs = Math.max(1_000, Math.min(options.cacheTtlMs ?? 10 * 60_000, 60 * 60_000));
   let cached: { expiresAt: number; jwks: JsonWebKeySet } | null = null;
@@ -252,8 +284,7 @@ export function createRemoteJwksProvider(
           if (!response.ok) throw new AuthenticationError();
           const contentLength = Number(response.headers.get('content-length') ?? '0');
           if (contentLength > 128 * 1024) throw new AuthenticationError();
-          const text = await response.text();
-          if (Buffer.byteLength(text, 'utf8') > 128 * 1024) throw new AuthenticationError();
+          const text = await readBoundedResponse(response, 128 * 1024);
           const jwks = parseJwks(JSON.parse(text) as unknown);
           cached = { expiresAt: Date.now() + cacheTtlMs, jwks };
           return jwks;
@@ -265,6 +296,9 @@ export function createRemoteJwksProvider(
         }
       })();
       return inFlight;
+    },
+    invalidate(): void {
+      cached = null;
     },
   };
 }

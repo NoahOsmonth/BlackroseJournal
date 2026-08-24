@@ -2494,3 +2494,28 @@
   with zero errors and four unrelated existing near-limit warnings; `git diff --check`
   passed. Full root ESLint remains blocked by four pre-existing UI errors in `BottomNav.tsx`
   and `CustomModelSettingsSection.tsx`; no unrelated UI files were changed.
+
+### Task 3 security review fix round 1
+
+- Admin access now has two server-enforced gates: verified Supabase authentication followed by
+  a concrete authorizer backed by a narrow Supabase `control.admins` REST repository using a
+  server-only secret. Normal users and forged `user_metadata.admin` claims receive 403; absent
+  repository configuration fails closed.
+- Issuer comparison and configuration preservation are byte-for-byte exact. The production
+  signature allowlist is RS256/ES256 only, with real positive/malformed ES256 coverage; JWKs
+  marked for encryption are rejected. JWKS reads stop while streaming at 128 KiB, caches have
+  explicit invalidation, and unknown key ids trigger one refresh.
+- Provider traffic now has an enforced `https.request` transport that pins the validated IP,
+  disables agent redirect behavior, manually validates every redirect DNS hop, bounds total
+  hops/cross-origin redirects, and strips sensitive headers before an explicitly allowed
+  cross-origin hop.
+- IPv6 classification now also rejects deprecated site-local `fec0::/10` and current IANA
+  non-global/special blocks including `100:0:0:1::/64`, `2001::/23`, `3fff::/20`, and
+  `5f00::/16`.
+- Retry execution now races each in-flight attempt against the remaining total deadline and
+  aborts its signal, including operations that never settle. Redaction normalizes camelCase and
+  prefixed sensitive field names and accepts caller-supplied opaque secret values.
+- TDD RED: the consolidated backend run reported **11 failures / 40 tests**; concrete admin
+  repository wiring then failed **1/4**, and exact issuer preservation failed **1/5** before
+  their implementations. Fresh GREEN: backend **13 suites / 43 tests**, root/backend TypeScript,
+  and scoped ESLint all passed.

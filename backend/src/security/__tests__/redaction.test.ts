@@ -41,4 +41,25 @@ describe('deep redaction', () => {
     });
     assert.match(error.message, /sk-/);
   });
+
+  it('normalizes prefixed camelCase keys and redacts caller-supplied opaque secrets', () => {
+    const opaqueSecret = 'opaque-value-without-a-recognizable-pattern';
+    assert.deepEqual(redactSensitive({
+      providerKey: opaqueSecret,
+      accessToken: opaqueSecret,
+      refreshToken: opaqueSecret,
+      clientSecret: opaqueSecret,
+      authorizationHeader: opaqueSecret,
+      inputPrompt: opaqueSecret,
+      safe: `upstream included ${opaqueSecret}`,
+    }, [opaqueSecret]), {
+      providerKey: '[REDACTED]',
+      accessToken: '[REDACTED]',
+      refreshToken: '[REDACTED]',
+      clientSecret: '[REDACTED]',
+      authorizationHeader: '[REDACTED]',
+      inputPrompt: '[REDACTED]',
+      safe: 'upstream included [REDACTED]',
+    });
+  });
 });

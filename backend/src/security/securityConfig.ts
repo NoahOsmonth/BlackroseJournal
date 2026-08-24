@@ -2,6 +2,8 @@ import {
   createRemoteJwksProvider,
   createSupabaseJwtVerifier,
 } from '../auth/supabaseJwtVerifier';
+import { createControlAdminAuthorizer } from '../auth/adminAuthorization';
+import { createSupabaseControlAdminRepository } from '../auth/supabaseAdminRepository';
 import type { ManagedAccessDependencies } from '../control/managedAccess';
 import type { MasterKey, MasterKeyProvider } from './envelopeEncryption';
 
@@ -43,7 +45,7 @@ function required(env: Environment, key: string): string {
 }
 
 export function loadManagedSecurityConfig(env: Environment): ManagedSecurityConfig {
-  const issuer = required(env, 'SUPABASE_JWT_ISSUER').replace(/\/$/, '');
+  const issuer = required(env, 'SUPABASE_JWT_ISSUER');
   const audience = required(env, 'SUPABASE_JWT_AUDIENCE');
   const jwksUrl = required(env, 'SUPABASE_JWKS_URL');
   let issuerUrl: URL;
@@ -80,6 +82,8 @@ const MANAGED_CONFIG_KEYS = [
   'SUPABASE_JWT_ISSUER',
   'SUPABASE_JWT_AUDIENCE',
   'SUPABASE_JWKS_URL',
+  'SUPABASE_CONTROL_REST_URL',
+  'SUPABASE_SECRET_KEY',
   'AI_CREDENTIAL_MASTER_KEY_VERSION',
   'AI_CREDENTIAL_MASTER_KEY_BASE64',
 ] as const;
@@ -91,11 +95,27 @@ export function createManagedAccessFromEnvironment(
   const hasManagedSetting = MANAGED_CONFIG_KEYS.some((key) => Boolean(env[key]?.trim()));
   if (env.NODE_ENV !== 'production' && !hasManagedSetting) return undefined;
   const config = loadManagedSecurityConfig(env);
+  const controlRestUrl = required(env, 'SUPABASE_CONTROL_REST_URL');
+  const secretKey = required(env, 'SUPABASE_SECRET_KEY');
+  let parsedControlRestUrl: URL;
+  try {
+    parsedControlRestUrl = new URL(controlRestUrl);
+  } catch {
+    throw new Error('Required Supabase control REST URL is invalid.');
+  }
+  if (env.NODE_ENV === 'production' && parsedControlRestUrl.protocol !== 'https:') {
+    throw new Error('Required Supabase control REST URL must use HTTPS in production.');
+  }
   return {
     verifier: createSupabaseJwtVerifier({
       issuer: config.issuer,
       audience: config.audience,
       jwksProvider: createRemoteJwksProvider({ jwksUrl: config.jwksUrl, fetcher }),
     }),
+    adminAuthorizer: createControlAdminAuthorizer(createSupabaseControlAdminRepository({
+      restUrl: parsedControlRestUrl.toString(),
+      secretKey,
+      fetcher,
+    })),
   };
 }

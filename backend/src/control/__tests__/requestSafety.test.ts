@@ -89,4 +89,20 @@ describe('same-route transient retry', () => {
     }));
     assert.equal(transientAttempts, 3);
   });
+
+  it('aborts and rejects an in-flight attempt when the total deadline expires', async () => {
+    let aborted = false;
+    const startedAt = Date.now();
+
+    await assert.rejects(() => executeWithSameRouteRetry({
+      binding: { routeId: 'route-a', modelId: 'model-a' },
+      policy: { maxAttempts: 3, baseDelayMs: 1, maxTotalMs: 25 },
+      execute: async (_binding, _attempt, signal) => new Promise<string>(() => {
+        signal.addEventListener('abort', () => { aborted = true; }, { once: true });
+      }),
+    }), /deadline/i);
+
+    assert.equal(aborted, true);
+    assert.ok(Date.now() - startedAt < 500);
+  });
 });

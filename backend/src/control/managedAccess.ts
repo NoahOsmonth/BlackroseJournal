@@ -1,10 +1,43 @@
 import type { NextFunction, Request, Response } from 'express';
 import type { AccessTokenVerifier } from '../auth/supabaseJwtVerifier';
+import {
+  AuthorizationError,
+  requireAdmin,
+  type AdminAuthorizer,
+} from '../auth/adminAuthorization';
 
 const MANAGED_PREFIXES = ['/v1/ai', '/v1/admin', '/v1/memory'] as const;
 
 export interface ManagedAccessDependencies {
   verifier: AccessTokenVerifier;
+  adminAuthorizer?: AdminAuthorizer;
+}
+
+export function createManagedAdminGuard(dependencies?: ManagedAccessDependencies) {
+  return async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (!dependencies?.adminAuthorizer) {
+      res.status(503).json({
+        error: { code: 'SERVICE_UNAVAILABLE', message: 'Administrative access is unavailable.' },
+      });
+      return;
+    }
+    try {
+      const principal: unknown = res.locals.authenticatedPrincipal;
+      if (
+        typeof principal !== 'object'
+        || principal === null
+        || typeof (principal as { userId?: unknown }).userId !== 'string'
+        || typeof (principal as { role?: unknown }).role !== 'string'
+      ) throw new AuthorizationError();
+      res.locals.adminPrincipal = await requireAdmin(
+        principal as { userId: string; role: string },
+        dependencies.adminAuthorizer,
+      );
+      next();
+    } catch {
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Administrative access denied.' } });
+    }
+  };
 }
 
 export function isManagedPath(path: string): boolean {

@@ -34,6 +34,10 @@ describe('DNS-aware provider endpoint validation', () => {
       resolveSafeHttpsEndpoint('https://[::1]/v1', publicLookup),
       resolveSafeHttpsEndpoint('https://[::127.0.0.1]/v1', publicLookup),
       resolveSafeHttpsEndpoint('https://[2002:7f00:1::]/v1', publicLookup),
+      resolveSafeHttpsEndpoint('https://[fec0::1]/v1', publicLookup),
+      resolveSafeHttpsEndpoint('https://[100:0:0:1::1]/v1', publicLookup),
+      resolveSafeHttpsEndpoint('https://[3fff::1]/v1', publicLookup),
+      resolveSafeHttpsEndpoint('https://[5f00::1]/v1', publicLookup),
     ];
 
     for (const pending of unsafe) {
