@@ -86,4 +86,22 @@ describe('deep redaction', () => {
       secretaryName: 'visible',
     });
   });
+
+  it('redacts bounded auth fields without matching ordinary auth-prefixed words', () => {
+    assert.deepEqual(redactSensitive({
+      auth_value: 'hidden',
+      customAuthHeader: 'hidden',
+      authenticationDetails: 'hidden',
+      authorName: 'visible',
+      authorityUrl: 'visible',
+      authenticRecipe: 'visible',
+    }), {
+      auth_value: '[REDACTED]',
+      customAuthHeader: '[REDACTED]',
+      authenticationDetails: '[REDACTED]',
+      authorName: 'visible',
+      authorityUrl: 'visible',
+      authenticRecipe: 'visible',
+    });
+  });
 });

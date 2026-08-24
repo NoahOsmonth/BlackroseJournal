@@ -2539,3 +2539,14 @@
   1 failed** (four boundary fields leaked). Follow-up anti-over-redaction/preservation probes
   each failed **1/3** and **1/4** before refinement. GREEN: backend **13 suites / 46 tests**,
   backend/root TypeScript, scoped ESLint, and `git diff --check` passed.
+
+### Task 3 security review fix round 3
+
+- Deep redaction now treats exact tokenized `auth` and `authentication` boundaries as
+  sensitive, covering separator and camelCase forms such as `auth_value`, `customAuthHeader`,
+  and `authenticationDetails`. Ordinary auth-prefixed words such as `author`, `authority`, and
+  `authentic` remain visible.
+- TDD RED: the new regression failed with all three auth fields visible (the backend runner
+  also hit one unrelated intermittent random-base64 regex failure). GREEN: backend
+  **13 suites / 47 tests** passed; backend/root TypeScript, scoped ESLint, and
+  `git diff --check` passed.

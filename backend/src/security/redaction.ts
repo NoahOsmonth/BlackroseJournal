@@ -1,6 +1,7 @@
 const REDACTED = '[REDACTED]';
 const SENSITIVE_TOKENS = new Set([
-  'apikey', 'authorization', 'cookie', 'credential', 'credentials', 'content',
+  'apikey', 'auth', 'authentication', 'authorization', 'cookie', 'credential',
+  'credentials', 'content',
   'key', 'message', 'messages', 'password', 'prompt', 'secret', 'secrets',
   'systeminstruction', 'token', 'tokens',
 ]);
