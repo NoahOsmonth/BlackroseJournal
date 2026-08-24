@@ -69,4 +69,16 @@ describe('BottomNav floating dock styling', () => {
         expect(src).toContain("weight={isActive ? 'fill' : 'regular'}");
         expect(src).toContain('from \'phosphor-react-native\'');
     });
+
+    it('delegates radial action animation to a hook-safe component', () => {
+        const radialSrc = fs.readFileSync(
+            path.join(process.cwd(), 'components/journal/radial-menu.tsx'),
+            'utf-8'
+        );
+
+        expect(src).toContain("from './radial-menu'");
+        expect(radialSrc).toContain('function RadialMenuItem');
+        expect(radialSrc).toContain('useAnimatedStyle');
+        expect(radialSrc).not.toMatch(/\.map\([^)]*=>\s*use(?:SharedValue|AnimatedStyle)/);
+    });
 });
