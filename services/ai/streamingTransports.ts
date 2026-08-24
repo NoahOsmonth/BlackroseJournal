@@ -5,7 +5,12 @@ import {
     CompleteCallback,
     StreamingCallback,
 } from './chatTypes';
-import { fetchAiChatCompletion, parseAiSseLine, prepareAiChatRequest } from './aiTransport';
+import {
+    fetchAiChatCompletion,
+    parseAiSseLine,
+    prepareAiChatRequest,
+    type PreparedAiChatRequest,
+} from './aiTransport';
 import { isModelCachedUnavailable } from './directTransport';
 import { appendChunk, buildResponseError, readNonStreamingResponse } from './sseParser';
 import { acquireAccountOperationLease } from '@/services/account/accountRuntime';
@@ -46,16 +51,31 @@ export async function streamChatWithXhr(
     onComplete: CompleteCallback
 ): Promise<StreamXhrResult> {
     if (!hasXmlHttpRequest()) return { ok: false, usage: null };
-    const prepared = await prepareAiChatRequest(payload);
+    const preparationLease = acquireAccountOperationLease('ai-inference-xhr-preparation');
+    let prepared: PreparedAiChatRequest;
+    try {
+        prepared = await prepareAiChatRequest(payload);
+        if (preparationLease.signal.aborted) {
+            throw new Error('Managed AI request was cancelled by an account switch.');
+        }
+    } catch (error) {
+        preparationLease.release();
+        throw error;
+    }
+    const accountLease = prepared.mode === 'managed' ? preparationLease : null;
+    if (!accountLease) preparationLease.release();
     // Fix 5: skip XHR when primary model is known-unavailable (let fetch+self-heal handle it)
     if (prepared.mode === 'byok' && isModelCachedUnavailable(payload.model)) {
         return { ok: false, usage: null };
     }
     const { request } = prepared;
-    const xhr = new globalThis.XMLHttpRequest();
-    const accountLease = prepared.mode === 'managed'
-        ? acquireAccountOperationLease('managed-inference-xhr')
-        : null;
+    let xhr: XMLHttpRequest;
+    try {
+        xhr = new globalThis.XMLHttpRequest();
+    } catch (error) {
+        accountLease?.release();
+        throw error;
+    }
     return new Promise((resolve, reject) => {
         const accumulator: ChatAccumulator = { content: '', reasoning: '', usage: null };
         let buffer = '';

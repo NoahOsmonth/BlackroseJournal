@@ -4,6 +4,23 @@ jest.mock('../../../services/ai/customModels', () => ({
     loadCustomAiProviderSettings: jest.fn(async () => ({ enabled: false })),
 }));
 
+let mockSwitchAfterPrepare = false;
+let mockPostPrepareSwitch: Promise<void> | null = null;
+jest.mock('../../../services/ai/aiTransport', () => {
+    const actual = jest.requireActual('../../../services/ai/aiTransport');
+    return {
+        ...actual,
+        prepareAiChatRequest: jest.fn(async (...args: unknown[]) => {
+            const prepared = await actual.prepareAiChatRequest(...args);
+            if (mockSwitchAfterPrepare) {
+                const runtime = jest.requireActual('../../../services/account/accountRuntime');
+                mockPostPrepareSwitch = runtime.activateAccount('account-b');
+            }
+            return prepared;
+        }),
+    };
+});
+
 import { streamChatWithXhr } from '../../../services/ai/streamingTransports';
 import { readStreamResponse } from '../../../services/ai/sseParser';
 import {
@@ -31,6 +48,8 @@ describe('managed stream terminal errors', () => {
     const originalXhr = globalThis.XMLHttpRequest;
 
     beforeEach(async () => {
+        mockSwitchAfterPrepare = false;
+        mockPostPrepareSwitch = null;
         process.env.EXPO_PUBLIC_AGENT_BASE_URL = 'https://gateway.example';
         await activateAccount('account-a');
         setManagedTransportSessionProvider(async () => ({
@@ -127,5 +146,33 @@ describe('managed stream terminal errors', () => {
         );
         expect(instance.abort).toHaveBeenCalledTimes(1);
         expect(onChunk).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not send an account A request when switching immediately after preparation', async () => {
+        const send = jest.fn();
+        class PostPrepareXhr {
+            responseText = '';
+            readyState = 0;
+            status = 200;
+            onreadystatechange: (() => void) | null = null;
+            onprogress: (() => void) | null = null;
+            onload: (() => void) | null = null;
+            onerror: (() => void) | null = null;
+            onabort: (() => void) | null = null;
+            abort = jest.fn(() => this.onabort?.());
+            open() { /* no-op */ }
+            setRequestHeader() { /* no-op */ }
+            send(body: string) { send(body); }
+        }
+        globalThis.XMLHttpRequest = PostPrepareXhr as unknown as typeof XMLHttpRequest;
+        mockSwitchAfterPrepare = true;
+
+        const streaming = streamChatWithXhr(payload, jest.fn(), jest.fn());
+
+        await expect(streaming).rejects.toThrow(
+            'Managed AI request was cancelled by an account switch.'
+        );
+        await mockPostPrepareSwitch;
+        expect(send).not.toHaveBeenCalled();
     });
 });
