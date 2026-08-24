@@ -15,7 +15,7 @@ function parseAdminRows(value: unknown, expectedUserId: string): AdminPrincipal 
   if (
     record.user_id !== expectedUserId
     || typeof role !== 'string'
-    || !(['owner', 'operator', 'viewer'] as const).includes(role as AdminRole)
+    || !(['owner', 'admin', 'auditor'] as const).includes(role as AdminRole)
   ) return null;
   return { userId: expectedUserId, role: role as AdminRole };
 }

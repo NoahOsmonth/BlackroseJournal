@@ -2626,3 +2626,21 @@
   shared bank remains quarantined and is never read or copied.
 - Mobile Hindsight migration and account-owned rebuild orchestration remain
   intentionally deferred to Task 10.
+
+# 2026-08-24 — AI control plane Task 4: repositories and provider APIs
+
+- Added the Supabase-backed provider/catalog repository and thin authenticated routes for
+  provider CRUD/archive, masked credential replacement/rekey, discovery, model publication and
+  withdrawal, preferences, flash routing, runtime settings, health, and audit history.
+- Discovery supports OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, and Gemini
+  GenerateContent inventories through the pinned SSRF-safe transport, then persists normalized
+  metadata for explicit admin selection.
+- Provider secrets remain AES-256-GCM envelopes. A validated versioned server key ring now allows
+  explicit rekeying while responses and audit rows contain only safe key metadata.
+- Revision conflicts refetch and return current safe state. Schema roles are aligned to
+  `owner | admin | auditor`, and auditors cannot mutate control-plane state.
+- TDD RED/GREEN covered missing services/routes/repositories, unsafe endpoint mapping, base-path
+  discovery, nullable audit actors, revision races, and prior-key rekeying.
+- Verification: backend **21 suites / 87 tests**, backend/root TypeScript, scoped ESLint, design
+  limits, and `git diff --check` all passed. Independent re-review was unavailable after agent
+  usage exhaustion; controller review added the final security and maintainability fixes.

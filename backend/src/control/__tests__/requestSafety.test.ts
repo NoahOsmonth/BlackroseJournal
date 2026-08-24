@@ -45,7 +45,7 @@ describe('managed request ceilings', () => {
 
 describe('same-route transient retry', () => {
   it('retries a transient failure with the exact same route and model only', async () => {
-    const seen: Array<{ routeId: string; modelId: string }> = [];
+    const seen: { routeId: string; modelId: string }[] = [];
     const result = await executeWithSameRouteRetry({
       binding: { routeId: 'route-a', modelId: 'model-a' },
       policy: { maxAttempts: 3, baseDelayMs: 1, maxTotalMs: 1_000 },

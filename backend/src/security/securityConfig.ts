@@ -11,19 +11,22 @@ type Environment = Readonly<Record<string, string | undefined>>;
 
 class EnvironmentMasterKeyProvider implements MasterKeyProvider {
   readonly currentVersion: number;
-  #key: Buffer;
+  #keys: Map<number, Buffer>;
 
-  constructor(version: number, key: Buffer) {
+  constructor(version: number, keys: ReadonlyMap<number, Buffer>) {
     this.currentVersion = version;
-    this.#key = Buffer.from(key);
+    this.#keys = new Map([...keys].map(([keyVersion, key]) => [keyVersion, Buffer.from(key)]));
   }
 
   async getCurrentKey(): Promise<MasterKey> {
-    return { version: this.currentVersion, key: Buffer.from(this.#key) };
+    const key = this.#keys.get(this.currentVersion);
+    if (!key) throw new Error('Credential master key is unavailable.');
+    return { version: this.currentVersion, key: Buffer.from(key) };
   }
 
   async getKey(version: number): Promise<Uint8Array | null> {
-    return version === this.currentVersion ? Buffer.from(this.#key) : null;
+    const key = this.#keys.get(version);
+    return key ? Buffer.from(key) : null;
   }
 
   toJSON(): { currentVersion: number } {
@@ -42,6 +45,45 @@ function required(env: Environment, key: string): string {
   const value = env[key]?.trim();
   if (!value) throw new Error(`Required managed security configuration is missing: ${key}.`);
   return value;
+}
+
+function decodeMasterKey(encoded: string, message: string): Buffer {
+  const key = Buffer.from(encoded, 'base64');
+  if (key.byteLength !== 32 || key.toString('base64') !== encoded) {
+    throw new Error(message);
+  }
+  return key;
+}
+
+function loadMasterKeyRing(
+  encodedRing: string | undefined,
+  currentVersion: number,
+  currentKey: Buffer,
+): Map<number, Buffer> {
+  const keys = new Map<number, Buffer>([[currentVersion, Buffer.from(currentKey)]]);
+  if (!encodedRing?.trim()) return keys;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(encodedRing);
+  } catch {
+    throw new Error('Credential master key ring is invalid.');
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new Error('Credential master key ring is invalid.');
+  }
+  for (const [rawVersion, encoded] of Object.entries(parsed)) {
+    if (!/^\d+$/.test(rawVersion) || Number(rawVersion) < 1 || typeof encoded !== 'string') {
+      throw new Error('Credential master key ring is invalid.');
+    }
+    keys.set(
+      Number(rawVersion),
+      decodeMasterKey(encoded, 'Credential master key ring is invalid.'),
+    );
+  }
+  if (!keys.get(currentVersion)?.equals(currentKey)) {
+    throw new Error('Credential master key ring current entry does not match the current key.');
+  }
+  return keys;
 }
 
 export function loadManagedSecurityConfig(env: Environment): ManagedSecurityConfig {
@@ -66,15 +108,20 @@ export function loadManagedSecurityConfig(env: Environment): ManagedSecurityConf
     throw new Error('Required credential master key version is invalid.');
   }
   const encoded = required(env, 'AI_CREDENTIAL_MASTER_KEY_BASE64');
-  const key = Buffer.from(encoded, 'base64');
-  if (key.byteLength !== 32 || key.toString('base64') !== encoded) {
-    throw new Error('Required credential master key must be canonical base64 for 32 bytes.');
-  }
+  const key = decodeMasterKey(
+    encoded,
+    'Required credential master key must be canonical base64 for 32 bytes.',
+  );
+  const keyRing = loadMasterKeyRing(
+    env.AI_CREDENTIAL_MASTER_KEY_RING_JSON,
+    version,
+    key,
+  );
   return {
     issuer,
     audience,
     jwksUrl: parsedJwksUrl.toString(),
-    masterKeyProvider: new EnvironmentMasterKeyProvider(version, key),
+    masterKeyProvider: new EnvironmentMasterKeyProvider(version, keyRing),
   };
 }
 
@@ -86,6 +133,7 @@ const MANAGED_CONFIG_KEYS = [
   'SUPABASE_SECRET_KEY',
   'AI_CREDENTIAL_MASTER_KEY_VERSION',
   'AI_CREDENTIAL_MASTER_KEY_BASE64',
+  'AI_CREDENTIAL_MASTER_KEY_RING_JSON',
 ] as const;
 
 export function createManagedAccessFromEnvironment(

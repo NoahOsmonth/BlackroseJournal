@@ -14,11 +14,16 @@ import { registerHealthRoutes } from './routes/healthRoutes';
 import { registerInsightsRoutes } from './routes/insightsRoutes';
 import { registerMemoryRoutes } from './routes/memoryRoutes';
 import type { HindsightMemoryGateway } from './memory/hindsightMemoryGateway';
+import {
+  registerControlPlaneRoutes,
+  type ControlPlaneRouteService,
+} from './routes/controlPlaneRoutes';
 
 export interface AppDeps {
   serverConfig: ServerConfig;
   managedAccess?: ManagedAccessDependencies;
   memoryGateway?: HindsightMemoryGateway;
+  controlPlaneService?: ControlPlaneRouteService;
 }
 
 export function createApp(deps: AppDeps): express.Application {
@@ -50,6 +55,7 @@ export function createApp(deps: AppDeps): express.Application {
   registerAskRosebudRoutes(app);
   registerInsightsRoutes(app);
   registerMemoryRoutes(app, deps.memoryGateway);
+  registerControlPlaneRoutes(app, deps.controlPlaneService);
 
   return app;
 }

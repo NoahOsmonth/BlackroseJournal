@@ -1,6 +1,6 @@
 import type { AuthenticatedPrincipal } from './supabaseJwtVerifier';
 
-export type AdminRole = 'owner' | 'operator' | 'viewer';
+export type AdminRole = 'owner' | 'admin' | 'auditor';
 
 export interface AdminPrincipal {
   userId: string;
@@ -24,7 +24,7 @@ export function createControlAdminAuthorizer(
       if (
         !record
         || record.userId !== userId
-        || !(['owner', 'operator', 'viewer'] as const).includes(record.role)
+        || !(['owner', 'admin', 'auditor'] as const).includes(record.role)
       ) return null;
       return { userId: record.userId, role: record.role };
     },

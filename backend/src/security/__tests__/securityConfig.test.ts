@@ -27,6 +27,36 @@ describe('managed security configuration', () => {
     assert.doesNotMatch(JSON.stringify(config), new RegExp(encodedMasterKey));
   });
 
+  it('loads prior credential keys for rekeying without exposing the key ring', async () => {
+    const currentKey = randomBytes(32).toString('base64');
+    const priorKey = randomBytes(32).toString('base64');
+    const config = loadManagedSecurityConfig({
+      SUPABASE_JWT_ISSUER: 'https://project.supabase.co/auth/v1',
+      SUPABASE_JWT_AUDIENCE: 'authenticated',
+      SUPABASE_JWKS_URL: 'https://project.supabase.co/auth/v1/.well-known/jwks.json',
+      AI_CREDENTIAL_MASTER_KEY_VERSION: '3',
+      AI_CREDENTIAL_MASTER_KEY_BASE64: currentKey,
+      AI_CREDENTIAL_MASTER_KEY_RING_JSON: JSON.stringify({ 1: priorKey, 3: currentKey }),
+    });
+
+    assert.deepEqual(Buffer.from(await config.masterKeyProvider.getKey(1) ?? []).toString('base64'), priorKey);
+    assert.deepEqual(Buffer.from(await config.masterKeyProvider.getKey(3) ?? []).toString('base64'), currentKey);
+    assert.doesNotMatch(JSON.stringify(config), new RegExp(priorKey));
+  });
+
+  it('rejects a key ring whose current entry does not match the configured current key', () => {
+    assert.throws(() => loadManagedSecurityConfig({
+      SUPABASE_JWT_ISSUER: 'https://project.supabase.co/auth/v1',
+      SUPABASE_JWT_AUDIENCE: 'authenticated',
+      SUPABASE_JWKS_URL: 'https://project.supabase.co/auth/v1/.well-known/jwks.json',
+      AI_CREDENTIAL_MASTER_KEY_VERSION: '3',
+      AI_CREDENTIAL_MASTER_KEY_BASE64: randomBytes(32).toString('base64'),
+      AI_CREDENTIAL_MASTER_KEY_RING_JSON: JSON.stringify({
+        3: randomBytes(32).toString('base64'),
+      }),
+    }), /key ring/i);
+  });
+
   it('preserves the configured issuer byte-for-byte for exact claim comparison', () => {
     const config = loadManagedSecurityConfig({
       SUPABASE_JWT_ISSUER: 'https://project.supabase.co/auth/v1/',

@@ -107,7 +107,7 @@ describe('managed route access', () => {
     }
   });
 
-  it('lets an explicitly persisted admin reach the admin route', async () => {
+  it('lets an explicitly persisted admin reach the configured-service boundary', async () => {
     const verifier: AccessTokenVerifier = {
       verify: async () => ({ userId: 'admin-id', role: 'authenticated' }),
     };
@@ -119,7 +119,7 @@ describe('managed route access', () => {
       const response = await fetch(`${baseUrl}/v1/admin/providers`, {
         headers: { authorization: 'Bearer valid' },
       });
-      assert.equal(response.status, 404);
+      assert.equal(response.status, 503);
     }, adminAuthorizer);
   });
 });

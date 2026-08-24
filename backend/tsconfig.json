@@ -12,6 +12,6 @@
     "resolveJsonModule": true,
     "declaration": true
   },
-  "include": ["src", "../shared/memory"],
+  "include": ["src", "../shared/memory", "../packages/ai-control-plane-contracts/src"],
   "exclude": ["node_modules", "dist"]
 }
