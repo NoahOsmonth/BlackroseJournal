@@ -73,9 +73,9 @@ describe('localBackup', () => {
     it('creates an on-device backup from existing local data', async () => {
         mockStore.set(getAccountScopedStorageKey('@journal_entries'), '{"entry-1":{"title":"Morning"}}');
         mockStore.set(getAccountScopedStorageKey('@goals'), '{"goal-1":{"title":"Walk"}}');
-        mockStore.set('@ai_response_feedback', '{"feedback-1":{"value":"up"}}');
-        mockStore.set('@rosebud_local_memory', '{"memory-1":{"title":"Rest"}}');
-        mockStore.set('@blackrose_custom_ai_provider', '{"enabled":true}');
+        mockStore.set(getAccountScopedStorageKey('@ai_response_feedback'), '{"feedback-1":{"value":"up"}}');
+        mockStore.set(getAccountScopedStorageKey('@rosebud_local_memory'), '{"memory-1":{"title":"Rest"}}');
+        mockStore.set(getAccountScopedStorageKey('@blackrose_custom_ai_provider'), '{"enabled":true}');
         mockStore.set('@blackrose_color_theme', '{"schemaVersion":1}');
 
         const backup = await createLocalBackup('Friday backup');
@@ -102,7 +102,7 @@ describe('localBackup', () => {
     });
 
     it('handles corrupt backup metadata as missing backup data', async () => {
-        mockStore.set('@blackrose_local_backups', 'not-json');
+        mockStore.set(getAccountScopedStorageKey('@blackrose_local_backups'), 'not-json');
 
         await expect(listLocalBackups()).resolves.toEqual([]);
         await expect(restoreLocalBackup('backup-missing')).resolves.toEqual({

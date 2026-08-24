@@ -68,6 +68,17 @@ const ACCOUNT_SCOPED_BACKUP_KEYS = new Set<LocalBackupDataKey>([
     '@intentions',
     '@intention_checkins',
     '@goals',
+    '@happiness_recipe_items',
+    '@personas',
+    '@persona_draft_settings',
+    '@ai_response_feedback',
+    '@rosebud_local_memory',
+    '@rosebud_identity_profile',
+    '@blackrose_day_digests',
+    SESSION_DIGEST_BACKUP_BUNDLE_KEY,
+    '@saved_insights',
+    '@weekly_insights_cache',
+    '@blackrose_custom_ai_provider',
 ]);
 
 function resolveBackupStorageKey(key: LocalBackupDataKey): string {
@@ -358,15 +369,18 @@ export async function restoreLocalBackup(
                 await restoreShardedDigestBackup(item?.value ?? null);
                 return;
             }
-            if (ACCOUNT_SCOPED_BACKUP_KEYS.has(key)) {
+            if ([
+                '@journal_entries', '@goals', '@intentions', '@intention_checkins',
+            ].includes(key)) {
                 await restoreBackupItem(item ?? { key, value: null });
                 return;
             }
+            const storageKey = resolveBackupStorageKey(key);
             if (!item || item.value === null) {
-                await AsyncStorage.removeItem(key);
+                await AsyncStorage.removeItem(storageKey);
                 return;
             }
-            await AsyncStorage.setItem(key, item.value);
+            await AsyncStorage.setItem(storageKey, item.value);
         }));
 
         if (requireActiveAccountId() !== accountId) {

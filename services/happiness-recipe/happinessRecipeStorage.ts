@@ -3,7 +3,7 @@
  * Handles persistence for recipe ingredients and goals
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { accountScopedStorage as AsyncStorage } from '@/services/account/accountScopedStorage';
 
 import { HappinessRecipeState, RecipeItem, RecipeItemType } from './happinessRecipeStorage.types';
 import {

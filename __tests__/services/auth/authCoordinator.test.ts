@@ -5,6 +5,8 @@ import {
 import {
     clearActiveAccount,
     getActiveAccountId,
+    activateAccount,
+    registerAccountTeardown,
 } from '../../../services/account/accountRuntime';
 import {
     resetAccountRegistryStorageAdapter,
@@ -73,5 +75,31 @@ describe('auth coordinator', () => {
         expect(coordinator.getSnapshot().authState.status).toBe('signed-out');
         unsubscribeA();
         unsubscribeB();
+    });
+
+    it('leaves loading state and surfaces a current transition failure without an unhandled chain', async () => {
+        await activateAccount('user-old');
+        const unregister = registerAccountTeardown(async () => {
+            throw new Error('account teardown failed');
+        });
+        const client = {
+            auth: {
+                getSession: async () => ({
+                    data: { session: { user: { id: 'user-new' } } }, error: null,
+                }),
+                onAuthStateChange: () => ({
+                    data: { subscription: { unsubscribe: jest.fn() } },
+                }),
+            },
+        } as unknown as AuthBootstrapClient & {
+            auth: { onAuthStateChange: jest.Mock };
+        };
+        coordinator = createAuthCoordinator(client);
+        coordinator.subscribe(() => undefined);
+
+        await expect(coordinator.whenIdle()).rejects.toThrow('account teardown failed');
+        expect(coordinator.getSnapshot().isLoading).toBe(false);
+        expect(getActiveAccountId()).toBe('user-old');
+        unregister();
     });
 });

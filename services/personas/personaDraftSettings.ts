@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { accountScopedStorage as AsyncStorage } from '@/services/account/accountScopedStorage';
 
 const DRAFT_SETTINGS_KEY = '@persona_draft_settings';
 

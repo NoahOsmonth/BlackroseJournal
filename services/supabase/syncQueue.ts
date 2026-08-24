@@ -32,6 +32,7 @@ export interface SyncTask {
 interface KeyValueStorage {
     getItem(key: string): Promise<string | null>;
     setItem(key: string, value: string): Promise<void>;
+    removeItem?(key: string): Promise<void>;
 }
 
 let storageAdapter: KeyValueStorage = AsyncStorage;
@@ -50,6 +51,35 @@ function generateTaskId(): string {
     return `sync_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function hasOptionalString(value: Record<string, unknown>, key: string): boolean {
+    return value[key] === undefined || typeof value[key] === 'string';
+}
+
+function isSyncTaskShape(value: unknown, requireAccountId: boolean): value is SyncTask {
+    if (!isRecord(value)) return false;
+    if (typeof value.id !== 'string' || value.id.length === 0) return false;
+    if (requireAccountId && typeof value.accountId !== 'string') return false;
+    if (typeof value.table !== 'string' || value.table.length === 0) return false;
+    if (value.operation !== 'upsert' && value.operation !== 'delete') return false;
+    if (typeof value.createdAt !== 'number' || !Number.isFinite(value.createdAt)) return false;
+    if (!hasOptionalString(value, 'primaryKey')) return false;
+    if (!hasOptionalString(value, 'onConflict')) return false;
+    if (!hasOptionalString(value, 'dedupeKey')) return false;
+    if (
+        value.primaryValue !== undefined
+        && typeof value.primaryValue !== 'string'
+        && typeof value.primaryValue !== 'number'
+    ) return false;
+    if (value.payload !== undefined && !isRecord(value.payload)) return false;
+    return value.operation === 'upsert'
+        ? isRecord(value.payload)
+        : typeof value.primaryKey === 'string' && value.primaryValue !== undefined;
+}
+
 function withMutationLock<T>(operation: () => Promise<T>): Promise<T> {
     const result = mutationQueue.then(operation, operation);
     mutationQueue = result.then(() => undefined, () => undefined);
@@ -63,8 +93,10 @@ async function loadTasks(key: string): Promise<SyncTask[]> {
     }
 
     try {
-        const parsed = JSON.parse(json) as SyncTask[];
-        return Array.isArray(parsed) ? parsed : [];
+        const parsed = JSON.parse(json) as unknown;
+        return Array.isArray(parsed)
+            ? parsed.filter((task): task is SyncTask => isSyncTaskShape(task, true))
+            : [];
     } catch {
         return [];
     }
@@ -188,6 +220,14 @@ async function applyTask(client: SupabaseClient, task: SyncTask): Promise<boolea
     return true;
 }
 
+async function sessionMatchesAccount(
+    client: SupabaseClient,
+    accountId: string
+): Promise<boolean> {
+    const { data, error } = await client.auth.getSession();
+    return !error && data.session?.user.id === accountId;
+}
+
 export async function removeSyncTasksForTable(table: string): Promise<void> {
     if (!isRemoteDataSyncEnabled()) return;
     requireActiveAccountId();
@@ -228,8 +268,7 @@ export async function flushSyncQueue(): Promise<void> {
                 return;
             }
 
-            const { data: sessionData, error: sessionError } = await client.auth.getSession();
-            if (sessionError || sessionData.session?.user.id !== accountId) {
+            if (!(await sessionMatchesAccount(client, accountId))) {
                 await withMutationLock(() => quarantineTasks(queue));
                 return;
             }
@@ -241,6 +280,13 @@ export async function flushSyncQueue(): Promise<void> {
                 const task = queue[i];
                 if (task.accountId !== accountId || getActiveAccountId() !== accountId) {
                     return;
+                }
+                // Supabase auth state can change before account teardown begins.
+                // Revalidate immediately before every network mutation so a task
+                // queued by A is never submitted with B's live credentials.
+                if (!(await sessionMatchesAccount(client, accountId))) {
+                    failedIndex = i;
+                    break;
                 }
                 const success = await applyTask(client, task);
 
@@ -279,3 +325,34 @@ registerAccountTeardown(async () => {
     if (flushPromise) await flushPromise;
     await mutationQueue;
 });
+
+export async function hasLegacySyncQueue(): Promise<boolean> {
+    return (await storageAdapter.getItem(SYNC_QUEUE_KEY)) !== null;
+}
+
+export async function migrateLegacySyncQueueToActiveAccount(): Promise<void> {
+    const accountId = requireActiveAccountId();
+    await withMutationLock(async () => {
+        const raw = await storageAdapter.getItem(SYNC_QUEUE_KEY);
+        if (raw === null) return;
+        if (!storageAdapter.removeItem) {
+            throw new Error('Sync queue migration requires removeItem support.');
+        }
+        let legacy: unknown;
+        try {
+            legacy = JSON.parse(raw) as unknown;
+        } catch {
+            throw new Error('Legacy sync queue is corrupt and was not claimed.');
+        }
+        if (!Array.isArray(legacy)) {
+            throw new Error('Legacy sync queue is invalid and was not claimed.');
+        }
+        if (!legacy.every((task) => isSyncTaskShape(task, false))) {
+            throw new Error('Legacy sync queue is invalid and was not claimed.');
+        }
+        const tagged = legacy.map((task) => ({ ...task, accountId }));
+        const current = await loadQueue();
+        await saveQueue(pruneQueue([...current, ...tagged]));
+        await storageAdapter.removeItem(SYNC_QUEUE_KEY);
+    });
+}

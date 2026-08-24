@@ -308,8 +308,10 @@ describe('Plan 09 manual-QA smoke test', () => {
     });
 
     it('QA13: corrupt memory payload recovers without crash and writes the v2 envelope', async () => {
+        const memoryKey = getAccountScopedStorageKey('@rosebud_local_memory');
+        const corruptMemoryKey = getAccountScopedStorageKey('@rosebud_local_memory_corrupt');
         // Simulate the user opening the app after an interrupted write
-        store.set('@rosebud_local_memory', '{not json');
+        store.set(memoryKey, '{not json');
 
         // The next read should not throw
         const memories1 = renderHook(() => useLocalMemories());
@@ -317,15 +319,15 @@ describe('Plan 09 manual-QA smoke test', () => {
         expect(memories1.result.current.atoms).toEqual([]);
 
         // Corrupt payload should be backed up, main key cleared
-        expect(store.get('@rosebud_local_memory_corrupt')).toBe('{not json');
-        expect(store.has('@rosebud_local_memory')).toBe(false);
+        expect(store.get(corruptMemoryKey)).toBe('{not json');
+        expect(store.has(memoryKey)).toBe(false);
 
         // First write creates the v2 envelope
         await act(async () => {
             await memories1.result.current.addNote('Hello, post-crash world.');
         });
 
-        const envelope = JSON.parse(store.get('@rosebud_local_memory') ?? '{}');
+        const envelope = JSON.parse(store.get(memoryKey) ?? '{}');
         expect(envelope.schemaVersion).toBe(2);
         expect(Object.keys(envelope.atoms).length).toBe(1);
     });

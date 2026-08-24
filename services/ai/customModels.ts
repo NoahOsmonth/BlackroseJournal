@@ -5,6 +5,7 @@ import {
     preferFreeModelId,
     pushRecentModelId,
 } from '@/utils/ai/modelDisplay';
+import { accountScopedStorage } from '@/services/account/accountScopedStorage';
 
 export type ContextWindowSource = 'api' | 'known' | 'fallback';
 
@@ -77,16 +78,7 @@ const KNOWN_CONTEXT_WINDOWS: Record<string, number> = {
     'moonshotai/kimi-k2.5': 128_000,
 };
 
-async function getAsyncStorage(): Promise<StorageAdapter> {
-    const module = await import('@react-native-async-storage/async-storage');
-    return module.default;
-}
-
-const asyncStorageAdapter: StorageAdapter = {
-    getItem: async (key) => (await getAsyncStorage()).getItem(key),
-    setItem: async (key, value) => (await getAsyncStorage()).setItem(key, value),
-    removeItem: async (key) => (await getAsyncStorage()).removeItem(key),
-};
+const asyncStorageAdapter: StorageAdapter = accountScopedStorage;
 
 let storageAdapter: StorageAdapter = asyncStorageAdapter;
 

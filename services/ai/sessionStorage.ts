@@ -10,7 +10,7 @@
  * it is unit-testable and never throws to callers (returns safe defaults).
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { accountScopedStorage as AsyncStorage } from '@/services/account/accountScopedStorage';
 import type { Message } from './chatTypes';
 import { normalizeTemporalMessageMetadata } from './messageTemporalMetadata';
 

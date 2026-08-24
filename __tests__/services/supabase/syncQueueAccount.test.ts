@@ -11,6 +11,7 @@ import { getAccountScopedStorageKey } from '../../../services/account/accountSco
 import {
     enqueueSyncTask,
     flushSyncQueue,
+    migrateLegacySyncQueueToActiveAccount,
     resetSyncQueueStorageAdapter,
     setSyncQueueStorageAdapter,
 } from '../../../services/supabase/syncQueue';
@@ -32,6 +33,7 @@ describe('account-owned sync queue', () => {
         setSyncQueueStorageAdapter({
             getItem: async (key) => store.get(key) ?? null,
             setItem: async (key, value) => { store.set(key, value); },
+            removeItem: async (key) => { store.delete(key); },
         });
         await activateAccount('user-a');
     });
@@ -142,5 +144,77 @@ describe('account-owned sync queue', () => {
         expect(queue).toHaveLength(2);
         expect(queue.map((task) => task.table).sort()).toEqual(['goals', 'journal_entries']);
         expect(queue.every((task) => task.accountId === 'user-a')).toBe(true);
+    });
+
+    it('stops before the next mutation when the live session switches accounts mid-flush', async () => {
+        mockEnsureSupabaseSession.mockResolvedValue(null);
+        await enqueueSyncTask({
+            table: 'journal_entries', operation: 'upsert', payload: { id: 'first' },
+        });
+        await enqueueSyncTask({
+            table: 'journal_entries', operation: 'upsert', payload: { id: 'second' },
+            dedupeKey: 'journal_entries:second',
+        });
+        await flushSyncQueue();
+
+        let sessionChecks = 0;
+        const applied: string[] = [];
+        mockEnsureSupabaseSession.mockResolvedValue({
+            auth: {
+                getSession: async () => {
+                    sessionChecks += 1;
+                    return {
+                        data: {
+                            session: { user: { id: sessionChecks < 3 ? 'user-a' : 'user-b' } },
+                        },
+                        error: null,
+                    };
+                },
+            },
+            from: () => ({
+                upsert: async (payload: { id: string }) => {
+                    applied.push(payload.id);
+                    return { error: null };
+                },
+            }),
+        });
+
+        await flushSyncQueue();
+
+        expect(applied).toEqual(['first']);
+        const queueKey = getAccountScopedStorageKey('@supabase_sync_queue');
+        expect(JSON.parse(store.get(queueKey) ?? '[]')).toEqual([
+            expect.objectContaining({ payload: { id: 'second' }, accountId: 'user-a' }),
+        ]);
+    });
+
+    it('claims and tags the legacy queue only after an account owns it', async () => {
+        store.set('@supabase_sync_queue', JSON.stringify([{
+            id: 'legacy-task',
+            table: 'journal_entries',
+            operation: 'upsert',
+            payload: { id: 'legacy-entry' },
+            createdAt: 1,
+        }]));
+
+        await migrateLegacySyncQueueToActiveAccount();
+
+        expect(store.has('@supabase_sync_queue')).toBe(false);
+        const queueKey = getAccountScopedStorageKey('@supabase_sync_queue');
+        expect(JSON.parse(store.get(queueKey) ?? '[]')).toEqual([
+            expect.objectContaining({ id: 'legacy-task', accountId: 'user-a' }),
+        ]);
+    });
+
+    it('leaves a malformed legacy queue untouched instead of claiming executable garbage', async () => {
+        const malformed = JSON.stringify([{ id: 'missing-operation-and-table' }]);
+        store.set('@supabase_sync_queue', malformed);
+
+        await expect(migrateLegacySyncQueueToActiveAccount()).rejects.toThrow(
+            'Legacy sync queue is invalid and was not claimed.'
+        );
+
+        expect(store.get('@supabase_sync_queue')).toBe(malformed);
+        expect(store.has(getAccountScopedStorageKey('@supabase_sync_queue'))).toBe(false);
     });
 });

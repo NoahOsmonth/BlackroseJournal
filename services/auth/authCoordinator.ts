@@ -1,5 +1,6 @@
 import {
     applyAuthTransition,
+    AuthTransitionCancelledError,
     resolveAuthBootstrap,
     type AuthBootstrapClient,
     type AuthBootstrapState,
@@ -55,12 +56,22 @@ export function createAuthCoordinator(
 
     const emit = () => listeners.forEach((listener) => listener());
     const schedule = (intent: AuthTransitionIntent, targetRevision: number): Promise<void> => {
+        const isCurrent = () => !stopped && targetRevision === revision;
         const operation = transitionQueue.then(async () => {
-            if (stopped || targetRevision !== revision) return;
-            const authState = await applyAuthTransition(intent);
-            if (stopped || targetRevision !== revision) return;
-            snapshot = { authState, isLoading: false };
-            emit();
+            if (!isCurrent()) return;
+            try {
+                const authState = await applyAuthTransition(intent, isCurrent);
+                if (!isCurrent()) return;
+                snapshot = { authState, isLoading: false };
+                emit();
+            } catch (error) {
+                if (error instanceof AuthTransitionCancelledError) return;
+                if (isCurrent()) {
+                    snapshot = { authState: SIGNED_OUT_STATE, isLoading: false };
+                    emit();
+                }
+                throw error;
+            }
         });
         transitionQueue = operation.catch(() => undefined);
         return operation;
@@ -68,7 +79,10 @@ export function createAuthCoordinator(
 
     const track = (operation: Promise<void>) => {
         pending.add(operation);
-        void operation.finally(() => pending.delete(operation));
+        void operation.then(
+            () => pending.delete(operation),
+            () => pending.delete(operation),
+        );
     };
 
     const begin = () => {

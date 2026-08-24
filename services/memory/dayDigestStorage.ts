@@ -3,7 +3,7 @@
  * Extractive summaries keep this offline and free; LLM polish is optional later.
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { accountScopedStorage as AsyncStorage } from '@/services/account/accountScopedStorage';
 import type { JournalEntry } from '@/services/journal/journalStorage.types';
 import type { IntentionCheckIn } from '@/services/intentions/intentionsStorage.types';
 import { getLocalDateKeyFromTimestamp } from '@/utils/date';

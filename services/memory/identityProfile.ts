@@ -6,7 +6,7 @@
  * Zep/Graphiti-style: supersede by invalidating prior values, never silent wipe.
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { accountScopedStorage as AsyncStorage } from '@/services/account/accountScopedStorage';
 import type {
     IdentityFact,
     IdentityField,

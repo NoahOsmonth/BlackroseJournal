@@ -6,6 +6,8 @@ import {
 } from '@/services/account/accountRuntime';
 import {
     claimLegacyStorageKey,
+    claimLegacyStoragePrefix,
+    hasLegacyStorage,
     getAccountScopedStorageKey,
     resetAccountStorageAdapter,
     setAccountStorageAdapter,
@@ -24,6 +26,7 @@ interface MemoryStorage {
     getItem(key: string): Promise<string | null>;
     setItem(key: string, value: string): Promise<void>;
     removeItem(key: string): Promise<void>;
+    getAllKeys(): Promise<readonly string[]>;
 }
 
 function createMemoryStorage(): MemoryStorage {
@@ -37,6 +40,7 @@ function createMemoryStorage(): MemoryStorage {
         removeItem: async (key) => {
             values.delete(key);
         },
+        getAllKeys: async () => Array.from(values.keys()),
     };
 }
 
@@ -106,6 +110,35 @@ describe('account-scoped persistence', () => {
         await expect(claimLegacyStorageKey('@journal_entries')).resolves.toBe('already-owned');
         expect(storage.values.get(scopedKey)).toBe('{"legacy":true}');
         expect(storage.values.has('@journal_entries')).toBe(false);
+    });
+
+    it('claims every legacy shard under a prefix without overwriting scoped shards', async () => {
+        storage.values.set('@rosebud_session_digest:first', '{"owner":"legacy"}');
+        storage.values.set('@rosebud_session_digest:second', '{"owner":"legacy"}');
+        await activateAccount('user-a');
+        storage.values.set(
+            getAccountScopedStorageKey('@rosebud_session_digest:second'),
+            '{"owner":"current"}'
+        );
+
+        await expect(claimLegacyStoragePrefix('@rosebud_session_digest:')).resolves.toBe(1);
+        expect(storage.values.get(
+            getAccountScopedStorageKey('@rosebud_session_digest:first')
+        )).toBe('{"owner":"legacy"}');
+        expect(storage.values.get(
+            getAccountScopedStorageKey('@rosebud_session_digest:second')
+        )).toBe('{"owner":"current"}');
+        expect(storage.values.has('@rosebud_session_digest:first')).toBe(false);
+        expect(storage.values.has('@rosebud_session_digest:second')).toBe(false);
+    });
+
+    it('detects exact and sharded legacy stores before ownership confirmation', async () => {
+        await activateAccount('user-a');
+        await expect(hasLegacyStorage(['@rosebud_local_memory'], ['@rosebud_session_digest:']))
+            .resolves.toBe(false);
+        storage.values.set('@rosebud_session_digest:legacy', '{}');
+        await expect(hasLegacyStorage(['@rosebud_local_memory'], ['@rosebud_session_digest:']))
+            .resolves.toBe(true);
     });
 
     it('recovers from a corrupt registry and persists a versioned envelope', async () => {

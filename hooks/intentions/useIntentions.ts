@@ -7,6 +7,7 @@ import {
     deleteIntention,
 } from '@/services/intentions/intentionsStorage';
 import { Intention, IntentionCreateInput, IntentionUpdateInput } from '@/services/intentions/intentionsStorage.types';
+import { useActiveAccountId } from '@/hooks/account/useActiveAccountId';
 
 interface UseIntentionsReturn {
     intentions: Intention[];
@@ -21,6 +22,7 @@ interface UseIntentionsReturn {
 }
 
 export function useIntentions(): UseIntentionsReturn {
+    const accountId = useActiveAccountId();
     const [intentions, setIntentions] = useState<Intention[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
@@ -39,8 +41,13 @@ export function useIntentions(): UseIntentionsReturn {
     }, []);
 
     useEffect(() => {
-        refresh();
-    }, [refresh]);
+        if (accountId) {
+            void refresh();
+        } else {
+            setIntentions([]);
+            setIsLoading(false);
+        }
+    }, [accountId, refresh]);
 
     const create = useCallback(async (input: IntentionCreateInput) => {
         const intention = await createIntention(input);

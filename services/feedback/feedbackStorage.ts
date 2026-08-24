@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { accountScopedStorage as AsyncStorage } from '@/services/account/accountScopedStorage';
 
 export type AiFeedbackValue = 'up' | 'down';
 export type AiFeedbackScope = 'intention' | 'journal';

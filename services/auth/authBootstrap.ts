@@ -53,16 +53,27 @@ export type AuthTransitionIntent = {
 
 async function openSessionAccount(
     session: AuthSessionLike,
-    status: 'authenticated' = 'authenticated'
+    status: 'authenticated' = 'authenticated',
+    shouldContinue: () => boolean = () => true
 ): Promise<AuthBootstrapState> {
     const account = {
         id: session.user.id,
         email: session.user.email ?? null,
         lastAuthenticatedAt: Date.now(),
     };
+    if (!shouldContinue()) throw new AuthTransitionCancelledError();
     await activateAccount(account.id);
+    if (!shouldContinue()) throw new AuthTransitionCancelledError();
     await rememberAuthenticatedAccount(account);
+    if (!shouldContinue()) throw new AuthTransitionCancelledError();
     return { status, account, session };
+}
+
+export class AuthTransitionCancelledError extends Error {
+    constructor() {
+        super('Authentication transition was superseded.');
+        this.name = 'AuthTransitionCancelledError';
+    }
 }
 
 async function resolveRememberedAccountOffline(): Promise<AuthTransitionIntent> {
@@ -111,17 +122,23 @@ export async function resolveAuthBootstrap(
 }
 
 export async function applyAuthTransition(
-    intent: AuthTransitionIntent
+    intent: AuthTransitionIntent,
+    shouldContinue: () => boolean = () => true
 ): Promise<AuthBootstrapState> {
     if (intent.type === 'session') {
-        return openSessionAccount(intent.session);
+        return openSessionAccount(intent.session, 'authenticated', shouldContinue);
     }
     if (intent.type === 'offline') {
+        if (!shouldContinue()) throw new AuthTransitionCancelledError();
         await activateAccount(intent.account.id);
+        if (!shouldContinue()) throw new AuthTransitionCancelledError();
         return { status: 'offline', account: intent.account, session: null };
     }
+    if (!shouldContinue()) throw new AuthTransitionCancelledError();
     await clearRememberedAccount();
+    if (!shouldContinue()) throw new AuthTransitionCancelledError();
     await clearActiveAccount();
+    if (!shouldContinue()) throw new AuthTransitionCancelledError();
     return { status: 'signed-out', account: null, session: null };
 }
 

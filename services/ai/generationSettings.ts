@@ -1,3 +1,5 @@
+import { accountScopedStorage } from '@/services/account/accountScopedStorage';
+
 export interface GenerationSettings {
     temperature: number;
     topP: number;
@@ -32,16 +34,7 @@ export const GENERATION_PRESETS: GenerationPreset[] = [
 const MIN_MAX_TOKENS = 256;
 const FALLBACK_MAX_TOKENS = 2_000_000;
 
-async function getAsyncStorage(): Promise<StorageAdapter> {
-    const module = await import('@react-native-async-storage/async-storage');
-    return module.default;
-}
-
-const asyncStorageAdapter: StorageAdapter = {
-    getItem: async (key) => (await getAsyncStorage()).getItem(key),
-    setItem: async (key, value) => (await getAsyncStorage()).setItem(key, value),
-    removeItem: async (key) => (await getAsyncStorage()).removeItem(key),
-};
+const asyncStorageAdapter: StorageAdapter = accountScopedStorage;
 
 let storageAdapter: StorageAdapter = asyncStorageAdapter;
 

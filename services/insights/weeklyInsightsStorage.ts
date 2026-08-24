@@ -4,7 +4,7 @@
  */
 
 import type { WeeklyInsightsResult } from '@/services/ai/insightsTypes';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { accountScopedStorage as AsyncStorage } from '@/services/account/accountScopedStorage';
 import {
     deleteRemoteWeeklyInsights,
     loadRemoteWeeklyInsights,

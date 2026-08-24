@@ -115,7 +115,7 @@ export default function RootLayout() {
                             accountId={auth.user?.id ?? null}
                             enabled={segments[0] !== '(auth)'}
                         >
-                            <TransitionProvider>
+                            <TransitionProvider key={auth.user?.id ?? 'signed-out'}>
                                 <Stack screenOptions={{ headerShown: false }}>
                                     <Stack.Screen name="(auth)" />
                                     <Stack.Protected
