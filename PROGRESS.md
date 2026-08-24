@@ -2441,3 +2441,20 @@
 - Hindsight (server-side Voyage embeddings in its own container) untouched; chat proxy untouched; Supabase untouched.
 - Tests updated to assert keyword+recency fallback; new `__tests__/services/memory/keywordRanking.test.ts`.
 - Live battery: E3/E5 probe cases removed (probes deleted); E1/E2/E4 kept.
+
+## 2026-08-24 — AI control plane Task 1: shared contracts
+
+- Added the zero-dependency `@blackrose/ai-control-plane-contracts` workspace package with
+  separate public and admin entry points. Secret-bearing credential/provider mutation DTOs
+  are available only from the admin entry point.
+- Frozen strict runtime contracts for the public model catalog, supported provider protocols,
+  preferences, normalized inference requests/events/errors, memory requests/responses,
+  optimistic revision conflicts, provider administration, and catalog/runtime mutations.
+- Client memory validators reject caller-supplied `bank`/`bankId` fields. Public catalog
+  validators reject provider ids, base URLs, and every other non-public field.
+- TDD evidence: the first public contract test failed because the module was absent; the
+  provider-leak test then failed because the unsafe row was accepted; the remaining contract
+  surface produced 17 expected failures before implementation. Focused contract tests pass
+  3 suites / 19 tests, and the package-scoped TypeScript and ESLint gates pass.
+- Root TypeScript remains blocked by missing pre-existing backend `express`/`cors` modules in
+  this worktree; the root compiler reports no contract-package or contract-test errors.

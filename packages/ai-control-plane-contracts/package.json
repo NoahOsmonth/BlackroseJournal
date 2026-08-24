@@ -1,0 +1,17 @@
+{
+  "name": "@blackrose/ai-control-plane-contracts",
+  "version": "0.1.0",
+  "private": true,
+  "sideEffects": false,
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./admin": {
+      "types": "./src/admin/index.ts",
+      "default": "./src/admin/index.ts"
+    }
+  }
+}
