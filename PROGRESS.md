@@ -2683,3 +2683,46 @@
 - Verification: focused catalog, hook, transport, picker, chat service, agent-loop, structured
   extraction, context, and provider-adapter suites passed; root TypeScript passed. Catalog/realtime
   work was delegated as `99046fb`; normalized tool history was delegated as `250a3b1`.
+
+# 2026-08-24 — AI control plane Tasks 7 and 10: authenticated account isolation
+
+- Added the Supabase authentication gate, offline reopen for a previously authenticated account,
+  versioned account namespaces, ownership-confirmed legacy migration, and ordered runtime teardown
+  on account changes. Private storage owners remain serialized and corruption tolerant.
+- Replaced mobile Hindsight URLs and the shared `rosebud` bank with authenticated gateway-only
+  retain/recall/reflect/rebuild/clear requests. The gateway derives private per-user banks; clients
+  cannot submit or observe bank identifiers.
+- Added idempotent per-account rebuild state. Rebuild reads only completed journal/check-in history
+  owned by that account, and clear-history adds best-effort deletion of that account's remote bank
+  without making chat, finish, or navigation depend on Hindsight availability.
+- Hardened account changes with account-bound operation leases: switching stops new private work,
+  aborts and drains active operations, runs existing teardown handlers, then exposes the next
+  account namespace. Managed sessions must match the active account.
+- Verification included account/auth namespace, storage-owner, rebuild, public memory contract,
+  two-user bank derivation, gateway route, and soft-failure suites plus root/backend type and lint
+  checks. The final live authenticated recall probe remains environment-gated in Task 11.
+
+# 2026-08-24 — AI control plane Task 9: separate admin application
+
+- Added the separately deployed `admin/` Expo web app with Supabase login and gateway-backed
+  provider, masked credential, discovery inventory, catalog, flash route, runtime, health, audit,
+  archive, and stale-revision workflows. No saved plaintext credential can be read back.
+- Kept UI, hooks, and services separated; added responsive light/dark styling and accessible form
+  labels/actions. The admin package declares its own build, type, lint, and test toolchain while
+  consuming shared monorepo contracts.
+- Verification passed admin component/service/hook tests, TypeScript, lint, design limits, and an
+  Expo static web export to a temporary output directory.
+
+# 2026-08-24 — AI control plane security hardening
+
+- Disabled admin rows now revoke access. Local PostgREST exposes the private `control` schema only
+  through its existing service-role grants; anonymous/authenticated direct access remains denied.
+- Provider disable/re-enable and stale discovery now transactionally synchronize owned routes,
+  catalog availability, and the monotonic Realtime revision through a new additive migration.
+- Added per-user managed-inference concurrency, request-window, and token-window enforcement before
+  route lookup or credential decryption. Limit failures are typed HTTP 429 responses with
+  `Retry-After`; settings are bounded and documented. Multi-replica production requires the
+  injectable distributed atomic limiter rather than process-local counters.
+- Managed clients reject terminal normalized stream errors even after partial text. Focused backend,
+  mobile, documentation, and pgTAP suites cover these review findings; full-branch gates are recorded
+  in the final Task 11 entry.
