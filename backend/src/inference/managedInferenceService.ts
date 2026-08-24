@@ -15,6 +15,11 @@ import {
   type MasterKeyProvider,
 } from '../security/envelopeEncryption';
 import type { ManagedInferenceRepository } from './managedInferenceTypes';
+import {
+  createInMemoryManagedInferenceLimiter,
+  DEFAULT_MANAGED_INFERENCE_LIMIT_POLICY,
+  type ManagedInferenceLimiter,
+} from './managedInferenceLimiter';
 
 export interface ProviderInferenceInput {
   provider: { protocol: ProviderProtocol; baseUrl: string };
@@ -35,6 +40,7 @@ export interface ManagedInferenceServiceDependencies {
   execute: ExecuteProviderInference;
   decryptCredential?: typeof decryptSecret;
   now?: () => number;
+  limiter?: ManagedInferenceLimiter;
 }
 
 function normalizedError(error: unknown, aborted: boolean): NormalizedInferenceError {
@@ -118,6 +124,10 @@ function supportsRequest(
 export function createManagedInferenceService(deps: ManagedInferenceServiceDependencies) {
   const decryptCredential = deps.decryptCredential ?? decryptSecret;
   const now = deps.now ?? Date.now;
+  const limiter = deps.limiter ?? createInMemoryManagedInferenceLimiter(
+    DEFAULT_MANAGED_INFERENCE_LIMIT_POLICY,
+    { now },
+  );
 
   return {
     async *execute(
@@ -126,112 +136,125 @@ export function createManagedInferenceService(deps: ManagedInferenceServiceDepen
       signal?: AbortSignal,
     ): AsyncGenerator<NormalizedInferenceEvent> {
       const startedAt = now();
-      const binding = await deps.repository.resolveRoute(userId, request.purpose);
-      if (!binding) {
-        yield* errorEvents({
-          code: 'model_unavailable',
-          message: request.purpose === 'flash'
-            ? 'The managed extraction model is unavailable.'
-            : 'Select an available managed model before chatting.',
-          retryable: false,
-          status: 503,
-        });
-        return;
-      }
-      let status: 'succeeded' | 'failed' | 'cancelled' = 'succeeded';
-      let errorCode: NormalizedInferenceError['code'] | undefined;
       let inputTokens: number | undefined;
       let outputTokens: number | undefined;
-      let sawCompletion = false;
+      const lease = await limiter.acquire({
+        userId,
+        // One token per UTF-8 byte is a provider-independent, conservative pre-route estimate.
+        estimatedInputTokens: Math.max(1, Buffer.byteLength(JSON.stringify(request), 'utf8')),
+        requestedOutputTokens: request.maxOutputTokens,
+      });
       try {
-        const inputBytes = Buffer.byteLength(JSON.stringify(request), 'utf8');
-        if (
-          inputBytes > binding.maxInputBytes
-          || (request.maxOutputTokens !== undefined
-            && request.maxOutputTokens > binding.maxOutputTokens)
-          || !supportsRequest(binding.capabilities, request)
-        ) {
-          status = 'failed';
-          errorCode = 'invalid_request';
+        const binding = await deps.repository.resolveRoute(userId, request.purpose);
+        if (!binding) {
           yield* errorEvents({
-            code: 'invalid_request',
-            message: 'The inference request exceeds the configured route limits.',
+            code: 'model_unavailable',
+            message: request.purpose === 'flash'
+              ? 'The managed extraction model is unavailable.'
+              : 'Select an available managed model before chatting.',
             retryable: false,
-            status: 400,
+            status: 503,
           });
           return;
         }
-        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-        const secret = await decryptCredential(
-          binding.credential,
-          deps.masterKeys,
-          `provider:${binding.providerId}`,
-        );
-        const boundedRequest: NormalizedInferenceRequest = {
-          ...request,
-          maxOutputTokens: request.maxOutputTokens ?? binding.maxOutputTokens,
-        };
-        const established = await executeWithSameRouteRetry({
-          binding: { routeId: binding.routeId, modelId: binding.modelId },
-          policy: {
-            maxAttempts: 2,
-            baseDelayMs: 50,
-            maxTotalMs: binding.requestTimeoutMs,
-          },
-          execute: async (_fixed, _attempt, retrySignal) => {
-            const executionSignal = signal
-              ? AbortSignal.any([signal, retrySignal])
-              : retrySignal;
-            const iterator = deps.execute({
-              provider: { protocol: binding.protocol, baseUrl: binding.baseUrl },
-              modelId: binding.modelId,
-              secret,
-              request: boundedRequest,
-              signal: executionSignal,
-              limits: {
-                timeoutMs: binding.requestTimeoutMs,
-                maxResponseBytes: Math.min(
-                  8 * 1024 * 1024,
-                  64 * 1024 + (binding.maxOutputTokens * 16),
-                ),
-              },
-            })[Symbol.asyncIterator]();
-            return { iterator, first: await iterator.next() };
-          },
-        });
-        let next = established.first;
-        while (!next.done) {
-          const event = next.value;
-          if (event.type === 'usage') {
-            inputTokens = event.inputTokens;
-            outputTokens = event.outputTokens;
-          } else if (event.type === 'error') {
-            status = event.error.code === 'aborted' ? 'cancelled' : 'failed';
-            errorCode = event.error.code;
-          } else if (event.type === 'completion') {
-            sawCompletion = true;
-            if (event.reason === 'cancelled') status = 'cancelled';
-            else if (event.reason === 'error') status = 'failed';
+        let status: 'succeeded' | 'failed' | 'cancelled' = 'succeeded';
+        let errorCode: NormalizedInferenceError['code'] | undefined;
+        let sawCompletion = false;
+        try {
+          const inputBytes = Buffer.byteLength(JSON.stringify(request), 'utf8');
+          if (
+            inputBytes > binding.maxInputBytes
+            || (request.maxOutputTokens !== undefined
+              && request.maxOutputTokens > binding.maxOutputTokens)
+            || !supportsRequest(binding.capabilities, request)
+          ) {
+            status = 'failed';
+            errorCode = 'invalid_request';
+            yield* errorEvents({
+              code: 'invalid_request',
+              message: 'The inference request exceeds the configured route limits.',
+              retryable: false,
+              status: 400,
+            });
+            return;
           }
-          yield event;
-          next = await established.iterator.next();
+          if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+          const secret = await decryptCredential(
+            binding.credential,
+            deps.masterKeys,
+            `provider:${binding.providerId}`,
+          );
+          const boundedRequest: NormalizedInferenceRequest = {
+            ...request,
+            maxOutputTokens: request.maxOutputTokens ?? binding.maxOutputTokens,
+          };
+          const established = await executeWithSameRouteRetry({
+            binding: { routeId: binding.routeId, modelId: binding.modelId },
+            policy: {
+              maxAttempts: 2,
+              baseDelayMs: 50,
+              maxTotalMs: binding.requestTimeoutMs,
+            },
+            execute: async (_fixed, _attempt, retrySignal) => {
+              const executionSignal = signal
+                ? AbortSignal.any([signal, retrySignal])
+                : retrySignal;
+              const iterator = deps.execute({
+                provider: { protocol: binding.protocol, baseUrl: binding.baseUrl },
+                modelId: binding.modelId,
+                secret,
+                request: boundedRequest,
+                signal: executionSignal,
+                limits: {
+                  timeoutMs: binding.requestTimeoutMs,
+                  maxResponseBytes: Math.min(
+                    8 * 1024 * 1024,
+                    64 * 1024 + (binding.maxOutputTokens * 16),
+                  ),
+                },
+              })[Symbol.asyncIterator]();
+              return { iterator, first: await iterator.next() };
+            },
+          });
+          let next = established.first;
+          while (!next.done) {
+            const event = next.value;
+            if (event.type === 'usage') {
+              inputTokens = event.inputTokens;
+              outputTokens = event.outputTokens;
+            } else if (event.type === 'error') {
+              status = event.error.code === 'aborted' ? 'cancelled' : 'failed';
+              errorCode = event.error.code;
+            } else if (event.type === 'completion') {
+              sawCompletion = true;
+              if (event.reason === 'cancelled') status = 'cancelled';
+              else if (event.reason === 'error') status = 'failed';
+            }
+            yield event;
+            next = await established.iterator.next();
+          }
+          if (!sawCompletion) yield { type: 'completion', reason: 'stop' };
+        } catch (error) {
+          const normalized = normalizedError(error, signal?.aborted ?? false);
+          status = normalized.code === 'aborted' ? 'cancelled' : 'failed';
+          errorCode = normalized.code;
+          yield* errorEvents(normalized);
+        } finally {
+          await deps.repository.appendUsage({
+            userId,
+            routeId: binding.routeId,
+            status,
+            ...(inputTokens === undefined ? {} : { inputTokens }),
+            ...(outputTokens === undefined ? {} : { outputTokens }),
+            latencyMs: Math.max(0, now() - startedAt),
+            ...(errorCode ? { errorCode } : {}),
+          }).catch(() => undefined);
         }
-        if (!sawCompletion) yield { type: 'completion', reason: 'stop' };
-      } catch (error) {
-        const normalized = normalizedError(error, signal?.aborted ?? false);
-        status = normalized.code === 'aborted' ? 'cancelled' : 'failed';
-        errorCode = normalized.code;
-        yield* errorEvents(normalized);
       } finally {
-        await deps.repository.appendUsage({
-          userId,
-          routeId: binding.routeId,
-          status,
-          ...(inputTokens === undefined ? {} : { inputTokens }),
-          ...(outputTokens === undefined ? {} : { outputTokens }),
-          latencyMs: Math.max(0, now() - startedAt),
-          ...(errorCode ? { errorCode } : {}),
-        }).catch(() => undefined);
+        const usage = inputTokens === undefined && outputTokens === undefined
+          ? undefined
+          : { inputTokens, outputTokens };
+        await Promise.resolve(lease.release(usage)).catch(() => undefined);
       }
     },
   };

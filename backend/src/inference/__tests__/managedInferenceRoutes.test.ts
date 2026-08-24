@@ -5,6 +5,7 @@ import { createApp } from '../../app';
 import type { AccessTokenVerifier } from '../../auth/supabaseJwtVerifier';
 import { createReadinessController } from '../../readiness';
 import type { ManagedInferenceRouteService } from '../../routes/managedInferenceRoutes';
+import { ManagedInferenceLimitError } from '../managedInferenceLimiter';
 
 const readiness = createReadinessController({ probeAi: async () => true });
 const verifier: AccessTokenVerifier = {
@@ -98,6 +99,25 @@ describe('managed inference routes', () => {
       assert.equal(response.status, 400);
       assert.equal(called, false);
       assert.doesNotMatch(await response.text(), /must-not-leak/);
+    });
+  });
+
+  it('returns a typed 429 with Retry-After before opening an inference stream', async () => {
+    await withInferenceApp(() => (async function* limited() {
+      throw new ManagedInferenceLimitError(9);
+    })(), async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/v1/ai/chat/completions`, {
+        method: 'POST', headers,
+        body: JSON.stringify({
+          purpose: 'chat', messages: [{ role: 'user', content: 'private prompt' }], stream: true,
+        }),
+      });
+
+      assert.equal(response.status, 429);
+      assert.equal(response.headers.get('retry-after'), '9');
+      assert.deepEqual(await response.json(), {
+        error: { code: 'RATE_LIMITED', message: 'Managed inference quota exceeded.' },
+      });
     });
   });
 

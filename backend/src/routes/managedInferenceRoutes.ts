@@ -6,6 +6,7 @@ import {
   type NormalizedInferenceEvent,
 } from '../../../packages/ai-control-plane-contracts/src';
 import type { ManagedInferenceService } from '../inference/managedInferenceService';
+import { ManagedInferenceLimitError } from '../inference/managedInferenceLimiter';
 
 export type ManagedInferenceRouteService = Pick<ManagedInferenceService, 'execute'>;
 
@@ -17,6 +18,13 @@ function userId(res: Response): string | null {
 }
 
 function safeError(res: Response, error: unknown): void {
+  if (error instanceof ManagedInferenceLimitError) {
+    res.setHeader('retry-after', String(error.retryAfterSeconds));
+    res.status(429).json({
+      error: { code: 'RATE_LIMITED', message: 'Managed inference quota exceeded.' },
+    });
+    return;
+  }
   if (error instanceof ContractValidationError) {
     res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Request is invalid.' } });
     return;
@@ -54,12 +62,17 @@ export function registerManagedInferenceRoutes(
           res.json({ events: collected });
           return;
         }
+        const iterator = events[Symbol.asyncIterator]();
+        let next = await iterator.next();
         res.status(200);
         res.setHeader('content-type', 'text/event-stream; charset=utf-8');
         res.setHeader('cache-control', 'no-cache, no-transform');
         res.setHeader('connection', 'keep-alive');
         res.flushHeaders();
-        for await (const event of events) await writeSse(res, event);
+        while (!next.done) {
+          await writeSse(res, next.value);
+          next = await iterator.next();
+        }
         res.end('data: [DONE]\n\n');
       } finally {
         req.off('aborted', abort);
