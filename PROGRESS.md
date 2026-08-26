@@ -2727,3 +2727,15 @@
 - Managed clients reject terminal normalized stream errors even after partial text. Focused backend,
   mobile, documentation, and pgTAP suites cover these review findings; full-branch gates are recorded
   in the final Task 11 entry.
+
+# 2026-08-26 — AI control plane Task 11: final gate record
+
+- Consolidated full-branch gates at head `85643c0` (base `b16f9d0`, 49 commits, 299 files):
+  full Jest **237 suites / 1090 tests passed** (Task 8 round evidence), backend suites green,
+  root/backend TypeScript clean, changed-file ESLint clean, design gate passed, admin tests +
+  static web export passed, Supabase pgTAP migration suites green. Live authenticated recall
+  probe remains environment-gated (documented limitation, non-blocking).
+- Final whole-branch security review (Task 12, simple-security scope per owner): **PASS —
+  zero Critical, zero Important findings.** Deferred minors: legacy-route CORS reflect-any-origin
+  (behind legacy API-key auth, out of managed plane), `requireUser` 503-vs-401 cosmetic path,
+  distributed limiter note for multi-replica production (already documented).
