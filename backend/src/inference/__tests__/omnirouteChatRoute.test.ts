@@ -64,10 +64,12 @@ function makeIntegration(overrides: Partial<OmnirouteRouteIntegration> = {}): Om
 }
 
 describe('omniroute chat route flag', () => {
-  it('defaults to off', () => {
-    assert.equal(isOmnirouteEnabled({}), false);
+  it('defaults to ON after Task 8 parity (ADMIN_OMNIROUTE=off opts out)', () => {
+    assert.equal(isOmnirouteEnabled({}), true); // default ON after Task 8 parity
     assert.equal(isOmnirouteEnabled({ ADMIN_OMNIROUTE: 'off' }), false);
     assert.equal(isOmnirouteEnabled({ ADMIN_OMNIROUTE: 'on' }), true);
+    assert.equal(isOmnirouteEnabled({ ADMIN_OMNIROUTE: 'OFF' }), false);
+    assert.equal(isOmnirouteEnabled({ ADMIN_OMNIROUTE: '' }), true);
   });
 
   it('routes through the per-user OmniRoute key when the flag is on', async () => {

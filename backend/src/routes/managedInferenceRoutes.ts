@@ -27,9 +27,11 @@ export interface OmnirouteRouteIntegration {
   chat(req: OmnirouteChatRequest, signal?: AbortSignal): Promise<UpstreamResponse>;
 }
 
-/** ADMIN_OMNIROUTE=on enables the OmniRoute path; anything else (default) stays legacy. */
+/** ADMIN_OMNIROUTE defaults ON after Task 8 parity; set ADMIN_OMNIROUTE=off to stay legacy. */
 export function isOmnirouteEnabled(env: Readonly<Record<string, string | undefined>>): boolean {
-  return env.ADMIN_OMNIROUTE?.trim() === 'on';
+  const value = env.ADMIN_OMNIROUTE?.trim().toLowerCase();
+  if (value === 'off') return false;
+  return value === 'on' || value === undefined || value === '';
 }
 
 function userId(res: Response): string | null {
