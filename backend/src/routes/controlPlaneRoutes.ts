@@ -21,6 +21,12 @@ import {
 } from '../control/controlPlaneService';
 import { ProviderDiscoveryError } from '../control/providerDiscovery';
 import {
+  OmnirouteAdminValidationError,
+  OmnirouteConfirmationError,
+  type OmnirouteAdminService,
+} from '../control/omnirouteAdminService';
+import { OmnirouteRequestError } from '../control/omnirouteAdapter';
+import {
   SupabaseControlRepositoryConflictError,
   SupabaseControlRepositoryError,
 } from '../control/supabaseControlPlaneRepository';
@@ -180,6 +186,119 @@ function requireAdminActor(res: Response, write = false): string {
   const actor = adminActor(res, write);
   if (!actor) throw new ControlPlaneRouteAuthorizationError();
   return actor;
+}
+
+function sendOmnirouteError(res: Response, error: unknown): void {
+  if (error instanceof OmnirouteConfirmationError) {
+    res.status(400).json({
+      error: { code: 'CONFIRMATION_REQUIRED', message: error.message },
+    });
+    return;
+  }
+  if (error instanceof OmnirouteAdminValidationError || error instanceof ContractValidationError) {
+    res.status(400).json({ error: { code: 'INVALID_REQUEST', message: error.message } });
+    return;
+  }
+  if (error instanceof OmnirouteRequestError) {
+    res.status(error.status === 0 ? 504 : 502).json({
+      error: { code: 'BAD_GATEWAY', message: 'OmniRoute request failed.' },
+    });
+    return;
+  }
+  if (error instanceof SupabaseControlRepositoryError) {
+    res.status(503).json({
+      error: { code: 'SERVICE_UNAVAILABLE', message: 'Control plane is unavailable.' },
+    });
+    return;
+  }
+  res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Request failed.' } });
+}
+
+/**
+ * Task 6: thin admin proxy in front of the OmniRoute management API. All
+ * routes sit under `/v1/admin`, so the managed auth + admin guards from
+ * `app.ts` apply automatically. The admin app never reaches OmniRoute
+ * directly. Disconnect-only CRUD: no provider DELETE route exists.
+ */
+export function registerOmnirouteControlRoutes(
+  app: Application,
+  service?: OmnirouteAdminService,
+): void {
+  const requireOmniroute = (): OmnirouteAdminService => {
+    if (!service) throw new SupabaseControlRepositoryError();
+    return service;
+  };
+
+  const run = (
+    handler: (req: Request, res: Response) => Promise<void>,
+  ) => (req: Request, res: Response): void => {
+    void handler(req, res).catch((error) => sendOmnirouteError(res, error));
+  };
+
+  app.get('/v1/admin/control/omniroute/status', run(async (_req, res) => {
+    requireAdminActor(res);
+    const enabled = service !== undefined;
+    res.json({ enabled, flag: enabled ? 'on' : 'off' });
+  }));
+
+  app.get('/v1/admin/control/omniroute/providers', run(async (_req, res) => {
+    requireAdminActor(res);
+    res.json({ providers: await requireOmniroute().listProviders() });
+  }));
+
+  app.post('/v1/admin/control/omniroute/providers/test/:id', run(async (req, res) => {
+    requireAdminActor(res, true);
+    res.json(await requireOmniroute().testProvider(routeParam(req, 'id')));
+  }));
+
+  app.post('/v1/admin/control/omniroute/providers/disconnect', run(async (req, res) => {
+    const actor = requireAdminActor(res, true);
+    const body = exactRecord(req.body, ['providerName', 'confirmation']);
+    if (typeof body['providerName'] !== 'string' || typeof body['confirmation'] !== 'string') {
+      throw new ContractValidationError('request', 'expected providerName and confirmation strings');
+    }
+    const published = await requireOmniroute().disconnectProvider(
+      actor,
+      body['providerName'],
+      body['confirmation'],
+    );
+    res.json({ published });
+  }));
+
+  app.get('/v1/admin/control/omniroute/models', run(async (_req, res) => {
+    requireAdminActor(res);
+    const [models, published] = await Promise.all([
+      requireOmniroute().listModels(),
+      requireOmniroute().listPublishedModels(),
+    ]);
+    res.json({ models, published });
+  }));
+
+  app.put('/v1/admin/control/omniroute/published-models', run(async (req, res) => {
+    const actor = requireAdminActor(res, true);
+    const body = exactRecord(req.body, ['upserts', 'removes']);
+    if (!Array.isArray(body['upserts']) || !Array.isArray(body['removes'])) {
+      throw new ContractValidationError('request', 'expected upserts and removes arrays');
+    }
+    const upserts = (body['upserts'] as unknown[]).map((row) => {
+      const record = exactRecord(row, ['modelId', 'label']);
+      if (typeof record['modelId'] !== 'string' || typeof record['label'] !== 'string') {
+        throw new ContractValidationError('upserts', 'expected modelId and label strings');
+      }
+      return { modelId: record['modelId'], label: record['label'] };
+    });
+    const removes = (body['removes'] as unknown[]).map((value) => {
+      if (typeof value !== 'string') {
+        throw new ContractValidationError('removes', 'expected string model ids');
+      }
+      return value;
+    });
+    const published = await requireOmniroute().updatePublishedModels(
+      actor,
+      { upserts, removes },
+    );
+    res.json({ published });
+  }));
 }
 
 export function registerControlPlaneRoutes(

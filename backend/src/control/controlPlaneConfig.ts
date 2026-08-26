@@ -1,5 +1,10 @@
 import { loadManagedSecurityConfig } from '../security/securityConfig';
-import { createOmnirouteAdapter, type OmnirouteAdapter } from './omnirouteAdapter';
+import {
+  createOmnirouteAdapter,
+  type OmnirouteAdapter,
+} from './omnirouteAdapter';
+import { createOmnirouteAdminService } from './omnirouteAdminService';
+import { createOmniroutePublishedModelsStore } from './omniroutePublishedModelsStore';
 import { createControlPlaneService, type ControlPlaneService } from './controlPlaneService';
 import { discoverProviderModels } from './providerDiscovery';
 import { createSupabaseControlPlaneRepository } from './supabaseControlPlaneRepository';
@@ -35,6 +40,30 @@ export function createOmnirouteFromEnvironment(env: Environment): {
     }),
     embeddingModel: env['OMNIROUTE_EMBEDDING_MODEL']?.trim() || null,
   };
+}
+
+/**
+ * OmniRoute admin-plane proxy (Task 6): undefined unless OMNIROUTE_MANAGE_KEY
+ * and the control-store Supabase env are configured. Reuses the Task 1 adapter
+ * server-side; the admin app never talks to OmniRoute directly.
+ */
+export function createOmnirouteControlFromEnvironment(
+  env: Environment,
+  fetcher?: typeof fetch,
+): ReturnType<typeof createOmnirouteAdminService> | undefined {
+  const manageKey = env['OMNIROUTE_MANAGE_KEY']?.trim();
+  const restUrl = env['SUPABASE_CONTROL_REST_URL']?.trim();
+  const secretKey = env['SUPABASE_SECRET_KEY']?.trim();
+  if (!manageKey || !restUrl || !secretKey) return undefined;
+  const repository = createSupabaseControlPlaneRepository({ restUrl, secretKey, fetcher });
+  return createOmnirouteAdminService({
+    adapter: createOmnirouteAdapter({
+      baseUrl: env['OMNIROUTE_BASE_URL']?.trim() || DEFAULT_OMNIROUTE_BASE_URL,
+      manageKey,
+    }),
+    store: createOmniroutePublishedModelsStore({ restUrl, secretKey, fetcher }),
+    audit: (event) => repository.appendAudit(event),
+  });
 }
 
 export function createControlPlaneFromEnvironment(

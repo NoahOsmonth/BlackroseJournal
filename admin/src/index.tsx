@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { createClient } from '@supabase/supabase-js';
 import { App } from './App';
 import { AdminControlPlaneClient } from './services/adminApi';
+import { OmnirouteAdminClient } from './services/omnirouteAdminApi';
 import { createAdminAuthService } from './services/adminAuth';
 import { readAdminRuntimeConfig } from './services/adminConfig';
 import './styles.css';
@@ -16,6 +17,12 @@ const api = new AdminControlPlaneClient({
   baseUrl: config.gatewayUrl,
   getAccessToken: auth.getAccessToken,
 });
+const omnirouteApi = new OmnirouteAdminClient({
+  baseUrl: config.gatewayUrl,
+  getAccessToken: auth.getAccessToken,
+});
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('Admin root element is missing.');
-createRoot(rootElement).render(<React.StrictMode><App auth={auth} client={api} /></React.StrictMode>);
+createRoot(rootElement).render(
+  <React.StrictMode><App auth={auth} client={api} omniroute={omnirouteApi} /></React.StrictMode>,
+);
