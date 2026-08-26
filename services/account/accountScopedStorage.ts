@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getActiveAccountId } from './accountRuntime';
+import { getActiveAccountId, runAccountBoundOperation } from './accountRuntime';
 
 export interface AccountStorageAdapter {
     getItem(key: string): Promise<string | null>;
@@ -9,12 +9,16 @@ export interface AccountStorageAdapter {
 }
 
 export function createAccountScopedStorageAdapter(
-    adapter: AccountStorageAdapter
+    adapter: AccountStorageAdapter,
+    accountId: string | null = getActiveAccountId(),
 ): AccountStorageAdapter {
     return {
-        getItem: (key) => adapter.getItem(getAccountScopedStorageKey(key)),
-        setItem: (key, value) => adapter.setItem(getAccountScopedStorageKey(key), value),
-        removeItem: (key) => adapter.removeItem(getAccountScopedStorageKey(key)),
+        getItem: (key) => adapter.getItem(getAccountScopedStorageKeyForAccount(key, accountId)),
+        setItem: (key, value) => adapter.setItem(
+            getAccountScopedStorageKeyForAccount(key, accountId),
+            value,
+        ),
+        removeItem: (key) => adapter.removeItem(getAccountScopedStorageKeyForAccount(key, accountId)),
     };
 }
 
@@ -40,16 +44,26 @@ function normalizeOwnerKey(ownerKey: string): string {
 }
 
 export function getAccountScopedStorageKey(ownerKey: string): string {
-    const activeAccountId = getActiveAccountId();
-    if (!activeAccountId) {
+    return getAccountScopedStorageKeyForAccount(ownerKey, getActiveAccountId());
+}
+
+export function getAccountScopedStorageKeyForAccount(
+    ownerKey: string,
+    accountId: string | null,
+): string {
+    if (!accountId) {
         // Existing unit tests exercise storage owners without mounting the auth
         // bootstrap. Production remains fail-closed; this branch is erased from
         // deployed bundles because NODE_ENV is not "test".
         if (process.env.NODE_ENV === 'test') return ownerKey;
         throw new Error('Account-scoped storage is unavailable before auth bootstrap completes.');
     }
-    const accountId = encodeURIComponent(activeAccountId);
-    return `@blackrose_account:v1:${accountId}:${normalizeOwnerKey(ownerKey)}`;
+    const encodedAccountId = encodeURIComponent(accountId);
+    return `@blackrose_account:v1:${encodedAccountId}:${normalizeOwnerKey(ownerKey)}`;
+}
+
+export function getStorageForAccount(accountId: string | null): AccountStorageAdapter {
+    return createAccountScopedStorageAdapter(storageAdapter, accountId);
 }
 
 export const accountScopedStorage: AccountStorageAdapter = {
@@ -68,45 +82,62 @@ export function claimLegacyStorageKey(
     ownerKey: string,
     ownerStorage: AccountStorageAdapter = storageAdapter
 ): Promise<LegacyClaimResult> {
-    return enqueueMutation(async () => {
-        const scopedKey = getAccountScopedStorageKey(ownerKey);
-        const legacyValue = await ownerStorage.getItem(ownerKey);
-        if (legacyValue === null) {
-            return 'missing';
-        }
+    return runAccountBoundOperation('legacy-storage-key-claim', ({ accountId, signal }) => (
+        enqueueMutation(async () => {
+            const scopedKey = getAccountScopedStorageKeyForAccount(ownerKey, accountId);
+            const legacyValue = await ownerStorage.getItem(ownerKey);
+            throwIfAccountOperationAborted(signal);
+            if (legacyValue === null) {
+                return 'missing';
+            }
 
-        const currentValue = await ownerStorage.getItem(scopedKey);
-        if (currentValue === null) {
-            await ownerStorage.setItem(scopedKey, legacyValue);
-        }
-        await ownerStorage.removeItem(ownerKey);
-        return currentValue === null ? 'migrated' : 'already-owned';
-    });
+            const currentValue = await ownerStorage.getItem(scopedKey);
+            throwIfAccountOperationAborted(signal);
+            if (currentValue === null) {
+                await ownerStorage.setItem(scopedKey, legacyValue);
+                throwIfAccountOperationAborted(signal);
+            }
+            await ownerStorage.removeItem(ownerKey);
+            return currentValue === null ? 'migrated' : 'already-owned';
+        })
+    ));
 }
 
 export function claimLegacyStoragePrefix(
     ownerKeyPrefix: string,
     ownerStorage: AccountStorageAdapter = storageAdapter
 ): Promise<number> {
-    return enqueueMutation(async () => {
-        if (!ownerStorage.getAllKeys) {
-            throw new Error('Legacy sharded storage migration requires key enumeration.');
-        }
-        const keys = await ownerStorage.getAllKeys();
-        const legacyKeys = keys.filter((key) => key.startsWith(ownerKeyPrefix));
-        let migrated = 0;
-        for (const legacyKey of legacyKeys) {
-            const value = await ownerStorage.getItem(legacyKey);
-            if (value === null) continue;
-            const scopedKey = getAccountScopedStorageKey(legacyKey);
-            if (await ownerStorage.getItem(scopedKey) === null) {
-                await ownerStorage.setItem(scopedKey, value);
-                migrated += 1;
+    return runAccountBoundOperation('legacy-storage-prefix-claim', ({ accountId, signal }) => (
+        enqueueMutation(async () => {
+            if (!ownerStorage.getAllKeys) {
+                throw new Error('Legacy sharded storage migration requires key enumeration.');
             }
-            await ownerStorage.removeItem(legacyKey);
-        }
-        return migrated;
-    });
+            const keys = await ownerStorage.getAllKeys();
+            throwIfAccountOperationAborted(signal);
+            const legacyKeys = keys.filter((key) => key.startsWith(ownerKeyPrefix));
+            let migrated = 0;
+            for (const legacyKey of legacyKeys) {
+                const value = await ownerStorage.getItem(legacyKey);
+                throwIfAccountOperationAborted(signal);
+                if (value === null) continue;
+                const scopedKey = getAccountScopedStorageKeyForAccount(legacyKey, accountId);
+                if (await ownerStorage.getItem(scopedKey) === null) {
+                    throwIfAccountOperationAborted(signal);
+                    await ownerStorage.setItem(scopedKey, value);
+                    throwIfAccountOperationAborted(signal);
+                    migrated += 1;
+                }
+                await ownerStorage.removeItem(legacyKey);
+            }
+            return migrated;
+        })
+    ));
+}
+
+function throwIfAccountOperationAborted(signal: AbortSignal): void {
+    if (signal.aborted) {
+        throw new Error('Account operation was aborted.');
+    }
 }
 
 export async function hasLegacyStorage(

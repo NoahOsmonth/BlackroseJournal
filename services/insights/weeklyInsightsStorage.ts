@@ -4,7 +4,13 @@
  */
 
 import type { WeeklyInsightsResult } from '@/services/ai/insightsTypes';
-import { accountScopedStorage as AsyncStorage } from '@/services/account/accountScopedStorage';
+import { AccountStorageAdapter, getStorageForAccount } from '@/services/account/accountScopedStorage';
+import {
+    AccountOperationContext,
+    assertAccountOperationActive,
+    registerAccountTeardown,
+    runAccountBoundOperation,
+} from '@/services/account/accountRuntime';
 import {
     deleteRemoteWeeklyInsights,
     loadRemoteWeeklyInsights,
@@ -12,6 +18,17 @@ import {
 } from './weeklyInsightsRemote';
 
 const STORAGE_KEY = '@weekly_insights_cache';
+let mutationQueue: Promise<void> = Promise.resolve();
+
+registerAccountTeardown(() => {
+    mutationQueue = Promise.resolve();
+});
+
+function enqueueMutation<T>(operation: () => Promise<T>): Promise<T> {
+    const result = mutationQueue.then(operation, operation);
+    mutationQueue = result.then(() => undefined, () => undefined);
+    return result;
+}
 
 export interface CachedWeeklyInsights {
     weekKey: string;
@@ -45,11 +62,17 @@ export function getCurrentWeekKey(): string {
 /**
  * Load cached insights for a specific week
  */
-export async function loadCachedInsights(weekKey: string): Promise<CachedWeeklyInsights | null> {
+async function loadCachedInsightsForAccount(
+    weekKey: string,
+    storage: AccountStorageAdapter,
+    context: AccountOperationContext,
+): Promise<CachedWeeklyInsights | null> {
     try {
-        const json = await AsyncStorage.getItem(STORAGE_KEY);
+        const json = await storage.getItem(STORAGE_KEY);
+        assertAccountOperationActive(context);
         if (!json) {
             const remote = await loadRemoteWeeklyInsights(weekKey);
+            assertAccountOperationActive(context);
             if (remote) {
                 const cache: CachedWeeklyInsights = {
                     weekKey: remote.weekKey,
@@ -57,18 +80,27 @@ export async function loadCachedInsights(weekKey: string): Promise<CachedWeeklyI
                     cachedAt: remote.cachedAt,
                     entryCount: remote.entryCount,
                 };
-                await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(cache));
+                await storage.setItem(STORAGE_KEY, JSON.stringify(cache));
+                assertAccountOperationActive(context);
                 return cache;
             }
             return null;
         }
 
-        const cache = JSON.parse(json) as CachedWeeklyInsights;
+        let cache: CachedWeeklyInsights;
+        try {
+            cache = JSON.parse(json) as CachedWeeklyInsights;
+        } catch {
+            cache = { weekKey: '', insights: {
+                emotionalLandscape: [], keyThemes: [], castOfCharacters: [], weeklySummary: '',
+            }, cachedAt: 0, entryCount: 0 };
+        }
         if (cache.weekKey === weekKey) {
             return cache;
         }
 
         const remote = await loadRemoteWeeklyInsights(weekKey);
+        assertAccountOperationActive(context);
         if (remote) {
             const synced: CachedWeeklyInsights = {
                 weekKey: remote.weekKey,
@@ -76,24 +108,34 @@ export async function loadCachedInsights(weekKey: string): Promise<CachedWeeklyI
                 cachedAt: remote.cachedAt,
                 entryCount: remote.entryCount,
             };
-            await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(synced));
+            await storage.setItem(STORAGE_KEY, JSON.stringify(synced));
+            assertAccountOperationActive(context);
             return synced;
         }
 
         return null;
     } catch (error) {
+        assertAccountOperationActive(context);
         console.error('Failed to load cached insights:', error);
         return null;
     }
 }
 
+export function loadCachedInsights(weekKey: string): Promise<CachedWeeklyInsights | null> {
+    return runAccountBoundOperation('weekly-insights-load', (context) => (
+        loadCachedInsightsForAccount(weekKey, getStorageForAccount(context.accountId), context)
+    ));
+}
+
 /**
  * Save insights for the current week
  */
-export async function saveCachedInsights(
+async function saveCachedInsightsForAccount(
     weekKey: string,
     insights: WeeklyInsightsResult,
-    entryCount: number
+    entryCount: number,
+    storage: AccountStorageAdapter,
+    context: AccountOperationContext,
 ): Promise<void> {
     try {
         const cache: CachedWeeklyInsights = {
@@ -102,31 +144,64 @@ export async function saveCachedInsights(
             cachedAt: Date.now(),
             entryCount,
         };
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(cache));
+        await storage.setItem(STORAGE_KEY, JSON.stringify(cache));
+        assertAccountOperationActive(context);
         try {
             await saveRemoteWeeklyInsights(weekKey, insights, entryCount);
+            assertAccountOperationActive(context);
         } catch (error) {
+            if (context.signal.aborted) throw error;
             console.error('Failed to sync remote insights:', error);
         }
     } catch (error) {
+        if (context.signal.aborted) throw error;
         console.error('Failed to save cached insights:', error);
         throw error;
     }
 }
 
+export function saveCachedInsights(
+    weekKey: string,
+    insights: WeeklyInsightsResult,
+    entryCount: number,
+): Promise<void> {
+    return runAccountBoundOperation('weekly-insights-save', (context) => enqueueMutation(() => (
+        saveCachedInsightsForAccount(
+            weekKey,
+            insights,
+            entryCount,
+            getStorageForAccount(context.accountId),
+            context,
+        )
+    )));
+}
+
 /**
  * Clear the cached insights (e.g., for testing or force refresh)
  */
-export async function clearCachedInsights(): Promise<void> {
+async function clearCachedInsightsForAccount(
+    storage: AccountStorageAdapter,
+    context: AccountOperationContext,
+): Promise<void> {
     try {
-        await AsyncStorage.removeItem(STORAGE_KEY);
+        await storage.removeItem(STORAGE_KEY);
+        assertAccountOperationActive(context);
         try {
             await deleteRemoteWeeklyInsights(getCurrentWeekKey());
+            assertAccountOperationActive(context);
         } catch (error) {
+            if (context.signal.aborted) throw error;
             console.error('Failed to clear remote insights:', error);
         }
     } catch (error) {
         console.error('Failed to clear cached insights:', error);
         throw error;
     }
+}
+
+
+export function clearCachedInsights(): Promise<void> {
+    return runAccountBoundOperation('weekly-insights-clear', (context) => enqueueMutation(() => (
+        clearCachedInsightsForAccount(getStorageForAccount(context.accountId), context)
+    )));
 }

@@ -2,6 +2,10 @@ import { ensureSupabaseSession } from '@/services/supabase/supabaseClient';
 import { enqueueSyncTask } from '@/services/supabase/syncQueue';
 import { logSupabaseError } from '@/services/supabase/supabaseErrors';
 import {
+    assertAccountOperationActive,
+    type AccountOperationContext,
+} from '@/services/account/accountRuntime';
+import {
     Intention,
     IntentionCheckIn,
 } from './intentionsStorage.types';
@@ -108,7 +112,11 @@ export function mapRemoteCheckIn(record: IntentionCheckInRecord): IntentionCheck
     };
 }
 
-export async function queueIntentionUpsert(intention: Intention): Promise<void> {
+export async function queueIntentionUpsert(
+    intention: Intention,
+    context?: AccountOperationContext,
+): Promise<void> {
+    if (context) assertAccountOperationActive(context);
     await enqueueSyncTask({
         table: INTENTIONS_TABLE,
         operation: 'upsert',
@@ -116,9 +124,14 @@ export async function queueIntentionUpsert(intention: Intention): Promise<void> 
         onConflict: 'id',
         dedupeKey: `${INTENTIONS_TABLE}:${intention.id}`,
     });
+    if (context) assertAccountOperationActive(context);
 }
 
-export async function queueIntentionDelete(id: string): Promise<void> {
+export async function queueIntentionDelete(
+    id: string,
+    context?: AccountOperationContext,
+): Promise<void> {
+    if (context) assertAccountOperationActive(context);
     await enqueueSyncTask({
         table: INTENTIONS_TABLE,
         operation: 'delete',
@@ -126,9 +139,14 @@ export async function queueIntentionDelete(id: string): Promise<void> {
         primaryValue: id,
         dedupeKey: `${INTENTIONS_TABLE}:${id}`,
     });
+    if (context) assertAccountOperationActive(context);
 }
 
-export async function queueCheckInUpsert(checkIn: IntentionCheckIn): Promise<void> {
+export async function queueCheckInUpsert(
+    checkIn: IntentionCheckIn,
+    context?: AccountOperationContext,
+): Promise<void> {
+    if (context) assertAccountOperationActive(context);
     await enqueueSyncTask({
         table: CHECKINS_TABLE,
         operation: 'upsert',
@@ -136,9 +154,14 @@ export async function queueCheckInUpsert(checkIn: IntentionCheckIn): Promise<voi
         onConflict: 'id',
         dedupeKey: `${CHECKINS_TABLE}:${checkIn.id}`,
     });
+    if (context) assertAccountOperationActive(context);
 }
 
-export async function queueCheckInDelete(id: string): Promise<void> {
+export async function queueCheckInDelete(
+    id: string,
+    context?: AccountOperationContext,
+): Promise<void> {
+    if (context) assertAccountOperationActive(context);
     await enqueueSyncTask({
         table: CHECKINS_TABLE,
         operation: 'delete',
@@ -146,10 +169,14 @@ export async function queueCheckInDelete(id: string): Promise<void> {
         primaryValue: id,
         dedupeKey: `${CHECKINS_TABLE}:${id}`,
     });
+    if (context) assertAccountOperationActive(context);
 }
 
-export async function fetchRemoteIntentions(): Promise<Intention[] | null> {
+export async function fetchRemoteIntentions(
+    context?: AccountOperationContext,
+): Promise<Intention[] | null> {
     const client = await ensureSupabaseSession();
+    if (context) assertAccountOperationActive(context);
     if (!client) {
         return null;
     }
@@ -159,6 +186,7 @@ export async function fetchRemoteIntentions(): Promise<Intention[] | null> {
         .select('*')
         .order('updated_at', { ascending: false });
 
+    if (context) assertAccountOperationActive(context);
     if (error || !data) {
         if (error) {
             logSupabaseError('Failed to load remote intentions', INTENTIONS_TABLE, error.message);
@@ -171,8 +199,11 @@ export async function fetchRemoteIntentions(): Promise<Intention[] | null> {
         .map(mapRemoteIntention);
 }
 
-export async function fetchRemoteCheckIns(): Promise<IntentionCheckIn[] | null> {
+export async function fetchRemoteCheckIns(
+    context?: AccountOperationContext,
+): Promise<IntentionCheckIn[] | null> {
     const client = await ensureSupabaseSession();
+    if (context) assertAccountOperationActive(context);
     if (!client) {
         return null;
     }
@@ -182,6 +213,7 @@ export async function fetchRemoteCheckIns(): Promise<IntentionCheckIn[] | null> 
         .select('*')
         .order('updated_at', { ascending: false });
 
+    if (context) assertAccountOperationActive(context);
     if (error || !data) {
         if (error) {
             logSupabaseError('Failed to load remote check-ins', CHECKINS_TABLE, error.message);
@@ -222,12 +254,17 @@ export function mergeCheckIns(
     return merged;
 }
 
-export async function pushIntentions(intentions: Intention[]): Promise<boolean> {
+export async function pushIntentions(
+    intentions: Intention[],
+    context?: AccountOperationContext,
+): Promise<boolean> {
+    if (context) assertAccountOperationActive(context);
     if (intentions.length === 0) {
         return true;
     }
 
     const client = await ensureSupabaseSession();
+    if (context) assertAccountOperationActive(context);
     if (!client) {
         return false;
     }
@@ -237,6 +274,7 @@ export async function pushIntentions(intentions: Intention[]): Promise<boolean> 
         .from(INTENTIONS_TABLE)
         .upsert(payload, { onConflict: 'id' });
 
+    if (context) assertAccountOperationActive(context);
     if (error) {
         logSupabaseError('Failed to push intentions', INTENTIONS_TABLE, error.message);
         return false;
@@ -245,12 +283,17 @@ export async function pushIntentions(intentions: Intention[]): Promise<boolean> 
     return true;
 }
 
-export async function pushCheckIns(checkIns: IntentionCheckIn[]): Promise<boolean> {
+export async function pushCheckIns(
+    checkIns: IntentionCheckIn[],
+    context?: AccountOperationContext,
+): Promise<boolean> {
+    if (context) assertAccountOperationActive(context);
     if (checkIns.length === 0) {
         return true;
     }
 
     const client = await ensureSupabaseSession();
+    if (context) assertAccountOperationActive(context);
     if (!client) {
         return false;
     }
@@ -260,6 +303,7 @@ export async function pushCheckIns(checkIns: IntentionCheckIn[]): Promise<boolea
         .from(CHECKINS_TABLE)
         .upsert(payload, { onConflict: 'id' });
 
+    if (context) assertAccountOperationActive(context);
     if (error) {
         logSupabaseError('Failed to push check-ins', CHECKINS_TABLE, error.message);
         return false;

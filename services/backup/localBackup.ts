@@ -19,17 +19,30 @@ import {
     SESSION_DIGEST_SCHEMA_VERSION,
 } from '@/services/memory/sessionDigestStorage';
 import type { SessionDigest } from '@/services/memory/sessionDigest.types';
-import { getAccountScopedStorageKey } from '@/services/account/accountScopedStorage';
 import {
+    getAccountScopedStorageKey,
+    getAccountScopedStorageKeyForAccount,
+} from '@/services/account/accountScopedStorage';
+import {
+    AccountOperationContext,
+    assertAccountOperationActive,
     registerAccountTeardown,
-    requireActiveAccountId,
+    runAccountBoundOperation,
 } from '@/services/account/accountRuntime';
-import { importJournalEntriesSnapshot } from '@/services/journal/journalStorage';
-import { importGoalsSnapshot } from '@/services/goals/goalsStorage';
+import {
+    importJournalEntriesForAccount,
+    importJournalEntriesSnapshot,
+} from '@/services/journal/journalStorage';
+import {
+    importGoalsForAccount,
+    importGoalsSnapshot,
+} from '@/services/goals/goalsStorage';
 import {
     importCheckInsSnapshot,
     importIntentionsSnapshot,
+    importSnapshotForAccount,
 } from '@/services/intentions/intentionsStorage';
+import type { Intention, IntentionCheckIn } from '@/services/intentions/intentionsStorage.types';
 
 export const LOCAL_BACKUP_INDEX_KEY = '@blackrose_local_backups';
 
@@ -81,9 +94,9 @@ const ACCOUNT_SCOPED_BACKUP_KEYS = new Set<LocalBackupDataKey>([
     '@blackrose_custom_ai_provider',
 ]);
 
-function resolveBackupStorageKey(key: LocalBackupDataKey): string {
+function resolveBackupStorageKey(key: LocalBackupDataKey, accountId: string): string {
     return ACCOUNT_SCOPED_BACKUP_KEYS.has(key)
-        ? getAccountScopedStorageKey(key)
+        ? getAccountScopedStorageKeyForAccount(key, accountId)
         : key;
 }
 
@@ -123,6 +136,13 @@ function withBackupMutationLock<T>(operation: () => Promise<T>): Promise<T> {
     const result = backupMutationQueue.then(operation, operation);
     backupMutationQueue = result.then(() => undefined, () => undefined);
     return result;
+}
+
+function requireAccountId(context: AccountOperationContext): string {
+    if (!context.accountId) {
+        throw new Error('Account-scoped backup is unavailable before auth bootstrap completes.');
+    }
+    return context.accountId;
 }
 
 function generateBackupId(): string {
@@ -175,8 +195,15 @@ function parseStoredBackups(json: string): readonly StoredLocalBackup[] {
     return Array.isArray(parsed) ? parsed.filter(isStoredBackup) : [];
 }
 
-async function loadStoredBackups(): Promise<readonly StoredLocalBackup[]> {
-    const json = await AsyncStorage.getItem(getAccountScopedStorageKey(LOCAL_BACKUP_INDEX_KEY));
+async function loadStoredBackups(
+    accountId: string,
+    context: AccountOperationContext,
+): Promise<readonly StoredLocalBackup[]> {
+    assertAccountOperationActive(context);
+    const json = await AsyncStorage.getItem(
+        getAccountScopedStorageKeyForAccount(LOCAL_BACKUP_INDEX_KEY, accountId),
+    );
+    assertAccountOperationActive(context);
     if (!json) {
         return [];
     }
@@ -191,11 +218,17 @@ async function loadStoredBackups(): Promise<readonly StoredLocalBackup[]> {
     }
 }
 
-async function saveStoredBackups(backups: readonly StoredLocalBackup[]): Promise<void> {
+async function saveStoredBackups(
+    backups: readonly StoredLocalBackup[],
+    accountId: string,
+    context: AccountOperationContext,
+): Promise<void> {
+    assertAccountOperationActive(context);
     await AsyncStorage.setItem(
-        getAccountScopedStorageKey(LOCAL_BACKUP_INDEX_KEY),
-        JSON.stringify(backups)
+        getAccountScopedStorageKeyForAccount(LOCAL_BACKUP_INDEX_KEY, accountId),
+        JSON.stringify(backups),
     );
+    assertAccountOperationActive(context);
 }
 
 function parseDigestMeta(value: string | null | undefined): SessionDigestBackupMeta | null {
@@ -224,17 +257,28 @@ function parseDigestMeta(value: string | null | undefined): SessionDigestBackupM
  * Persist each digest under its own backup key. Returns lightweight meta JSON
  * for the backup record — never a packed embedding blob.
  */
-async function writeShardedDigestBackup(backupId: string): Promise<string | null> {
+async function writeShardedDigestBackup(
+    backupId: string,
+    accountId: string,
+    context: AccountOperationContext,
+): Promise<string | null> {
+    assertAccountOperationActive(context);
     const digests = await listSessionDigests();
+    assertAccountOperationActive(context);
     if (digests.length === 0) return null;
 
     const sessionIds: string[] = [];
     for (const digest of digests) {
+        assertAccountOperationActive(context);
         sessionIds.push(digest.sessionId);
         await AsyncStorage.setItem(
-            backupSessionDigestRecordKey(backupId, digest.sessionId),
+            getAccountScopedStorageKeyForAccount(
+                `${BACKUP_SESSION_DIGEST_KEY_PREFIX}${backupId}:${digest.sessionId}`,
+                accountId,
+            ),
             JSON.stringify(digest),
         );
+        assertAccountOperationActive(context);
     }
 
     const meta: SessionDigestBackupMeta = {
@@ -245,30 +289,47 @@ async function writeShardedDigestBackup(backupId: string): Promise<string | null
     return JSON.stringify(meta);
 }
 
-async function removeShardedDigestBackup(backupId: string, sessionIds: readonly string[]): Promise<void> {
-    await Promise.all(
-        sessionIds.map((id) =>
-            AsyncStorage.removeItem(backupSessionDigestRecordKey(backupId, id)),
-        ),
-    );
+async function removeShardedDigestBackup(
+    backupId: string,
+    sessionIds: readonly string[],
+    accountId: string,
+    context: AccountOperationContext,
+): Promise<void> {
+    for (const sessionId of sessionIds) {
+        assertAccountOperationActive(context);
+        await AsyncStorage.removeItem(getAccountScopedStorageKeyForAccount(
+            `${BACKUP_SESSION_DIGEST_KEY_PREFIX}${backupId}:${sessionId}`,
+            accountId,
+        ));
+        assertAccountOperationActive(context);
+    }
 }
 
 /**
  * Load sharded backup digests into an in-memory bundle string, then import
  * into runtime shards. The bundle string never becomes an AsyncStorage key.
  */
-async function restoreShardedDigestBackup(metaJson: string | null): Promise<void> {
+async function restoreShardedDigestBackup(
+    metaJson: string | null,
+    accountId: string,
+    context: AccountOperationContext,
+): Promise<void> {
     const meta = parseDigestMeta(metaJson);
     if (!meta || meta.sessionIds.length === 0) {
+        assertAccountOperationActive(context);
         await importSessionDigestsBundle(null);
+        assertAccountOperationActive(context);
         return;
     }
 
     const digests: SessionDigest[] = [];
     for (const sessionId of meta.sessionIds) {
-        const raw = await AsyncStorage.getItem(
-            backupSessionDigestRecordKey(meta.backupId, sessionId),
-        );
+        assertAccountOperationActive(context);
+        const raw = await AsyncStorage.getItem(getAccountScopedStorageKeyForAccount(
+            `${BACKUP_SESSION_DIGEST_KEY_PREFIX}${meta.backupId}:${sessionId}`,
+            accountId,
+        ));
+        assertAccountOperationActive(context);
         if (!raw) continue;
         try {
             digests.push(JSON.parse(raw) as SessionDigest);
@@ -282,24 +343,27 @@ async function restoreShardedDigestBackup(metaJson: string | null): Promise<void
         schemaVersion: SESSION_DIGEST_SCHEMA_VERSION,
         digests,
     });
+    assertAccountOperationActive(context);
     await importSessionDigestsBundle(inMemoryBundle);
+    assertAccountOperationActive(context);
 }
 
 async function readBackupItem(
     key: LocalBackupDataKey,
     backupId: string,
+    accountId: string,
+    context: AccountOperationContext,
 ): Promise<LocalBackupItem> {
+    assertAccountOperationActive(context);
     if (key === SESSION_DIGEST_BACKUP_BUNDLE_KEY) {
-        return {
-            key,
-            // Meta only; bodies written under BACKUP_SESSION_DIGEST_KEY_PREFIX.
-            value: await writeShardedDigestBackup(backupId),
-        };
+        const value = await writeShardedDigestBackup(backupId, accountId, context);
+        assertAccountOperationActive(context);
+        return { key, value };
     }
-    return {
-        key,
-        value: await AsyncStorage.getItem(resolveBackupStorageKey(key)),
-    };
+
+    const value = await AsyncStorage.getItem(resolveBackupStorageKey(key, accountId));
+    assertAccountOperationActive(context);
+    return { key, value };
 }
 
 function resolveBackupName(name: string | undefined, createdAt: number): string {
@@ -309,101 +373,165 @@ function resolveBackupName(name: string | undefined, createdAt: number): string 
         : `Backup ${new Date(createdAt).toLocaleString()}`;
 }
 
-export async function listLocalBackups(): Promise<LocalBackupManifest[]> {
-    const backups = await loadStoredBackups();
-    return backups.map(toManifest);
+export function listLocalBackups(): Promise<LocalBackupManifest[]> {
+    return runAccountBoundOperation('local-backup-list', (context) => (
+        withBackupMutationLock(async () => {
+            const accountId = requireAccountId(context);
+            const backups = await loadStoredBackups(accountId, context);
+            assertAccountOperationActive(context);
+            return backups.map(toManifest);
+        })
+    ));
 }
 
-export async function createLocalBackup(name?: string): Promise<LocalBackupManifest> {
-    return withBackupMutationLock(async () => {
-        const accountId = requireActiveAccountId();
-        const createdAt = Date.now();
-        const id = generateBackupId();
-        const items = await Promise.all(
-            LOCAL_BACKUP_DATA_KEYS.map((key) => readBackupItem(key, id)),
-        );
-        const backup: StoredLocalBackup = {
-            id,
-            accountId,
-            name: resolveBackupName(name, createdAt),
-            createdAt,
-            itemCount: items.filter((item) => item.value !== null).length,
-            schemaVersion: 2,
-            items,
-        };
-        const backups = await loadStoredBackups();
-        await saveStoredBackups([backup, ...backups]);
-        return toManifest(backup);
-    });
+export function createLocalBackup(name?: string): Promise<LocalBackupManifest> {
+    return runAccountBoundOperation('local-backup-create', (context) => (
+        withBackupMutationLock(async () => {
+            const accountId = requireAccountId(context);
+            const createdAt = Date.now();
+            const id = generateBackupId();
+            const items: LocalBackupItem[] = [];
+            for (const key of LOCAL_BACKUP_DATA_KEYS) {
+                items.push(await readBackupItem(key, id, accountId, context));
+                assertAccountOperationActive(context);
+            }
+            const backup: StoredLocalBackup = {
+                id,
+                accountId,
+                name: resolveBackupName(name, createdAt),
+                createdAt,
+                itemCount: items.filter((item) => item.value !== null).length,
+                schemaVersion: 2,
+                items,
+            };
+            const backups = await loadStoredBackups(accountId, context);
+            assertAccountOperationActive(context);
+            await saveStoredBackups([backup, ...backups], accountId, context);
+            return toManifest(backup);
+        })
+    ));
 }
 
-async function restoreBackupItem(item: LocalBackupItem | undefined): Promise<void> {
+async function restoreBackupItem(
+    item: LocalBackupItem | undefined,
+    context: AccountOperationContext,
+): Promise<void> {
+    assertAccountOperationActive(context);
     const value = item?.value ?? null;
     switch (item?.key) {
         case '@journal_entries':
-            return importJournalEntriesSnapshot(value);
+            await importJournalEntriesSnapshot(
+                value,
+                async (ownerContext) => {
+                    assertAccountOperationActive(context);
+                    await importJournalEntriesForAccount(ownerContext, value);
+                },
+            );
+            break;
         case '@goals':
-            return importGoalsSnapshot(value);
+            await importGoalsSnapshot(
+                value,
+                async (ownerContext) => {
+                    assertAccountOperationActive(context);
+                    await importGoalsForAccount(ownerContext, value);
+                },
+            );
+            break;
         case '@intentions':
-            return importIntentionsSnapshot(value);
+            await importIntentionsSnapshot(
+                value,
+                async (ownerContext) => {
+                    assertAccountOperationActive(context);
+                    await importSnapshotForAccount<Intention>(ownerContext, '@intentions', value);
+                },
+            );
+            break;
         case '@intention_checkins':
-            return importCheckInsSnapshot(value);
+            await importCheckInsSnapshot(
+                value,
+                async (ownerContext) => {
+                    assertAccountOperationActive(context);
+                    await importSnapshotForAccount<IntentionCheckIn>(
+                        ownerContext,
+                        '@intention_checkins',
+                        value,
+                    );
+                },
+            );
+            break;
         default:
-            return;
+            break;
     }
+    assertAccountOperationActive(context);
 }
 
-export async function restoreLocalBackup(
-    backupId: string
+export function restoreLocalBackup(
+    backupId: string,
 ): Promise<RestoreLocalBackupResult> {
-    return withBackupMutationLock(async () => {
-        const accountId = requireActiveAccountId();
-        const backups = await loadStoredBackups();
-        const backup = backups.find((item) => item.id === backupId);
-        if (!backup) return { status: 'missing' };
-        if (backup.accountId !== accountId) return { status: 'account-mismatch' };
+    return runAccountBoundOperation('local-backup-restore', (context) => (
+        withBackupMutationLock(async () => {
+            const accountId = requireAccountId(context);
+            const backups = await loadStoredBackups(accountId, context);
+            const backup = backups.find((item) => item.id === backupId);
+            if (!backup) return { status: 'missing' };
+            if (backup.accountId !== accountId) return { status: 'account-mismatch' };
 
-        await Promise.all(LOCAL_BACKUP_DATA_KEYS.map(async (key) => {
-            const item = backup.items.find((backupItem) => backupItem.key === key);
-            if (key === SESSION_DIGEST_BACKUP_BUNDLE_KEY) {
-                await restoreShardedDigestBackup(item?.value ?? null);
-                return;
-            }
-            if ([
-                '@journal_entries', '@goals', '@intentions', '@intention_checkins',
-            ].includes(key)) {
-                await restoreBackupItem(item ?? { key, value: null });
-                return;
-            }
-            const storageKey = resolveBackupStorageKey(key);
-            if (!item || item.value === null) {
-                await AsyncStorage.removeItem(storageKey);
-                return;
-            }
-            await AsyncStorage.setItem(storageKey, item.value);
-        }));
+            for (const key of LOCAL_BACKUP_DATA_KEYS) {
+                assertAccountOperationActive(context);
+                const item = backup.items.find((backupItem) => backupItem.key === key);
+                if (key === SESSION_DIGEST_BACKUP_BUNDLE_KEY) {
+                    await restoreShardedDigestBackup(item?.value ?? null, accountId, context);
+                    continue;
+                }
+                if (
+                    key === '@journal_entries'
+                    || key === '@goals'
+                    || key === '@intentions'
+                    || key === '@intention_checkins'
+                ) {
+                    await restoreBackupItem(item ?? { key, value: null }, context);
+                    continue;
+                }
 
-        if (requireActiveAccountId() !== accountId) {
-            throw new Error('Active account changed during backup restore.');
-        }
-        return { status: 'restored', restoredKeys: backup.itemCount };
-    });
+                const storageKey = resolveBackupStorageKey(key, accountId);
+                assertAccountOperationActive(context);
+                if (!item || item.value === null) {
+                    await AsyncStorage.removeItem(storageKey);
+                } else {
+                    await AsyncStorage.setItem(storageKey, item.value);
+                }
+                assertAccountOperationActive(context);
+            }
+
+            assertAccountOperationActive(context);
+            return { status: 'restored', restoredKeys: backup.itemCount };
+        })
+    ));
 }
 
-export async function deleteLocalBackup(backupId: string): Promise<boolean> {
-    return withBackupMutationLock(async () => {
-        const accountId = requireActiveAccountId();
-        const backups = await loadStoredBackups();
-        const target = backups.find((backup) => backup.id === backupId);
-        if (!target || target.accountId !== accountId) return false;
-        const digestItem = target.items.find(
-            (item) => item.key === SESSION_DIGEST_BACKUP_BUNDLE_KEY,
-        );
-        const meta = parseDigestMeta(digestItem?.value ?? null);
-        if (meta) await removeShardedDigestBackup(meta.backupId, meta.sessionIds);
-        await saveStoredBackups(backups.filter((backup) => backup.id !== backupId));
-        return true;
-    });
+export function deleteLocalBackup(backupId: string): Promise<boolean> {
+    return runAccountBoundOperation('local-backup-delete', (context) => (
+        withBackupMutationLock(async () => {
+            const accountId = requireAccountId(context);
+            const backups = await loadStoredBackups(accountId, context);
+            const target = backups.find((backup) => backup.id === backupId);
+            if (!target || target.accountId !== accountId) return false;
+            const digestItem = target.items.find(
+                (item) => item.key === SESSION_DIGEST_BACKUP_BUNDLE_KEY,
+            );
+            const meta = parseDigestMeta(digestItem?.value ?? null);
+            if (meta) {
+                await removeShardedDigestBackup(meta.backupId, meta.sessionIds, accountId, context);
+            }
+            assertAccountOperationActive(context);
+            await saveStoredBackups(
+                backups.filter((backup) => backup.id !== backupId),
+                accountId,
+                context,
+            );
+            return true;
+        })
+    ));
 }
 
 registerAccountTeardown(async () => {

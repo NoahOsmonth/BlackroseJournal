@@ -278,4 +278,102 @@ describe('control plane routes', () => {
       assert.doesNotMatch(await response.text(), /ciphertext|plaintext|secret/i);
     });
   });
+
+  it('publishes with revision zero on a fresh catalog instead of rejecting it', async () => {
+    let receivedCatalogRevision = -1;
+    await withApp(routeService({
+      publishCatalogModel: async (_actor, _providerId, _input, catalogRevision) => {
+        receivedCatalogRevision = catalogRevision;
+        return {
+          id: 'catalog-1',
+          label: 'Example',
+          publicModelId: 'example-model',
+          capabilities: {
+            streaming: true,
+            tools: false,
+            vision: false,
+            jsonObject: false,
+            jsonSchema: false,
+          },
+          contextWindow: 4096,
+          availability: 'available',
+          sortOrder: 0,
+          revision: 1,
+          createdAt: '2026-08-24T00:00:00.000Z',
+          updatedAt: '2026-08-24T00:00:00.000Z',
+        };
+      },
+    }), async (baseUrl) => {
+      const response = await fetch(
+        `${baseUrl}/v1/admin/providers/provider-1/models/provider-model-1/publish?expectedCatalogRevision=0`,
+        {
+          method: 'POST',
+          headers: { ...authHeaders, origin: 'https://admin.example' },
+          body: JSON.stringify({
+            expectedRevision: 0,
+            providerModelId: 'provider-model-1',
+            label: 'Example',
+            publicModelId: 'example-model',
+            capabilities: {
+              streaming: true,
+              tools: false,
+              vision: false,
+              jsonObject: false,
+              jsonSchema: false,
+            },
+            contextWindow: 4096,
+            sortOrder: 0,
+            purpose: 'chat',
+          }),
+        },
+      );
+      assert.equal(response.status, 200);
+      assert.equal(receivedCatalogRevision, 0);
+    });
+  });
+
+  it('creates flash routes against revision-zero models while keeping limits strict', async () => {
+    const calls: string[] = [];
+    await withApp(routeService({
+      createFlashRoute: async (_actor, providerModelId, input) => {
+        calls.push(providerModelId);
+        assert.equal(input.expectedModelRevision, 0);
+        assert.equal(input.priority, 0);
+        return {
+          id: 'route-1',
+          providerModelId,
+          purpose: 'flash',
+          state: 'active',
+          priority: 0,
+          maxInputBytes: input.maxInputBytes,
+          maxOutputTokens: input.maxOutputTokens,
+          requestTimeoutMs: input.requestTimeoutMs,
+          revision: 1,
+        };
+      },
+    }), async (baseUrl) => {
+      const flashBody = {
+        expectedModelRevision: 0,
+        maxInputBytes: 1024,
+        maxOutputTokens: 256,
+        requestTimeoutMs: 30_000,
+        priority: 0,
+      };
+      const ok = await fetch(`${baseUrl}/v1/admin/provider-models/provider-model-1/routes/flash`, {
+        method: 'POST',
+        headers: { ...authHeaders, origin: 'https://admin.example' },
+        body: JSON.stringify(flashBody),
+      });
+      assert.equal(ok.status, 201);
+      assert.deepEqual(calls, ['provider-model-1']);
+
+      const rejected = await fetch(`${baseUrl}/v1/admin/provider-models/provider-model-1/routes/flash`, {
+        method: 'POST',
+        headers: { ...authHeaders, origin: 'https://admin.example' },
+        body: JSON.stringify({ ...flashBody, maxInputBytes: 0 }),
+      });
+      assert.equal(rejected.status, 400);
+      assert.deepEqual(calls, ['provider-model-1']);
+    });
+  });
 });

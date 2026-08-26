@@ -8,6 +8,14 @@ export interface AccountOperationLease extends AccountOperationContext {
     release(): void;
 }
 
+export function assertAccountOperationActive(
+    context: Pick<AccountOperationContext, 'signal'>,
+): void {
+    if (context.signal.aborted) {
+        throw new Error('Account operation was aborted.');
+    }
+}
+
 interface ActiveAccountOperation {
     readonly owner: string;
     readonly controller: AbortController;

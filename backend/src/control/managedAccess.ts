@@ -15,6 +15,11 @@ export interface ManagedAccessDependencies {
 
 export function createManagedAdminGuard(dependencies?: ManagedAccessDependencies) {
   return async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (_req.method === 'OPTIONS') {
+      // CORS preflights never carry Authorization; let the cors middleware answer.
+      next();
+      return;
+    }
     if (!dependencies?.adminAuthorizer) {
       res.status(503).json({
         error: { code: 'SERVICE_UNAVAILABLE', message: 'Administrative access is unavailable.' },

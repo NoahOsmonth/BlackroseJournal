@@ -70,6 +70,25 @@ function normalizeHeaders(headers: IncomingHttpHeaders): Record<string, string> 
   return output;
 }
 
+/**
+ * Node >=20 requests `{ all: true }` for happy-eyeballs; that contract requires an
+ * array of { address, family }. Older call sites expect the single-address pair form.
+ * Replying in the wrong shape fails every pinned hop instantly with
+ * ERR_INVALID_IP_ADDRESS.
+ */
+export function pinnedLookupForAddress(
+  address: string,
+  family: 4 | 6,
+): NonNullable<import('node:http').RequestOptions['lookup']> {
+  return (_hostname, options, callback) => {
+    if (options.all) {
+      callback(null, [{ address, family }]);
+      return;
+    }
+    callback(null, address, family);
+  };
+}
+
 function requestPinnedHop(request: SafeTransportHopRequest): Promise<SafeTransportResponse> {
   return new Promise((resolve, reject) => {
     const controller = new AbortController();
@@ -80,9 +99,7 @@ function requestPinnedHop(request: SafeTransportHopRequest): Promise<SafeTranspo
       signal: controller.signal,
       agent: false,
       servername: request.hostname,
-      lookup: (_hostname, _options, callback) => {
-        callback(null, request.address, request.family);
-      },
+      lookup: pinnedLookupForAddress(request.address, request.family),
     }, (response) => {
       const chunks: Buffer[] = [];
       let size = 0;

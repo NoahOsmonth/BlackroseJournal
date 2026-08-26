@@ -1,4 +1,7 @@
-import { getActiveAccountId } from './accountRuntime';
+import {
+    assertAccountOperationActive,
+    runAccountBoundOperation,
+} from './accountRuntime';
 import {
     claimLegacyStorageKey,
     claimLegacyStoragePrefix,
@@ -53,29 +56,46 @@ const ACCOUNT_PRIVATE_KEY_PREFIXES = [
     '@blackrose_local_backup_session_digest:',
 ] as const;
 
-export async function hasUnclaimedLegacyData(): Promise<boolean> {
-    const results = await Promise.all([
-        hasLegacyJournalEntries(),
-        hasLegacyGoals(),
-        hasLegacyIntentions(),
-        hasLegacyStorage(ACCOUNT_PRIVATE_EXACT_KEYS, ACCOUNT_PRIVATE_KEY_PREFIXES),
-        hasLegacySyncQueue(),
-    ]);
-    return results.some(Boolean);
+export function hasUnclaimedLegacyData(): Promise<boolean> {
+    return runAccountBoundOperation('legacy-data-inspection', async (context) => {
+        assertAccountOperationActive(context);
+        const results = await Promise.all([
+            hasLegacyJournalEntries(),
+            hasLegacyGoals(),
+            hasLegacyIntentions(),
+            hasLegacyStorage(ACCOUNT_PRIVATE_EXACT_KEYS, ACCOUNT_PRIVATE_KEY_PREFIXES),
+            hasLegacySyncQueue(),
+        ]);
+        assertAccountOperationActive(context);
+        return results.some(Boolean);
+    });
 }
 
-export async function confirmLegacyDataOwnership(accountId: string): Promise<void> {
-    if (getActiveAccountId() !== accountId) {
-        throw new Error('Legacy data can only be claimed by the active authenticated account.');
-    }
-    await migrateLegacyJournalEntriesToActiveAccount();
-    await migrateLegacyGoalsToActiveAccount();
-    await migrateLegacyIntentionsToActiveAccount();
-    for (const key of ACCOUNT_PRIVATE_EXACT_KEYS) {
-        await claimLegacyStorageKey(key);
-    }
-    for (const prefix of ACCOUNT_PRIVATE_KEY_PREFIXES) {
-        await claimLegacyStoragePrefix(prefix);
-    }
-    await migrateLegacySyncQueueToActiveAccount();
+export function confirmLegacyDataOwnership(accountId: string): Promise<void> {
+    return runAccountBoundOperation('legacy-data-ownership', async (context) => {
+        if (context.accountId !== accountId) {
+            throw new Error('Legacy data can only be claimed by the active authenticated account.');
+        }
+        assertAccountOperationActive(context);
+
+        await migrateLegacyJournalEntriesToActiveAccount();
+        assertAccountOperationActive(context);
+        await migrateLegacyGoalsToActiveAccount();
+        assertAccountOperationActive(context);
+        await migrateLegacyIntentionsToActiveAccount();
+        assertAccountOperationActive(context);
+        for (const key of ACCOUNT_PRIVATE_EXACT_KEYS) {
+            assertAccountOperationActive(context);
+            await claimLegacyStorageKey(key);
+            assertAccountOperationActive(context);
+        }
+        for (const prefix of ACCOUNT_PRIVATE_KEY_PREFIXES) {
+            assertAccountOperationActive(context);
+            await claimLegacyStoragePrefix(prefix);
+            assertAccountOperationActive(context);
+        }
+        assertAccountOperationActive(context);
+        await migrateLegacySyncQueueToActiveAccount();
+        assertAccountOperationActive(context);
+    });
 }

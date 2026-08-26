@@ -16,6 +16,7 @@ import {
     Keyboard,
     NativeScrollEvent,
     NativeSyntheticEvent,
+    Platform,
     ScrollView,
 } from 'react-native';
 import { InlineTypingInputRef } from '../../../components/InlineTypingInput';
@@ -455,6 +456,7 @@ export function useChatOrchestration({
     }, [mode, currentPrompt, sendInitialPrompt, scrollToBottom, focusInput, beginStreaming, clearError, handleAiError]);
 
     const handleSendMessage = useCallback(async (text: string) => {
+        if (Platform.OS === 'web') console.warn(`[ORCH] handleSendMessage len=${text.length} isLoading=${isLoading}`);
         Keyboard.dismiss();
 
         const userMessage: Message = createTemporalMessage({

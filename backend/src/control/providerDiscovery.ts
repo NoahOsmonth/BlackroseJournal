@@ -41,6 +41,12 @@ function capabilityFlag(record: Record<string, unknown>, key: string, fallback: 
   return typeof capabilities[key] === 'boolean' ? capabilities[key] : fallback;
 }
 
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
+}
+
 function capabilitiesFor(
   provider: ProviderRecord,
   record: Record<string, unknown>,
@@ -66,12 +72,19 @@ function capabilitiesFor(
       jsonSchema: false,
     };
   }
+  // OpenRouter-style inventories advertise features via `supported_parameters`
+  // (e.g. ["tools", "tool_choice", "response_format"]) and `architecture.input_modalities`
+  // instead of a `capabilities` object; honor those signals before falling back.
+  const supportedParameters = stringArray(record.supported_parameters);
+  const inputModalities = stringArray(
+    isRecord(record.architecture) ? record.architecture.input_modalities : undefined,
+  );
   return {
     streaming: capabilityFlag(record, 'streaming', true),
-    tools: capabilityFlag(record, 'tools', false),
-    vision: capabilityFlag(record, 'vision', false),
-    jsonObject: capabilityFlag(record, 'jsonObject', true),
-    jsonSchema: capabilityFlag(record, 'jsonSchema', false),
+    tools: capabilityFlag(record, 'tools', supportedParameters.includes('tools')),
+    vision: capabilityFlag(record, 'vision', inputModalities.includes('image')),
+    jsonObject: capabilityFlag(record, 'jsonObject', supportedParameters.includes('response_format')),
+    jsonSchema: capabilityFlag(record, 'jsonSchema', supportedParameters.includes('structured_outputs')),
   };
 }
 

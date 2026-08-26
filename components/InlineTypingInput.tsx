@@ -73,6 +73,7 @@ export const InlineTypingInput = forwardRef<InlineTypingInputRef, InlineTypingIn
       if (Platform.OS === 'web') {
         const nativeEvent = e.nativeEvent as TextInputKeyPressEventData & { shiftKey?: boolean };
         if (nativeEvent.key === 'Enter' && !nativeEvent.shiftKey) {
+          console.warn('[ITI] keypress Enter received');
           e.preventDefault?.();
           handleSubmit();
         }
@@ -81,6 +82,7 @@ export const InlineTypingInput = forwardRef<InlineTypingInputRef, InlineTypingIn
 
     const handleSubmit = () => {
       const trimmed = text.trim();
+      if (Platform.OS === 'web') console.warn(`[ITI] handleSubmit textLen=${trimmed.length} disabled=${disabled}`);
       if (trimmed && !disabled) {
         onSubmit(trimmed);
         updateText('');

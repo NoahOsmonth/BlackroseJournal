@@ -13,6 +13,7 @@ jest.mock('../../../services/ai/managedTransport', () => ({
 }));
 
 import { loadCustomAiProviderSettings } from '../../../services/ai/customModels';
+import { activateAccount, clearActiveAccount } from '../../../services/account/accountRuntime';
 import {
     fetchDirectChatCompletion,
     prepareDirectChatRequest,
@@ -24,6 +25,12 @@ import {
 import { fetchAiChatCompletion, prepareAiChatRequest } from '../../../services/ai/aiTransport';
 
 const payload = { model: 'client-model', messages: [{ role: 'user', content: 'Hello' }], stream: false };
+
+function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((nextResolve) => { resolve = nextResolve; });
+    return { promise, resolve };
+}
 
 describe('aiTransport mode boundary', () => {
     beforeEach(() => jest.clearAllMocks());
@@ -56,5 +63,33 @@ describe('aiTransport mode boundary', () => {
             mode: 'managed', request: { url: 'managed' },
         });
         expect(prepareDirectChatRequest).not.toHaveBeenCalled();
+    });
+
+    it('does not route an account A prompt after mode resolution is interrupted by a switch to B', async () => {
+        await clearActiveAccount();
+        await activateAccount('account-a');
+        const modeReadStarted = deferred<void>();
+        const settings = deferred<{ enabled: boolean }>();
+        jest.mocked(loadCustomAiProviderSettings).mockImplementation(() => {
+            modeReadStarted.resolve();
+            return settings.promise as never;
+        });
+
+        try {
+            const pending = fetchAiChatCompletion({
+                ...payload,
+                messages: [{ role: 'user', content: 'private account A prompt' }],
+            });
+            await modeReadStarted.promise;
+            const switching = activateAccount('account-b');
+            settings.resolve({ enabled: true });
+            await switching;
+
+            await expect(pending).rejects.toThrow('AI request was cancelled by an account switch.');
+            expect(fetchDirectChatCompletion).not.toHaveBeenCalled();
+            expect(fetchManagedChatCompletion).not.toHaveBeenCalled();
+        } finally {
+            await clearActiveAccount();
+        }
     });
 });

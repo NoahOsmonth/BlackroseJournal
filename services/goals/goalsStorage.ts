@@ -13,10 +13,16 @@ import {
     queueGoalUpsert,
 } from './goalsRemote';
 import {
+    AccountStorageAdapter,
     claimLegacyStorageKey,
-    getAccountScopedStorageKey,
+    getStorageForAccount,
 } from '@/services/account/accountScopedStorage';
-import { registerAccountTeardown } from '@/services/account/accountRuntime';
+import {
+    AccountOperationContext,
+    assertAccountOperationActive,
+    registerAccountTeardown,
+    runAccountBoundOperation,
+} from '@/services/account/accountRuntime';
 
 const GOALS_KEY = '@goals';
 let hasPulledRemote = false;
@@ -28,8 +34,8 @@ function generateId(): string {
     return `goal_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-async function loadGoalsMap(): Promise<Record<string, GoalItem>> {
-    const json = await AsyncStorage.getItem(getAccountScopedStorageKey(GOALS_KEY));
+async function loadGoalsMap(storage: AccountStorageAdapter): Promise<Record<string, GoalItem>> {
+    const json = await storage.getItem(GOALS_KEY);
     if (!json) return {};
     try {
         const parsed = JSON.parse(json) as unknown;
@@ -41,8 +47,11 @@ async function loadGoalsMap(): Promise<Record<string, GoalItem>> {
     }
 }
 
-async function saveGoalsMap(map: Record<string, GoalItem>): Promise<void> {
-    await AsyncStorage.setItem(getAccountScopedStorageKey(GOALS_KEY), JSON.stringify(map));
+async function saveGoalsMap(
+    storage: AccountStorageAdapter,
+    map: Record<string, GoalItem>,
+): Promise<void> {
+    await storage.setItem(GOALS_KEY, JSON.stringify(map));
 }
 
 function withMutationLock<T>(operation: () => Promise<T>): Promise<T> {
@@ -71,22 +80,29 @@ export function notifyGoalsChanges(): void {
     });
 }
 
-async function syncFromRemoteIfNeeded(): Promise<void> {
+async function syncFromRemoteIfNeeded(
+    storage: AccountStorageAdapter,
+    context: AccountOperationContext,
+): Promise<void> {
     if (syncPromise) {
         return syncPromise;
     }
 
     syncPromise = (async () => {
-        const local = await loadGoalsMap();
+        const local = await loadGoalsMap(storage);
+        assertAccountOperationActive(context);
         const hasLocal = Object.keys(local).length > 0;
 
         if (!hasLocal && !hasPulledRemote) {
             const remote = await fetchRemoteGoals();
+            assertAccountOperationActive(context);
             if (remote) {
                 hasPulledRemote = true;
                 await withMutationLock(async () => {
-                    const latest = await loadGoalsMap();
-                    await saveGoalsMap(mergeGoals(latest, remote));
+                    const latest = await loadGoalsMap(storage);
+                    assertAccountOperationActive(context);
+                    await saveGoalsMap(storage, mergeGoals(latest, remote));
+                    assertAccountOperationActive(context);
                 });
             }
         }
@@ -94,10 +110,12 @@ async function syncFromRemoteIfNeeded(): Promise<void> {
         if (hasLocal && !hasPushedLocal) {
             try {
                 const pushed = await pushGoals(Object.values(local));
+                assertAccountOperationActive(context);
                 if (pushed) {
                     hasPushedLocal = true;
                 }
             } catch (error) {
+                if (context.signal.aborted) throw error;
                 console.warn('Failed to push goals:', error);
             }
         }
@@ -110,170 +128,205 @@ async function syncFromRemoteIfNeeded(): Promise<void> {
     }
 }
 
-export async function listGoals(): Promise<GoalItem[]> {
-    await syncFromRemoteIfNeeded();
-    const map = await loadGoalsMap();
-    return Object.values(map).sort((a, b) => b.updatedAt - a.updatedAt);
-}
-
-export async function getGoal(id: string): Promise<GoalItem | null> {
-    await syncFromRemoteIfNeeded();
-    const map = await loadGoalsMap();
-    return map[id] ?? null;
-}
-
-export async function createGoal(input: GoalCreateInput): Promise<GoalItem> {
-    const now = Date.now();
-    const createdAt = typeof input.createdAt === 'number' && Number.isFinite(input.createdAt)
-        ? input.createdAt
-        : now;
-    const updatedAt = typeof input.updatedAt === 'number' && Number.isFinite(input.updatedAt)
-        ? input.updatedAt
-        : createdAt;
-    const goal: GoalItem = {
-        id: generateId(),
-        title: input.title.trim(),
-        type: input.type,
-        dateKey: input.dateKey,
-        completed: input.type === 'goal' ? false : undefined,
-        habitCompletions: input.type === 'habit' ? [] : undefined,
-        intentionId: input.intentionId,
-        createdAt,
-        updatedAt,
-    };
-
-    await withMutationLock(async () => {
-        const map = await loadGoalsMap();
-        map[goal.id] = goal;
-        await saveGoalsMap(map);
+export function listGoals(): Promise<GoalItem[]> {
+    return runAccountBoundOperation('goals-list', async (context) => {
+        const storage = getStorageForAccount(context.accountId);
+        await syncFromRemoteIfNeeded(storage, context);
+        assertAccountOperationActive(context);
+        const map = await loadGoalsMap(storage);
+        assertAccountOperationActive(context);
+        return Object.values(map).sort((a, b) => b.updatedAt - a.updatedAt);
     });
+}
 
+export function getGoal(id: string): Promise<GoalItem | null> {
+    return runAccountBoundOperation('goals-get', async (context) => {
+        const storage = getStorageForAccount(context.accountId);
+        await syncFromRemoteIfNeeded(storage, context);
+        assertAccountOperationActive(context);
+        const map = await loadGoalsMap(storage);
+        assertAccountOperationActive(context);
+        return map[id] ?? null;
+    });
+}
+
+async function queueGoalUpsertForAccount(
+    goal: GoalItem,
+    context: AccountOperationContext,
+): Promise<void> {
     try {
+        assertAccountOperationActive(context);
         await queueGoalUpsert(goal);
+        assertAccountOperationActive(context);
     } catch (error) {
+        if (context.signal.aborted) throw error;
         console.warn('Failed to queue goal sync:', error);
     }
-
-    notifyGoalsChanges();
-    return goal;
 }
 
-export async function updateGoal(
+export function createGoal(input: GoalCreateInput): Promise<GoalItem> {
+    return runAccountBoundOperation('goals-create', async (context) => {
+        const now = Date.now();
+        const createdAt = typeof input.createdAt === 'number' && Number.isFinite(input.createdAt)
+            ? input.createdAt
+            : now;
+        const updatedAt = typeof input.updatedAt === 'number' && Number.isFinite(input.updatedAt)
+            ? input.updatedAt
+            : createdAt;
+        const goal: GoalItem = {
+            id: generateId(),
+            title: input.title.trim(),
+            type: input.type,
+            dateKey: input.dateKey,
+            completed: input.type === 'goal' ? false : undefined,
+            habitCompletions: input.type === 'habit' ? [] : undefined,
+            intentionId: input.intentionId,
+            createdAt,
+            updatedAt,
+        };
+        const storage = getStorageForAccount(context.accountId);
+
+        await withMutationLock(async () => {
+            const map = await loadGoalsMap(storage);
+            assertAccountOperationActive(context);
+            map[goal.id] = goal;
+            await saveGoalsMap(storage, map);
+        });
+        assertAccountOperationActive(context);
+        await queueGoalUpsertForAccount(goal, context);
+        notifyGoalsChanges();
+        return goal;
+    });
+}
+
+export function updateGoal(
     id: string,
     updates: GoalUpdateInput
 ): Promise<GoalItem | null> {
-    const updated = await withMutationLock(async () => {
-        const map = await loadGoalsMap();
-        const existing = map[id];
-        if (!existing) return null;
-        const next: GoalItem = {
-            ...existing,
-            ...updates,
-            title: updates.title ? updates.title.trim() : existing.title,
-            updatedAt: Date.now(),
-        };
-        map[id] = next;
-        await saveGoalsMap(map);
-        return next;
+    return runAccountBoundOperation('goals-update', async (context) => {
+        const storage = getStorageForAccount(context.accountId);
+        const updated = await withMutationLock(async () => {
+            const map = await loadGoalsMap(storage);
+            assertAccountOperationActive(context);
+            const existing = map[id];
+            if (!existing) return null;
+            const next: GoalItem = {
+                ...existing,
+                ...updates,
+                title: updates.title ? updates.title.trim() : existing.title,
+                updatedAt: Date.now(),
+            };
+            map[id] = next;
+            await saveGoalsMap(storage, map);
+            return next;
+        });
+        assertAccountOperationActive(context);
+        if (!updated) return null;
+        await queueGoalUpsertForAccount(updated, context);
+        notifyGoalsChanges();
+        return updated;
     });
-    if (!updated) return null;
+}
 
+async function queueGoalDeleteForAccount(
+    id: string,
+    context: AccountOperationContext,
+): Promise<void> {
     try {
-        await queueGoalUpsert(updated);
+        assertAccountOperationActive(context);
+        await queueGoalDelete(id);
+        assertAccountOperationActive(context);
     } catch (error) {
+        if (context.signal.aborted) throw error;
         console.warn('Failed to queue goal sync:', error);
     }
-
-    notifyGoalsChanges();
-    return updated;
 }
 
-export async function deleteGoal(id: string): Promise<boolean> {
-    const deleted = await withMutationLock(async () => {
-        const map = await loadGoalsMap();
-        if (!map[id]) return false;
-        delete map[id];
-        await saveGoalsMap(map);
+export function deleteGoal(id: string): Promise<boolean> {
+    return runAccountBoundOperation('goals-delete', async (context) => {
+        const storage = getStorageForAccount(context.accountId);
+        const deleted = await withMutationLock(async () => {
+            const map = await loadGoalsMap(storage);
+            assertAccountOperationActive(context);
+            if (!map[id]) return false;
+            delete map[id];
+            await saveGoalsMap(storage, map);
+            return true;
+        });
+        assertAccountOperationActive(context);
+        if (!deleted) return false;
+        await queueGoalDeleteForAccount(id, context);
+        notifyGoalsChanges();
         return true;
     });
-    if (!deleted) return false;
-
-    try {
-        await queueGoalDelete(id);
-    } catch (error) {
-        console.warn('Failed to queue goal delete:', error);
-    }
-
-    notifyGoalsChanges();
-    return true;
 }
 
-export async function toggleGoalCompletion(
+export function toggleGoalCompletion(
     id: string,
     dateKey?: string
 ): Promise<GoalItem | null> {
-    const updated = await withMutationLock(async () => {
-        const map = await loadGoalsMap();
-        const goal = map[id];
-        if (!goal) return null;
-        const next = { ...goal, updatedAt: Date.now() };
-        if (goal.type === 'habit') {
-            const key = dateKey ?? getLocalDateKey(new Date());
-            const completions = new Set(goal.habitCompletions ?? []);
-            if (completions.has(key)) {
-                completions.delete(key);
+    return runAccountBoundOperation('goals-toggle', async (context) => {
+        const storage = getStorageForAccount(context.accountId);
+        const updated = await withMutationLock(async () => {
+            const map = await loadGoalsMap(storage);
+            assertAccountOperationActive(context);
+            const goal = map[id];
+            if (!goal) return null;
+            const next = { ...goal, updatedAt: Date.now() };
+            if (goal.type === 'habit') {
+                const key = dateKey ?? getLocalDateKey(new Date());
+                const completions = new Set(goal.habitCompletions ?? []);
+                if (completions.has(key)) {
+                    completions.delete(key);
+                } else {
+                    completions.add(key);
+                }
+                next.habitCompletions = Array.from(completions);
             } else {
-                completions.add(key);
+                next.completed = !goal.completed;
             }
-            next.habitCompletions = Array.from(completions);
-        } else {
-            next.completed = !goal.completed;
-        }
-        map[id] = next;
-        await saveGoalsMap(map);
-        return next;
+            map[id] = next;
+            await saveGoalsMap(storage, map);
+            return next;
+        });
+        assertAccountOperationActive(context);
+        if (!updated) return null;
+        await queueGoalUpsertForAccount(updated, context);
+        notifyGoalsChanges();
+        return updated;
     });
-    if (!updated) return null;
-    try {
-        await queueGoalUpsert(updated);
-    } catch (error) {
-        console.warn('Failed to queue goal sync:', error);
-    }
-    notifyGoalsChanges();
-    return updated;
 }
 
-export async function markIntentionGoalComplete(
+export function markIntentionGoalComplete(
     title: string,
     dateKey: string,
     intentionId?: string
 ): Promise<GoalItem> {
-    const now = Date.now();
-    const goal: GoalItem = {
-        id: generateId(),
-        title: title.trim(),
-        type: 'goal',
-        dateKey,
-        completed: true,
-        intentionId,
-        createdAt: now,
-        updatedAt: now,
-    };
+    return runAccountBoundOperation('goals-mark-intention-complete', async (context) => {
+        const now = Date.now();
+        const goal: GoalItem = {
+            id: generateId(),
+            title: title.trim(),
+            type: 'goal',
+            dateKey,
+            completed: true,
+            intentionId,
+            createdAt: now,
+            updatedAt: now,
+        };
+        const storage = getStorageForAccount(context.accountId);
 
-    await withMutationLock(async () => {
-        const map = await loadGoalsMap();
-        map[goal.id] = goal;
-        await saveGoalsMap(map);
+        await withMutationLock(async () => {
+            const map = await loadGoalsMap(storage);
+            assertAccountOperationActive(context);
+            map[goal.id] = goal;
+            await saveGoalsMap(storage, map);
+        });
+        assertAccountOperationActive(context);
+        await queueGoalUpsertForAccount(goal, context);
+        notifyGoalsChanges();
+        return goal;
     });
-
-    try {
-        await queueGoalUpsert(goal);
-    } catch (error) {
-        console.warn('Failed to queue goal sync:', error);
-    }
-
-    notifyGoalsChanges();
-    return goal;
 }
 
 export async function listGoalsForDate(dateKey: string): Promise<GoalItem[]> {
@@ -286,19 +339,29 @@ export async function listHabits(): Promise<GoalItem[]> {
     return list.filter((goal) => goal.type === 'habit');
 }
 
-export async function clearAllGoals(): Promise<void> {
-    const ids = await withMutationLock(async () => {
-        const map = await loadGoalsMap();
-        await AsyncStorage.removeItem(getAccountScopedStorageKey(GOALS_KEY));
-        return Object.keys(map);
+export function clearAllGoals(): Promise<void> {
+    return runAccountBoundOperation('goals-clear', async (context) => {
+        const storage = getStorageForAccount(context.accountId);
+        const ids = await withMutationLock(async () => {
+            const map = await loadGoalsMap(storage);
+            assertAccountOperationActive(context);
+            await storage.removeItem(GOALS_KEY);
+            return Object.keys(map);
+        });
+        assertAccountOperationActive(context);
+        await Promise.all(ids.map((id) => queueGoalDeleteForAccount(id, context)));
+        assertAccountOperationActive(context);
+        notifyGoalsChanges();
     });
-    await Promise.all(ids.map(async (id) => queueGoalDelete(id)));
-    notifyGoalsChanges();
 }
 
 export function migrateLegacyGoalsToActiveAccount(): Promise<void> {
-    return withMutationLock(async () => {
-        await claimLegacyStorageKey(GOALS_KEY);
+    return runAccountBoundOperation('goals-legacy-migration', async (context) => {
+        await withMutationLock(async () => {
+            assertAccountOperationActive(context);
+            await claimLegacyStorageKey(GOALS_KEY);
+            assertAccountOperationActive(context);
+        });
     });
 }
 
@@ -306,24 +369,39 @@ export async function hasLegacyGoals(): Promise<boolean> {
     return (await AsyncStorage.getItem(GOALS_KEY)) !== null;
 }
 
-export function importGoalsSnapshot(value: string | null): Promise<void> {
-    return withMutationLock(async () => {
-        if (value === null) {
-            await AsyncStorage.removeItem(getAccountScopedStorageKey(GOALS_KEY));
-        } else {
-            let goals: Record<string, GoalItem> = {};
-            try {
-                const parsed = JSON.parse(value) as unknown;
-                if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-                    goals = parsed as Record<string, GoalItem>;
-                }
-            } catch {
-                // Corrupt backup payload restores the owner's safe empty default.
-            }
-            await saveGoalsMap(goals);
-        }
+export function importGoalsSnapshot(
+    value: string | null,
+    delegate?: (context: AccountOperationContext) => Promise<void>,
+): Promise<void> {
+    return runAccountBoundOperation('goals-import', async (context) => {
+        await withMutationLock(async () => {
+            assertAccountOperationActive(context);
+            await (delegate ?? importGoalsForAccount)(context, value);
+            assertAccountOperationActive(context);
+        });
         notifyGoalsChanges();
     });
+}
+
+export async function importGoalsForAccount(
+    context: AccountOperationContext,
+    value: string | null,
+): Promise<void> {
+    const storage = getStorageForAccount(context.accountId);
+    if (value === null) {
+        await storage.removeItem(GOALS_KEY);
+        return;
+    }
+    let goals: Record<string, GoalItem> = {};
+    try {
+        const parsed = JSON.parse(value) as unknown;
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            goals = parsed as Record<string, GoalItem>;
+        }
+    } catch {
+        // Corrupt backup payload restores the owner's safe empty default.
+    }
+    await saveGoalsMap(storage, goals);
 }
 
 registerAccountTeardown(async () => {

@@ -32,6 +32,7 @@ describe('provider model discovery', () => {
             name: 'Alpha',
             context_window: 32_768,
             capabilities: { tools: true, vision: false },
+            supported_parameters: ['response_format'],
             api_key: 'must-not-leak',
           }] })),
         };
@@ -86,6 +87,42 @@ describe('provider model discovery', () => {
     assert.equal(anthropic[0].upstreamModelId, 'claude-a');
     assert.equal(gemini[0].upstreamModelId, 'gemini-a');
     assert.equal(gemini[0].contextWindow, 1_000_000);
+  });
+
+  it('derives capabilities from OpenRouter-style supported_parameters and modalities', async () => {
+    const models = await discoverProviderModels(baseProvider, 'sk-private', {
+      request: async () => ({
+        status: 200,
+        headers: {},
+        body: Buffer.from(JSON.stringify({ data: [{
+          id: 'openrouter-style',
+          name: 'OpenRouter Style',
+          context_window: 65_536,
+          supported_parameters: ['tools', 'tool_choice', 'response_format', 'temperature'],
+          architecture: { input_modalities: ['text'] },
+        }, {
+          id: 'multimodal-tools',
+          name: 'Multimodal Tools',
+          supported_parameters: ['tools', 'structured_outputs'],
+          architecture: { input_modalities: ['text', 'image'] },
+        }] })),
+      }),
+    });
+
+    assert.deepEqual(models[0].capabilities, {
+      streaming: true,
+      tools: true,
+      vision: false,
+      jsonObject: true,
+      jsonSchema: false,
+    });
+    assert.deepEqual(models[1].capabilities, {
+      streaming: true,
+      tools: true,
+      vision: true,
+      jsonObject: false,
+      jsonSchema: true,
+    });
   });
 
   it('fails closed on non-success or malformed upstream inventory responses', async () => {

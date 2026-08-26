@@ -99,7 +99,9 @@ async function defaultAccessToken(): Promise<string> {
 
 function createDefaultGatewayDependencies(): GatewayDependencies {
     return {
-        fetchImpl: fetch,
+        // Bound explicitly: passing bare `fetch` loses its receiver, which
+        // browsers reject at call time with "Illegal invocation".
+        fetchImpl: (...args) => fetch(...args),
         getAccessToken: defaultAccessToken,
         getGatewayBaseUrl: defaultGatewayBaseUrl,
     };

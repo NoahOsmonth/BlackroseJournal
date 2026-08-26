@@ -46,6 +46,37 @@ describe('Supabase control plane repository', () => {
     assert.doesNotMatch(JSON.stringify(providers), /service-secret|ciphertext/i);
   });
 
+  it('treats a missing preference row as revision zero so the first PUT succeeds', async () => {
+    const calls: Array<{ url: string; method: string }> = [];
+    const repository = createSupabaseControlPlaneRepository({
+      restUrl: 'https://project.supabase.co/rest/v1',
+      secretKey: 'service-secret',
+      fetcher: async (input, init) => {
+        const method = init?.method ?? 'GET';
+        calls.push({ url: input.toString(), method });
+        if (method === 'POST') {
+          return jsonResponse([{
+            user_id: 'user-1',
+            selected_model_id: 'catalog-1',
+            revision: 1,
+            created_at: '2026-08-26T00:00:00.000Z',
+            updated_at: '2026-08-26T00:00:00.000Z',
+          }], 201);
+        }
+        return jsonResponse([]);
+      },
+    });
+
+    const updated = await repository.updatePreference('user-1', {
+      modelId: 'catalog-1',
+      expectedRevision: 0,
+    });
+
+    assert.deepEqual(calls.map((call) => call.method), ['GET', 'POST']);
+    assert.match(calls[1].url, /user_ai_preferences/);
+    assert.equal(updated.selectedModelId, 'catalog-1');
+  });
+
   it('writes encrypted credential bytes and safe metadata without plaintext', async () => {
     let requestBody = '';
     const repository = createSupabaseControlPlaneRepository({

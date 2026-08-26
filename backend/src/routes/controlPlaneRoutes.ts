@@ -76,6 +76,16 @@ function positiveInteger(value: unknown, field: string): number {
   return parsed;
 }
 
+// Revision counters start at zero (fresh provider / model / catalog rows), so they
+// must accept 0 — only true limits (sizes, timeouts, priorities) require >= 1.
+function nonNegativeInteger(value: unknown, field: string): number {
+  const parsed = typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value;
+  if (typeof parsed !== 'number' || !Number.isInteger(parsed) || parsed < 0) {
+    throw new ContractValidationError(field, 'expected a non-negative integer');
+  }
+  return parsed;
+}
+
 function routeParam(req: Request, key: string): string {
   const value = req.params[key];
   if (typeof value !== 'string' || value.length === 0) {
@@ -100,11 +110,11 @@ function parseFlashRoute(value: unknown): FlashRouteInput {
     'expectedModelRevision', 'maxInputBytes', 'maxOutputTokens', 'requestTimeoutMs', 'priority',
   ]);
   return {
-    expectedModelRevision: positiveInteger(row.expectedModelRevision, 'expectedModelRevision'),
+    expectedModelRevision: nonNegativeInteger(row.expectedModelRevision, 'expectedModelRevision'),
     maxInputBytes: positiveInteger(row.maxInputBytes, 'maxInputBytes'),
     maxOutputTokens: positiveInteger(row.maxOutputTokens, 'maxOutputTokens'),
     requestTimeoutMs: positiveInteger(row.requestTimeoutMs, 'requestTimeoutMs'),
-    ...(row.priority === undefined ? {} : { priority: positiveInteger(row.priority, 'priority') }),
+    ...(row.priority === undefined ? {} : { priority: nonNegativeInteger(row.priority, 'priority') }),
   };
 }
 
@@ -252,7 +262,7 @@ export function registerControlPlaneRoutes(
     res.json(await requireService().rekeyProviderCredential(
       actor,
       routeParam(req, 'id'),
-      positiveInteger(row.expectedRevision, 'expectedRevision'),
+      nonNegativeInteger(row.expectedRevision, 'expectedRevision'),
     ));
   }));
 
@@ -277,7 +287,7 @@ export function registerControlPlaneRoutes(
     if (input.providerModelId !== routeParam(req, 'modelId') || input.purpose !== 'chat') {
       throw new ContractValidationError('publish', 'provider model or purpose is invalid');
     }
-    const catalogRevision = positiveInteger(
+    const catalogRevision = nonNegativeInteger(
       req.query.expectedCatalogRevision,
       'expectedCatalogRevision',
     );
@@ -304,7 +314,7 @@ export function registerControlPlaneRoutes(
     res.json(await requireService().archiveProviderModel(
       actor,
       routeParam(req, 'id'),
-      positiveInteger(row.expectedRevision, 'expectedRevision'),
+      nonNegativeInteger(row.expectedRevision, 'expectedRevision'),
     ));
   }));
 

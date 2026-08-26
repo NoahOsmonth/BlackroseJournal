@@ -511,7 +511,10 @@ export function createSupabaseControlPlaneRepository(
 
     async updatePreference(userId, input: UpdateModelPreferenceRequest) {
       const current = await this.getPreference(userId);
-      if (input.expectedRevision !== undefined && current?.revision !== input.expectedRevision) {
+      // No stored row means the user has never saved a preference; the public GET
+      // route advertises that state as revision 0, so treat missing as 0 here too.
+      const currentRevision = current?.revision ?? 0;
+      if (input.expectedRevision !== undefined && currentRevision !== input.expectedRevision) {
         throw new SupabaseControlRepositoryConflictError();
       }
       const row = current

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  pinnedLookupForAddress,
   requestSafeHttps,
   SafeTransportHopRequest,
   SafeTransportResponse,
@@ -99,5 +100,39 @@ describe('pinned SSRF-safe HTTPS transport', () => {
       'x-api-version': '2026-08-24',
       'x-safe-label': 'visible',
     });
+  });
+
+  it('answers both lookup callback contracts for the pinned address', () => {
+    const lookup = pinnedLookupForAddress('104.18.3.115', 4);
+
+    let pairArgs: unknown[] | null = null;
+    lookup('openrouter.ai', {}, (...args: unknown[]) => {
+      pairArgs = args;
+    });
+    assert.deepEqual(pairArgs, [null, '104.18.3.115', 4]);
+
+    let arrayArgs: unknown[] | null = null;
+    lookup('openrouter.ai', { all: true }, (...args: unknown[]) => {
+      arrayArgs = args;
+    });
+    assert.deepEqual(arrayArgs, [null, [{ address: '104.18.3.115', family: 4 }]]);
+
+    const ipv6Lookup = pinnedLookupForAddress('2606:4700::6812:373', 6);
+    let ipv6ArrayArgs: unknown[] | null = null;
+    ipv6Lookup('openrouter.ai', { all: true }, (...args: unknown[]) => {
+      ipv6ArrayArgs = args;
+    });
+    assert.deepEqual(ipv6ArrayArgs, [null, [{ address: '2606:4700::6812:373', family: 6 }]]);
+  });
+
+  it('drives a real pinned hop through the local happy-eyeballs lookup shape', async () => {
+    const response = await requestSafeHttps('https://api.example/start', {
+      lookup: async () => [{ address: '93.184.216.34', family: 4 }],
+      requestHop: async (request): Promise<SafeTransportResponse> => {
+        assert.equal(request.address, '93.184.216.34');
+        return { status: 200, headers: {}, body: Buffer.from('pinned') };
+      },
+    });
+    assert.equal(response.body.toString('utf8'), 'pinned');
   });
 });

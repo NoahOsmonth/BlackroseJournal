@@ -1,6 +1,7 @@
 import type { IncomingHttpHeaders, IncomingMessage } from 'node:http';
 import https from 'node:https';
 import { resolveSafeHttpsEndpoint } from '../../security/safeEndpoint';
+import { pinnedLookupForAddress } from '../../security/safeTransport';
 
 export interface SafeProviderTransportInput {
   url: string;
@@ -69,9 +70,9 @@ export const requestSafeProviderStream = async (
       signal: input.signal,
       agent: false,
       servername: endpoint.hostname,
-      lookup: (_hostname, _options, callback) => {
-        callback(null, address, familyOf(address));
-      },
+      // Reuse the shared pinned lookup: Node >=20 happy-eyeballs invokes custom
+      // lookups with {all:true} and requires the array callback contract.
+      lookup: pinnedLookupForAddress(address, familyOf(address)),
     }, (response) => {
       const status = response.statusCode ?? 502;
       const declaredLength = Number(response.headers['content-length']);

@@ -2,7 +2,7 @@ import { useAuthSession } from '@/hooks/auth/useAuthSession';
 import { useAuthActions } from '@/hooks/auth/useAuthActions';
 import { AuthFormSkeleton } from '@/components/auth/AuthFormSkeleton';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -25,6 +25,15 @@ export default function LoginScreen() {
 
     const isSignedIn = useMemo(() => Boolean(user?.email), [user?.email]);
 
+    // signInWithEmail resolves before the auth coordinator applies its queued
+    // transition, so navigating inline races the Stack.Protected guard (still
+    // unauthenticated at that moment) and the redirect silently drops. Wait for
+    // the authenticated snapshot to propagate, then navigate.
+    useEffect(() => {
+        if (!isSignedIn) return;
+        router.replace('/(tabs)/settings');
+    }, [isSignedIn, router]);
+
     const handleSignIn = useCallback(async () => {
         if (isSubmitting) return;
 
@@ -40,7 +49,6 @@ export default function LoginScreen() {
         try {
             await signIn(trimmedEmail, password);
             setStatus({ type: 'success', message: 'Signed in successfully.' });
-            router.replace('/(tabs)/settings');
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Sign in failed.';
             setStatus({ type: 'error', message });
@@ -93,6 +101,7 @@ export default function LoginScreen() {
                                 autoCapitalize="none"
                                 autoCorrect={false}
                                 textContentType="username"
+                                accessibilityLabel="Email"
                                 className="rounded-xl border border-divider-light dark:border-divider-dark bg-background-light dark:bg-background-dark px-4 py-3 text-text-light dark:text-text-dark"
                             />
 
@@ -105,6 +114,7 @@ export default function LoginScreen() {
                                     secureTextEntry
                                     autoCapitalize="none"
                                     textContentType="password"
+                                    accessibilityLabel="Password"
                                     className="rounded-xl border border-divider-light dark:border-divider-dark bg-background-light dark:bg-background-dark px-4 py-3 text-text-light dark:text-text-dark"
                                 />
                             </View>
@@ -125,6 +135,7 @@ export default function LoginScreen() {
                             <Pressable
                                 onPress={handleSignIn}
                                 disabled={isSubmitting}
+                                accessibilityRole="button"
                                 className={`mt-5 rounded-xl py-3 ${isSubmitting ? 'bg-primary/70' : 'bg-primary'}`}
                             >
                                 <Text className="text-white font-semibold text-center dark:text-white">

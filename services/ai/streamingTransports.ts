@@ -62,10 +62,10 @@ export async function streamChatWithXhr(
         preparationLease.release();
         throw error;
     }
-    const accountLease = prepared.mode === 'managed' ? preparationLease : null;
-    if (!accountLease) preparationLease.release();
+    const accountLease = preparationLease;
     // Fix 5: skip XHR when primary model is known-unavailable (let fetch+self-heal handle it)
-    if (prepared.mode === 'byok' && isModelCachedUnavailable(payload.model)) {
+    if (prepared.mode === 'byok' && isModelCachedUnavailable(prepared.request.body.model)) {
+        accountLease.release();
         return { ok: false, usage: null };
     }
     const { request } = prepared;
@@ -84,9 +84,12 @@ export async function streamChatWithXhr(
         const settle = (callback: () => void) => {
             if (settled) return;
             settled = true;
-            accountLease?.signal.removeEventListener('abort', abortForAccountSwitch);
-            accountLease?.release();
-            callback();
+            accountLease.signal.removeEventListener('abort', abortForAccountSwitch);
+            try {
+                callback();
+            } finally {
+                accountLease.release();
+            }
         };
         const abortForAccountSwitch = () => {
             if (settled) return;
@@ -94,12 +97,14 @@ export async function streamChatWithXhr(
                 xhr.abort();
             } finally {
                 settle(() => reject(new Error(
-                    'Managed AI request was cancelled by an account switch.'
+                    prepared.mode === 'managed'
+                        ? 'Managed AI request was cancelled by an account switch.'
+                        : 'AI request was cancelled by an account switch.'
                 )));
             }
         };
         const processIncoming = () => {
-            if (settled || accountLease?.signal.aborted) return;
+            if (settled || accountLease.signal.aborted) return;
             const incoming = xhr.responseText.slice(consumedLength);
             consumedLength = xhr.responseText.length;
             if (!incoming) return;
@@ -153,16 +158,18 @@ export async function streamChatWithXhr(
         };
         xhr.onabort = () => {
             settle(() => reject(new Error(
-                'Managed AI request was cancelled by an account switch.'
+                prepared.mode === 'managed'
+                    ? 'Managed AI request was cancelled by an account switch.'
+                    : 'AI request was cancelled by an account switch.'
             )));
         };
-        accountLease?.signal.addEventListener('abort', abortForAccountSwitch, { once: true });
+        accountLease.signal.addEventListener('abort', abortForAccountSwitch, { once: true });
         try {
             xhr.open('POST', request.url, true);
             Object.entries(request.headers).forEach(([key, value]) => {
                 xhr.setRequestHeader(key, value);
             });
-            if (accountLease?.signal.aborted) {
+            if (accountLease.signal.aborted) {
                 abortForAccountSwitch();
                 return;
             }

@@ -179,4 +179,20 @@ describe('directConfig — getResolvedDirectConfig', () => {
             contextWindowSource: 'api',
         });
     });
+
+    it('rejects an already-aborted config resolution before reading BYOK credentials', async () => {
+        const previousKey = process.env.EXPO_PUBLIC_NANO_GPT_API_KEY;
+        process.env.EXPO_PUBLIC_NANO_GPT_API_KEY = 'sk-env-test';
+        const controller = new AbortController();
+        controller.abort();
+        try {
+            await expect(getResolvedDirectConfig(controller.signal)).rejects.toMatchObject({
+                name: 'AbortError',
+                message: 'AI config resolution was cancelled by an account switch.',
+            });
+        } finally {
+            if (previousKey === undefined) delete process.env.EXPO_PUBLIC_NANO_GPT_API_KEY;
+            else process.env.EXPO_PUBLIC_NANO_GPT_API_KEY = previousKey;
+        }
+    });
 });

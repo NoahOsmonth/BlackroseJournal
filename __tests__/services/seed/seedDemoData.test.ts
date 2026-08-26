@@ -1,18 +1,26 @@
 /* eslint-disable import/first */
 
 const mockStore = new Map<string, string>();
+type Deferred = { promise: Promise<void>; resolve: () => void };
+let mockDelayedReadKey: string | null = null;
+let mockDelayedRead: Deferred | null = null;
+let mockDelayedReadStarted: (() => void) | null = null;
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
     __esModule: true,
     default: {
-        getItem: jest.fn((key: string) => Promise.resolve(mockStore.get(key) ?? null)),
-        setItem: jest.fn((key: string, value: string) => {
-            mockStore.set(key, value);
-            return Promise.resolve();
+        getItem: jest.fn(async (key: string) => {
+            if (key === mockDelayedReadKey && mockDelayedRead) {
+                mockDelayedReadStarted?.();
+                await mockDelayedRead.promise;
+            }
+            return mockStore.get(key) ?? null;
         }),
-        removeItem: jest.fn((key: string) => {
+        setItem: jest.fn(async (key: string, value: string) => {
+            mockStore.set(key, value);
+        }),
+        removeItem: jest.fn(async (key: string) => {
             mockStore.delete(key);
-            return Promise.resolve();
         }),
     },
 }));
@@ -68,15 +76,27 @@ import { listGoals } from '../../../services/goals/goalsStorage';
 import { listMemoryAtoms } from '../../../services/memory/localMemory';
 import { getLocalDateKey } from '../../../utils/date';
 import { activateAccount, clearActiveAccount } from '../../../services/account/accountRuntime';
-import { getAccountScopedStorageKey } from '../../../services/account/accountScopedStorage';
+import {
+    getAccountScopedStorageKey,
+    getAccountScopedStorageKeyForAccount,
+} from '../../../services/account/accountScopedStorage';
 
 function seedStorageValue(key: string): string | undefined {
     return mockStore.get(getAccountScopedStorageKey(key));
 }
 
+function deferred(): Deferred {
+    let resolve!: () => void;
+    const promise = new Promise<void>((nextResolve) => { resolve = nextResolve; });
+    return { promise, resolve };
+}
+
 describe('seedDemoData', () => {
     beforeEach(async () => {
         mockStore.clear();
+        mockDelayedReadKey = null;
+        mockDelayedRead = null;
+        mockDelayedReadStarted = null;
         setDemoSeedEnabledForTests(true);
         await activateAccount('seed-user');
     });
@@ -168,6 +188,69 @@ describe('seedDemoData', () => {
     it('seedBulkProbeJournal throws when demo seed is disabled', async () => {
         setDemoSeedEnabledForTests(false);
         await expect(seedBulkProbeJournal({ count: 2 })).rejects.toThrow(/__DEV__/);
+    });
+
+    it('aborts an in-flight seed before it can continue under another account', async () => {
+        const accountARecordKey = getAccountScopedStorageKeyForAccount(
+            DEMO_SEED_RECORD_KEY,
+            'seed-account-a',
+        );
+        const releaseRead = deferred();
+        const readStarted = deferred();
+        mockDelayedReadKey = accountARecordKey;
+        mockDelayedRead = releaseRead;
+        mockDelayedReadStarted = readStarted.resolve;
+
+        await activateAccount('seed-account-a');
+        const pending = seedDemoData();
+        await readStarted.promise;
+        const switching = activateAccount('seed-account-b');
+        releaseRead.resolve();
+
+        await expect(pending).rejects.toThrow('Account operation was aborted');
+        await switching;
+        expect(mockStore.has(getAccountScopedStorageKeyForAccount(
+            DEMO_SEED_RECORD_KEY,
+            'seed-account-b',
+        ))).toBe(false);
+        expect(mockStore.has(getAccountScopedStorageKeyForAccount(
+            SEED_FLAG_KEY,
+            'seed-account-b',
+        ))).toBe(false);
+    });
+
+    it('aborts an in-flight clear instead of deleting with a stale account context', async () => {
+        const accountARecordKey = getAccountScopedStorageKeyForAccount(
+            DEMO_SEED_RECORD_KEY,
+            'seed-account-a',
+        );
+        mockStore.set(accountARecordKey, JSON.stringify({
+            schemaVersion: 1,
+            journalEntryIds: [],
+            intentionIds: [],
+            checkInIds: [],
+            goalIds: [],
+            memoryAtomIds: [],
+        }));
+        const releaseRead = deferred();
+        const readStarted = deferred();
+        mockDelayedReadKey = accountARecordKey;
+        mockDelayedRead = releaseRead;
+        mockDelayedReadStarted = readStarted.resolve;
+
+        await activateAccount('seed-account-a');
+        const pending = clearDemoData();
+        await readStarted.promise;
+        const switching = activateAccount('seed-account-b');
+        releaseRead.resolve();
+
+        await expect(pending).rejects.toThrow('Account operation was aborted');
+        await switching;
+        expect(mockStore.has(accountARecordKey)).toBe(true);
+        expect(mockStore.has(getAccountScopedStorageKeyForAccount(
+            DEMO_SEED_RECORD_KEY,
+            'seed-account-b',
+        ))).toBe(false);
     });
 
     /**

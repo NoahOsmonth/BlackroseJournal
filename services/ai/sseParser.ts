@@ -132,7 +132,12 @@ function processStreamLines(
 export type StreamUsageCallback = (usage: ChatUsage | null) => void;
 
 export async function readStreamResponse(
-    body: { getReader: () => { read: () => Promise<{ done: boolean; value?: Uint8Array }> } },
+    body: {
+        getReader: () => {
+            read: () => Promise<{ done: boolean; value?: Uint8Array }>;
+            cancel?: (reason?: unknown) => Promise<void>;
+        };
+    },
     onChunk: StreamingCallback,
     onComplete: CompleteCallback,
     onUsage?: StreamUsageCallback
@@ -141,23 +146,30 @@ export async function readStreamResponse(
     const decoder = new TextDecoder('utf-8');
     const accumulator: ChatAccumulator = { content: '', reasoning: '', usage: null };
     let buffer = '';
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer = decodeStreamChunk(decoder, value, buffer);
-        const { lines, remainder } = splitStreamBuffer(buffer);
-        buffer = remainder;
-        if (processStreamLines(lines, accumulator, onChunk, onComplete)) {
-            const usage = accumulator.usage ?? null;
-            onUsage?.(usage);
-            return usage;
+
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer = decodeStreamChunk(decoder, value, buffer);
+            const { lines, remainder } = splitStreamBuffer(buffer);
+            buffer = remainder;
+            if (processStreamLines(lines, accumulator, onChunk, onComplete)) {
+                const usage = accumulator.usage ?? null;
+                onUsage?.(usage);
+                return usage;
+            }
         }
+        assertFinalContent(accumulator);
+        onComplete(accumulator.content, accumulator.reasoning);
+        const usage = accumulator.usage ?? null;
+        onUsage?.(usage);
+        return usage;
+    } finally {
+        // Normal SSE completion returns before EOF. Cancel the body so transport
+        // leases tied to the stream are released deterministically.
+        void reader.cancel?.().catch(() => undefined);
     }
-    assertFinalContent(accumulator);
-    onComplete(accumulator.content, accumulator.reasoning);
-    const usage = accumulator.usage ?? null;
-    onUsage?.(usage);
-    return usage;
 }
 
 function parseJsonSafely(rawText: string): unknown {

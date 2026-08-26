@@ -47,6 +47,13 @@ function readVar(value: string | undefined): string | undefined {
     return value && value.length > 0 ? value : undefined;
 }
 
+function throwIfConfigResolutionAborted(signal?: AbortSignal): void {
+    if (!signal?.aborted) return;
+    const error = new Error('AI config resolution was cancelled by an account switch.');
+    error.name = 'AbortError';
+    throw error;
+}
+
 export function getDirectConfig(): DirectConfig {
     // Expo inlines EXPO_PUBLIC_* env vars at build time, so we must read
     // each one with a static key (no dynamic `process.env[key]`).
@@ -72,8 +79,10 @@ export function getDirectConfig(): DirectConfig {
     };
 }
 
-export async function getResolvedDirectConfig(): Promise<ResolvedDirectConfig> {
+export async function getResolvedDirectConfig(signal?: AbortSignal): Promise<ResolvedDirectConfig> {
+    throwIfConfigResolutionAborted(signal);
     const custom = await getActiveCustomModelConfig();
+    throwIfConfigResolutionAborted(signal);
     if (custom) {
         return {
             apiKey: custom.apiKey,
@@ -86,8 +95,10 @@ export async function getResolvedDirectConfig(): Promise<ResolvedDirectConfig> {
         };
     }
 
-    return {
+    const config = {
         ...getDirectConfig(),
-        source: 'env',
+        source: 'env' as const,
     };
+    throwIfConfigResolutionAborted(signal);
+    return config;
 }

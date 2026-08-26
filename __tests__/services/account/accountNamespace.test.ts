@@ -44,6 +44,12 @@ function createMemoryStorage(): MemoryStorage {
     };
 }
 
+function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((nextResolve) => { resolve = nextResolve; });
+    return { promise, resolve };
+}
+
 describe('account-scoped persistence', () => {
     const storage = createMemoryStorage();
 
@@ -130,6 +136,35 @@ describe('account-scoped persistence', () => {
         )).toBe('{"owner":"current"}');
         expect(storage.values.has('@rosebud_session_digest:first')).toBe(false);
         expect(storage.values.has('@rosebud_session_digest:second')).toBe(false);
+    });
+
+    it('does not delete or move a legacy key after its account lease is aborted', async () => {
+        const readStarted = deferred<void>();
+        const releaseRead = deferred<void>();
+        storage.values.set('@saved_insights', '{"owner":"legacy"}');
+        const delayedStorage: MemoryStorage = {
+            ...storage,
+            async getItem(key) {
+                if (key === '@saved_insights') {
+                    readStarted.resolve();
+                    await releaseRead.promise;
+                }
+                return storage.values.get(key) ?? null;
+            },
+        };
+        setAccountStorageAdapter(delayedStorage);
+        await activateAccount('user-a');
+
+        const claim = claimLegacyStorageKey('@saved_insights');
+        await readStarted.promise;
+        const switching = activateAccount('user-b');
+        releaseRead.resolve();
+
+        await expect(claim).rejects.toThrow('Account operation was aborted');
+        await switching;
+        expect(storage.values.get('@saved_insights')).toBe('{"owner":"legacy"}');
+        expect(storage.values.has('@blackrose_account:v1:user-a:saved_insights')).toBe(false);
+        expect(storage.values.has('@blackrose_account:v1:user-b:saved_insights')).toBe(false);
     });
 
     it('detects exact and sharded legacy stores before ownership confirmation', async () => {

@@ -109,6 +109,30 @@ function assertMarkerReply(reply, expected, forbidden) {
   }
 }
 
+const MARKER_RETRY_DELAYS_MS = [2_000, 5_000, 10_000];
+
+// Free-tier models intermittently ignore or refuse verbatim-echo instructions.
+// Bounded retry keeps the proof deterministic without weakening the assertion.
+async function retryMarkerReply(label, complete, assertReply) {
+  let lastError;
+  const attempts = MARKER_RETRY_DELAYS_MS.length + 1;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const reply = await complete();
+      assertReply(reply);
+      return reply;
+    } catch (error) {
+      // Empty-text completions and marker misses both count as one failed attempt.
+      lastError = error;
+      if (attempt < attempts) {
+        console.log(`[probe] ${label} attempt ${attempt}/${attempts} failed (${String(error && error.message ? error.message : error).slice(0, 120)}); retrying.`);
+        await new Promise((resolve) => setTimeout(resolve, MARKER_RETRY_DELAYS_MS[attempt - 1]));
+      }
+    }
+  }
+  throw lastError;
+}
+
 function redactEvidence(value, secrets) {
   const usable = secrets.filter((secret) => typeof secret === 'string' && secret.length > 0);
   const redactString = (text) => usable.reduce(
@@ -213,14 +237,39 @@ async function waitForRevision(observer, revision, timeoutMs = 15_000) {
 }
 
 async function performAdminRequest(page, routeFragment, action, timeoutMs = 120_000) {
-  const [response] = await Promise.all([
-    page.waitForResponse((candidate) => (
-      candidate.url().includes(routeFragment) && candidate.request().method() !== 'OPTIONS'
-    ), { timeout: timeoutMs }),
-    action(),
-  ]);
-  if (!response.ok()) {
-    throw new Error(`Admin request ${routeFragment} failed with ${response.status()}.`);
+  console.log(`[probe] waiting for response: ${routeFragment}`);
+  try {
+    const [response] = await Promise.all([
+      page.waitForResponse((candidate) => (
+        candidate.url().includes(routeFragment) && candidate.request().method() !== 'OPTIONS'
+      ), { timeout: timeoutMs }),
+      action(),
+    ]);
+    if (!response.ok()) {
+      throw new Error(`Admin request ${routeFragment} failed with ${response.status()}.`);
+    }
+    console.log(`[probe] OK: ${routeFragment} -> ${response.status()}`);
+  } catch (error) {
+    const pending = page.isClosed() ? 'page-closed' : 'page-open';
+    console.log(`[probe] FAIL: ${routeFragment} (${pending}): ${error instanceof Error ? error.message.split('\n')[0] : error}`);
+    try {
+      await page.screenshot({ path: '/tmp/t11-official-timeout.png', fullPage: true });
+      const domState = await page.evaluate(() => {
+        const btns = [...document.querySelectorAll('button')].map((b) => ({
+          text: (b.textContent || '').trim().slice(0, 40),
+          disabled: b.disabled,
+          visible: !!(b.offsetWidth || b.offsetHeight),
+        }));
+        const dialogs = document.querySelectorAll('[role="dialog"], dialog, .modal').length;
+        return { dialogs, buttons: btns.filter((b) => b.visible).slice(0, 25) };
+      });
+      console.log(`[probe] DOM AT FAIL: ${JSON.stringify(domState, null, 1).slice(0, 3000)}`);
+      const fetchLog = await page.evaluate(() => (window.__fetchLog || []).slice(-10));
+      console.log(`[probe] IN-PAGE FETCH LOG (last 10): ${JSON.stringify(fetchLog)}`);
+    } catch (dumpError) {
+      console.log(`[probe] dump failed: ${String(dumpError).split('\n')[0]}`);
+    }
+    throw error;
   }
 }
 
@@ -229,6 +278,28 @@ async function runAdminBrowser(config) {
   const publicModelId = `${RESOURCE_PREFIX}${config.runId}-model`;
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  await page.addInitScript(() => {
+    const orig = window.fetch.bind(window);
+    window.__fetchLog = [];
+    window.fetch = async (...args) => {
+      const url = String(args[0]?.url ?? args[0]);
+      const method = args[1]?.method ?? 'GET';
+      const entry = { m: method, u: url.replace('http://127.0.0.1', '').slice(0, 90) };
+      window.__fetchLog.push(entry);
+      try {
+        const res = await orig(...args);
+        entry.s = res.status;
+        return res;
+      } catch (e) { entry.err = String(e).slice(0, 60); throw e; }
+    };
+  });
+  page.on('requestfailed', (req) => {
+    console.log(`[net] XX FAILED ${req.method()} ${req.url().slice(0, 120)} :: ${req.failure()?.errorText}`);
+  });
+  page.on('pageerror', (err) => console.log(`[net][pageerror] ${String(err).slice(0, 250)}`));
+  page.on('response', (res) => {
+    if (res.url().includes('/v1/')) console.log(`[net] <- ${res.status()} ${res.url().slice(0, 120)}`);
+  });
   try {
     await page.goto(config.adminUrl, { waitUntil: 'networkidle', timeout: 120_000 });
     await page.getByLabel('Email address').fill(config.admin.email);
@@ -243,7 +314,7 @@ async function runAdminBrowser(config) {
     await performAdminRequest(page, '/v1/admin/providers', () => (
       page.getByRole('button', { name: 'Create provider', exact: true }).click()
     ));
-    await page.getByText(providerName, { exact: true }).waitFor({ timeout: 30_000 });
+    await page.getByRole('heading', { name: providerName }).waitFor({ timeout: 30_000 });
 
     await performAdminRequest(page, '/discover', () => (
       page.getByRole('button', { name: 'Discover models', exact: true }).click()
@@ -283,7 +354,7 @@ async function managedCompletion(config, token, purpose, prompt, systemInstructi
     messages: [{ role: 'user', content: prompt }],
     ...(systemInstruction ? { systemInstruction } : {}),
     temperature: 0,
-    maxOutputTokens: 80,
+    maxOutputTokens: 512,
     stream: false,
   });
   return collectNormalizedText(body);
@@ -298,7 +369,7 @@ async function directCompletion(config) {
       model: config.provider.modelId,
       messages: [{ role: 'user', content: `Reply briefly with BYOK-${config.runId}.` }],
       temperature: 0,
-      max_tokens: 80,
+      max_tokens: 512,
       stream: false,
     }),
     label: 'direct BYOK provider request',
@@ -332,16 +403,39 @@ async function recallUntil(config, token, query, expected, timeoutMs = 30_000) {
   throw new Error(`Memory recall did not return owned marker ${expected}. Last body: ${JSON.stringify(body)}`);
 }
 
+// Hindsight's fact extraction LLM is stochastic on terse synthetic marker text and
+// occasionally returns 0 facts (document tracked, nothing stored, recall stays empty).
+// Retry with progressively richer journal-like phrasing before giving up.
+const RETAIN_VARIANTS = (common, marker) => [
+  `${common}. The user shared their private code phrase: ${marker}. They asked me to remember it exactly.`,
+  `During today's journaling session (${common}), the user told me something private: their personal code phrase is ${marker}. This is an important personal fact I must remember for them.`,
+];
+
+async function retainUntilRecallable(config, token, documentId, common, marker, query) {
+  const variants = RETAIN_VARIANTS(common, marker);
+  let lastError;
+  for (let attempt = 1; attempt <= variants.length; attempt += 1) {
+    await retain(config, token, documentId, variants[attempt - 1]);
+    try {
+      // Retain waits for its internal extraction pipeline, so recallable facts
+      // surface within seconds when extraction succeeded.
+      return await recallUntil(config, token, query, marker, 10_000);
+    } catch (error) {
+      lastError = error;
+      console.log(`[probe] recall missed for ${documentId} (attempt ${attempt}/${variants.length}); retaining with richer phrasing.`);
+    }
+  }
+  throw lastError;
+}
+
 async function proveMemoryIsolation(config, tokenA, tokenB) {
   const markerA = `${RESOURCE_PREFIX}${config.runId}-user-a-orchid`;
   const markerB = `${RESOURCE_PREFIX}${config.runId}-user-b-cobalt`;
   const common = `${RESOURCE_PREFIX}${config.runId}-memory-isolation`;
   await Promise.all([clearMemory(config, tokenA), clearMemory(config, tokenB)]);
-  await retain(config, tokenA, `${common}-a`, `${common}. Private marker: ${markerA}.`);
-  await retain(config, tokenB, `${common}-b`, `${common}. Private marker: ${markerB}.`);
   const [recallA, recallB] = await Promise.all([
-    recallUntil(config, tokenA, common, markerA),
-    recallUntil(config, tokenB, common, markerB),
+    retainUntilRecallable(config, tokenA, `${common}-a`, common, markerA, common),
+    retainUntilRecallable(config, tokenB, `${common}-b`, common, markerB, common),
   ]);
   const textA = JSON.stringify(recallA);
   const textB = JSON.stringify(recallB);
@@ -355,23 +449,29 @@ async function proveMemoryConditionedChat(config, tokenA, tokenB, memory) {
   const contextA = `## Relevant long-term context\n${JSON.stringify(memory.recallA.results)}`;
   const contextB = `## Relevant long-term context\n${JSON.stringify(memory.recallB.results)}`;
   const [replyA, replyB] = await Promise.all([
-    managedCompletion(
-      config,
-      tokenA,
-      'chat',
-      'According to the relevant long-term context, reply with exactly my private marker.',
-      contextA,
+    retryMarkerReply(
+      'MEMORY-A',
+      () => managedCompletion(
+        config,
+        tokenA,
+        'chat',
+        'According to the relevant long-term context, reply with exactly my private marker.',
+        contextA,
+      ),
+      (reply) => assertMarkerReply(reply, memory.markerA, memory.markerB),
     ),
-    managedCompletion(
-      config,
-      tokenB,
-      'chat',
-      'According to the relevant long-term context, reply with exactly my private marker.',
-      contextB,
+    retryMarkerReply(
+      'MEMORY-B',
+      () => managedCompletion(
+        config,
+        tokenB,
+        'chat',
+        'According to the relevant long-term context, reply with exactly my private marker.',
+        contextB,
+      ),
+      (reply) => assertMarkerReply(reply, memory.markerB, memory.markerA),
     ),
   ]);
-  assertMarkerReply(replyA, memory.markerA, memory.markerB);
-  assertMarkerReply(replyB, memory.markerB, memory.markerA);
   return { userA: replyA, userB: replyB };
 }
 
@@ -434,6 +534,7 @@ async function runLiveProbe(config) {
   let memoryCleared = false;
   let adminCleaned = false;
   let resourcesMayExist = false;
+  let appEvidence = null;
   const providerName = `${RESOURCE_PREFIX}${config.runId}-provider`;
   const publicModelId = `${RESOURCE_PREFIX}${config.runId}-model`;
   try {
@@ -459,20 +560,33 @@ async function runLiveProbe(config) {
       setPreference(config, tokenA, model.id),
       setPreference(config, tokenB, model.id),
     ]);
-    const managedChat = await managedCompletion(
-      config, tokenA, 'chat', `Reply briefly with MANAGED-${config.runId}.`,
+    const managedChat = await retryMarkerReply(
+      'MANAGED',
+      () => managedCompletion(
+        config, tokenA, 'chat', `Reply briefly with MANAGED-${config.runId}.`,
+      ),
+      (reply) => assertMarkerReply(reply, `MANAGED-${config.runId}`),
     );
-    assertMarkerReply(managedChat, `MANAGED-${config.runId}`);
-    const managedFlash = await managedCompletion(
-      config, tokenA, 'flash', `Reply briefly with FLASH-${config.runId}.`,
+    const managedFlash = await retryMarkerReply(
+      'FLASH',
+      () => managedCompletion(
+        config, tokenA, 'flash', `Reply briefly with FLASH-${config.runId}.`,
+      ),
+      (reply) => assertMarkerReply(reply, `FLASH-${config.runId}`),
     );
-    assertMarkerReply(managedFlash, `FLASH-${config.runId}`);
-    const byokDirect = await directCompletion(config);
-    assertMarkerReply(byokDirect.text, `BYOK-${config.runId}`);
+    const byokDirect = await retryMarkerReply(
+      'BYOK',
+      () => directCompletion(config),
+      (reply) => assertMarkerReply(reply.text, `BYOK-${config.runId}`),
+    );
     const memory = await proveMemoryIsolation(config, tokenA, tokenB);
     const memoryConditionedChat = await proveMemoryConditionedChat(
       config, tokenA, tokenB, memory,
     );
+    if (process.env.CONTROL_PLANE_APP_LIVE === '1') {
+      const { buildAppProbeConfig, runAppProbe } = require('./app-live-probe.js');
+      appEvidence = await runAppProbe(buildAppProbeConfig(process.env), { tokenA, tokenB });
+    }
     await withdrawCatalogViaAdmin(config, adminRun);
     const withdrawnCatalog = await gateway(config, tokenA, '/v1/ai/catalog');
     if (withdrawnCatalog.models?.some((item) => item.publicModelId === publicModelId)) {
@@ -499,6 +613,7 @@ async function runLiveProbe(config) {
       verbatimMemoryConditionedManagedRepliesUsingHarnessInjectedRecall: memoryConditionedChat,
       isolationMarkers: { userA: memory.markerA, userB: memory.markerB },
       authenticatedCatalogRevisionEvents: realtimeObserver.revisions,
+      realAppEvidence: appEvidence,
     }, secrets);
     fs.mkdirSync(config.artifactDir, { recursive: true });
     const artifact = path.join(config.artifactDir, `control-plane-${config.runId}.json`);

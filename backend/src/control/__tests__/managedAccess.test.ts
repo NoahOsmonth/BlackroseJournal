@@ -107,6 +107,28 @@ describe('managed route access', () => {
     }
   });
 
+  it('answers CORS preflight on admin routes without requiring credentials', async () => {
+    const verifier: AccessTokenVerifier = {
+      verify: async () => ({ userId: 'admin-id', role: 'authenticated' }),
+    };
+    const adminAuthorizer = createControlAdminAuthorizer({
+      findAdminByUserId: async () => ({ userId: 'admin-id', role: 'owner' }),
+    });
+
+    await withApp(verifier, ['http://localhost:8081'], async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/v1/admin/providers`, {
+        method: 'OPTIONS',
+        headers: {
+          origin: 'http://localhost:8081',
+          'access-control-request-method': 'POST',
+          'access-control-request-headers': 'authorization,content-type',
+        },
+      });
+      assert.equal(response.status, 204);
+      assert.equal(response.headers.get('access-control-allow-origin'), 'http://localhost:8081');
+    }, adminAuthorizer);
+  });
+
   it('lets an explicitly persisted admin reach the configured-service boundary', async () => {
     const verifier: AccessTokenVerifier = {
       verify: async () => ({ userId: 'admin-id', role: 'authenticated' }),
