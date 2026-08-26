@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { describe, it } from 'node:test';
-import { createControlPlaneFromEnvironment } from '../controlPlaneConfig';
+import { createControlPlaneFromEnvironment, createOmnirouteFromEnvironment } from '../controlPlaneConfig';
 
 describe('control plane environment wiring', () => {
   it('stays disabled for an entirely unconfigured development environment', () => {
@@ -27,5 +27,35 @@ describe('control plane environment wiring', () => {
 
     assert.ok(service);
     assert.doesNotMatch(JSON.stringify(service), /service-secret/);
+  });
+});
+
+describe('omniroute environment wiring', () => {
+  it('throws without OMNIROUTE_MANAGE_KEY', () => {
+    assert.throws(
+      () => createOmnirouteFromEnvironment({}),
+      /OMNIROUTE_MANAGE_KEY/,
+    );
+  });
+
+  it('applies the default base url and an optional embedding model', () => {
+    const built = createOmnirouteFromEnvironment({ OMNIROUTE_MANAGE_KEY: 'k' });
+    assert.ok(built.adapter);
+    assert.equal(built.embeddingModel, null);
+  });
+
+  it('honors explicit base url and embedding model overrides', () => {
+    const built = createOmnirouteFromEnvironment({
+      OMNIROUTE_MANAGE_KEY: 'k',
+      OMNIROUTE_BASE_URL: 'http://127.0.0.1:20128',
+      OMNIROUTE_EMBEDDING_MODEL: 'gemini-embedding-001',
+    });
+    assert.ok(built.adapter);
+    assert.equal(built.embeddingModel, 'gemini-embedding-001');
+  });
+
+  it('never leaks the manage key in stringified output', () => {
+    const built = createOmnirouteFromEnvironment({ OMNIROUTE_MANAGE_KEY: 'supersecret' });
+    assert.doesNotMatch(JSON.stringify(built), /supersecret/);
   });
 });

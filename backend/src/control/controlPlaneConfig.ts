@@ -1,4 +1,5 @@
 import { loadManagedSecurityConfig } from '../security/securityConfig';
+import { createOmnirouteAdapter, type OmnirouteAdapter } from './omnirouteAdapter';
 import { createControlPlaneService, type ControlPlaneService } from './controlPlaneService';
 import { discoverProviderModels } from './providerDiscovery';
 import { createSupabaseControlPlaneRepository } from './supabaseControlPlaneRepository';
@@ -13,10 +14,27 @@ const CONFIG_KEYS = [
   'AI_CREDENTIAL_MASTER_KEY_RING_JSON',
 ] as const;
 
+const DEFAULT_OMNIROUTE_BASE_URL = 'http://100.107.7.52:20128';
+
 function required(env: Environment, key: string): string {
   const value = env[key]?.trim();
   if (!value) throw new Error(`Required control plane configuration is missing: ${key}.`);
   return value;
+}
+
+export function createOmnirouteFromEnvironment(env: Environment): {
+  adapter: OmnirouteAdapter;
+  embeddingModel: string | null;
+} {
+  const manageKey = env['OMNIROUTE_MANAGE_KEY']?.trim();
+  if (!manageKey) throw new Error('Missing OMNIROUTE_MANAGE_KEY for OmniRoute adapter.');
+  return {
+    adapter: createOmnirouteAdapter({
+      baseUrl: env['OMNIROUTE_BASE_URL']?.trim() || DEFAULT_OMNIROUTE_BASE_URL,
+      manageKey,
+    }),
+    embeddingModel: env['OMNIROUTE_EMBEDDING_MODEL']?.trim() || null,
+  };
 }
 
 export function createControlPlaneFromEnvironment(
