@@ -5,8 +5,15 @@ import {
     CompleteCallback,
     StreamingCallback,
 } from './chatTypes';
-import { fetchDirectChatCompletion, isModelCachedUnavailable, prepareDirectChatRequest } from './directTransport';
-import { appendChunk, buildResponseError, parseSseLine, readNonStreamingResponse } from './sseParser';
+import {
+    fetchAiChatCompletion,
+    parseAiSseLine,
+    prepareAiChatRequest,
+    type PreparedAiChatRequest,
+} from './aiTransport';
+import { isModelCachedUnavailable } from './directTransport';
+import { appendChunk, buildResponseError, readNonStreamingResponse } from './sseParser';
+import { acquireAccountOperationLease } from '@/services/account/accountRuntime';
 
 type ReadableStreamLike = {
     getReader: () => { read: () => Promise<{ done: boolean; value?: Uint8Array }> };
@@ -29,7 +36,7 @@ function hasFinalContent(accumulator: ChatAccumulator): boolean {
 }
 
 export async function fetchChatCompletion(payload: ChatRequestPayload): Promise<Response> {
-    return fetchDirectChatCompletion(payload);
+    return fetchAiChatCompletion(payload);
 }
 
 /** PR8c: stream result includes usage when the provider emits a usage chunk. */
@@ -44,11 +51,32 @@ export async function streamChatWithXhr(
     onComplete: CompleteCallback
 ): Promise<StreamXhrResult> {
     if (!hasXmlHttpRequest()) return { ok: false, usage: null };
+    const preparationLease = acquireAccountOperationLease('ai-inference-xhr-preparation');
+    let prepared: PreparedAiChatRequest;
+    try {
+        prepared = await prepareAiChatRequest(payload);
+        if (preparationLease.signal.aborted) {
+            throw new Error('Managed AI request was cancelled by an account switch.');
+        }
+    } catch (error) {
+        preparationLease.release();
+        throw error;
+    }
+    const accountLease = preparationLease;
     // Fix 5: skip XHR when primary model is known-unavailable (let fetch+self-heal handle it)
-    if (isModelCachedUnavailable(payload.model)) return { ok: false, usage: null };
-    const request = await prepareDirectChatRequest(payload);
+    if (prepared.mode === 'byok' && isModelCachedUnavailable(prepared.request.body.model)) {
+        accountLease.release();
+        return { ok: false, usage: null };
+    }
+    const { request } = prepared;
+    let xhr: XMLHttpRequest;
+    try {
+        xhr = new globalThis.XMLHttpRequest();
+    } catch (error) {
+        accountLease?.release();
+        throw error;
+    }
     return new Promise((resolve, reject) => {
-        const xhr = new globalThis.XMLHttpRequest();
         const accumulator: ChatAccumulator = { content: '', reasoning: '', usage: null };
         let buffer = '';
         let consumedLength = 0;
@@ -56,9 +84,27 @@ export async function streamChatWithXhr(
         const settle = (callback: () => void) => {
             if (settled) return;
             settled = true;
-            callback();
+            accountLease.signal.removeEventListener('abort', abortForAccountSwitch);
+            try {
+                callback();
+            } finally {
+                accountLease.release();
+            }
+        };
+        const abortForAccountSwitch = () => {
+            if (settled) return;
+            try {
+                xhr.abort();
+            } finally {
+                settle(() => reject(new Error(
+                    prepared.mode === 'managed'
+                        ? 'Managed AI request was cancelled by an account switch.'
+                        : 'AI request was cancelled by an account switch.'
+                )));
+            }
         };
         const processIncoming = () => {
+            if (settled || accountLease.signal.aborted) return;
             const incoming = xhr.responseText.slice(consumedLength);
             consumedLength = xhr.responseText.length;
             if (!incoming) return;
@@ -66,8 +112,12 @@ export async function streamChatWithXhr(
             const lines = buffer.split('\n');
             buffer = lines.pop() || '';
             for (const line of lines) {
-                const parsed = parseSseLine(line);
+                const parsed = parseAiSseLine(line, prepared.mode);
                 if (!parsed) continue;
+                if (parsed.error) {
+                    settle(() => reject(parsed.error));
+                    return;
+                }
                 if (parsed.done) {
                     settle(() => {
                         if (!hasFinalContent(accumulator)) {
@@ -82,10 +132,6 @@ export async function streamChatWithXhr(
                 appendChunk(accumulator, parsed, onChunk);
             }
         };
-        xhr.open('POST', request.url, true);
-        Object.entries(request.headers).forEach(([key, value]) => {
-            xhr.setRequestHeader(key, value);
-        });
         xhr.onreadystatechange = () => {
             if (xhr.readyState === 3 || xhr.readyState === 4) processIncoming();
         };
@@ -110,9 +156,28 @@ export async function streamChatWithXhr(
         xhr.onerror = () => {
             settle(() => reject(new Error('AI request failed using XMLHttpRequest streaming fallback.')));
         };
-        xhr.send(JSON.stringify(request.body));
+        xhr.onabort = () => {
+            settle(() => reject(new Error(
+                prepared.mode === 'managed'
+                    ? 'Managed AI request was cancelled by an account switch.'
+                    : 'AI request was cancelled by an account switch.'
+            )));
+        };
+        accountLease.signal.addEventListener('abort', abortForAccountSwitch, { once: true });
+        try {
+            xhr.open('POST', request.url, true);
+            Object.entries(request.headers).forEach(([key, value]) => {
+                xhr.setRequestHeader(key, value);
+            });
+            if (accountLease.signal.aborted) {
+                abortForAccountSwitch();
+                return;
+            }
+            xhr.send(JSON.stringify(request.body));
+        } catch (error) {
+            settle(() => reject(error));
+        }
     });
 }
 
 export { buildResponseError, hasReadableStream, readNonStreamingResponse };
-

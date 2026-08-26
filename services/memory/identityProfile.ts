@@ -6,7 +6,8 @@
  * Zep/Graphiti-style: supersede by invalidating prior values, never silent wipe.
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { accountScopedStorage as AsyncStorage } from '@/services/account/accountScopedStorage';
+import { runAccountBoundOperation } from '@/services/account/accountRuntime';
 import type {
     IdentityFact,
     IdentityField,
@@ -45,9 +46,11 @@ export function resetIdentityStorageAdapter(): void {
 let writeQueue: Promise<unknown> = Promise.resolve();
 
 function withIdentityLock<T>(task: () => Promise<T>): Promise<T> {
-    const run = writeQueue.then(task, task);
-    writeQueue = run.catch(() => undefined);
-    return run;
+    return runAccountBoundOperation('identity-profile', async () => {
+        const run = writeQueue.then(task, task);
+        writeQueue = run.catch(() => undefined);
+        return run;
+    });
 }
 
 type IdentityChangeListener = () => void;
@@ -232,7 +235,7 @@ async function saveProfile(profile: IdentityProfile): Promise<void> {
 }
 
 export async function getIdentityProfile(): Promise<IdentityProfile> {
-    return loadProfile();
+    return runAccountBoundOperation('identity-profile-read', () => loadProfile());
 }
 
 export async function clearIdentityProfile(): Promise<void> {

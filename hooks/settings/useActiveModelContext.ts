@@ -4,6 +4,7 @@ import {
     type ModelContextInfo,
 } from '@/services/ai/modelContext';
 import { subscribeCustomAiSettingsChanges } from '@/services/ai/customModels';
+import { subscribeManagedCatalogChanges } from '@/services/ai/managedCatalog';
 
 export interface UseActiveModelContextReturn {
     context: ModelContextInfo | null;
@@ -44,9 +45,15 @@ export function useActiveModelContext(): UseActiveModelContextReturn {
     }, [load]);
 
     useEffect(() => {
-        return subscribeCustomAiSettingsChanges(() => {
+        const reload = () => {
             void load(true);
-        });
+        };
+        const unsubscribeCustom = subscribeCustomAiSettingsChanges(reload);
+        const unsubscribeManaged = subscribeManagedCatalogChanges(reload);
+        return () => {
+            unsubscribeCustom();
+            unsubscribeManaged();
+        };
     }, [load]);
 
     const refresh = useCallback(() => load(true), [load]);

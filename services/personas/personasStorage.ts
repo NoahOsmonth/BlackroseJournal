@@ -2,7 +2,16 @@
  * Personas storage service
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+    AccountStorageAdapter,
+    getStorageForAccount,
+} from '@/services/account/accountScopedStorage';
+import {
+    AccountOperationContext,
+    assertAccountOperationActive,
+    registerAccountTeardown,
+    runAccountBoundOperation,
+} from '@/services/account/accountRuntime';
 import { isRemoteDataSyncEnabled } from '@/services/data/dataProvider';
 import { Persona, PersonaCreateInput, PersonaUpdateInput } from './personasStorage.types';
 import {
@@ -18,6 +27,14 @@ export const DEFAULT_PERSONA_ID = 'persona_default_rosebud';
 let hasPulledRemote = false;
 let hasPushedLocal = false;
 let syncPromise: Promise<void> | null = null;
+let mutationQueue: Promise<void> = Promise.resolve();
+
+registerAccountTeardown(() => {
+    hasPulledRemote = false;
+    hasPushedLocal = false;
+    syncPromise = null;
+    mutationQueue = Promise.resolve();
+});
 
 const DEFAULT_PERSONA = {
     id: DEFAULT_PERSONA_ID,
@@ -37,13 +54,27 @@ function generateId(): string {
     return `persona_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-async function loadPersonasMap(): Promise<Record<string, Persona>> {
-    const json = await AsyncStorage.getItem(PERSONAS_KEY);
-    return json ? (JSON.parse(json) as Record<string, Persona>) : {};
+function enqueueMutation<T>(operation: () => Promise<T>): Promise<T> {
+    const result = mutationQueue.then(operation, operation);
+    mutationQueue = result.then(() => undefined, () => undefined);
+    return result;
 }
 
-async function savePersonasMap(map: Record<string, Persona>): Promise<void> {
-    await AsyncStorage.setItem(PERSONAS_KEY, JSON.stringify(map));
+async function loadPersonasMap(storage: AccountStorageAdapter): Promise<Record<string, Persona>> {
+    const json = await storage.getItem(PERSONAS_KEY);
+    if (!json) return {};
+    try {
+        return JSON.parse(json) as Record<string, Persona>;
+    } catch {
+        return {};
+    }
+}
+
+async function savePersonasMap(
+    storage: AccountStorageAdapter,
+    map: Record<string, Persona>,
+): Promise<void> {
+    await storage.setItem(PERSONAS_KEY, JSON.stringify(map));
 }
 
 function buildDefaultPersonasMap(): Record<string, Persona> {
@@ -52,18 +83,21 @@ function buildDefaultPersonasMap(): Record<string, Persona> {
     };
 }
 
-async function loadOrSeedPersonasMap(): Promise<Record<string, Persona>> {
-    const map = await loadPersonasMap();
+async function loadOrSeedPersonasMap(storage: AccountStorageAdapter): Promise<Record<string, Persona>> {
+    const map = await loadPersonasMap(storage);
     if (Object.keys(map).length > 0) {
         return map;
     }
 
     const seeded = buildDefaultPersonasMap();
-    await savePersonasMap(seeded);
+    await savePersonasMap(storage, seeded);
     return seeded;
 }
 
-async function syncFromRemoteIfNeeded(): Promise<void> {
+async function syncFromRemoteIfNeeded(
+    storage: AccountStorageAdapter,
+    context: AccountOperationContext,
+): Promise<void> {
     if (!isRemoteDataSyncEnabled()) {
         return;
     }
@@ -73,25 +107,30 @@ async function syncFromRemoteIfNeeded(): Promise<void> {
     }
 
     syncPromise = (async () => {
-        const local = await loadPersonasMap();
+        const local = await loadPersonasMap(storage);
+        assertAccountOperationActive(context);
         const hasLocal = Object.keys(local).length > 0;
 
         if (!hasLocal && !hasPulledRemote) {
             const remote = await fetchRemotePersonas();
+            assertAccountOperationActive(context);
             if (remote) {
                 hasPulledRemote = true;
                 const merged = mergePersonas(local, remote);
-                await savePersonasMap(merged);
+                await savePersonasMap(storage, merged);
+                assertAccountOperationActive(context);
             }
         }
 
         if (hasLocal && !hasPushedLocal) {
             try {
                 const pushed = await pushPersonas(Object.values(local));
+                assertAccountOperationActive(context);
                 if (pushed) {
                     hasPushedLocal = true;
                 }
             } catch (error) {
+                if (context.signal.aborted) throw error;
                 console.warn('Failed to push personas:', error);
             }
         }
@@ -104,21 +143,36 @@ async function syncFromRemoteIfNeeded(): Promise<void> {
     }
 }
 
-export async function listPersonas(): Promise<Persona[]> {
-    await syncFromRemoteIfNeeded();
-    const map = await loadOrSeedPersonasMap();
-    return Object.values(map).sort((a, b) => b.updatedAt - a.updatedAt);
+export function listPersonas(): Promise<Persona[]> {
+    return runAccountBoundOperation('personas-list', async (context) => {
+        const storage = getStorageForAccount(context.accountId);
+        await syncFromRemoteIfNeeded(storage, context);
+        assertAccountOperationActive(context);
+        const map = await loadOrSeedPersonasMap(storage);
+        assertAccountOperationActive(context);
+        return Object.values(map).sort((a, b) => b.updatedAt - a.updatedAt);
+    });
 }
 
-export async function getPersona(id: string): Promise<Persona | null> {
-    await syncFromRemoteIfNeeded();
-    const map = await loadOrSeedPersonasMap();
-    return map[id] ?? null;
+export function getPersona(id: string): Promise<Persona | null> {
+    return runAccountBoundOperation('personas-get', async (context) => {
+        const storage = getStorageForAccount(context.accountId);
+        await syncFromRemoteIfNeeded(storage, context);
+        assertAccountOperationActive(context);
+        const map = await loadOrSeedPersonasMap(storage);
+        assertAccountOperationActive(context);
+        return map[id] ?? null;
+    });
 }
 
-export async function createPersona(input: PersonaCreateInput): Promise<Persona> {
+async function createPersonaForAccount(
+    input: PersonaCreateInput,
+    storage: AccountStorageAdapter,
+    context: AccountOperationContext,
+): Promise<Persona> {
     const now = Date.now();
-    const personas = await loadOrSeedPersonasMap();
+    const personas = await loadOrSeedPersonasMap(storage);
+    assertAccountOperationActive(context);
     const hasActive = Object.values(personas).some((p) => p.isActive);
 
     const persona: Persona = {
@@ -136,22 +190,34 @@ export async function createPersona(input: PersonaCreateInput): Promise<Persona>
     };
 
     personas[persona.id] = persona;
-    await savePersonasMap(personas);
+    await savePersonasMap(storage, personas);
+    assertAccountOperationActive(context);
 
     try {
         await queuePersonaUpsert(persona);
+        assertAccountOperationActive(context);
     } catch (error) {
+        if (context.signal.aborted) throw error;
         console.warn('Failed to queue persona sync:', error);
     }
 
     return persona;
 }
 
-export async function updatePersona(
+export function createPersona(input: PersonaCreateInput): Promise<Persona> {
+    return runAccountBoundOperation('personas-create', (context) => enqueueMutation(() => (
+        createPersonaForAccount(input, getStorageForAccount(context.accountId), context)
+    )));
+}
+
+async function updatePersonaForAccount(
     id: string,
-    updates: PersonaUpdateInput
+    updates: PersonaUpdateInput,
+    storage: AccountStorageAdapter,
+    context: AccountOperationContext,
 ): Promise<Persona | null> {
-    const map = await loadPersonasMap();
+    const map = await loadPersonasMap(storage);
+    assertAccountOperationActive(context);
     const existing = map[id];
     if (!existing) {
         return null;
@@ -167,60 +233,98 @@ export async function updatePersona(
     };
 
     map[id] = updated;
-    await savePersonasMap(map);
+    await savePersonasMap(storage, map);
+    assertAccountOperationActive(context);
 
     if (updates.isActive) {
-        await setActivePersona(id, map);
+        await setActivePersona(id, storage, context, map);
         return map[id] ?? updated;
     }
 
     try {
         await queuePersonaUpsert(updated);
+        assertAccountOperationActive(context);
     } catch (error) {
+        if (context.signal.aborted) throw error;
         console.warn('Failed to queue persona sync:', error);
     }
 
     return updated;
 }
 
-async function setActivePersona(id: string, map?: Record<string, Persona>): Promise<void> {
-    const personas = map ?? (await loadOrSeedPersonasMap());
+
+export function updatePersona(
+    id: string,
+    updates: PersonaUpdateInput,
+): Promise<Persona | null> {
+    return runAccountBoundOperation('personas-update', (context) => enqueueMutation(() => (
+        updatePersonaForAccount(id, updates, getStorageForAccount(context.accountId), context)
+    )));
+}
+
+async function setActivePersona(
+    id: string,
+    storage: AccountStorageAdapter,
+    context: AccountOperationContext,
+    map?: Record<string, Persona>,
+): Promise<void> {
+    const personas = map ?? (await loadOrSeedPersonasMap(storage));
+    assertAccountOperationActive(context);
 
     Object.values(personas).forEach((persona) => {
         persona.isActive = persona.id === id;
         persona.updatedAt = Date.now();
     });
 
-    await savePersonasMap(personas);
+    await savePersonasMap(storage, personas);
+    assertAccountOperationActive(context);
 
     await Promise.all(Object.values(personas).map(async (persona) => {
         try {
             await queuePersonaUpsert(persona);
         } catch (error) {
+            if (context.signal.aborted) throw error;
             console.warn('Failed to queue persona sync:', error);
         }
     }));
+    assertAccountOperationActive(context);
 }
 
-export async function activatePersona(id: string): Promise<void> {
-    await setActivePersona(id);
+export function activatePersona(id: string): Promise<void> {
+    return runAccountBoundOperation('personas-activate', (context) => enqueueMutation(() => (
+        setActivePersona(id, getStorageForAccount(context.accountId), context)
+    )));
 }
 
-export async function deletePersona(id: string): Promise<boolean> {
-    const map = await loadPersonasMap();
+async function deletePersonaForAccount(
+    id: string,
+    storage: AccountStorageAdapter,
+    context: AccountOperationContext,
+): Promise<boolean> {
+    const map = await loadPersonasMap(storage);
+    assertAccountOperationActive(context);
     if (!map[id]) {
         return false;
     }
     delete map[id];
-    await savePersonasMap(map);
+    await savePersonasMap(storage, map);
+    assertAccountOperationActive(context);
 
     try {
         await queuePersonaDelete(id);
+        assertAccountOperationActive(context);
     } catch (error) {
+        if (context.signal.aborted) throw error;
         console.warn('Failed to queue persona delete:', error);
     }
 
     return true;
+}
+
+export function deletePersona(id: string): Promise<boolean> {
+    return runAccountBoundOperation('personas-delete', (context) => enqueueMutation(() => (
+        deletePersonaForAccount(id, getStorageForAccount(context.accountId), context)
+    )));
 }
 
 export async function getActivePersona(): Promise<Persona | null> {
@@ -228,8 +332,14 @@ export async function getActivePersona(): Promise<Persona | null> {
     return list.find((p) => p.isActive) ?? null;
 }
 
-export async function clearAllPersonas(): Promise<void> {
-    const map = await loadPersonasMap();
-    await Promise.all(Object.keys(map).map(async (id) => queuePersonaDelete(id)));
-    await AsyncStorage.removeItem(PERSONAS_KEY);
+export function clearAllPersonas(): Promise<void> {
+    return runAccountBoundOperation('personas-clear', (context) => enqueueMutation(async () => {
+        const storage = getStorageForAccount(context.accountId);
+        const map = await loadPersonasMap(storage);
+        assertAccountOperationActive(context);
+        await Promise.all(Object.keys(map).map(async (id) => queuePersonaDelete(id)));
+        assertAccountOperationActive(context);
+        await storage.removeItem(PERSONAS_KEY);
+        assertAccountOperationActive(context);
+    }));
 }

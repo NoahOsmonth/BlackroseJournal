@@ -7,6 +7,7 @@ import {
     updateGoal,
 } from '@/services/goals/goalsStorage';
 import { GoalCreateInput, GoalItem, GoalUpdateInput } from '@/services/goals/goalsStorage.types';
+import { useActiveAccountId } from '@/hooks/account/useActiveAccountId';
 
 interface UseGoalsReturn {
     goals: GoalItem[];
@@ -21,6 +22,7 @@ interface UseGoalsReturn {
 }
 
 export function useGoals(): UseGoalsReturn {
+    const accountId = useActiveAccountId();
     const [goals, setGoals] = useState<GoalItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
@@ -39,8 +41,13 @@ export function useGoals(): UseGoalsReturn {
     }, []);
 
     useEffect(() => {
-        refresh();
-    }, [refresh]);
+        if (accountId) {
+            void refresh();
+        } else {
+            setGoals([]);
+            setIsLoading(false);
+        }
+    }, [accountId, refresh]);
 
     const create = useCallback(async (input: GoalCreateInput) => {
         const goal = await createGoal(input);

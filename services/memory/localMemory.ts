@@ -1,4 +1,5 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { accountScopedStorage as AsyncStorage } from '@/services/account/accountScopedStorage';
+import { runAccountBoundOperation } from '@/services/account/accountRuntime';
 import type { Message } from '@/services/ai';
 import type { JournalEntry } from '@/services/journal/journalStorage.types';
 import type { IntentionCheckIn } from '@/services/intentions/intentionsStorage.types';
@@ -43,9 +44,11 @@ export function resetMemoryStorageAdapter(): void {
 let memoryWriteQueue: Promise<unknown> = Promise.resolve();
 
 function withMemoryLock<T>(task: () => Promise<T>): Promise<T> {
-    const run = memoryWriteQueue.then(task, task);
-    memoryWriteQueue = run.catch(() => undefined);
-    return run;
+    return runAccountBoundOperation('local-memory', async () => {
+        const run = memoryWriteQueue.then(task, task);
+        memoryWriteQueue = run.catch(() => undefined);
+        return run;
+    });
 }
 
 type MemoryChangeListener = () => void;
@@ -282,8 +285,10 @@ export async function upsertMemoryAtom(input: LocalMemoryAtomInput): Promise<Loc
 }
 
 export async function listMemoryAtoms(): Promise<LocalMemoryAtom[]> {
-    const map = await loadMemoryMap();
-    return Object.values(map).sort((a, b) => b.updatedAt - a.updatedAt);
+    return runAccountBoundOperation('local-memory-read', async () => {
+        const map = await loadMemoryMap();
+        return Object.values(map).sort((a, b) => b.updatedAt - a.updatedAt);
+    });
 }
 
 export async function clearMemoryAtoms(): Promise<void> {
@@ -471,10 +476,13 @@ export async function saveJournalEntryMemories(entry: JournalEntry): Promise<Loc
     if (entry.status !== 'completed') {
         return [];
     }
-    // Prefer AI-authored nodes; fall back to deterministic extractive atoms offline / on failure.
-    const aiAtoms = await extractJournalMemoryAtoms(entry);
-    const atoms = aiAtoms.length > 0 ? aiAtoms : buildJournalAtoms(entry);
-    return saveAtomBatch(atoms);
+    return runAccountBoundOperation('local-memory-extraction', async ({ signal }) => {
+        // Prefer AI-authored nodes; fall back to deterministic extractive atoms offline / on failure.
+        const aiAtoms = await extractJournalMemoryAtoms(entry);
+        if (signal.aborted) return [];
+        const atoms = aiAtoms.length > 0 ? aiAtoms : buildJournalAtoms(entry);
+        return saveAtomBatch(atoms);
+    });
 }
 
 const CHECK_IN_TYPE_LABELS: Record<IntentionCheckIn['type'], string> = {
@@ -542,9 +550,12 @@ export async function saveIntentionCheckInMemories(
     if (checkIn.status !== 'completed') {
         return [];
     }
-    const aiAtoms = await extractCheckInMemoryAtoms(checkIn);
-    const atoms = aiAtoms.length > 0 ? aiAtoms : buildIntentionCheckInAtoms(checkIn);
-    return saveAtomBatch(atoms);
+    return runAccountBoundOperation('local-memory-extraction', async ({ signal }) => {
+        const aiAtoms = await extractCheckInMemoryAtoms(checkIn);
+        if (signal.aborted) return [];
+        const atoms = aiAtoms.length > 0 ? aiAtoms : buildIntentionCheckInAtoms(checkIn);
+        return saveAtomBatch(atoms);
+    });
 }
 
 function atomTextTokens(atom: LocalMemoryAtom): string[] {

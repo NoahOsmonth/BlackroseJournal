@@ -8,11 +8,11 @@ import {
     AGENT_TURN_TIMEOUT_MS,
     runAgentTurnWithTools,
 } from '../../../services/ai/agentLoop';
-import * as directTransport from '../../../services/ai/directTransport';
+import * as aiTransport from '../../../services/ai/aiTransport';
 import * as executeTool from '../../../services/ai/tools/executeTool';
 
-jest.mock('../../../services/ai/directTransport', () => ({
-    fetchDirectChatCompletion: jest.fn(),
+jest.mock('../../../services/ai/aiTransport', () => ({
+    fetchAiChatCompletion: jest.fn(),
 }));
 
 jest.mock('../../../services/ai/tools/executeTool', () => {
@@ -55,7 +55,7 @@ function textMessage(content: string) {
 }
 
 describe('runAgentTurnWithTools whole-turn timeout', () => {
-    const fetchMock = directTransport.fetchDirectChatCompletion as jest.Mock;
+    const fetchMock = aiTransport.fetchAiChatCompletion as jest.Mock;
     const toolsMock = executeTool.executeToolCalls as jest.Mock;
 
     beforeEach(() => {

@@ -8,11 +8,11 @@ import {
     THIN_RESULT_RETRY_NOTE,
     runAgentTurnWithTools,
 } from '../../../services/ai/agentLoop';
-import * as directTransport from '../../../services/ai/directTransport';
+import * as aiTransport from '../../../services/ai/aiTransport';
 import * as executeTool from '../../../services/ai/tools/executeTool';
 
-jest.mock('../../../services/ai/directTransport', () => ({
-    fetchDirectChatCompletion: jest.fn(),
+jest.mock('../../../services/ai/aiTransport', () => ({
+    fetchAiChatCompletion: jest.fn(),
 }));
 
 jest.mock('../../../services/ai/tools/executeTool', () => {
@@ -55,7 +55,7 @@ function textMessage(content: string) {
 }
 
 function requestMessages(callIndex: number): { role: string; content: string | null }[] {
-    const call = (directTransport.fetchDirectChatCompletion as jest.Mock).mock.calls[callIndex];
+    const call = (aiTransport.fetchAiChatCompletion as jest.Mock).mock.calls[callIndex];
     return (call?.[0]?.messages ?? []) as { role: string; content: string | null }[];
 }
 
@@ -66,7 +66,7 @@ function countNudges(callIndex: number): number {
 }
 
 describe('runAgentTurnWithTools thin-result retry nudge', () => {
-    const fetchMock = directTransport.fetchDirectChatCompletion as jest.Mock;
+    const fetchMock = aiTransport.fetchAiChatCompletion as jest.Mock;
     const toolsMock = executeTool.executeToolCalls as jest.Mock;
 
     beforeEach(() => {

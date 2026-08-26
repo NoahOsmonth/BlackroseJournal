@@ -8,7 +8,17 @@
  * clearDemoData can remove only those rows — never title/content matching.
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+    getStorageForAccount,
+} from '@/services/account/accountScopedStorage';
+import type { AccountStorageAdapter } from '@/services/account/accountScopedStorage';
+import {
+    assertAccountOperationActive,
+    getActiveAccountId,
+    registerAccountTeardown,
+    runAccountBoundOperation,
+} from '@/services/account/accountRuntime';
+import type { AccountOperationContext } from '@/services/account/accountRuntime';
 import type { Message } from '@/services/ai/chatTypes';
 import {
     createEntry,
@@ -76,6 +86,20 @@ export function isDemoSeedEnabled(): boolean {
     return typeof __DEV__ !== 'undefined' && __DEV__;
 }
 
+let seedOperationQueue: Promise<void> = Promise.resolve();
+let seedInFlight: { accountId: string | null; promise: Promise<boolean> } | null = null;
+
+registerAccountTeardown(() => {
+    seedOperationQueue = Promise.resolve();
+    seedInFlight = null;
+});
+
+function enqueueSeedOperation<T>(operation: () => Promise<T>): Promise<T> {
+    const result = seedOperationQueue.then(operation, operation);
+    seedOperationQueue = result.then(() => undefined, () => undefined);
+    return result;
+}
+
 function daysAgo(count: number): number {
     return Date.now() - count * DAY_MS;
 }
@@ -109,9 +133,13 @@ function emptyRecord(): DemoSeedRecord {
     };
 }
 
-async function loadSeedRecord(): Promise<DemoSeedRecord | null> {
+async function loadSeedRecord(
+    storage: AccountStorageAdapter,
+    context: AccountOperationContext,
+): Promise<DemoSeedRecord | null> {
     try {
-        const raw = await AsyncStorage.getItem(DEMO_SEED_RECORD_KEY);
+        const raw = await storage.getItem(DEMO_SEED_RECORD_KEY);
+        assertAccountOperationActive(context);
         if (!raw) return null;
         const parsed = JSON.parse(raw) as Partial<DemoSeedRecord>;
         if (parsed?.schemaVersion !== 1) return null;
@@ -123,24 +151,38 @@ async function loadSeedRecord(): Promise<DemoSeedRecord | null> {
             goalIds: Array.isArray(parsed.goalIds) ? parsed.goalIds : [],
             memoryAtomIds: Array.isArray(parsed.memoryAtomIds) ? parsed.memoryAtomIds : [],
         };
-    } catch {
+    } catch (error) {
+        if (context.signal.aborted) throw error;
         return null;
     }
 }
 
-async function saveSeedRecord(record: DemoSeedRecord): Promise<void> {
+async function saveSeedRecord(
+    record: DemoSeedRecord,
+    storage: AccountStorageAdapter,
+    context: AccountOperationContext,
+): Promise<void> {
     const payload = JSON.stringify(record);
     // Write record first, then flag — never flag without a record (clear needs IDs).
-    await AsyncStorage.setItem(DEMO_SEED_RECORD_KEY, payload);
-    await AsyncStorage.setItem(SEED_FLAG_KEY, 'true');
+    assertAccountOperationActive(context);
+    await storage.setItem(DEMO_SEED_RECORD_KEY, payload);
+    assertAccountOperationActive(context);
+    await storage.setItem(SEED_FLAG_KEY, 'true');
+    assertAccountOperationActive(context);
 }
 
-export async function markDemoDataSeeded(): Promise<void> {
-    try {
-        await AsyncStorage.setItem(SEED_FLAG_KEY, 'true');
-    } catch {
-        // Non-fatal
-    }
+export function markDemoDataSeeded(): Promise<void> {
+    return runAccountBoundOperation('seed-marked', async (context) => {
+        const storage = getStorageForAccount(context.accountId);
+        try {
+            assertAccountOperationActive(context);
+            await storage.setItem(SEED_FLAG_KEY, 'true');
+            assertAccountOperationActive(context);
+        } catch (error) {
+            if (context.signal.aborted) throw error;
+            // Non-fatal
+        }
+    });
 }
 
 interface SeedJournalEntry {
@@ -361,23 +403,32 @@ const MEMORY_NOTES: readonly string[] = [
     'In conflict, the user tends to feel hurt underneath anger and wants to name it.',
 ];
 
-async function atomsLinkedToSources(sourceIds: ReadonlySet<string>): Promise<string[]> {
+async function atomsLinkedToSources(
+    sourceIds: ReadonlySet<string>,
+    context: AccountOperationContext,
+): Promise<string[]> {
     const atoms = await listMemoryAtoms();
+    assertAccountOperationActive(context);
     return atoms
         .filter((a) => a.rootSourceId && sourceIds.has(a.rootSourceId))
         .map((a) => a.id);
 }
 
-async function rebuildDayDigestsFromRemaining(): Promise<void> {
+async function rebuildDayDigestsFromRemaining(context: AccountOperationContext): Promise<void> {
     await clearDayDigests();
+    assertAccountOperationActive(context);
     const entries = await listEntries('completed');
+    assertAccountOperationActive(context);
     for (const entry of entries) {
         await upsertJournalDayDigest(entry);
+        assertAccountOperationActive(context);
     }
     const checkIns = await listCheckIns();
+    assertAccountOperationActive(context);
     for (const c of checkIns) {
         if (c.status === 'completed') {
             await upsertCheckInDayDigest(c);
+            assertAccountOperationActive(context);
         }
     }
 }
@@ -386,13 +437,20 @@ async function rebuildDayDigestsFromRemaining(): Promise<void> {
  * Remove only rows recorded in the seed ID ledger. Real user rows are never
  * matched by title/content — only by tracked IDs from a prior seed run.
  */
-export async function clearDemoData(): Promise<boolean> {
-    const record = await loadSeedRecord();
+async function clearDemoDataForAccount(
+    storage: AccountStorageAdapter,
+    context: AccountOperationContext,
+): Promise<boolean> {
+    const record = await loadSeedRecord(storage, context);
     if (!record) {
         try {
-            await AsyncStorage.removeItem(SEED_FLAG_KEY);
-            await AsyncStorage.removeItem(DEMO_SEED_RECORD_KEY);
-        } catch {
+            assertAccountOperationActive(context);
+            await storage.removeItem(SEED_FLAG_KEY);
+            assertAccountOperationActive(context);
+            await storage.removeItem(DEMO_SEED_RECORD_KEY);
+            assertAccountOperationActive(context);
+        } catch (error) {
+            if (context.signal.aborted) throw error;
             // ignore
         }
         return false;
@@ -400,68 +458,101 @@ export async function clearDemoData(): Promise<boolean> {
 
     for (const id of record.journalEntryIds) {
         try {
+            assertAccountOperationActive(context);
             await deleteEntry(id);
-        } catch {
+            assertAccountOperationActive(context);
+        } catch (error) {
+            if (context.signal.aborted) throw error;
             // continue
         }
     }
     for (const id of record.checkInIds) {
         try {
+            assertAccountOperationActive(context);
             await deleteCheckIn(id);
-        } catch {
+            assertAccountOperationActive(context);
+        } catch (error) {
+            if (context.signal.aborted) throw error;
             // continue
         }
     }
     for (const id of record.intentionIds) {
         try {
+            assertAccountOperationActive(context);
             await deleteIntention(id);
-        } catch {
+            assertAccountOperationActive(context);
+        } catch (error) {
+            if (context.signal.aborted) throw error;
             // continue
         }
     }
     for (const id of record.goalIds) {
         try {
+            assertAccountOperationActive(context);
             await deleteGoal(id);
-        } catch {
+            assertAccountOperationActive(context);
+        } catch (error) {
+            if (context.signal.aborted) throw error;
             // continue
         }
     }
     for (const id of record.memoryAtomIds) {
         try {
+            assertAccountOperationActive(context);
             await deleteMemoryAtom(id);
-        } catch {
+            assertAccountOperationActive(context);
+        } catch (error) {
+            if (context.signal.aborted) throw error;
             // continue
         }
     }
 
     // Linked atoms created after seed via extraction may still reference seed sources.
     const sourceIds = new Set([...record.journalEntryIds, ...record.checkInIds]);
-    const leftover = await atomsLinkedToSources(sourceIds);
+    assertAccountOperationActive(context);
+    const leftover = await atomsLinkedToSources(sourceIds, context);
     for (const id of leftover) {
         try {
+            assertAccountOperationActive(context);
             await deleteMemoryAtom(id);
-        } catch {
+            assertAccountOperationActive(context);
+        } catch (error) {
+            if (context.signal.aborted) throw error;
             // continue
         }
     }
 
-    await rebuildDayDigestsFromRemaining();
+    await rebuildDayDigestsFromRemaining(context);
 
     try {
-        await AsyncStorage.removeItem(DEMO_SEED_RECORD_KEY);
-        await AsyncStorage.removeItem(SEED_FLAG_KEY);
-    } catch {
+        assertAccountOperationActive(context);
+        await storage.removeItem(DEMO_SEED_RECORD_KEY);
+        assertAccountOperationActive(context);
+        await storage.removeItem(SEED_FLAG_KEY);
+        assertAccountOperationActive(context);
+    } catch (error) {
+        if (context.signal.aborted) throw error;
         // ignore
     }
     return true;
+}
+
+export function clearDemoData(): Promise<boolean> {
+    return runAccountBoundOperation('seed-clear', (context) => enqueueSeedOperation(() => (
+        clearDemoDataForAccount(getStorageForAccount(context.accountId), context)
+    )));
 }
 
 /**
  * Writes demo rows and records their IDs. Does NOT wipe real user data —
  * clears only a prior seed run first.
  */
-export async function seedDemoData(): Promise<void> {
-    await clearDemoData();
+async function seedDemoDataForAccount(
+    storage: AccountStorageAdapter,
+    context: AccountOperationContext,
+): Promise<void> {
+    await clearDemoDataForAccount(storage, context);
+    assertAccountOperationActive(context);
 
     const record = emptyRecord();
     const sourceIds = new Set<string>();
@@ -469,6 +560,7 @@ export async function seedDemoData(): Promise<void> {
     for (const seed of JOURNAL_SEED) {
         const createdAt = daysAgo(seed.daysBack);
         const idSeed = `j_${seed.daysBack}`;
+        assertAccountOperationActive(context);
         const entry = await createEntry({
             title: seed.title,
             emoji: seed.emoji,
@@ -484,25 +576,30 @@ export async function seedDemoData(): Promise<void> {
                 generatedAt: createdAt,
             },
         });
+        assertAccountOperationActive(context);
         record.journalEntryIds.push(entry.id);
         sourceIds.add(entry.id);
         await saveJournalEntryMemories(entry);
+        assertAccountOperationActive(context);
         await upsertJournalDayDigest(entry);
-        await saveSeedRecord(record); // incremental — clear must work even if later steps hang
+        await saveSeedRecord(record, storage, context); // incremental — clear must work even if later steps hang
     }
 
     for (const seed of INTENTION_SEED) {
+        assertAccountOperationActive(context);
         const intention = await createIntention({
             title: seed.title,
             description: seed.description,
             area: seed.area,
             iconKey: seed.iconKey,
         });
+        assertAccountOperationActive(context);
         record.intentionIds.push(intention.id);
 
         for (const checkIn of seed.checkIns) {
             const createdAt = daysAgo(checkIn.daysBack);
             const idSeed = `c_${seed.title}_${checkIn.daysBack}_${checkIn.type}`;
+            assertAccountOperationActive(context);
             const saved = await createCheckIn({
                 intentionId: intention.id,
                 type: checkIn.type,
@@ -514,11 +611,13 @@ export async function seedDemoData(): Promise<void> {
                 updatedAt: createdAt,
                 messages: [msg('user', checkIn.userText, createdAt, idSeed)],
             });
+            assertAccountOperationActive(context);
             // createCheckIn already saves memories + day digest for completed.
             record.checkInIds.push(saved.id);
             sourceIds.add(saved.id);
 
             const dateKey = dateKeyDaysAgo(checkIn.daysBack);
+            assertAccountOperationActive(context);
             const g = await createGoal({
                 title: `${seed.title} — ${checkIn.type} check-in`,
                 type: 'goal',
@@ -527,14 +626,16 @@ export async function seedDemoData(): Promise<void> {
                 createdAt,
                 updatedAt: createdAt,
             });
+            assertAccountOperationActive(context);
             record.goalIds.push(g.id);
-            await saveSeedRecord(record);
+            await saveSeedRecord(record, storage, context);
         }
 
         for (const goal of seed.goals) {
             const createdAt = daysAgo(goal.daysBack);
             const dateKey = dateKeyDaysAgo(goal.daysBack);
             if (goal.type === 'habit') {
+                assertAccountOperationActive(context);
                 const g = await createGoal({
                     title: goal.title,
                     type: 'habit',
@@ -543,8 +644,10 @@ export async function seedDemoData(): Promise<void> {
                     createdAt,
                     updatedAt: createdAt,
                 });
+                assertAccountOperationActive(context);
                 record.goalIds.push(g.id);
             } else {
+                assertAccountOperationActive(context);
                 const goalItem = await createGoal({
                     title: goal.title,
                     type: 'goal',
@@ -553,34 +656,46 @@ export async function seedDemoData(): Promise<void> {
                     createdAt,
                     updatedAt: createdAt,
                 });
+                assertAccountOperationActive(context);
                 await updateGoal(goalItem.id, { completed: true });
+                assertAccountOperationActive(context);
                 record.goalIds.push(goalItem.id);
             }
-            await saveSeedRecord(record);
+            await saveSeedRecord(record, storage, context);
         }
     }
 
     for (const note of MEMORY_NOTES) {
+        assertAccountOperationActive(context);
         const atom = await saveManualMemoryNote(note);
+        assertAccountOperationActive(context);
         record.memoryAtomIds.push(atom.id);
-        await saveSeedRecord(record);
+        await saveSeedRecord(record, storage, context);
     }
+    assertAccountOperationActive(context);
     const generated = await saveGeneratedMemoryNote(
         'Recurring theme: the user returns to calm mornings, movement, and honest communication as what regulates them.'
     );
+    assertAccountOperationActive(context);
     if (generated) {
         record.memoryAtomIds.push(generated.id);
     }
 
     // Capture atoms produced by journal/check-in memory pipelines.
-    const linked = await atomsLinkedToSources(sourceIds);
+    const linked = await atomsLinkedToSources(sourceIds, context);
     for (const id of linked) {
         if (!record.memoryAtomIds.includes(id)) {
             record.memoryAtomIds.push(id);
         }
     }
 
-    await saveSeedRecord(record);
+    await saveSeedRecord(record, storage, context);
+}
+
+export function seedDemoData(): Promise<void> {
+    return runAccountBoundOperation('seed-demo', (context) => enqueueSeedOperation(() => (
+        seedDemoDataForAccount(getStorageForAccount(context.accountId), context)
+    )));
 }
 
 const BULK_TOPICS = ['work', 'sleep', 'family', 'exercise', 'food', 'mood'] as const;
@@ -618,21 +733,23 @@ function buildBulkSeedRows(count: number): readonly {
  * Tracked IDs go through DEMO_SEED_RECORD_KEY so clearDemoData wipes them.
  * Digests written for rollups; atom extraction skipped for speed.
  */
-export async function seedBulkProbeJournal(options: { count?: number } = {}): Promise<number> {
-    if (!isDemoSeedEnabled()) {
-        throw new Error('Bulk probe seed is only available in __DEV__');
-    }
-
+async function seedBulkProbeJournalForAccount(
+    options: { count?: number },
+    storage: AccountStorageAdapter,
+    context: AccountOperationContext,
+): Promise<number> {
     const target = Math.max(1, options.count ?? 365);
     const probeEntries = buildBulkSeedRows(target);
 
-    await clearDemoData();
+    await clearDemoDataForAccount(storage, context);
+    assertAccountOperationActive(context);
     const record = emptyRecord();
 
     for (let i = 0; i < probeEntries.length; i += 1) {
         const seed = probeEntries[i];
         const createdAt = daysAgo(seed.daysBack);
         const idSeed = `probe_${i}`;
+        assertAccountOperationActive(context);
         const entry = await createEntry({
             title: seed.title,
             emoji: '📓',
@@ -656,67 +773,96 @@ export async function seedBulkProbeJournal(options: { count?: number } = {}): Pr
                 generatedAt: createdAt,
             },
         });
+        assertAccountOperationActive(context);
         record.journalEntryIds.push(entry.id);
         await upsertJournalDayDigest(entry);
+        assertAccountOperationActive(context);
         if (i % 25 === 0 || i === probeEntries.length - 1) {
-            await saveSeedRecord(record);
+            await saveSeedRecord(record, storage, context);
         }
     }
 
-    await saveSeedRecord(record);
+    await saveSeedRecord(record, storage, context);
     return record.journalEntryIds.length;
 }
 
+export function seedBulkProbeJournal(options: { count?: number } = {}): Promise<number> {
+    if (!isDemoSeedEnabled()) {
+        return Promise.reject(new Error('Bulk probe seed is only available in __DEV__'));
+    }
+    return runAccountBoundOperation('seed-bulk', (context) => enqueueSeedOperation(() => (
+        seedBulkProbeJournalForAccount(options, getStorageForAccount(context.accountId), context)
+    )));
+}
+
 /** Prevent concurrent first-launch seeds (layout re-mount / double effect). */
-let seedInFlight: Promise<boolean> | null = null;
 
 /**
  * Auto-seed on first launch — **dev only**. Production is a no-op.
  */
-export async function seedDemoDataIfFirstLaunch(): Promise<boolean> {
+export function seedDemoDataIfFirstLaunch(): Promise<boolean> {
     if (!isDemoSeedEnabled()) {
-        return false;
+        return Promise.resolve(false);
     }
+
+    const accountId = getActiveAccountId();
     if (seedInFlight) {
-        return seedInFlight;
+        return seedInFlight.accountId === accountId
+            ? seedInFlight.promise
+            : Promise.resolve(false);
     }
 
-    seedInFlight = (async () => {
-        try {
-            const alreadyFlagged = await AsyncStorage.getItem(SEED_FLAG_KEY);
-            if (alreadyFlagged === 'true') {
+    const promise = runAccountBoundOperation('seed-first-launch', (context) => (
+        enqueueSeedOperation(async () => {
+            const storage = getStorageForAccount(context.accountId);
+            try {
+                assertAccountOperationActive(context);
+                const alreadyFlagged = await storage.getItem(SEED_FLAG_KEY);
+                assertAccountOperationActive(context);
+                if (alreadyFlagged === 'true') {
+                    return false;
+                }
+                const existingRecord = await loadSeedRecord(storage, context);
+                if (existingRecord) {
+                    return false;
+                }
+
+                const [existingEntries, existingIntentions, existingGoals] = await Promise.all([
+                    listEntries(),
+                    listIntentions(),
+                    listGoals(),
+                ]);
+                assertAccountOperationActive(context);
+
+                const hasExistingData =
+                    existingEntries.length > 0
+                    || existingIntentions.length > 0
+                    || existingGoals.length > 0;
+
+                if (hasExistingData) {
+                    // Do not set SEED_FLAG alone without a record — that blocks clear.
+                    return false;
+                }
+
+                await seedDemoDataForAccount(storage, context);
+                assertAccountOperationActive(context);
+                return true;
+            } catch (error) {
+                if (context.signal.aborted) throw error;
+                console.warn('[seed] seedDemoDataIfFirstLaunch failed:', error);
                 return false;
             }
-            const existingRecord = await loadSeedRecord();
-            if (existingRecord) {
-                return false;
-            }
-
-            const [existingEntries, existingIntentions, existingGoals] = await Promise.all([
-                listEntries(),
-                listIntentions(),
-                listGoals(),
-            ]);
-
-            const hasExistingData =
-                existingEntries.length > 0
-                || existingIntentions.length > 0
-                || existingGoals.length > 0;
-
-            if (hasExistingData) {
-                // Do not set SEED_FLAG alone without a record — that blocks clear.
-                return false;
-            }
-
-            await seedDemoData();
-            return true;
-        } catch (error) {
-            console.warn('[seed] seedDemoDataIfFirstLaunch failed:', error);
-            return false;
-        } finally {
-            seedInFlight = null;
-        }
-    })();
-
-    return seedInFlight;
+        })
+    ));
+    const tracked = { accountId, promise };
+    seedInFlight = tracked;
+    promise.then(
+        () => {
+            if (seedInFlight === tracked) seedInFlight = null;
+        },
+        () => {
+            if (seedInFlight === tracked) seedInFlight = null;
+        },
+    );
+    return promise;
 }

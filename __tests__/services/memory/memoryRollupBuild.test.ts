@@ -17,11 +17,11 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
     },
 }));
 
-jest.mock('../../../services/ai/directTransport', () => ({
-    fetchDirectChatCompletion: jest.fn(),
+jest.mock('../../../services/ai/aiTransport', () => ({
+    fetchAiChatCompletion: jest.fn(),
 }));
 
-import { fetchDirectChatCompletion } from '../../../services/ai/directTransport';
+import { fetchAiChatCompletion } from '../../../services/ai/aiTransport';
 import {
     WEEK_MIN_DAY_DIGESTS,
     clearRollupAttemptsForTests,
@@ -64,7 +64,7 @@ function createSharedAdapter() {
     };
 }
 
-const mockFetch = jest.mocked(fetchDirectChatCompletion);
+const mockFetch = jest.mocked(fetchAiChatCompletion);
 
 function seedDayDigests(adapter: ReturnType<typeof createSharedAdapter>, digests: DayDigest[]) {
     const days: Record<string, DayDigest> = {};

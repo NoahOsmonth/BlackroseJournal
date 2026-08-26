@@ -1,17 +1,14 @@
 /* eslint-disable import/first */
 
-jest.mock('../../../services/ai/directTransport', () => ({
-    fetchDirectChatCompletion: jest.fn(),
-    getDirectConfig: jest.fn(),
+jest.mock('../../../services/ai/aiTransport', () => ({
+    fetchAiChatCompletion: jest.fn(),
 }));
 
-import {
-    fetchDirectChatCompletion,
-} from '../../../services/ai/directTransport';
+import { fetchAiChatCompletion } from '../../../services/ai/aiTransport';
 import { synthesizeMemoryInsight } from '../../../services/memory/memoryInsightService';
 import type { MemoryGraphAtom } from '../../../services/memory/memoryGraph.types';
 
-const mockFetchDirectChatCompletion = jest.mocked(fetchDirectChatCompletion);
+const mockFetchDirectChatCompletion = jest.mocked(fetchAiChatCompletion);
 
 const atom: MemoryGraphAtom = {
     id: 'atom-1',

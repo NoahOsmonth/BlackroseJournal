@@ -13,6 +13,10 @@
 - [x] **TOOL-CODEX-001**: Codex CLI with OMO Light Edition
 
 ## Updates
+- **2026-08-25**: **Task 8 review hardening round — delegated restore races + full gates green.** Extended account-bound operation coverage to every remaining storage owner migration path and the backup restore delegation chain: new race suites for account owner mutations/workflows (`accountOwnerMutationRaces`, `accountOwnerWorkflowRaces`), legacy data ownership claims (`legacyDataOwnershipRaces`), mid-switch journal/intentions restores (`journalAccountSwitchRaces`, `intentionsAccountRaces`, `intentionsRemote`), persona draft settings isolation, and the app live-probe script (`scripts/control-plane/app-live-probe.js` + test). Migrated remaining private AsyncStorage owners (personas, feedback, happiness recipe, weekly/saved insights, seed demo state) into the account namespace; AI transport/config/SSE parser hardened. Root-caused the one red suite: the `localBackup` delegated-restore race test created two unpaired deferreds — the mock write awaited `delayedWrite.promise` while the test resolved a never-awaited `releaseDelayedWrite`, so the restore parked forever, quiesce waited on its completion lease, and both the test body and `clearActiveAccount` afterEach hit Jest's 5s timeout. Instrumented checkpoints across `accountRuntime.quiesceAccountOperations` / `saveAllEntries` proved the abort machinery itself was correct (abort fired, write reached the mock bound to `backup-user`); fix is test-only: release the actual awaited gate (`delayedWrite.resolve()`) after kicking the account switch, matching the proven single-deferred pattern in `journalAccountSwitchRaces.test.ts`. Fresh verification: focused file 8/8 in 1.3s (was 10s timeout); full Jest **237 suites / 1090 tests passed**, 6/19 skipped; `npx tsc --noEmit` clean; changed-file ESLint clean; `npm run check:design` passed.
+- **2026-08-24**: **Task 7 review hardening round 2.** Migrated every remaining private AsyncStorage owner (memory atoms/identity/day digests/session digests/rollups, chat drafts, AI settings/cache, personas, feedback, insights, happiness recipe, saved insights, and demo seed state) into the versioned account namespace. Legacy exact keys, shard prefixes, backup bodies, and sync tasks now require an explicit ownership claim; legacy sync tasks are tagged with the confirmed account and malformed task payloads fail closed without deleting the recoverable legacy queue. Sync flushing revalidates the live Supabase session immediately before every remote mutation and preserves unprocessed work after a mid-flush account change. Auth transitions are revision-cancellable between side effects, rejected transitions cannot leave the coordinator loading, and mounted journal/intention/check-in collections rebind on account changes. TDD evidence includes red/green coverage for mid-flush session switching, malformed legacy tasks, rejected auth teardown, prefix migration, private-owner isolation, and all three mounted collection hooks. Fresh verification: focused storage/auth suites passed; full Jest passed **215 suites / 983 tests** with 8 suites / 24 tests skipped; `npx tsc --noEmit` passed using the existing backend dependency installation; changed-file ESLint and design checks passed; full lint remains blocked by four unrelated pre-existing UI errors in `BottomNav.tsx` and `CustomModelSettingsSection.tsx`.
+- **2026-08-24**: **Task 7 review hardening.** Account-tagged sync tasks now live under the active namespace, serialize every queue mutation, verify both the active runtime account and live Supabase session owner, quarantine mismatches, and block account activation until the prior flush completes. Backup index/shard bodies are schema-v2 and creator-account scoped; foreign metadata is rejected, and representative stores restore through serialized owner imports. Offline reopen is limited to positively classified transport failures. A singleton latest-transition-wins auth coordinator prevents slow bootstrap side effects after `SIGNED_OUT` and eliminates duplicate hook subscriptions. Teardown errors now abort switching; goal hooks rebind on account generation; recovery routes bypass legacy-data inspection. Focused review verification: 16 suites / 59 tests passed; changed-file lint and design passed; Task 7 TypeScript is clean (root command still reports only missing backend `express`/`cors`).
+- **2026-08-24**: **Task 7 — app auth bootstrap and account-scoped persistence foundation.** Added a Supabase session/bootstrap route gate with supported native refresh lifecycle, remembered-account offline reopen, signed-out revocation, and serialized account-switch teardown. Added a schema-v1 corruption-safe account registry and versioned namespace adapter, plus an explicit legacy ownership gate and idempotent no-overwrite claims. Migrated representative owner keys `@journal_entries`, `@goals`, `@intentions`, and `@intention_checkins` to account-scoped keys with corruption-safe reads and serialized mutations; local backup resolves those physical keys without duplicating writes. Remaining storage owners are an explicit integration boundary: memory/digests/rollups, chat autosave, insights/personas/preferences, AI settings/cache, and non-representative backup payload owners are not yet account-namespaced. Focused verification: 16 suites / 61 tests green; full Jest: 211 suites / 959 tests green with only the pre-existing `aiHealth` infrastructure failure caused by absent `backend/node_modules/express`; design gate green; changed-file ESLint 0 errors; root TypeScript and full lint remain blocked only by pre-existing missing backend `express`/`cors` dependencies and unrelated existing lint errors.
 - **2026-08-18**: **Curiosity probe — the AI proactively volunteers related past memories.** New `scripts/hindsight/curiosity-probe.mjs` sends 6 *conversational statements* (no "do you remember" questions: "thinking about getting back into running", "coffee is really not helping me sleep", "up at 3am worrying about money", "friend keeps talking about moving", "wedding next month", "that old compass on my desk") through the exact app pipeline (recall on the message → `## Relevant long-term context` → the **shipped** `ROSEBUD_COMPANION_SYSTEM_PROMPT`, no custom system prompt). **All 6 replies wove in the planted past fact without being asked**: running → "you even completed your first 5k run back in July"; coffee → "you made a conscious decision to stop caffeine back in February 2026"; 3am money → "I see this pattern again — it's been happening now for months"; friend moving → "your friend Priya moved to Vancouver back in July 2025"; wedding → "I remember she wore a lovely lavender dress… is this for Maya's wedding?"; compass → "that connection with Meridian… a piece of history from a sailor." So the recall-per-message wiring + the "weave, do not dump" prompt line are sufficient for curious, unprompted memory volunteers — no prompt change needed.
 - **2026-08-18**: **Memory recall Q&A battery (20 questions).** Loaded the deterministic 14-month corpus onto the laptop bank (`scripts/hindsight/populate-memory.mjs` — 148 entries retained, idempotent by document_id, needles artifact in `probes/artifacts/hindsight-needles.json`) plus one "preference told once" fact (user does not eat at night, no food after dinner, since early 2026) through the CORS shim. New `scripts/hindsight/recall-qa-probe.mjs` runs a 20-question battery (long-horizon 1yr, lifestyle facts, people, recent 1mo, mid 3mo, objects, multi-hop) against real recall and prints top-3 hits + similarity per question (108.9s for 20 queries). **Results: 18/20 questions surface the planted fact as the top hit** (e.g. year-ago "couch to 5k" → `sim=3.9e-3` hit dated 2025-09-16; "did I stop eating at night" → `sim=1.062`; Maya wedding → `sim=0.931`; Priya Vancouver → `sim=0.920`; first 5k 34min → `sim=1.081`; caffeine quit for sleep → `sim=5.8e-3`; Meridian → `sim=1.050`). The 2 non-hits were **question-wording mismatches, not memory gaps**: Q05 asked "dad in June" but the surgery needle is planted 2026-03-03 (re-query "dad knee surgery" → `sim=1.007`); Q15 asked "when did I move" but the Nordvik needle is an *interview* fact, not a move (re-query → `sim=1.044`). Learned: recall is literal+semantic — questions whose words don't overlap the stored text retrieve poorly, exact rephrasing retrieves at sim≈1.0. Memory currently holds: 5 compass facts + 148 corpus entries + 1 preference fact across 14 months.
 - **2026-08-18**: **Agentic upgrade + Voyage embeddings** (laptop `hindsight-laptop` :8888, bank `rosebud`).
@@ -2441,3 +2445,297 @@
 - Hindsight (server-side Voyage embeddings in its own container) untouched; chat proxy untouched; Supabase untouched.
 - Tests updated to assert keyword+recency fallback; new `__tests__/services/memory/keywordRanking.test.ts`.
 - Live battery: E3/E5 probe cases removed (probes deleted); E1/E2/E4 kept.
+
+## 2026-08-24 — AI control plane Task 1: shared contracts
+
+- Added the zero-dependency `@blackrose/ai-control-plane-contracts` workspace package with
+  separate public and admin entry points. Secret-bearing credential/provider mutation DTOs
+  are available only from the admin entry point.
+- Frozen strict runtime contracts for the public model catalog, supported provider protocols,
+  preferences, normalized inference requests/events/errors, memory requests/responses,
+  optimistic revision conflicts, provider administration, and catalog/runtime mutations.
+- Client memory validators reject caller-supplied `bank`/`bankId` fields. Public catalog
+  validators reject provider ids, base URLs, and every other non-public field.
+- TDD evidence: the first public contract test failed because the module was absent; the
+  provider-leak test then failed because the unsafe row was accepted; the remaining contract
+  surface produced 17 expected failures before implementation. Focused contract tests pass
+  3 suites / 19 tests, and the package-scoped TypeScript and ESLint gates pass.
+- Root TypeScript remains blocked by missing pre-existing backend `express`/`cors` modules in
+  this worktree; the root compiler reports no contract-package or contract-test errors.
+- Review fix round 1 tightened the frozen boundaries: revision conflicts now require a
+  route-specific state parser; memory metadata is an exact safe DTO in both directions;
+  catalog rows expose only `publicModelId`; and admin provider responses use exact safe
+  display/discovery metadata shapes with no arbitrary JSON or authorization headers.
+
+## 2026-08-24 — AI control plane Task 3: gateway security primitives
+
+- Added dependency-injected Supabase access-token verification against bounded/cached JWKS
+  responses using Node cryptography. Verification requires an asymmetric supported
+  algorithm, exact key id, valid signature, issuer, authenticated audience/role, expiry,
+  and a non-empty subject; returned principals exclude user-controlled metadata.
+- Added an explicit `AdminAuthorizer` boundary backed by an administrative data owner rather
+  than JWT metadata, plus fail-closed managed-route authentication and origin guards. Managed
+  authentication now runs before JSON body parsing; existing legacy API-key routes remain
+  unchanged.
+- Added context-bound, versioned AES-256-GCM credential envelopes and an external
+  `MasterKeyProvider`; only key version and ciphertext envelope metadata are serializable.
+  Production startup rejects missing JWT/JWKS/master-key configuration.
+- Added recursive non-mutating redaction for prompts, message content, authorization values,
+  credentials, provider keys, JWTs, and error details.
+- Added HTTPS-only provider endpoint resolution that rejects credentials, fragments,
+  loopback/private/link-local/reserved/multicast IPv4 and IPv6, transition-address bypasses,
+  mixed public/private DNS answers, empty answers, and oversized answer sets. The result
+  includes all validated addresses for connection pinning by protocol adapters.
+- Added immutable hard request ceilings and bounded transient retry. At most three attempts
+  receive the same frozen route/model binding; permanent failures are never retried and total
+  retry time is capped.
+- TDD RED evidence: the first backend run failed all missing security-module imports and
+  showed managed paths returning 404; a follow-up real HTTP test failed 400 instead of 401
+  because JSON parsing preceded auth; an IPv6 transition-address probe was accepted. GREEN
+  changes were applied only after each observed failure.
+- Fresh verification: backend tests passed **12 suites / 31 tests**; root and backend
+  TypeScript passed; changed-file ESLint passed with zero errors; design validation passed
+  with zero errors and four unrelated existing near-limit warnings; `git diff --check`
+  passed. Full root ESLint remains blocked by four pre-existing UI errors in `BottomNav.tsx`
+  and `CustomModelSettingsSection.tsx`; no unrelated UI files were changed.
+
+### Task 3 security review fix round 1
+
+- Admin access now has two server-enforced gates: verified Supabase authentication followed by
+  a concrete authorizer backed by a narrow Supabase `control.admins` REST repository using a
+  server-only secret. Normal users and forged `user_metadata.admin` claims receive 403; absent
+  repository configuration fails closed.
+- Issuer comparison and configuration preservation are byte-for-byte exact. The production
+  signature allowlist is RS256/ES256 only, with real positive/malformed ES256 coverage; JWKs
+  marked for encryption are rejected. JWKS reads stop while streaming at 128 KiB, caches have
+  explicit invalidation, and unknown key ids trigger one refresh.
+- Provider traffic now has an enforced `https.request` transport that pins the validated IP,
+  disables agent redirect behavior, manually validates every redirect DNS hop, bounds total
+  hops/cross-origin redirects, and strips sensitive headers before an explicitly allowed
+  cross-origin hop.
+- IPv6 classification now also rejects deprecated site-local `fec0::/10` and current IANA
+  non-global/special blocks including `100:0:0:1::/64`, `2001::/23`, `3fff::/20`, and
+  `5f00::/16`.
+- Retry execution now races each in-flight attempt against the remaining total deadline and
+  aborts its signal, including operations that never settle. Redaction normalizes camelCase and
+  prefixed sensitive field names and accepts caller-supplied opaque secret values.
+- TDD RED: the consolidated backend run reported **11 failures / 40 tests**; concrete admin
+  repository wiring then failed **1/4**, and exact issuer preservation failed **1/5** before
+  their implementations. Fresh GREEN: backend **13 suites / 43 tests**, root/backend TypeScript,
+  and scoped ESLint all passed.
+
+### Task 3 security review fix round 2
+
+- Unknown attacker-controlled JWT key ids can no longer invalidate and refetch JWKS on every
+  token. The verifier has a global refresh cooldown plus a bounded 128-entry negative-kid
+  cache; one refresh remains available after the policy interval for legitimate signing-key
+  rotation.
+- Allowed cross-origin provider redirects now tokenize header names and remove compact,
+  separator-based, camelCase, standard, and custom credential headers (`apikey`, API keys,
+  auth, token, secret, password, cookie, and credential forms). Non-credential metadata such
+  as `x-api-version` remains intact.
+- Deep redaction now tokenizes separators and camelCase boundaries. It catches
+  `secret_value`, `token_expiry`, `provider_key_value`, nested client-secret forms, and system
+  instructions while avoiding substring false positives such as `monkey`, `hockey`,
+  `tokenizer`, and `secretary`.
+- TDD RED: JWT refresh test **8/9 passed, 1 failed** (3 fetches vs allowed 2); safe transport
+  **2/3 passed, 1 failed** (seven credential headers forwarded); redaction **3/4 passed,
+  1 failed** (four boundary fields leaked). Follow-up anti-over-redaction/preservation probes
+  each failed **1/3** and **1/4** before refinement. GREEN: backend **13 suites / 46 tests**,
+  backend/root TypeScript, scoped ESLint, and `git diff --check` passed.
+
+### Task 3 security review fix round 3
+
+- Deep redaction now treats exact tokenized `auth` and `authentication` boundaries as
+  sensitive, covering separator and camelCase forms such as `auth_value`, `customAuthHeader`,
+  and `authenticationDetails`. Ordinary auth-prefixed words such as `author`, `authority`, and
+  `authentic` remain visible.
+- TDD RED: the new regression failed with all three auth fields visible (the backend runner
+  also hit one unrelated intermittent random-base64 regex failure). GREEN: backend
+  **13 suites / 47 tests** passed; backend/root TypeScript, scoped ESLint, and
+  `git diff --check` passed.
+## 2026-08-24 — AI control plane Task 2: portable Supabase control schema
+
+- Added one additive migration for the authenticated-safe managed catalog, per-user model
+  preferences, and the private `control` schema (providers, encrypted credential envelopes,
+  discovery inventory, routes, runtime settings, admins, audit/usage events, and rekey jobs).
+- Added enum/check constraints, foreign-key/query indexes, monotonic row/catalog revisions,
+  least-privilege grants, deny-by-default RLS, and authenticated owner policies for preferences.
+- Added service-only transactional publish and catalog/provider-model/provider archive functions.
+  Stale expected revisions raise `PT409`; archives preserve history, withdraw dependent catalog
+  rows, disable/archive routes, preserve user selections, and bump catalog revision once.
+- Realtime includes only `public.ai_catalog_models` and `public.ai_catalog_revision` from the new
+  surface; preferences and every `control` table remain unpublished.
+- TDD evidence: the pre-migration schema suite failed 25/25 assertions; targeted RED runs also
+  caught an invalid flash-route assignment, the missing flash-route FK index, and the absent
+  provider-model archive path. A deliberate local-only permissive RLS sabotage made cross-user
+  read/update assertions fail, then a clean reset restored GREEN.
+- Fresh verification after a clean local reset: all Supabase pgTAP tests passed (4 files,
+  286 tests); `supabase db lint` found no schema errors. The security advisor reports only the
+  pre-existing `public.set_updated_at` mutable-search-path warning, not a new control-plane issue.
+
+### Task 2 review fix round 1
+
+- Existing-row publication now requires both provider and locked catalog expected revisions;
+  stale cross-provider metadata/route replacement raises `PT409` without partial writes.
+- Provider and provider-model archive derive withdrawals only from their active chat routes and
+  leave a catalog row available when another active chat route survives.
+- Route update/delete reverse guards clear the selected flash route transactionally when it is
+  disabled, archived, repurposed, or deleted; a replacement selected in the same transaction is
+  preserved.
+- Authenticated preference writes are column-scoped to `selected_model_id`; user id, initial
+  revision, creation timestamp, and update timestamp remain server-owned.
+- TDD RED: the focused review suite failed 17/23 assertions before the migration repair. Focused
+  GREEN passed 3 files / 93 tests; full pgTAP passed 5 files / 309 tests. DB lint remains clean,
+  and the security advisor still reports only the pre-existing `public.set_updated_at` warning.
+
+### Task 2 review fix round 2
+
+- Publication CAS now means the singleton `ai_catalog_revision`, not a model row revision. Every
+  new or existing publish locks that singleton first and rejects null/stale expectations as
+  typed `PT409` before provider, catalog, or route mutation.
+- Successful publish increments the locked singleton once and assigns that resulting global
+  revision to the inserted/updated catalog row. A dedicated row trigger preserves an explicitly
+  newer global revision while retaining monotonic protection for other catalog updates.
+- TDD RED covered unrelated-catalog staleness and new-row expectations; the pre-repair review
+  suite failed 13/30 and the updated behavior suite failed 21/43. Final focused pgTAP passed
+  3 files / 100 tests; full pgTAP passed 5 files / 316 tests; DB lint stayed clean.
+
+### Task 2 review fix round 3
+
+- Every catalog-changing gateway now acquires the singleton `ai_catalog_revision` row lock first.
+  Publication continues with provider, provider-model, and catalog locks; archive paths now use
+  the same order, with provider-model archive locking its parent provider before the model row.
+- This removes the opposing publish/archive lock sequence that could deadlock as SQLSTATE
+  `40P01`. Revision increments remain transactional and reentrant after the singleton is held.
+- A catalog-driven pgTAP regression inspects all five catalog mutators and guards the global lock
+  sequence. RED failed the three archive assertions (3/5); GREEN passed 5/5.
+- Fresh clean-reset verification passed focused control-plane pgTAP (4 files / 105 tests), full
+  pgTAP (6 files / 321 tests), and DB lint with no schema errors. Advisors report no new finding;
+  only the pre-existing mutable-search-path and legacy RLS performance warnings remain.
+# 2026-08-24 — AI control plane Task 6: authenticated memory gateway
+
+- Added authenticated retain, recall, reflect, rebuild, and clear routes under
+  `/v1/memory`, using the merged Supabase JWT principal.
+- Added stable versioned base32(HMAC-SHA256) per-user bank derivation. Client
+  bank selectors are rejected recursively and internal user/bank identifiers
+  are stripped from responses and deep-redacted from failure logs.
+- Added bounded request schemas, item/query ceilings, response-byte limits,
+  abort deadlines, generic upstream errors, and two-user isolation coverage.
+- Added private server-only Hindsight configuration and changed the deployment
+  script to loopback-only ports with no direct browser CORS proxy. The legacy
+  shared bank remains quarantined and is never read or copied.
+- Mobile Hindsight migration and account-owned rebuild orchestration remain
+  intentionally deferred to Task 10.
+
+# 2026-08-24 — AI control plane Task 4: repositories and provider APIs
+
+- Added the Supabase-backed provider/catalog repository and thin authenticated routes for
+  provider CRUD/archive, masked credential replacement/rekey, discovery, model publication and
+  withdrawal, preferences, flash routing, runtime settings, health, and audit history.
+- Discovery supports OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, and Gemini
+  GenerateContent inventories through the pinned SSRF-safe transport, then persists normalized
+  metadata for explicit admin selection.
+- Provider secrets remain AES-256-GCM envelopes. A validated versioned server key ring now allows
+  explicit rekeying while responses and audit rows contain only safe key metadata.
+- Revision conflicts refetch and return current safe state. Schema roles are aligned to
+  `owner | admin | auditor`, and auditors cannot mutate control-plane state.
+- TDD RED/GREEN covered missing services/routes/repositories, unsafe endpoint mapping, base-path
+  discovery, nullable audit actors, revision races, and prior-key rekeying.
+- Verification: backend **21 suites / 87 tests**, backend/root TypeScript, scoped ESLint, design
+  limits, and `git diff --check` all passed. Independent re-review was unavailable after agent
+  usage exhaustion; controller review added the final security and maintainability fixes.
+
+# 2026-08-24 — AI control plane Task 5: managed inference gateway
+
+- Added normalized OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, and Gemini
+  GenerateContent adapters for request translation plus streaming/non-stream text, tool, usage,
+  and completion events.
+- Provider traffic now uses incremental DNS-pinned HTTPS with TLS SNI, no redirects, byte/deadline
+  limits, backpressure, and caller-abort socket propagation.
+- Added the authenticated managed inference route and Supabase resolver. Chat uses only the
+  signed-in user's explicit catalog selection; flash uses only the hidden admin-selected route.
+  The binding is fixed before execution, and transient retries never change route or model.
+- Provider capabilities and route/runtime ceilings are checked before credentials are decrypted.
+  Usage rows contain only user/route/status/token/latency/error metadata—never prompts, responses,
+  provider URLs, or secrets.
+- Review fixes covered typed retry policy, normalized adapter errors, provider-native tool-result
+  semantics, explicit Anthropic no-tool behavior, response byte-limit retry prevention, and SSE
+  disconnect handling.
+- Verification: backend **29 suites / 120 tests**, backend/root TypeScript, scoped ESLint, design
+  limits, and `git diff --check` passed. Adapter implementation was delegated and committed as
+  `a171d8b`; controller integration and security review followed.
+
+# 2026-08-24 — AI control plane Task 8: managed catalog and BYOK separation
+
+- Added a versioned, account-scoped managed catalog cache with serialized writes, authenticated
+  catalog/preference APIs, realtime revision subscriptions, burst-safe atomic refetches, offline
+  cache behavior, and teardown on account switch.
+- The shared chat engine now has a strict mode boundary: BYOK-on uses only the device-direct
+  OpenRouter/custom provider; BYOK-off uses only the authenticated managed gateway. Client model
+  ids and provider details never cross the managed inference boundary.
+- Managed gateway responses are normalized back into the existing chat/agent consumers for
+  streaming, non-streaming, usage, and tool calls. Assistant tool-call history is preserved by
+  the normalized contract and translated across all four provider protocols.
+- Both chat surfaces now show only the active mode's models. Managed selection is explicit and
+  persisted server-side; a withdrawn selection remains unavailable and is never silently replaced.
+  Managed chat budgeting and tool capability resolve from the local catalog cache without model
+  discovery during a turn.
+- Verification: focused catalog, hook, transport, picker, chat service, agent-loop, structured
+  extraction, context, and provider-adapter suites passed; root TypeScript passed. Catalog/realtime
+  work was delegated as `99046fb`; normalized tool history was delegated as `250a3b1`.
+
+# 2026-08-24 — AI control plane Tasks 7 and 10: authenticated account isolation
+
+- Added the Supabase authentication gate, offline reopen for a previously authenticated account,
+  versioned account namespaces, ownership-confirmed legacy migration, and ordered runtime teardown
+  on account changes. Private storage owners remain serialized and corruption tolerant.
+- Replaced mobile Hindsight URLs and the shared `rosebud` bank with authenticated gateway-only
+  retain/recall/reflect/rebuild/clear requests. The gateway derives private per-user banks; clients
+  cannot submit or observe bank identifiers.
+- Added idempotent per-account rebuild state. Rebuild reads only completed journal/check-in history
+  owned by that account, and clear-history adds best-effort deletion of that account's remote bank
+  without making chat, finish, or navigation depend on Hindsight availability.
+- Hardened account changes with account-bound operation leases: switching stops new private work,
+  aborts and drains active operations, runs existing teardown handlers, then exposes the next
+  account namespace. Managed sessions must match the active account.
+- Verification included account/auth namespace, storage-owner, rebuild, public memory contract,
+  two-user bank derivation, gateway route, and soft-failure suites plus root/backend type and lint
+  checks. The final live authenticated recall probe remains environment-gated in Task 11.
+
+# 2026-08-24 — AI control plane Task 9: separate admin application
+
+- Added the separately deployed `admin/` Expo web app with Supabase login and gateway-backed
+  provider, masked credential, discovery inventory, catalog, flash route, runtime, health, audit,
+  archive, and stale-revision workflows. No saved plaintext credential can be read back.
+- Kept UI, hooks, and services separated; added responsive light/dark styling and accessible form
+  labels/actions. The admin package declares its own build, type, lint, and test toolchain while
+  consuming shared monorepo contracts.
+- Verification passed admin component/service/hook tests, TypeScript, lint, design limits, and an
+  Expo static web export to a temporary output directory.
+
+# 2026-08-24 — AI control plane security hardening
+
+- Disabled admin rows now revoke access. Local PostgREST exposes the private `control` schema only
+  through its existing service-role grants; anonymous/authenticated direct access remains denied.
+- Provider disable/re-enable and stale discovery now transactionally synchronize owned routes,
+  catalog availability, and the monotonic Realtime revision through a new additive migration.
+- Added per-user managed-inference concurrency, request-window, and token-window enforcement before
+  route lookup or credential decryption. Limit failures are typed HTTP 429 responses with
+  `Retry-After`; settings are bounded and documented. Multi-replica production requires the
+  injectable distributed atomic limiter rather than process-local counters.
+- Managed clients reject terminal normalized stream errors even after partial text. Focused backend,
+  mobile, documentation, and pgTAP suites cover these review findings; full-branch gates are recorded
+  in the final Task 11 entry.
+
+# 2026-08-26 — AI control plane Task 11: final gate record
+
+- Consolidated full-branch gates at head `85643c0` (base `b16f9d0`, 49 commits, 299 files):
+  full Jest **237 suites / 1090 tests passed** (Task 8 round evidence), backend suites green,
+  root/backend TypeScript clean, changed-file ESLint clean, design gate passed, admin tests +
+  static web export passed, Supabase pgTAP migration suites green. Live authenticated recall
+  probe remains environment-gated (documented limitation, non-blocking).
+- Final whole-branch security review (Task 12, simple-security scope per owner): **PASS —
+  zero Critical, zero Important findings.** Deferred minors: legacy-route CORS reflect-any-origin
+  (behind legacy API-key auth, out of managed plane), `requireUser` 503-vs-401 cosmetic path,
+  distributed limiter note for multi-replica production (already documented).

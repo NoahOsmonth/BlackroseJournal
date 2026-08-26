@@ -13,6 +13,10 @@ import {
 } from '@/utils/ai/modelFallback';
 import { loadCustomAiProviderSettings } from './customModels';
 import { getResolvedDirectConfig, type ResolvedDirectConfig } from './directConfig';
+import {
+    acquireAccountOperationLease,
+    type AccountOperationLease,
+} from '@/services/account/accountRuntime';
 import { getProviderCapabilities, type ProviderCapabilities } from './providerCapabilities';
 
 export interface DirectChatRequest {
@@ -42,7 +46,7 @@ export interface DirectChatOptions {
     signal?: AbortSignal;
 }
 
-interface PreparedDirectChatRequest {
+export interface PreparedDirectChatRequest {
     url: string;
     headers: Record<string, string>;
     body: DirectChatRequest;
@@ -118,6 +122,47 @@ function resolveModel(
     return payloadModel;
 }
 
+const ACCOUNT_SWITCH_ERROR_MESSAGE = 'AI request was cancelled by an account switch.';
+
+function accountSwitchCancellationError(): Error {
+    const error = new Error(ACCOUNT_SWITCH_ERROR_MESSAGE);
+    error.name = 'AbortError';
+    return error;
+}
+
+function throwIfAccountLeaseAborted(lease: Pick<AccountOperationLease, 'signal'>): void {
+    if (lease.signal.aborted) throw accountSwitchCancellationError();
+}
+
+function createAbortError(): Error {
+    const error = new Error('The operation was aborted.');
+    error.name = 'AbortError';
+    return error;
+}
+
+function composeAbortSignals(
+    accountSignal: AbortSignal,
+    callerSignal?: AbortSignal,
+): { signal: AbortSignal; cleanup(): void } {
+    if (!callerSignal) return { signal: accountSignal, cleanup: () => undefined };
+    const controller = new AbortController();
+    const abortFromSignal = (signal: AbortSignal) => {
+        if (!controller.signal.aborted) controller.abort(signal.reason);
+    };
+    const onAbort = (event: Event) => abortFromSignal(event.target as AbortSignal);
+    [accountSignal, callerSignal].forEach((signal) => {
+        if (signal.aborted) abortFromSignal(signal);
+        else signal.addEventListener('abort', onAbort, { once: true });
+    });
+    return {
+        signal: controller.signal,
+        cleanup: () => {
+            accountSignal.removeEventListener('abort', onAbort);
+            callerSignal.removeEventListener('abort', onAbort);
+        },
+    };
+}
+
 function buildConnectionError(request: PreparedDirectChatRequest, source: ResolvedDirectConfig['source']): Error {
     const provider = source === 'custom' ? 'custom AI provider' : 'AI provider';
     const setting = source === 'custom'
@@ -129,11 +174,11 @@ function buildConnectionError(request: PreparedDirectChatRequest, source: Resolv
     );
 }
 
-export async function prepareDirectChatRequest(
+function buildPreparedDirectChatRequest(
     payload: DirectChatRequest,
-    options: DirectChatOptions = {}
-): Promise<PreparedDirectChatRequest> {
-    const config = await getResolvedDirectConfig();
+    options: DirectChatOptions,
+    config: ResolvedDirectConfig,
+): PreparedDirectChatRequest {
     const capabilities = getProviderCapabilities(config.apiBaseUrl);
     const url = buildUrl(config.apiBaseUrl);
     const headers: Record<string, string> = {
@@ -165,6 +210,23 @@ export async function prepareDirectChatRequest(
     return { url, headers, body, configSource: config.source, capabilities };
 }
 
+export async function prepareDirectChatRequest(
+    payload: DirectChatRequest,
+    options: DirectChatOptions = {}
+): Promise<PreparedDirectChatRequest> {
+    const lease = acquireAccountOperationLease('byok-inference-preparation');
+    try {
+        const config = await getResolvedDirectConfig(lease.signal);
+        throwIfAccountLeaseAborted(lease);
+        return buildPreparedDirectChatRequest(payload, options, config);
+    } catch (error) {
+        if (lease.signal.aborted) throw accountSwitchCancellationError();
+        throw error;
+    } finally {
+        lease.release();
+    }
+}
+
 function backoffMs(attempt: number): number {
     const base = BASE_BACKOFF_MS * Math.pow(2, attempt);
     const variance = base * 0.2;
@@ -173,6 +235,11 @@ function backoffMs(attempt: number): number {
 
 function delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function delayUnlessAccountSwitched(ms: number, accountSignal: AbortSignal): Promise<void> {
+    await delay(ms);
+    throwIfAccountLeaseAborted({ signal: accountSignal });
 }
 
 function isAbortError(err: unknown): boolean {
@@ -193,12 +260,101 @@ async function peekResponseText(response: Response): Promise<string> {
  * Resolve alternate models (higher params preferred) from local settings +
  * builtins. Failures load as an empty list — never block the primary error.
  */
+interface RetainedStreamingResponse {
+    readonly response: Response;
+    readonly ownsLease: boolean;
+}
+
+function cancellationError(
+    accountSignal: AbortSignal,
+    callerSignal?: AbortSignal,
+): Error {
+    if (accountSignal.aborted) return accountSwitchCancellationError();
+    if (callerSignal?.reason instanceof Error) return callerSignal.reason;
+    const error = new Error('The operation was aborted.');
+    error.name = 'AbortError';
+    return error;
+}
+
+function retainLeaseForStreamingResponse(
+    response: Response,
+    lease: AccountOperationLease,
+    composed: { signal: AbortSignal; cleanup(): void },
+    callerSignal?: AbortSignal,
+): RetainedStreamingResponse {
+    if (!response.body || typeof globalThis.ReadableStream !== 'function') {
+        return { response, ownsLease: false };
+    }
+
+    const reader = response.body.getReader();
+    let streamController: ReadableStreamDefaultController<Uint8Array> | null = null;
+    let terminated = false;
+    let finalized = false;
+    const finalize = () => {
+        if (finalized) return;
+        finalized = true;
+        composed.cleanup();
+        lease.release();
+    };
+    const onAbort = () => {
+        if (terminated) return;
+        terminated = true;
+        const error = cancellationError(lease.signal, callerSignal);
+        streamController?.error(error);
+        void reader.cancel(error).catch(() => undefined);
+        finalize();
+    };
+    composed.signal.addEventListener('abort', onAbort, { once: true });
+    const body = new globalThis.ReadableStream<Uint8Array>({
+        start(controller) {
+            streamController = controller;
+            if (composed.signal.aborted) onAbort();
+        },
+        async pull(controller) {
+            if (terminated) return;
+            try {
+                const { done, value } = await reader.read();
+                if (composed.signal.aborted) throw cancellationError(lease.signal, callerSignal);
+                if (done) {
+                    terminated = true;
+                    controller.close();
+                    finalize();
+                    return;
+                }
+                if (value) controller.enqueue(value);
+            } catch (error) {
+                if (terminated) return;
+                terminated = true;
+                controller.error(error);
+                finalize();
+            }
+        },
+        async cancel(reason) {
+            if (terminated) return;
+            terminated = true;
+            finalize();
+            await reader.cancel(reason);
+        },
+    });
+    return {
+        response: new Response(body, {
+            status: response.status,
+            statusText: response.statusText,
+            headers: response.headers,
+        }),
+        ownsLease: true,
+    };
+}
+
 async function resolveModelFallbacks(
     failedModel: string,
-    config: ResolvedDirectConfig
+    config: ResolvedDirectConfig,
+    accountSignal: AbortSignal,
 ): Promise<string[]> {
+    throwIfAccountLeaseAborted({ signal: accountSignal });
     try {
         const settings = await loadCustomAiProviderSettings();
+        throwIfAccountLeaseAborted({ signal: accountSignal });
         const contextById: Record<string, number> = {};
         for (const model of settings.models) {
             contextById[model.id] = model.contextWindow;
@@ -216,6 +372,7 @@ async function resolveModelFallbacks(
         });
         return queue.slice(0, MAX_MODEL_FALLBACKS);
     } catch {
+        throwIfAccountLeaseAborted({ signal: accountSignal });
         return buildModelFallbackQueue(failedModel, {
             configModel: config.model,
             flashModel: config.flashModel,
@@ -234,7 +391,8 @@ type AttemptOutcome =
  */
 async function singleFetch(
     request: PreparedDirectChatRequest,
-    options: DirectChatOptions
+    options: DirectChatOptions,
+    accountSignal: AbortSignal,
 ): Promise<AttemptOutcome> {
     try {
         const response = await fetch(request.url, {
@@ -243,14 +401,17 @@ async function singleFetch(
             body: JSON.stringify(request.body),
             ...(options.signal ? { signal: options.signal } : {}),
         });
+        throwIfAccountLeaseAborted({ signal: accountSignal });
         if (response.ok) return { kind: 'ok', response };
 
         const bodyText = await peekResponseText(response);
+        throwIfAccountLeaseAborted({ signal: accountSignal });
         const modelMissing = isModelNotFoundError(response.status, bodyText);
         const retryable =
             !modelMissing && request.capabilities.retryableStatuses.has(response.status);
         return { kind: 'response', response, modelMissing, retryable };
     } catch (err) {
+        if (accountSignal.aborted) throw accountSwitchCancellationError();
         if (isAbortError(err) || options.signal?.aborted) {
             throw err;
         }
@@ -271,9 +432,11 @@ async function singleFetch(
  */
 async function fetchWithSelfHeal(
     request: PreparedDirectChatRequest,
-    options: DirectChatOptions
+    options: DirectChatOptions,
+    config: ResolvedDirectConfig,
+    accountSignal: AbortSignal,
 ): Promise<Response> {
-    const config = await getResolvedDirectConfig();
+    throwIfAccountLeaseAborted({ signal: accountSignal });
     const primaryModel = request.body.model;
     const modelQueue: string[] = [primaryModel];
     const triedModels = new Set<string>();
@@ -283,6 +446,8 @@ async function fetchWithSelfHeal(
     let lastError: unknown = null;
 
     while (modelQueue.length > 0) {
+        throwIfAccountLeaseAborted({ signal: accountSignal });
+        if (options.signal?.aborted) throw createAbortError();
         const model = modelQueue.shift()!;
         if (triedModels.has(model)) continue;
         triedModels.add(model);
@@ -291,7 +456,7 @@ async function fetchWithSelfHeal(
         if (isCachedUnavailable(model)) {
             if (!fallbacksLoaded) {
                 fallbacksLoaded = true;
-                const fallbacks = await resolveModelFallbacks(primaryModel, config);
+                const fallbacks = await resolveModelFallbacks(primaryModel, config, accountSignal);
                 for (const next of fallbacks) {
                     if (!triedModels.has(next) && !modelQueue.includes(next)) {
                         modelQueue.push(next);
@@ -309,13 +474,11 @@ async function fetchWithSelfHeal(
         request.body.model = model;
 
         for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-            if (options.signal?.aborted) {
-                const abortErr = new Error('The operation was aborted.');
-                abortErr.name = 'AbortError';
-                throw abortErr;
-            }
+            throwIfAccountLeaseAborted({ signal: accountSignal });
+            if (options.signal?.aborted) throw createAbortError();
 
-            const outcome = await singleFetch(request, options);
+            const outcome = await singleFetch(request, options, accountSignal);
+            throwIfAccountLeaseAborted({ signal: accountSignal });
 
             if (outcome.kind === 'ok') {
                 lastResolvedModel = model;
@@ -335,7 +498,7 @@ async function fetchWithSelfHeal(
                 lastError = outcome.error;
                 lastResponse = null;
                 if (attempt < MAX_ATTEMPTS - 1) {
-                    await delay(backoffMs(attempt));
+                    await delayUnlessAccountSwitched(backoffMs(attempt), accountSignal);
                     continue;
                 }
                 // Exhausted retries on this model — try next model if any.
@@ -350,7 +513,7 @@ async function fetchWithSelfHeal(
                 cacheUnavailable(model);
                 if (!fallbacksLoaded) {
                     fallbacksLoaded = true;
-                    const fallbacks = await resolveModelFallbacks(primaryModel, config);
+                    const fallbacks = await resolveModelFallbacks(primaryModel, config, accountSignal);
                     for (const next of fallbacks) {
                         if (!triedModels.has(next) && !modelQueue.includes(next)) {
                             modelQueue.push(next);
@@ -368,7 +531,7 @@ async function fetchWithSelfHeal(
             }
 
             if (outcome.retryable && attempt < MAX_ATTEMPTS - 1) {
-                await delay(backoffMs(attempt));
+                await delayUnlessAccountSwitched(backoffMs(attempt), accountSignal);
                 continue;
             }
 
@@ -382,6 +545,7 @@ async function fetchWithSelfHeal(
         }
     }
 
+    throwIfAccountLeaseAborted({ signal: accountSignal });
     if (lastResponse) return lastResponse;
     throw lastError ?? new Error('AI request failed after self-heal retries.');
 }
@@ -390,15 +554,53 @@ export async function fetchDirectChatCompletion(
     payload: DirectChatRequest,
     options: DirectChatOptions = {}
 ): Promise<Response> {
-    const request = await prepareDirectChatRequest(payload, options);
+    const lease = acquireAccountOperationLease('byok-inference-fetch');
+    let request: PreparedDirectChatRequest;
+    let config: ResolvedDirectConfig;
     try {
-        return await fetchWithSelfHeal(request, options);
+        config = await getResolvedDirectConfig(lease.signal);
+        throwIfAccountLeaseAborted(lease);
+        request = buildPreparedDirectChatRequest(payload, options, config);
+    } catch (error) {
+        lease.release();
+        if (lease.signal.aborted) throw accountSwitchCancellationError();
+        throw error;
+    }
+
+    const composed = composeAbortSignals(lease.signal, options.signal);
+    let ownsLease = false;
+    try {
+        const response = await fetchWithSelfHeal(
+            request,
+            { ...options, signal: composed.signal },
+            config,
+            lease.signal,
+        );
+        throwIfAccountLeaseAborted(lease);
+        const isEventStream = (response.headers.get('content-type') || '')
+            .includes('text/event-stream');
+        if (payload.stream && response.ok && isEventStream) {
+            const retained = retainLeaseForStreamingResponse(
+                response,
+                lease,
+                composed,
+                options.signal,
+            );
+            ownsLease = retained.ownsLease;
+            return retained.response;
+        }
+        return response;
     } catch (err) {
+        if (lease.signal.aborted) throw accountSwitchCancellationError();
         if (isAbortError(err)) throw err;
         throw buildConnectionError(request, request.configSource);
+    } finally {
+        if (!ownsLease) {
+            composed.cleanup();
+            lease.release();
+        }
     }
 }
 
 export { DirectConfigError, getDirectConfig, getResolvedDirectConfig } from './directConfig';
 export type { DirectConfig, ResolvedDirectConfig } from './directConfig';
-

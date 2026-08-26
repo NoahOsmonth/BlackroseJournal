@@ -3,8 +3,11 @@
  * XHR streaming skips when the primary model is cached-unavailable.
  */
 import type { ChatRequestPayload } from '../../../services/ai/chatTypes';
+import { loadCustomAiProviderSettings } from '../../../services/ai/customModels';
+import { activateAccount, clearActiveAccount } from '../../../services/account/accountRuntime';
 import {
     clearModelUnavailableCache,
+    fetchDirectChatCompletion,
     isModelCachedUnavailable,
 } from '../../../services/ai/directTransport';
 import { streamChatWithXhr } from '../../../services/ai/streamingTransports';
@@ -78,8 +81,7 @@ describe('streamChatWithXhr — Fix 5: skip when model cached-unavailable', () =
         const originalFetch = global.fetch;
         global.fetch = fetchMock as unknown as typeof fetch;
 
-        // Import fetchDirectChatCompletion to trigger the cache
-        const { fetchDirectChatCompletion } = require('../../../services/ai/directTransport');
+        // Trigger the cache through the public direct transport.
         try {
             await fetchDirectChatCompletion({
                 model: 'dead/model:free',
@@ -115,5 +117,61 @@ describe('streamChatWithXhr — Fix 5: skip when model cached-unavailable', () =
 
         // Returns false because no XHR in Jest env (not because of cache)
         expect(result.ok).toBe(false);
+    });
+
+    it('aborts a BYOK XHR and suppresses stale callbacks after switching accounts', async () => {
+        await clearActiveAccount();
+        await activateAccount('account-a');
+        jest.mocked(loadCustomAiProviderSettings).mockResolvedValue({ enabled: true } as never);
+        let instance!: {
+            responseText: string;
+            onprogress: (() => void) | null;
+            onload: (() => void) | null;
+            onabort: (() => void) | null;
+            abort: jest.Mock;
+        };
+        let resolveSent!: () => void;
+        const sent = new Promise<void>((resolve) => { resolveSent = resolve; });
+
+        class ByokXhr {
+            responseText = '';
+            readyState = 3;
+            status = 200;
+            onreadystatechange: (() => void) | null = null;
+            onprogress: (() => void) | null = null;
+            onload: (() => void) | null = null;
+            onerror: (() => void) | null = null;
+            onabort: (() => void) | null = null;
+            abort = jest.fn(() => this.onabort?.());
+            open() { /* no-op */ }
+            setRequestHeader() { /* no-op */ }
+            send() {
+                instance = this;
+                this.responseText = 'data: {"choices":[{"delta":{"content":"from-a"}}]}\n\n';
+                this.onprogress?.();
+                resolveSent();
+            }
+        }
+        globalThis.XMLHttpRequest = ByokXhr as unknown as typeof XMLHttpRequest;
+        const onChunk = jest.fn();
+        const streaming = streamChatWithXhr(BASE_PAYLOAD, onChunk, jest.fn());
+        await sent;
+        expect(onChunk).toHaveBeenCalledWith('from-a', undefined);
+
+        try {
+            await activateAccount('account-b');
+            instance.responseText += [
+                'data: {"choices":[{"delta":{"content":"stale-a"}}]}',
+                'data: [DONE]',
+                '',
+            ].join('\n\n');
+            instance.onprogress?.();
+
+            await expect(streaming).rejects.toThrow('AI request was cancelled by an account switch.');
+            expect(instance.abort).toHaveBeenCalledTimes(1);
+            expect(onChunk).toHaveBeenCalledTimes(1);
+        } finally {
+            await clearActiveAccount();
+        }
     });
 });

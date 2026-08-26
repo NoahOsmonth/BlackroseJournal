@@ -33,11 +33,18 @@ jest.mock('../../services/supabase/syncQueue', () => ({
 import { renderHook, act, waitFor, cleanup } from '@testing-library/react-native';
 import { useGoalsContext } from '../../hooks/goals/useGoalsContext';
 import { createGoal } from '../../services/goals/goalsStorage';
+import { activateAccount, clearActiveAccount } from '../../services/account/accountRuntime';
 
 describe('useGoalsContext', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
         mockAsyncStorageStore.clear();
         cleanup();
+        await activateAccount('goals-context-user');
+    });
+
+    afterEach(async () => {
+        cleanup();
+        await clearActiveAccount();
     });
 
     it('starts loading and returns undefined context until goals load', async () => {
@@ -95,6 +102,18 @@ describe('useGoalsContext', () => {
         });
 
         await waitFor(() => expect(result.current.goalsContext).toContain('- Auto-updated goal (Goal)'));
+    });
+
+    it('rebinds to the next account after an account switch', async () => {
+        await createGoal({ title: 'User A goal', type: 'goal' });
+        const { result } = renderHook(() => useGoalsContext());
+        await waitFor(() => expect(result.current.goalsContext).toContain('User A goal'));
+
+        await act(async () => {
+            await activateAccount('user-b');
+        });
+
+        await waitFor(() => expect(result.current.goalsContext).toBeUndefined());
     });
 
     it('prioritizes goals linked to the provided intentionId', async () => {

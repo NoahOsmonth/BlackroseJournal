@@ -5,6 +5,8 @@ import {
     preferFreeModelId,
     pushRecentModelId,
 } from '@/utils/ai/modelDisplay';
+import { accountScopedStorage } from '@/services/account/accountScopedStorage';
+import { runAccountBoundOperation } from '@/services/account/accountRuntime';
 
 export type ContextWindowSource = 'api' | 'known' | 'fallback';
 
@@ -77,18 +79,18 @@ const KNOWN_CONTEXT_WINDOWS: Record<string, number> = {
     'moonshotai/kimi-k2.5': 128_000,
 };
 
-async function getAsyncStorage(): Promise<StorageAdapter> {
-    const module = await import('@react-native-async-storage/async-storage');
-    return module.default;
-}
-
-const asyncStorageAdapter: StorageAdapter = {
-    getItem: async (key) => (await getAsyncStorage()).getItem(key),
-    setItem: async (key, value) => (await getAsyncStorage()).setItem(key, value),
-    removeItem: async (key) => (await getAsyncStorage()).removeItem(key),
-};
+const asyncStorageAdapter: StorageAdapter = accountScopedStorage;
 
 let storageAdapter: StorageAdapter = asyncStorageAdapter;
+let settingsMutationQueue: Promise<unknown> = Promise.resolve();
+
+function withSettingsMutation<T>(task: () => Promise<T>): Promise<T> {
+    return runAccountBoundOperation('custom-ai-settings', async () => {
+        const run = settingsMutationQueue.then(task, task);
+        settingsMutationQueue = run.catch(() => undefined);
+        return run;
+    });
+}
 
 const changeListeners = new Set<() => void>();
 
@@ -345,27 +347,33 @@ function sanitizeSettings(value: unknown): CustomAiProviderSettings {
 }
 
 export async function loadCustomAiProviderSettings(): Promise<CustomAiProviderSettings> {
-    const json = await storageAdapter.getItem(CUSTOM_AI_SETTINGS_KEY);
-    if (!json) return getDefaultCustomAiProviderSettings();
-    try {
-        return sanitizeSettings(JSON.parse(json));
-    } catch {
-        return getDefaultCustomAiProviderSettings();
-    }
+    return runAccountBoundOperation('custom-ai-settings-read', async () => {
+        const json = await storageAdapter.getItem(CUSTOM_AI_SETTINGS_KEY);
+        if (!json) return getDefaultCustomAiProviderSettings();
+        try {
+            return sanitizeSettings(JSON.parse(json));
+        } catch {
+            return getDefaultCustomAiProviderSettings();
+        }
+    });
 }
 
 export async function saveCustomAiProviderSettings(
     settings: CustomAiProviderSettings
 ): Promise<CustomAiProviderSettings> {
-    const normalized = sanitizeSettings({ ...settings, updatedAt: Date.now() });
-    await storageAdapter.setItem(CUSTOM_AI_SETTINGS_KEY, JSON.stringify(normalized));
-    notifyCustomAiSettingsChanged();
-    return normalized;
+    return withSettingsMutation(async () => {
+        const normalized = sanitizeSettings({ ...settings, updatedAt: Date.now() });
+        await storageAdapter.setItem(CUSTOM_AI_SETTINGS_KEY, JSON.stringify(normalized));
+        notifyCustomAiSettingsChanged();
+        return normalized;
+    });
 }
 
 export async function clearCustomAiProviderSettings(): Promise<void> {
-    await storageAdapter.removeItem(CUSTOM_AI_SETTINGS_KEY);
-    notifyCustomAiSettingsChanged();
+    await withSettingsMutation(async () => {
+        await storageAdapter.removeItem(CUSTOM_AI_SETTINGS_KEY);
+        notifyCustomAiSettingsChanged();
+    });
 }
 
 export function assertModelAllowed(modelId: string, freeOnly: boolean): void {

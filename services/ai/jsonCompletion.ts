@@ -19,11 +19,8 @@
  * freeform fallback always remains available.
  */
 
-import {
-    fetchDirectChatCompletion,
-    type DirectChatOptions,
-    type DirectChatRequest,
-} from './directTransport';
+import { fetchAiChatCompletion } from './aiTransport';
+import type { DirectChatOptions, DirectChatRequest } from './directTransport';
 
 export interface JsonCompletionRequest {
     model?: string;
@@ -130,7 +127,7 @@ export async function fetchDirectJsonCompletion(
     const skipStructured = modelsRejectingJsonObject.has(modelKey);
 
     if (!skipStructured) {
-        const structured = await fetchDirectChatCompletion(
+        const structured = await fetchAiChatCompletion(
             { ...base, response_format: { type: 'json_object' } },
             options,
         );
@@ -152,7 +149,7 @@ export async function fetchDirectJsonCompletion(
         }
     }
 
-    const freeform = await fetchDirectChatCompletion(base, options);
+    const freeform = await fetchAiChatCompletion(base, options);
     if (!freeform.ok) {
         const preview = await freeform.text().catch(() => '');
         console.warn(

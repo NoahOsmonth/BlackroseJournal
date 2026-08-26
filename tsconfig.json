@@ -5,6 +5,12 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@blackrose/ai-control-plane-contracts": [
+        "./packages/ai-control-plane-contracts/src/index.ts"
+      ],
+      "@blackrose/ai-control-plane-contracts/admin": [
+        "./packages/ai-control-plane-contracts/src/admin/index.ts"
       ]
     }
   },

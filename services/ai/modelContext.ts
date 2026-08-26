@@ -1,4 +1,8 @@
 import { getResolvedDirectConfig, type ResolvedDirectConfig } from './directConfig';
+import { getAiTransportMode } from './aiTransport';
+import { getManagedModelSelection, loadManagedCatalogSnapshot } from './managedCatalog';
+import { accountScopedStorage } from '@/services/account/accountScopedStorage';
+import { runAccountBoundOperation } from '@/services/account/accountRuntime';
 import {
     DEFAULT_FALLBACK_CONTEXT_WINDOW,
     getKnownContextWindow,
@@ -16,7 +20,7 @@ export interface ModelContextInfo {
     model: string;
     contextWindow: number;
     source: ContextWindowSource;
-    providerSource: ResolvedDirectConfig['source'];
+    providerSource: ResolvedDirectConfig['source'] | 'managed';
 }
 
 interface CachedModelContext {
@@ -28,16 +32,7 @@ interface CachedModelContext {
 
 export const MODEL_CONTEXT_CACHE_KEY = '@blackrose_model_context_cache';
 
-async function getAsyncStorage(): Promise<StorageAdapter> {
-    const module = await import('@react-native-async-storage/async-storage');
-    return module.default;
-}
-
-const asyncStorageAdapter: StorageAdapter = {
-    getItem: async (key) => (await getAsyncStorage()).getItem(key),
-    setItem: async (key, value) => (await getAsyncStorage()).setItem(key, value),
-    removeItem: async (key) => (await getAsyncStorage()).removeItem(key),
-};
+const asyncStorageAdapter: StorageAdapter = accountScopedStorage;
 
 let storageAdapter: StorageAdapter = asyncStorageAdapter;
 
@@ -119,12 +114,28 @@ export function resetModelContextStorageAdapter(): void {
 }
 
 export async function clearModelContextCache(): Promise<void> {
-    await storageAdapter.removeItem(MODEL_CONTEXT_CACHE_KEY);
+    await runAccountBoundOperation('model-context', async () => {
+        await storageAdapter.removeItem(MODEL_CONTEXT_CACHE_KEY);
+    });
 }
 
 export async function detectActiveModelContextWindow(
     options: { forceRefresh?: boolean } = {}
 ): Promise<ModelContextInfo> {
+    return runAccountBoundOperation('model-context', async ({ signal }) => {
+    if (await getAiTransportMode() === 'managed') {
+        const snapshot = await loadManagedCatalogSnapshot();
+        const selection = getManagedModelSelection(snapshot.catalog, snapshot.preference);
+        if (!selection.model || selection.availability === 'unavailable') {
+            throw new Error('Choose an available managed AI model before chatting.');
+        }
+        return {
+            model: selection.model.publicModelId,
+            contextWindow: selection.model.contextWindow,
+            source: 'api',
+            providerSource: 'managed',
+        };
+    }
     const config = await getResolvedDirectConfig();
     if (config.source === 'custom' && config.contextWindow) {
         return {
@@ -140,8 +151,10 @@ export async function detectActiveModelContextWindow(
     if (cached && !options.forceRefresh) return toInfo(config, cached);
 
     const detected = await fetchDefaultContext(config).catch(() => fallbackContext(config.model));
+    if (signal.aborted) throw new Error('Model context request cancelled by an account switch.');
     await saveCache(key, detected);
     return toInfo(config, detected);
+    });
 }
 
 export function formatContextWindow(value: number): string {

@@ -19,10 +19,17 @@ jest.mock('../services/ai/directConfig', () => ({
     }),
 }));
 
-jest.mock('../services/ai/customModels', () => ({
-    ...jest.requireActual('../services/ai/customModels'),
-    getKnownContextWindow: () => 32_768,
-}));
+jest.mock('../services/ai/customModels', () => {
+    const actual = jest.requireActual('../services/ai/customModels');
+    return {
+        ...actual,
+        getKnownContextWindow: () => 32_768,
+        loadCustomAiProviderSettings: jest.fn(async () => ({
+            ...actual.getDefaultCustomAiProviderSettings(),
+            enabled: true,
+        })),
+    };
+});
 
 /** Install a constructable XHR mock on both `global` and `globalThis` (Jest/node parity). */
 function installXhrMock(MockCtor: new () => unknown): () => void {

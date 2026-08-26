@@ -1,3 +1,6 @@
+import { accountScopedStorage } from '@/services/account/accountScopedStorage';
+import { runAccountBoundOperation } from '@/services/account/accountRuntime';
+
 export interface GenerationSettings {
     temperature: number;
     topP: number;
@@ -32,16 +35,7 @@ export const GENERATION_PRESETS: GenerationPreset[] = [
 const MIN_MAX_TOKENS = 256;
 const FALLBACK_MAX_TOKENS = 2_000_000;
 
-async function getAsyncStorage(): Promise<StorageAdapter> {
-    const module = await import('@react-native-async-storage/async-storage');
-    return module.default;
-}
-
-const asyncStorageAdapter: StorageAdapter = {
-    getItem: async (key) => (await getAsyncStorage()).getItem(key),
-    setItem: async (key, value) => (await getAsyncStorage()).setItem(key, value),
-    removeItem: async (key) => (await getAsyncStorage()).removeItem(key),
-};
+const asyncStorageAdapter: StorageAdapter = accountScopedStorage;
 
 let storageAdapter: StorageAdapter = asyncStorageAdapter;
 
@@ -89,28 +83,34 @@ export function sanitizeGenerationSettings(
 }
 
 export async function loadGenerationSettings(contextWindow?: number): Promise<GenerationSettings> {
-    const json = await storageAdapter.getItem(GENERATION_SETTINGS_KEY);
-    if (!json) return sanitizeGenerationSettings(DEFAULT_GENERATION, contextWindow);
-    try {
-        return sanitizeGenerationSettings(JSON.parse(json), contextWindow);
-    } catch {
-        return sanitizeGenerationSettings(DEFAULT_GENERATION, contextWindow);
-    }
+    return runAccountBoundOperation('generation-settings', async () => {
+        const json = await storageAdapter.getItem(GENERATION_SETTINGS_KEY);
+        if (!json) return sanitizeGenerationSettings(DEFAULT_GENERATION, contextWindow);
+        try {
+            return sanitizeGenerationSettings(JSON.parse(json), contextWindow);
+        } catch {
+            return sanitizeGenerationSettings(DEFAULT_GENERATION, contextWindow);
+        }
+    });
 }
 
 export async function saveGenerationSettings(
     settings: Partial<GenerationSettings>,
     contextWindow?: number
 ): Promise<GenerationSettings> {
-    const normalized = sanitizeGenerationSettings(settings, contextWindow);
-    await storageAdapter.setItem(GENERATION_SETTINGS_KEY, JSON.stringify(normalized));
-    return normalized;
+    return runAccountBoundOperation('generation-settings', async () => {
+        const normalized = sanitizeGenerationSettings(settings, contextWindow);
+        await storageAdapter.setItem(GENERATION_SETTINGS_KEY, JSON.stringify(normalized));
+        return normalized;
+    });
 }
 
 export async function resetGenerationSettings(contextWindow?: number): Promise<GenerationSettings> {
-    const defaults = sanitizeGenerationSettings(DEFAULT_GENERATION, contextWindow);
-    await storageAdapter.removeItem(GENERATION_SETTINGS_KEY);
-    return defaults;
+    return runAccountBoundOperation('generation-settings', async () => {
+        const defaults = sanitizeGenerationSettings(DEFAULT_GENERATION, contextWindow);
+        await storageAdapter.removeItem(GENERATION_SETTINGS_KEY);
+        return defaults;
+    });
 }
 
 export function temperatureForImagination(value: unknown): number | undefined {

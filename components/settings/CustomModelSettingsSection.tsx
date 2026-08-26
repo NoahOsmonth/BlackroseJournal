@@ -302,7 +302,7 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                             Add model manually
                         </Text>
                         <Text className={`text-xs mt-1 mb-2 ${SECONDARY_TEXT}`}>
-                            Type a model id when fetch can't list it (e.g. qwen-web/qwen3.8-max).
+                            Type a model id when fetch cannot list it (e.g. qwen-web/qwen3.8-max).
                         </Text>
                         <View className="flex-row gap-2">
                             <TextInput
@@ -339,6 +339,7 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
 
             <ChatModelPickerSheet
                 visible={pickerOpen}
+                mode="byok"
                 models={models}
                 recentModels={settings.recentModelIds
                     .map((id) => models.find((model) => model.id === id))

@@ -7,6 +7,7 @@
  */
 import { loadCustomAiProviderSettings } from '../../../services/ai/customModels';
 import { getResolvedDirectConfig } from '../../../services/ai/directConfig';
+import { activateAccount, clearActiveAccount } from '../../../services/account/accountRuntime';
 import {
     clearModelUnavailableCache,
     fetchDirectChatCompletion,
@@ -74,6 +75,12 @@ const BASE_PAYLOAD = {
     stream: false,
 };
 
+function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((nextResolve) => { resolve = nextResolve; });
+    return { promise, resolve };
+}
+
 describe('directTransport — fetchDirectChatCompletion', () => {
     const originalFetch = global.fetch;
     let fetchMock: jest.Mock;
@@ -121,6 +128,56 @@ describe('directTransport — fetchDirectChatCompletion', () => {
         await expect(fetchDirectChatCompletion(BASE_PAYLOAD))
             .rejects
             .toThrow(/EXPO_PUBLIC_NANO_GPT_API_BASE_URL/);
+    });
+
+    it('rejects a prepared account A request instead of sending it after switching to account B', async () => {
+        await clearActiveAccount();
+        await activateAccount('account-a');
+        const configStarted = deferred<void>();
+        const config = deferred<typeof TEST_ENV_RESOLVED_CONFIG>();
+        jest.mocked(getResolvedDirectConfig).mockImplementation(() => {
+            configStarted.resolve();
+            return config.promise;
+        });
+
+        try {
+            const pending = fetchDirectChatCompletion({
+                ...BASE_PAYLOAD,
+                messages: [{ role: 'user', content: 'private account A prompt' }],
+            });
+            await configStarted.promise;
+            const switching = activateAccount('account-b');
+            config.resolve(TEST_ENV_RESOLVED_CONFIG);
+            await switching;
+
+            await expect(pending).rejects.toThrow('AI request was cancelled by an account switch.');
+            expect(fetchMock).not.toHaveBeenCalled();
+        } finally {
+            await clearActiveAccount();
+        }
+    });
+
+    it('stops self-heal retries after account A is switched out while a fetch is in flight', async () => {
+        await clearActiveAccount();
+        await activateAccount('account-a');
+        const firstAttempt = deferred<Response>();
+        fetchMock
+            .mockImplementationOnce(() => firstAttempt.promise)
+            .mockResolvedValueOnce(new Response('{}', { status: 200 }));
+
+        try {
+            const pending = fetchDirectChatCompletion(BASE_PAYLOAD);
+            while (fetchMock.mock.calls.length === 0) await Promise.resolve();
+            const switching = activateAccount('account-b');
+            await Promise.resolve();
+            firstAttempt.resolve(new Response(JSON.stringify({ error: 'temporary' }), { status: 503 }));
+            await switching;
+
+            await expect(pending).rejects.toThrow('AI request was cancelled by an account switch.');
+            expect(fetchMock).toHaveBeenCalledTimes(1);
+        } finally {
+            await clearActiveAccount();
+        }
     });
 
     it('4. sends Content-Type: application/json and stringifies the body', async () => {
@@ -470,6 +527,48 @@ describe('directTransport — model unavailability cache (Fix 1)', () => {
         expect(isModelCachedUnavailable('agent-default')).toBe(false);
         expect(isModelCachedUnavailable(null)).toBe(false);
         expect(isModelCachedUnavailable(undefined)).toBe(false);
+    });
+});
+
+describe('directTransport — BYOK fetch stream account lease', () => {
+    const originalFetch = global.fetch;
+
+    beforeEach(async () => {
+        await clearActiveAccount();
+        global.fetch = jest.fn(async () => new Response(new ReadableStream<Uint8Array>({
+            start(controller) {
+                (globalThis as typeof globalThis & {
+                    __byokUpstream?: ReadableStreamDefaultController<Uint8Array>;
+                }).__byokUpstream = controller;
+            },
+        }), { status: 200, headers: { 'content-type': 'text/event-stream' } })) as unknown as typeof fetch;
+        jest.mocked(getResolvedDirectConfig).mockResolvedValue(TEST_ENV_RESOLVED_CONFIG);
+    });
+
+    afterEach(async () => {
+        global.fetch = originalFetch;
+        delete (globalThis as typeof globalThis & {
+            __byokUpstream?: ReadableStreamDefaultController<Uint8Array>;
+        }).__byokUpstream;
+        await clearActiveAccount();
+        jest.restoreAllMocks();
+    });
+
+    it('holds the BYOK account lease until the fetch response stream ends or is cancelled', async () => {
+        await activateAccount('account-a');
+        const response = await fetchDirectChatCompletion({ ...BASE_PAYLOAD, stream: true });
+        const reader = response.body!.getReader();
+        const upstream = (globalThis as typeof globalThis & {
+            __byokUpstream?: ReadableStreamDefaultController<Uint8Array>;
+        }).__byokUpstream!;
+        upstream.enqueue(new Uint8Array([1]));
+        await expect(reader.read()).resolves.toMatchObject({ done: false });
+
+        const pendingRead = reader.read();
+        const switching = activateAccount('account-b');
+        await switching;
+
+        await expect(pendingRead).rejects.toThrow('AI request was cancelled by an account switch.');
     });
 });
 

@@ -24,6 +24,24 @@ function parseUsageField(raw: unknown): ChatUsage | null {
     return out;
 }
 
+function record(value: unknown): Record<string, unknown> | null {
+    return typeof value === 'object' && value !== null
+        ? value as Record<string, unknown>
+        : null;
+}
+
+function streamError(raw: unknown): Error | undefined {
+    const value = record(raw);
+    if (!value) return undefined;
+    const message = typeof value.message === 'string' ? value.message : 'AI stream failed.';
+    return new Error(message);
+}
+
+function terminalReasonError(reason: string | undefined): Error | undefined {
+    if (reason !== 'error' && reason !== 'cancelled') return undefined;
+    return new Error(reason === 'cancelled' ? 'AI stream was cancelled.' : 'AI stream failed.');
+}
+
 export function parseSseLine(line: string): ParsedSseChunk | null {
     const trimmed = line.trim();
     if (!trimmed || !trimmed.startsWith('data:')) return null;
@@ -31,12 +49,24 @@ export function parseSseLine(line: string): ParsedSseChunk | null {
     if (!payload) return null;
     if (payload === '[DONE]') return { done: true };
     try {
-        const parsed = JSON.parse(payload);
-        const delta = parsed.choices?.[0]?.delta;
+        const parsed = record(JSON.parse(payload));
+        if (!parsed) return null;
+        const parsedError = streamError(parsed.error);
+        if (parsedError) return { error: parsedError };
+        const choices = Array.isArray(parsed.choices) ? parsed.choices : [];
+        const choice = record(choices[0]);
+        const delta = record(choice?.delta);
+        const finishReason = typeof choice?.finish_reason === 'string'
+            ? choice.finish_reason
+            : undefined;
         return {
-            content: delta?.content,
-            reasoning: delta?.reasoning || delta?.reasoning_content,
+            content: typeof delta?.content === 'string' ? delta.content : undefined,
+            reasoning: typeof delta?.reasoning === 'string'
+                ? delta.reasoning
+                : typeof delta?.reasoning_content === 'string' ? delta.reasoning_content : undefined,
             usage: parseUsageField(parsed.usage),
+            finishReason,
+            error: terminalReasonError(finishReason),
         };
     } catch {
         return null;
@@ -87,6 +117,7 @@ function processStreamLines(
     for (const line of lines) {
         const parsed = parseSseLine(line);
         if (!parsed) continue;
+        if (parsed.error) throw parsed.error;
         if (parsed.done) {
             assertFinalContent(accumulator);
             onComplete(accumulator.content, accumulator.reasoning);
@@ -101,7 +132,12 @@ function processStreamLines(
 export type StreamUsageCallback = (usage: ChatUsage | null) => void;
 
 export async function readStreamResponse(
-    body: { getReader: () => { read: () => Promise<{ done: boolean; value?: Uint8Array }> } },
+    body: {
+        getReader: () => {
+            read: () => Promise<{ done: boolean; value?: Uint8Array }>;
+            cancel?: (reason?: unknown) => Promise<void>;
+        };
+    },
     onChunk: StreamingCallback,
     onComplete: CompleteCallback,
     onUsage?: StreamUsageCallback
@@ -110,23 +146,30 @@ export async function readStreamResponse(
     const decoder = new TextDecoder('utf-8');
     const accumulator: ChatAccumulator = { content: '', reasoning: '', usage: null };
     let buffer = '';
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer = decodeStreamChunk(decoder, value, buffer);
-        const { lines, remainder } = splitStreamBuffer(buffer);
-        buffer = remainder;
-        if (processStreamLines(lines, accumulator, onChunk, onComplete)) {
-            const usage = accumulator.usage ?? null;
-            onUsage?.(usage);
-            return usage;
+
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer = decodeStreamChunk(decoder, value, buffer);
+            const { lines, remainder } = splitStreamBuffer(buffer);
+            buffer = remainder;
+            if (processStreamLines(lines, accumulator, onChunk, onComplete)) {
+                const usage = accumulator.usage ?? null;
+                onUsage?.(usage);
+                return usage;
+            }
         }
+        assertFinalContent(accumulator);
+        onComplete(accumulator.content, accumulator.reasoning);
+        const usage = accumulator.usage ?? null;
+        onUsage?.(usage);
+        return usage;
+    } finally {
+        // Normal SSE completion returns before EOF. Cancel the body so transport
+        // leases tied to the stream are released deterministically.
+        void reader.cancel?.().catch(() => undefined);
     }
-    assertFinalContent(accumulator);
-    onComplete(accumulator.content, accumulator.reasoning);
-    const usage = accumulator.usage ?? null;
-    onUsage?.(usage);
-    return usage;
 }
 
 function parseJsonSafely(rawText: string): unknown {
@@ -153,7 +196,9 @@ function parseSseTranscript(rawText: string): ChatAccumulator | null {
     let parsedChunks = 0;
     for (const line of lines) {
         const parsed = parseSseLine(line);
-        if (!parsed || parsed.done) continue;
+        if (!parsed) continue;
+        if (parsed.error) throw parsed.error;
+        if (parsed.done) continue;
         if (parsed.content) accumulator.content += parsed.content;
         if (parsed.reasoning) accumulator.reasoning += parsed.reasoning;
         if (parsed.usage) accumulator.usage = parsed.usage;

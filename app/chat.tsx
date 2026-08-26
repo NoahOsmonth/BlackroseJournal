@@ -1,5 +1,4 @@
 /** Chat screen — freeform / dailyCheckIn; orchestration lives in useChatOrchestration. */
-
 import { PromptPeriod } from '@/constants/dailyPrompts';
 import { useAiFeedback } from '@/hooks/feedback/useAiFeedback';
 import { useGoalsContext } from '@/hooks/goals/useGoalsContext';
@@ -53,7 +52,6 @@ export default function ChatScreen() {
     const { create, update, getById } = useJournalEntries();
     const { personas, activePersona, setActive } = usePersonas();
     const modelPicker = useChatModelPicker();
-
     const entryId = Array.isArray(params.entryId)
         ? params.entryId[0]
         : params.entryId;
@@ -477,8 +475,7 @@ export default function ChatScreen() {
                     onSelect={setActive}
                 />
 
-                <ChatModelPickerSheet
-                    visible={modelPicker.visible}
+                <ChatModelPickerSheet visible={modelPicker.visible} mode={modelPicker.mode}
                     models={modelPicker.models}
                     recentModels={modelPicker.recentModels}
                     selectedId={modelPicker.selectedModelId}

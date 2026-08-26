@@ -21,14 +21,27 @@ import {
     queueJournalEntryDelete,
     queueJournalEntryUpsert,
 } from './journalRemote';
+import {
+    AccountStorageAdapter,
+    claimLegacyStorageKey,
+    createAccountScopedStorageAdapter,
+} from '@/services/account/accountScopedStorage';
+import {
+    AccountOperationContext,
+    assertAccountOperationActive,
+    registerAccountTeardown,
+    runAccountBoundOperation,
+} from '@/services/account/accountRuntime';
 
 const STORAGE_KEY = '@journal_entries';
 
-// Default to AsyncStorage, but allow injection for testing
+// Default to AsyncStorage, but allow injection for testing.
 let storageAdapter: StorageAdapter = AsyncStorage;
 let hasPulledRemote = false;
 let hasPushedLocal = false;
 let remoteSyncPromise: Promise<void> | null = null;
+let remoteSyncAccountId: string | null = null;
+let mutationQueue: Promise<void> = Promise.resolve();
 
 export function setStorageAdapter(adapter: StorageAdapter): void {
     storageAdapter = adapter;
@@ -46,217 +59,410 @@ function generateId(): string {
     return `entry_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
-async function getAllEntriesMap(): Promise<Record<string, JournalEntry>> {
-    const data = await storageAdapter.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : {};
+function getStorageForAccount(accountId: string | null): AccountStorageAdapter {
+    return createAccountScopedStorageAdapter(storageAdapter, accountId);
 }
 
-async function saveAllEntries(entries: Record<string, JournalEntry>): Promise<void> {
-    await storageAdapter.setItem(STORAGE_KEY, JSON.stringify(entries));
+async function getAllEntriesMap(
+    storage: AccountStorageAdapter,
+    context: AccountOperationContext,
+): Promise<Record<string, JournalEntry>> {
+    const data = await storage.getItem(STORAGE_KEY);
+    assertAccountOperationActive(context);
+    if (!data) return {};
+    try {
+        const parsed = JSON.parse(data) as unknown;
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+            ? parsed as Record<string, JournalEntry>
+            : {};
+    } catch {
+        return {};
+    }
 }
 
-async function syncFromRemoteIfNeeded(): Promise<void> {
-    if (remoteSyncPromise) {
-        return remoteSyncPromise;
+async function saveAllEntries(
+    storage: AccountStorageAdapter,
+    entries: Record<string, JournalEntry>,
+    context: AccountOperationContext,
+): Promise<void> {
+    assertAccountOperationActive(context);
+    await storage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    assertAccountOperationActive(context);
+}
+
+function withMutationLock<T>(operation: () => Promise<T>): Promise<T> {
+    const result = mutationQueue.then(operation, operation);
+    mutationQueue = result.then(() => undefined, () => undefined);
+    return result;
+}
+
+async function syncFromRemoteIfNeeded(
+    storage: AccountStorageAdapter,
+    context: AccountOperationContext,
+): Promise<void> {
+    assertAccountOperationActive(context);
+    if (remoteSyncPromise && remoteSyncAccountId === context.accountId) {
+        await remoteSyncPromise;
+        assertAccountOperationActive(context);
+        return;
     }
 
-    remoteSyncPromise = (async () => {
-        const entries = await getAllEntriesMap();
+    const syncAccountId = context.accountId;
+    const syncPromise = (async () => {
+        const entries = await getAllEntriesMap(storage, context);
         const hasLocal = Object.keys(entries).length > 0;
 
         if (!hasLocal && !hasPulledRemote) {
-            const remoteEntries = await fetchRemoteJournalEntries();
+            let remoteEntries: JournalEntry[] | null = null;
+            try {
+                remoteEntries = await fetchRemoteJournalEntries();
+                assertAccountOperationActive(context);
+            } catch (error) {
+                if (context.signal.aborted) throw error;
+                console.warn('Failed to fetch remote journal entries:', error);
+            }
+
             if (remoteEntries !== null) {
+                await withMutationLock(async () => {
+                    assertAccountOperationActive(context);
+                    const latestEntries = await getAllEntriesMap(storage, context);
+                    const merged = mergeEntries(latestEntries, remoteEntries);
+                    await saveAllEntries(storage, merged, context);
+                });
+                assertAccountOperationActive(context);
                 hasPulledRemote = true;
-                const merged = mergeEntries(entries, remoteEntries);
-                await saveAllEntries(merged);
             }
         }
 
         if (hasLocal && !hasPushedLocal) {
             try {
+                assertAccountOperationActive(context);
                 const pushed = await pushJournalEntries(Object.values(entries));
+                assertAccountOperationActive(context);
                 if (pushed) {
                     hasPushedLocal = true;
                 }
             } catch (error) {
+                if (context.signal.aborted) throw error;
                 console.warn('Failed to push journal entries:', error);
             }
         }
     })();
 
+    remoteSyncPromise = syncPromise;
+    remoteSyncAccountId = syncAccountId;
     try {
-        await remoteSyncPromise;
+        await syncPromise;
     } finally {
-        remoteSyncPromise = null;
+        if (remoteSyncPromise === syncPromise) {
+            remoteSyncPromise = null;
+            remoteSyncAccountId = null;
+        }
     }
 }
 
-/**
- * Create a new journal entry
- */
-export async function createEntry(input: JournalEntryCreateInput): Promise<JournalEntry> {
-    const now = Date.now();
-    const createdAt = typeof input.createdAt === 'number' && Number.isFinite(input.createdAt)
-        ? input.createdAt
-        : now;
-    const updatedAt = typeof input.updatedAt === 'number' && Number.isFinite(input.updatedAt)
-        ? input.updatedAt
-        : createdAt;
-    const entry: JournalEntry = {
-        id: generateId(),
-        title: input.title || 'Untitled',
-        emoji: input.emoji || '📝',
-        messages: input.messages,
-        status: input.status,
-        analysis: input.analysis,
-        createdAt,
-        updatedAt,
-    };
-
-    const entries = await getAllEntriesMap();
-    entries[entry.id] = entry;
-    await saveAllEntries(entries);
-
+async function queueJournalEntryUpsertForAccount(
+    entry: JournalEntry,
+    context: AccountOperationContext,
+): Promise<void> {
     try {
+        assertAccountOperationActive(context);
         await queueJournalEntryUpsert(entry);
+        assertAccountOperationActive(context);
     } catch (error) {
+        if (context.signal.aborted) throw error;
         console.warn('Failed to queue journal entry sync:', error);
     }
-
-    return entry;
 }
 
-/**
- * Get a single entry by ID
- */
-export async function getEntry(id: string): Promise<JournalEntry | null> {
-    await syncFromRemoteIfNeeded();
-    const entries = await getAllEntriesMap();
-    return entries[id] || null;
-}
-
-/**
- * Update an existing entry
- */
-export async function updateEntry(
-    id: string,
-    input: JournalEntryUpdateInput
-): Promise<JournalEntry | null> {
-    const entries = await getAllEntriesMap();
-    const existing = entries[id];
-
-    if (!existing) return null;
-
-    const updated: JournalEntry = {
-        ...existing,
-        ...input,
-        messages: input.messages ?? existing.messages,
-        updatedAt: Date.now(),
-    };
-
-    entries[id] = updated;
-    await saveAllEntries(entries);
-
+async function queueJournalEntryDeleteForAccount(
+    entryId: string,
+    context: AccountOperationContext,
+): Promise<void> {
     try {
-        await queueJournalEntryUpsert(updated);
+        assertAccountOperationActive(context);
+        await queueJournalEntryDelete(entryId);
+        assertAccountOperationActive(context);
     } catch (error) {
-        console.warn('Failed to queue journal entry sync:', error);
-    }
-
-    return updated;
-}
-
-/**
- * Delete an entry by ID
- */
-export async function deleteEntry(id: string): Promise<boolean> {
-    const entries = await getAllEntriesMap();
-
-    if (!entries[id]) return false;
-
-    delete entries[id];
-    await saveAllEntries(entries);
-    try {
-        await queueJournalEntryDelete(id);
-    } catch (error) {
+        if (context.signal.aborted) throw error;
         console.warn('Failed to queue journal entry delete:', error);
     }
-
-    return true;
 }
 
-/**
- * List all entries, optionally filtered by status
- * Returns entries sorted by updatedAt descending (newest first)
- */
-export async function listEntries(
-    status?: 'draft' | 'completed'
+async function listEntriesForAccount(
+    status: 'draft' | 'completed' | undefined,
+    storage: AccountStorageAdapter,
+    context: AccountOperationContext,
 ): Promise<JournalEntry[]> {
-    await syncFromRemoteIfNeeded();
-    const entries = await getAllEntriesMap();
+    await syncFromRemoteIfNeeded(storage, context);
+    assertAccountOperationActive(context);
+    const entries = await getAllEntriesMap(storage, context);
     let list = Object.values(entries);
 
     if (status) {
-        list = list.filter((e) => e.status === status);
+        list = list.filter((entry) => entry.status === status);
     }
 
-    // Sort by updatedAt descending
+    // Sort by updatedAt descending.
     list.sort((a, b) => b.updatedAt - a.updatedAt);
-
+    assertAccountOperationActive(context);
     return list;
 }
 
 /**
- * List only draft entries
+ * Create a new journal entry.
  */
-export async function listDrafts(): Promise<JournalEntry[]> {
-    return listEntries('draft');
+export function createEntry(input: JournalEntryCreateInput): Promise<JournalEntry> {
+    return runAccountBoundOperation('journal-create', async (context) => {
+        const storage = getStorageForAccount(context.accountId);
+        const now = Date.now();
+        const createdAt = typeof input.createdAt === 'number' && Number.isFinite(input.createdAt)
+            ? input.createdAt
+            : now;
+        const updatedAt = typeof input.updatedAt === 'number' && Number.isFinite(input.updatedAt)
+            ? input.updatedAt
+            : createdAt;
+        const entry: JournalEntry = {
+            id: generateId(),
+            title: input.title || 'Untitled',
+            emoji: input.emoji || '📝',
+            messages: input.messages,
+            status: input.status,
+            analysis: input.analysis,
+            createdAt,
+            updatedAt,
+        };
+
+        await withMutationLock(async () => {
+            assertAccountOperationActive(context);
+            const entries = await getAllEntriesMap(storage, context);
+            entries[entry.id] = entry;
+            await saveAllEntries(storage, entries, context);
+        });
+        assertAccountOperationActive(context);
+        await queueJournalEntryUpsertForAccount(entry, context);
+        assertAccountOperationActive(context);
+        return entry;
+    });
 }
 
 /**
- * List only completed entries
+ * Get a single entry by ID.
  */
-export async function listCompleted(): Promise<JournalEntry[]> {
-    return listEntries('completed');
+export function getEntry(id: string): Promise<JournalEntry | null> {
+    return runAccountBoundOperation('journal-get', async (context) => {
+        const storage = getStorageForAccount(context.accountId);
+        await syncFromRemoteIfNeeded(storage, context);
+        const entries = await getAllEntriesMap(storage, context);
+        assertAccountOperationActive(context);
+        return entries[id] || null;
+    });
 }
 
-export async function clearAllEntries(): Promise<void> {
-    const entries = await getAllEntriesMap();
-    const entryIds = Object.keys(entries);
+/**
+ * Update an existing entry.
+ */
+export function updateEntry(
+    id: string,
+    input: JournalEntryUpdateInput,
+): Promise<JournalEntry | null> {
+    return runAccountBoundOperation('journal-update', async (context) => {
+        const storage = getStorageForAccount(context.accountId);
+        const updated = await withMutationLock(async () => {
+            assertAccountOperationActive(context);
+            const entries = await getAllEntriesMap(storage, context);
+            const existing = entries[id];
+            if (!existing) return null;
 
-    if (entryIds.length > 0) {
-        try {
-            await deleteRemoteJournalEntries(entryIds);
-        } catch (error) {
-            console.warn('Failed to delete remote journal entries:', error);
-        }
+            const next: JournalEntry = {
+                ...existing,
+                ...input,
+                messages: input.messages ?? existing.messages,
+                updatedAt: Date.now(),
+            };
+            entries[id] = next;
+            await saveAllEntries(storage, entries, context);
+            return next;
+        });
+
+        assertAccountOperationActive(context);
+        if (!updated) return null;
+        await queueJournalEntryUpsertForAccount(updated, context);
+        assertAccountOperationActive(context);
+        return updated;
+    });
+}
+
+/**
+ * Delete an entry by ID.
+ */
+export function deleteEntry(id: string): Promise<boolean> {
+    return runAccountBoundOperation('journal-delete', async (context) => {
+        const storage = getStorageForAccount(context.accountId);
+        const deleted = await withMutationLock(async () => {
+            assertAccountOperationActive(context);
+            const entries = await getAllEntriesMap(storage, context);
+            if (!entries[id]) return false;
+            delete entries[id];
+            await saveAllEntries(storage, entries, context);
+            return true;
+        });
+
+        assertAccountOperationActive(context);
+        if (!deleted) return false;
+        await queueJournalEntryDeleteForAccount(id, context);
+        assertAccountOperationActive(context);
+        return true;
+    });
+}
+
+/**
+ * List all entries, optionally filtered by status.
+ * Returns entries sorted by updatedAt descending (newest first).
+ */
+export function listEntries(
+    status?: 'draft' | 'completed',
+): Promise<JournalEntry[]> {
+    return runAccountBoundOperation('journal-list', (context) => (
+        listEntriesForAccount(status, getStorageForAccount(context.accountId), context)
+    ));
+}
+
+/**
+ * List only draft entries.
+ */
+export function listDrafts(): Promise<JournalEntry[]> {
+    return runAccountBoundOperation('journal-list-drafts', (context) => (
+        listEntriesForAccount('draft', getStorageForAccount(context.accountId), context)
+    ));
+}
+
+/**
+ * List only completed entries.
+ */
+export function listCompleted(): Promise<JournalEntry[]> {
+    return runAccountBoundOperation('journal-list-completed', (context) => (
+        listEntriesForAccount('completed', getStorageForAccount(context.accountId), context)
+    ));
+}
+
+export function clearAllEntries(): Promise<void> {
+    return runAccountBoundOperation('journal-clear', async (context) => {
+        const storage = getStorageForAccount(context.accountId);
+        await withMutationLock(async () => {
+            assertAccountOperationActive(context);
+            const entries = await getAllEntriesMap(storage, context);
+            const entryIds = Object.keys(entries);
+
+            if (entryIds.length > 0) {
+                try {
+                    await deleteRemoteJournalEntries(entryIds);
+                    assertAccountOperationActive(context);
+                } catch (error) {
+                    if (context.signal.aborted) throw error;
+                    console.warn('Failed to delete remote journal entries:', error);
+                }
+            }
+
+            await Promise.all(entryIds.map((entryId) => (
+                queueJournalEntryDeleteForAccount(entryId, context)
+            )));
+            assertAccountOperationActive(context);
+
+            await storage.removeItem(STORAGE_KEY);
+            assertAccountOperationActive(context);
+
+            try {
+                await removeSyncTasksForTable(JOURNAL_TABLE);
+                assertAccountOperationActive(context);
+            } catch (error) {
+                if (context.signal.aborted) throw error;
+                console.warn('Failed to remove pending journal sync tasks:', error);
+            }
+
+            hasPulledRemote = false;
+            hasPushedLocal = false;
+        });
+    });
+}
+
+/**
+ * Get all entries as a JSON string for export.
+ */
+export function getAllEntriesForExport(): Promise<string> {
+    return runAccountBoundOperation('journal-export', async (context) => {
+        const list = await listEntriesForAccount(
+            undefined,
+            getStorageForAccount(context.accountId),
+            context,
+        );
+        assertAccountOperationActive(context);
+        return JSON.stringify(list, null, 2);
+    });
+}
+
+export function migrateLegacyJournalEntriesToActiveAccount(): Promise<void> {
+    return runAccountBoundOperation('journal-legacy-migration', async (context) => {
+        const ownerStorage = storageAdapter;
+        await withMutationLock(async () => {
+            assertAccountOperationActive(context);
+            await claimLegacyStorageKey(STORAGE_KEY, ownerStorage);
+            assertAccountOperationActive(context);
+        });
+    });
+}
+
+export function hasLegacyJournalEntries(): Promise<boolean> {
+    return runAccountBoundOperation('journal-legacy-inspection', async (context) => {
+        const ownerStorage = storageAdapter;
+        const value = await ownerStorage.getItem(STORAGE_KEY);
+        assertAccountOperationActive(context);
+        return value !== null;
+    });
+}
+
+export function importJournalEntriesSnapshot(
+    value: string | null,
+    delegate?: (context: AccountOperationContext) => Promise<void>,
+): Promise<void> {
+    return runAccountBoundOperation('journal-import', async (context) => {
+        await withMutationLock(async () => {
+            assertAccountOperationActive(context);
+            await (delegate ?? importJournalEntriesForAccount)(context, value);
+            assertAccountOperationActive(context);
+        });
+    });
+}
+
+export async function importJournalEntriesForAccount(
+    context: AccountOperationContext,
+    value: string | null,
+): Promise<void> {
+    const storage = getStorageForAccount(context.accountId);
+    if (value === null) {
+        await storage.removeItem(STORAGE_KEY);
+        assertAccountOperationActive(context);
+        return;
     }
-
-    await Promise.all(entryIds.map(async (entryId) => {
-        try {
-            await queueJournalEntryDelete(entryId);
-        } catch (error) {
-            console.warn('Failed to queue journal entry delete:', error);
-        }
-    }));
-
-    await storageAdapter.removeItem(STORAGE_KEY);
-
+    let entries: Record<string, JournalEntry> = {};
     try {
-        await removeSyncTasksForTable(JOURNAL_TABLE);
-    } catch (error) {
-        console.warn('Failed to remove pending journal sync tasks:', error);
+        const parsed = JSON.parse(value) as unknown;
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            entries = parsed as Record<string, JournalEntry>;
+        }
+    } catch {
+        // Corrupt backup payload restores the owner's safe empty default.
     }
+    await saveAllEntries(storage, entries, context);
+}
 
+registerAccountTeardown(async () => {
+    await mutationQueue;
+    if (remoteSyncPromise) {
+        await remoteSyncPromise.catch(() => undefined);
+    }
     hasPulledRemote = false;
     hasPushedLocal = false;
-}
-
-/**
- * Get all entries as a JSON string for export
- */
-export async function getAllEntriesForExport(): Promise<string> {
-    const list = await listEntries();
-    return JSON.stringify(list, null, 2);
-}
+    remoteSyncPromise = null;
+    remoteSyncAccountId = null;
+});

@@ -1,4 +1,13 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+    AccountStorageAdapter,
+    getStorageForAccount,
+} from '@/services/account/accountScopedStorage';
+import {
+    AccountOperationContext,
+    assertAccountOperationActive,
+    registerAccountTeardown,
+    runAccountBoundOperation,
+} from '@/services/account/accountRuntime';
 
 export type AiFeedbackValue = 'up' | 'down';
 export type AiFeedbackScope = 'intention' | 'journal';
@@ -34,13 +43,43 @@ function buildFeedbackId(input: SaveAiFeedbackInput): string {
     return `${scope}:${owner}:${input.messageId}`;
 }
 
-async function loadMap(): Promise<Record<string, AiFeedbackRecord>> {
-    const json = await AsyncStorage.getItem(AI_FEEDBACK_STORAGE_KEY);
-    return json ? (JSON.parse(json) as Record<string, AiFeedbackRecord>) : {};
+let mutationQueue: Promise<void> = Promise.resolve();
+
+registerAccountTeardown(() => {
+    mutationQueue = Promise.resolve();
+});
+
+function enqueueMutation<T>(operation: () => Promise<T>): Promise<T> {
+    const result = mutationQueue.then(operation, operation);
+    mutationQueue = result.then(() => undefined, () => undefined);
+    return result;
 }
 
-async function saveMap(map: Record<string, AiFeedbackRecord>): Promise<void> {
-    await AsyncStorage.setItem(AI_FEEDBACK_STORAGE_KEY, JSON.stringify(map));
+async function loadMap(
+    storage: AccountStorageAdapter,
+    context: AccountOperationContext,
+): Promise<Record<string, AiFeedbackRecord>> {
+    const json = await storage.getItem(AI_FEEDBACK_STORAGE_KEY);
+    assertAccountOperationActive(context);
+    if (!json) return {};
+    try {
+        const parsed = JSON.parse(json) as unknown;
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+            ? parsed as Record<string, AiFeedbackRecord>
+            : {};
+    } catch {
+        return {};
+    }
+}
+
+async function saveMap(
+    storage: AccountStorageAdapter,
+    map: Record<string, AiFeedbackRecord>,
+    context: AccountOperationContext,
+): Promise<void> {
+    assertAccountOperationActive(context);
+    await storage.setItem(AI_FEEDBACK_STORAGE_KEY, JSON.stringify(map));
+    assertAccountOperationActive(context);
 }
 
 function trimText(value: string, maxLength: number): string {
@@ -54,34 +93,41 @@ function describeRecord(record: AiFeedbackRecord): string {
     return comment || `Response excerpt: "${excerpt}"`;
 }
 
-export async function saveAiFeedback(input: SaveAiFeedbackInput): Promise<AiFeedbackRecord> {
-    const map = await loadMap();
-    const id = buildFeedbackId(input);
-    const now = Date.now();
-    const existing = map[id];
-    const record: AiFeedbackRecord = {
-        id,
-        scope: input.scope,
-        messageId: input.messageId,
-        conversationId: input.conversationId,
-        personaId: input.personaId,
-        value: input.value,
-        comment: input.comment?.trim(),
-        messageContent: input.messageContent.trim(),
-        createdAt: existing?.createdAt ?? now,
-        updatedAt: now,
-    };
+export function saveAiFeedback(input: SaveAiFeedbackInput): Promise<AiFeedbackRecord> {
+    return runAccountBoundOperation('feedback-save', (context) => enqueueMutation(async () => {
+        const storage = getStorageForAccount(context.accountId);
+        const map = await loadMap(storage, context);
+        const id = buildFeedbackId(input);
+        const now = Date.now();
+        const existing = map[id];
+        const record: AiFeedbackRecord = {
+            id,
+            scope: input.scope,
+            messageId: input.messageId,
+            conversationId: input.conversationId,
+            personaId: input.personaId,
+            value: input.value,
+            comment: input.comment?.trim(),
+            messageContent: input.messageContent.trim(),
+            createdAt: existing?.createdAt ?? now,
+            updatedAt: now,
+        };
 
-    map[id] = record;
-    await saveMap(map);
-    return record;
+        map[id] = record;
+        await saveMap(storage, map, context);
+        return record;
+    }));
 }
 
-export async function listAiFeedback(scope?: AiFeedbackScope): Promise<AiFeedbackRecord[]> {
-    const map = await loadMap();
-    const records = Object.values(map);
-    const filtered = scope ? records.filter((record) => record.scope === scope) : records;
-    return filtered.sort((a, b) => b.updatedAt - a.updatedAt);
+export function listAiFeedback(scope?: AiFeedbackScope): Promise<AiFeedbackRecord[]> {
+    return runAccountBoundOperation('feedback-list', async (context) => {
+        const storage = getStorageForAccount(context.accountId);
+        const map = await loadMap(storage, context);
+        const records = Object.values(map);
+        const filtered = scope ? records.filter((record) => record.scope === scope) : records;
+        assertAccountOperationActive(context);
+        return filtered.sort((a, b) => b.updatedAt - a.updatedAt);
+    });
 }
 
 export function buildFeedbackGuidance(records: readonly AiFeedbackRecord[]): string | undefined {

@@ -22,7 +22,8 @@
  * Runs on app open via ensureMemoryRollupsUpToDate — not a background timer.
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { accountScopedStorage as AsyncStorage } from '@/services/account/accountScopedStorage';
+import { runAccountBoundOperation } from '@/services/account/accountRuntime';
 import {
     extractFirstJsonObject,
     fetchDirectJsonCompletion,
@@ -280,7 +281,7 @@ export interface EnsureRollupsResult {
  * Generate missing closed-period rollups up to MAX_ROLLUPS_PER_ENSURE.
  * Safe to fire-and-forget from app open.
  */
-export async function ensureMemoryRollupsUpToDate(
+async function ensureMemoryRollupsForAccount(
     options: { now?: Date; maxNew?: number; allowFallbackWithoutLlm?: boolean } = {},
 ): Promise<EnsureRollupsResult> {
     const nowDate = options.now ?? new Date();
@@ -441,6 +442,15 @@ export async function ensureMemoryRollupsUpToDate(
     }
 
     return { created, skipped };
+}
+
+export function ensureMemoryRollupsUpToDate(
+    options: { now?: Date; maxNew?: number; allowFallbackWithoutLlm?: boolean } = {},
+): Promise<EnsureRollupsResult> {
+    return runAccountBoundOperation(
+        'memory-rollup-build',
+        () => ensureMemoryRollupsForAccount(options),
+    );
 }
 
 /** Fire-and-forget entry for app open. */

@@ -24,12 +24,11 @@ export function formatRecallHitLine(hit: HindsightRecallHit): string {
 
 export async function buildHindsightRecallContext(
     query: string,
-    opts: { limit?: number; bank?: string } = {}
+    opts: { limit?: number } = {}
 ): Promise<string | undefined> {
     if (!query.trim()) return undefined;
     const hits = await hindsightRecall(query, {
         limit: opts.limit ?? RECALL_LINES_MAX,
-        bank: opts.bank,
     });
     if (!hits || hits.length === 0) return undefined;
     return [

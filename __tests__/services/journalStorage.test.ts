@@ -28,12 +28,14 @@ import {
     createEntry,
     getEntry,
     listEntries,
+    migrateLegacyJournalEntriesToActiveAccount,
     resetStorageAdapter,
     setStorageAdapter,
 } from '../../services/journal/journalStorage';
 import type { StorageAdapter } from '../../services/journal/journalStorage.types';
 import { deleteRemoteJournalEntries } from '../../services/journal/journalRemote';
 import { removeSyncTasksForTable } from '../../services/supabase/syncQueue';
+import { activateAccount, clearActiveAccount } from '../../services/account/accountRuntime';
 
 function createMemoryAdapter(): StorageAdapter {
     const store = new Map<string, string>();
@@ -51,11 +53,16 @@ function createMemoryAdapter(): StorageAdapter {
 }
 
 describe('journalStorage analysis', () => {
-    beforeEach(() => {
-        setStorageAdapter(createMemoryAdapter());
+    let adapter: StorageAdapter;
+
+    beforeEach(async () => {
+        adapter = createMemoryAdapter();
+        setStorageAdapter(adapter);
+        await activateAccount('test-account');
     });
 
-    afterEach(() => {
+    afterEach(async () => {
+        await clearActiveAccount();
         resetStorageAdapter();
     });
 
@@ -104,5 +111,63 @@ describe('journalStorage analysis', () => {
             expect.arrayContaining([entryA.id, entryB.id])
         );
         expect(removeSyncTasksForTable).toHaveBeenCalledWith('journal_entries');
+    });
+
+    it('does not expose one account journal to another account', async () => {
+        await createEntry({
+            title: 'Account A only',
+            status: 'completed',
+            messages: [],
+        });
+
+        await activateAccount('other-account');
+
+        await expect(listEntries()).resolves.toEqual([]);
+    });
+
+    it('moves legacy journal data only after the owner confirms it', async () => {
+        await adapter.setItem('@journal_entries', JSON.stringify({
+            legacy: {
+                id: 'legacy',
+                title: 'Legacy entry',
+                emoji: '📝',
+                messages: [],
+                status: 'completed',
+                createdAt: 1,
+                updatedAt: 1,
+            },
+        }));
+
+        await migrateLegacyJournalEntriesToActiveAccount();
+
+        await expect(listEntries()).resolves.toEqual([
+            expect.objectContaining({ id: 'legacy', title: 'Legacy entry' }),
+        ]);
+        await expect(adapter.getItem('@journal_entries')).resolves.toBeNull();
+    });
+
+    it('serializes concurrent journal writes so neither entry is lost', async () => {
+        const values = new Map<string, string>();
+        setStorageAdapter({
+            getItem: async (key) => {
+                const snapshot = values.get(key) ?? null;
+                await Promise.resolve();
+                await Promise.resolve();
+                return snapshot;
+            },
+            setItem: async (key, value) => {
+                values.set(key, value);
+            },
+            removeItem: async (key) => {
+                values.delete(key);
+            },
+        });
+
+        await Promise.all([
+            createEntry({ title: 'First', status: 'draft', messages: [] }),
+            createEntry({ title: 'Second', status: 'draft', messages: [] }),
+        ]);
+
+        await expect(listEntries()).resolves.toHaveLength(2);
     });
 });

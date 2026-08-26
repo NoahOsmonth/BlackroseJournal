@@ -14,7 +14,8 @@
  * + record is serialized). JSON.parse is always try/catch with safe defaults.
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { accountScopedStorage as AsyncStorage } from '@/services/account/accountScopedStorage';
+import { runAccountBoundOperation } from '@/services/account/accountRuntime';
 import type {
     SessionDigest,
     SessionDigestIndex,
@@ -48,9 +49,11 @@ export function resetSessionDigestStorageAdapter(): void {
 let writeQueue: Promise<unknown> = Promise.resolve();
 
 function withSessionDigestLock<T>(task: () => Promise<T>): Promise<T> {
-    const run = writeQueue.then(task, task);
-    writeQueue = run.catch(() => undefined);
-    return run;
+    return runAccountBoundOperation('session-digest-storage', async () => {
+        const run = writeQueue.then(task, task);
+        writeQueue = run.catch(() => undefined);
+        return run;
+    });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -259,6 +262,7 @@ export async function listSessionDigestIndex(
 export async function listSessionDigests(
     options: SessionDigestListOptions = {},
 ): Promise<SessionDigest[]> {
+    return runAccountBoundOperation('session-digest-read', async () => {
     const entries = await listSessionDigestIndex(options);
     if (entries.length === 0) return [];
     const keys = entries.map((e) => sessionDigestRecordKey(e.id));
@@ -275,6 +279,7 @@ export async function listSessionDigests(
         }
     }
     return out;
+    });
 }
 
 export async function clearSessionDigests(): Promise<void> {
@@ -304,6 +309,7 @@ export async function clearSessionDigests(): Promise<void> {
  * Pack all digests into one JSON string for local backup (runtime stays sharded).
  */
 export async function exportSessionDigestsBundle(): Promise<string | null> {
+    return runAccountBoundOperation('session-digest-export', async () => {
     const index = await loadIndexUnlocked();
     if (index.entries.length === 0) {
         const raw = await storageAdapter.getItem(SESSION_DIGEST_INDEX_KEY);
@@ -314,6 +320,7 @@ export async function exportSessionDigestsBundle(): Promise<string | null> {
         schemaVersion: SESSION_DIGEST_SCHEMA_VERSION,
         index,
         digests,
+    });
     });
 }
 

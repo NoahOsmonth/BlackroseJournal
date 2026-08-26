@@ -3,7 +3,8 @@
  * Extractive summaries keep this offline and free; LLM polish is optional later.
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { accountScopedStorage as AsyncStorage } from '@/services/account/accountScopedStorage';
+import { runAccountBoundOperation } from '@/services/account/accountRuntime';
 import type { JournalEntry } from '@/services/journal/journalStorage.types';
 import type { IntentionCheckIn } from '@/services/intentions/intentionsStorage.types';
 import { getLocalDateKeyFromTimestamp } from '@/utils/date';
@@ -39,9 +40,11 @@ export function resetDayDigestStorageAdapter(): void {
 let writeQueue: Promise<unknown> = Promise.resolve();
 
 function withLock<T>(task: () => Promise<T>): Promise<T> {
-    const run = writeQueue.then(task, task);
-    writeQueue = run.catch(() => undefined);
-    return run;
+    return runAccountBoundOperation('day-digest-storage', async () => {
+        const run = writeQueue.then(task, task);
+        writeQueue = run.catch(() => undefined);
+        return run;
+    });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -183,11 +186,14 @@ function emptyDigest(dateKey: string): DayDigest {
 }
 
 export async function getDayDigest(dateKey: string): Promise<DayDigest | null> {
-    const envelope = await loadEnvelope();
-    return envelope.days[dateKey] ?? null;
+    return runAccountBoundOperation('day-digest-read', async () => {
+        const envelope = await loadEnvelope();
+        return envelope.days[dateKey] ?? null;
+    });
 }
 
 export async function listDayDigests(options: DayDigestListOptions = {}): Promise<DayDigest[]> {
+    return runAccountBoundOperation('day-digest-read', async () => {
     const envelope = await loadEnvelope();
     let list = Object.values(envelope.days);
     if (options.from) {
@@ -206,6 +212,7 @@ export async function listDayDigests(options: DayDigestListOptions = {}): Promis
         list = list.slice(0, Math.max(0, options.limit));
     }
     return list;
+    });
 }
 
 export async function upsertJournalDayDigest(entry: JournalEntry): Promise<DayDigest | null> {

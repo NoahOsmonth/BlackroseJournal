@@ -64,13 +64,21 @@ import {
     listSavedInsights,
     createSavedInsight,
 } from '../../services/saved-insights/savedInsightsStorage';
+import { activateAccount, clearActiveAccount } from '../../services/account/accountRuntime';
+import * as hindsightClient from '../../services/memory/hindsight/hindsightClient';
 
 describe('useClearJournalHistory', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
         mockAsyncStorageStore.clear();
+        await activateAccount('clear-history-user');
+    });
+
+    afterEach(async () => {
+        await clearActiveAccount();
     });
 
     it('clears journal entries, intention check-ins, memories, chat sessions, insights, and saved insights', async () => {
+        const remoteClear = jest.spyOn(hindsightClient, 'hindsightClear').mockResolvedValue(false);
         await createEntry({
             title: 'Journal entry',
             status: 'completed',
@@ -118,5 +126,6 @@ describe('useClearJournalHistory', () => {
         expect(await loadSessions()).toEqual([]);
         expect(await loadCachedInsights('2026-W01')).toBeNull();
         expect(await listSavedInsights()).toEqual([]);
+        expect(remoteClear).toHaveBeenCalledWith('clear-history-user');
     });
 });

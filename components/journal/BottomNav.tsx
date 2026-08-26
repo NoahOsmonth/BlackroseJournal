@@ -18,18 +18,16 @@ import {
     Sun,
 } from 'phosphor-react-native';
 import React, { useCallback, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, Text, View } from 'react-native';
 import Animated, {
     useAnimatedStyle,
     useSharedValue,
     withSpring,
-    withDelay,
-    withTiming,
-    ReduceMotion,
 } from 'react-native-reanimated';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { RadialMenu } from './radial-menu';
 
 export type TabName = 'today' | 'explore' | 'entries' | 'insights' | 'settings';
 
@@ -67,8 +65,6 @@ const DOCK_TABS: TabConfig[] = [
 
 const SPRING = { damping: 18, stiffness: 320, mass: 0.7 };
 
-const RADIAL_SPRING = { damping: 22, stiffness: 280, mass: 0.8 };
-
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 /** Append 2-digit hex alpha when `hex` is #RRGGBB; otherwise return as-is. */
@@ -91,154 +87,6 @@ function hapticHeavy() {
     if (Platform.OS === 'web') return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 }
-
-interface RadialOption {
-    label: string;
-    icon: React.ComponentType<any>;
-    route: string;
-    params?: Record<string, string>;
-}
-
-const RADIAL_OPTIONS: RadialOption[] = [
-    { label: 'New Entry', icon: PencilSimple, route: '/chat', params: { mode: 'new' } },
-    { label: 'New Check-in', icon: BookOpen, route: '/intentions/select' },
-    { label: 'Ask Rosebud', icon: Lightbulb, route: '/ask-rosebud' },
-    { label: 'Memory', icon: Graph, route: '/memory-graph' },
-];
-
-function RadialMenu({
-    isVisible,
-    onClose,
-    accent,
-    onNavigate,
-}: {
-    isVisible: boolean;
-    onClose: () => void;
-    accent: string;
-    onNavigate: (route: string, params?: Record<string, string>) => void;
-}) {
-    const menuScale = useSharedValue(0);
-    const menuOpacity = useSharedValue(0);
-    const backdropOpacity = useSharedValue(0);
-    const itemScales = RADIAL_OPTIONS.map(() => useSharedValue(0));
-    const itemOpacities = RADIAL_OPTIONS.map(() => useSharedValue(0));
-
-    const TIMING = { duration: 200, reduceMotion: ReduceMotion.System };
-    const ITEM_SPRING = { damping: 20, stiffness: 300, mass: 0.7, reduceMotion: ReduceMotion.System };
-
-    React.useEffect(() => {
-        if (isVisible) {
-            menuScale.value = withSpring(1, RADIAL_SPRING);
-            menuOpacity.value = withTiming(1, TIMING);
-            backdropOpacity.value = withTiming(0.4, TIMING);
-            RADIAL_OPTIONS.forEach((_, index) => {
-                const delay = index * 50;
-                itemScales[index].value = withDelay(delay, withSpring(1, ITEM_SPRING));
-                itemOpacities[index].value = withDelay(delay, withTiming(1, TIMING));
-            });
-        } else {
-            menuScale.value = withSpring(0, RADIAL_SPRING);
-            menuOpacity.value = withTiming(0, TIMING);
-            backdropOpacity.value = withTiming(0, TIMING);
-            RADIAL_OPTIONS.forEach((_, index) => {
-                itemScales[index].value = withSpring(0, ITEM_SPRING);
-                itemOpacities[index].value = withTiming(0, TIMING);
-            });
-            const timeout = setTimeout(onClose, 200);
-            return () => clearTimeout(timeout);
-        }
-    }, [isVisible, onClose]);
-
-    const centerSize = 64;
-    const radius = 100;
-    const startAngle = -Math.PI / 2;
-    const angleStep = (Math.PI * 1.5) / (RADIAL_OPTIONS.length - 1);
-
-    return (
-        <Animated.View
-            style={{
-                ...StyleSheet.absoluteFillObject,
-                opacity: backdropOpacity.value,
-                backgroundColor: 'rgba(0,0,0,0.4)',
-            }}
-            pointerEvents={isVisible ? 'auto' : 'none'}
-        >
-            <Pressable onPress={onClose} style={StyleSheet.absoluteFillObject} accessibilityLabel="Close menu" />
-            <Animated.View
-                style={{
-                    position: 'absolute',
-                    bottom: 80,
-                    left: 0,
-                    right: 0,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    transform: [{ scale: menuScale.value }],
-                    opacity: menuOpacity.value,
-                }}
-                pointerEvents="box-none"
-            >
-                {RADIAL_OPTIONS.map((option, index) => {
-                    const angle = startAngle + angleStep * index;
-                    const x = Math.cos(angle) * radius;
-                    const y = Math.sin(angle) * radius;
-                    const IconComponent = option.icon;
-
-                    const itemStyle = useAnimatedStyle(() => ({
-                        transform: [
-                            { translateX: x } as any,
-                            { translateY: y } as any,
-                            { scale: itemScales[index].value } as any,
-                        ],
-                        opacity: itemOpacities[index].value,
-                    }));
-
-                    return (
-                        <AnimatedPressable
-                            key={option.label}
-                            onPress={() => {
-                                hapticMedium();
-                                onNavigate(option.route, option.params);
-                            }}
-                            style={[itemStyle, styles.radialItem]}
-                            accessibilityLabel={option.label}
-                            hitSlop={12}
-                        >
-                            <View style={styles.radialItemInner}>
-                                <IconComponent size={24} color="#FFFFFF" weight="bold" />
-                                <Text style={styles.radialLabel}>{option.label}</Text>
-                            </View>
-                        </AnimatedPressable>
-                    );
-                })}
-            </Animated.View>
-        </Animated.View>
-    );
-}
-
-const styles = StyleSheet.create({
-    radialItem: {
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    radialItemInner: {
-        alignItems: 'center',
-        gap: 4,
-        paddingHorizontal: 8,
-        paddingVertical: 6,
-        borderRadius: 16,
-        backgroundColor: 'rgba(0,0,0,0.8)',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowRadius: 12,
-        shadowOpacity: 0.3,
-        elevation: 8,
-    },
-    radialLabel: {
-        fontSize: 11,
-        fontWeight: '600',
-        color: '#FFFFFF',
-    },
-});
 
 function DockTab({
     tab,
@@ -340,6 +188,7 @@ function WriteButton({
         });
 
     const handleNavigate = (route: string, params?: Record<string, string>) => {
+        hapticMedium();
         setRadialVisible(false);
         if (params) {
             router.push({ pathname: route, params });
@@ -390,7 +239,6 @@ function WriteButton({
                 <RadialMenu
                     isVisible={radialVisible}
                     onClose={handleCloseRadial}
-                    accent={accent}
                     onNavigate={handleNavigate}
                 />
             </View>
