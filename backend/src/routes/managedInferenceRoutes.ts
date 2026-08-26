@@ -7,8 +7,30 @@ import {
 } from '../../../packages/ai-control-plane-contracts/src';
 import type { ManagedInferenceService } from '../inference/managedInferenceService';
 import { ManagedInferenceLimitError } from '../inference/managedInferenceLimiter';
+import type { OmnirouteChatRequest } from '../inference/omnirouteInferenceExecutor';
+
+/** The global fetch Response (express's Response shadows the global name). */
+type UpstreamResponse = Awaited<ReturnType<typeof fetch>>;
 
 export type ManagedInferenceRouteService = Pick<ManagedInferenceService, 'execute'>;
+
+/**
+ * OmniRoute inference path, gated by the ADMIN_OMNIROUTE feature flag.
+ * When enabled, the route resolves the caller's per-user OmniRoute key and
+ * forwards chat completions to the OmniRoute data plane instead of the legacy
+ * managed-inference pipeline.
+ */
+export interface OmnirouteRouteIntegration {
+  enabled: boolean;
+  publishedModels(): Promise<string[]>;
+  ensureUserKey(userId: string, allowedModels: string[]): Promise<string>;
+  chat(req: OmnirouteChatRequest, signal?: AbortSignal): Promise<UpstreamResponse>;
+}
+
+/** ADMIN_OMNIROUTE=on enables the OmniRoute path; anything else (default) stays legacy. */
+export function isOmnirouteEnabled(env: Readonly<Record<string, string | undefined>>): boolean {
+  return env.ADMIN_OMNIROUTE?.trim() === 'on';
+}
 
 function userId(res: Response): string | null {
   const principal: unknown = res.locals.authenticatedPrincipal;
@@ -41,20 +63,96 @@ async function writeSse(res: Response, event: NormalizedInferenceEvent): Promise
   }
 }
 
+function writeChunk(res: Response, chunk: string): Promise<void> {
+  if (res.destroyed || res.writableEnded) return Promise.resolve();
+  if (res.write(chunk)) return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => {
+      res.off('drain', done);
+      res.off('close', done);
+      resolve();
+    };
+    res.once('drain', done);
+    res.once('close', done);
+  });
+}
+
+async function handleOmnirouteChat(
+  req: Request,
+  res: Response,
+  principalId: string,
+  request: ReturnType<typeof parseNormalizedInferenceRequest>,
+  omniroute: OmnirouteRouteIntegration,
+  signal: AbortSignal,
+): Promise<void> {
+  const publishedModels = await omniroute.publishedModels();
+  const requestedModel = (req.body as { model?: unknown } | undefined)?.model;
+  const model = typeof requestedModel === 'string' && requestedModel.trim().length > 0
+    ? requestedModel.trim()
+    : undefined;
+  // Free models only: an explicitly requested model must be in the published set.
+  if (model && !publishedModels.includes(model)) {
+    res.status(400).json({
+      error: { code: 'INVALID_REQUEST', message: 'Requested model is not available.' },
+    });
+    return;
+  }
+  const resolvedModel = model ?? publishedModels[0];
+  if (!resolvedModel) {
+    res.status(503).json({
+      error: { code: 'SERVICE_UNAVAILABLE', message: 'No OmniRoute models are published.' },
+    });
+    return;
+  }
+  await omniroute.ensureUserKey(principalId, publishedModels);
+  const upstream = await omniroute.chat(
+    { userId: principalId, model: resolvedModel, messages: request.messages },
+    signal,
+  );
+  const contentType = upstream.headers.get('content-type') ?? '';
+  if (!upstream.ok || !upstream.body || !contentType.includes('text/event-stream')) {
+    const body = await upstream.text();
+    res.status(upstream.status).type(contentType || 'application/json').send(body);
+    return;
+  }
+  res.status(upstream.status);
+  res.setHeader('content-type', contentType);
+  res.setHeader('cache-control', 'no-cache, no-transform');
+  res.setHeader('connection', 'keep-alive');
+  res.flushHeaders();
+  const reader = upstream.body.getReader();
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      await writeChunk(res, new TextDecoder().decode(value));
+    }
+    res.end();
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 export function registerManagedInferenceRoutes(
   app: Application,
   service?: ManagedInferenceRouteService,
+  omniroute?: OmnirouteRouteIntegration,
 ): void {
   app.post('/v1/ai/chat/completions', (req: Request, res: Response) => {
     void (async () => {
       const principalId = userId(res);
-      if (!principalId || !service) throw new Error('Managed inference unavailable.');
+      if (!principalId) throw new Error('Managed inference unavailable.');
       const request = parseNormalizedInferenceRequest(req.body);
       const controller = new AbortController();
       const abort = () => controller.abort();
       req.once('aborted', abort);
       res.once('close', abort);
       try {
+        if (omniroute?.enabled) {
+          await handleOmnirouteChat(req, res, principalId, request, omniroute, controller.signal);
+          return;
+        }
+        if (!service) throw new Error('Managed inference unavailable.');
         const events = service.execute(principalId, request, controller.signal);
         if (!request.stream) {
           const collected: NormalizedInferenceEvent[] = [];

@@ -21,6 +21,7 @@ import {
 import {
   registerManagedInferenceRoutes,
   type ManagedInferenceRouteService,
+  type OmnirouteRouteIntegration,
 } from './routes/managedInferenceRoutes';
 
 export interface AppDeps {
@@ -29,6 +30,7 @@ export interface AppDeps {
   memoryGateway?: HindsightMemoryGateway;
   controlPlaneService?: ControlPlaneRouteService;
   managedInferenceService?: ManagedInferenceRouteService;
+  omnirouteInference?: OmnirouteRouteIntegration;
 }
 
 export function createApp(deps: AppDeps): express.Application {
@@ -61,7 +63,7 @@ export function createApp(deps: AppDeps): express.Application {
   registerInsightsRoutes(app);
   registerMemoryRoutes(app, deps.memoryGateway);
   registerControlPlaneRoutes(app, deps.controlPlaneService);
-  registerManagedInferenceRoutes(app, deps.managedInferenceService);
+  registerManagedInferenceRoutes(app, deps.managedInferenceService, deps.omnirouteInference);
 
   return app;
 }
