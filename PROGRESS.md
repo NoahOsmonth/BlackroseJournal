@@ -2739,3 +2739,23 @@
   zero Critical, zero Important findings.** Deferred minors: legacy-route CORS reflect-any-origin
   (behind legacy API-key auth, out of managed plane), `requireUser` 503-vs-401 cosmetic path,
   distributed limiter note for multi-replica production (already documented).
+
+# 2026-08-26 — OmniRoute admin plane: Task 8 flag flip + parity record
+
+- Parity checklist ALL PASS against live OmniRoute gateway (127.0.0.1:20128):
+  1. Live contract probe (`scripts/control-plane/omniroute-live-probe.js`): providers OK, models
+     catalog OK, free chat OK, temp key create+revoke OK — "ALL PROBES PASS".
+  2. Real per-user key path: `brj-parity-user1` created with `allowedModels=[ds-web/deepseek-v4-flash]`,
+     chat round-trip returned "USERKEY-OK", key revoked after (temp key deleted — no residue).
+  3. Combo fallback: combo head `nonexistent-prov/fake/broken` + tail `ds-web/deepseek-v4-flash`
+     rerouted on head failure and answered "FALLBACK-OK" (test combo deleted after).
+  4. Admin CRUD surfaces live-verified: `/api/providers` 200, `/api/models` 200, `/api/usage/analytics` 200.
+  5. Full gates green: backend 221/221 tests + tsc clean; admin jest 8 suites / 29 tests,
+     typecheck clean, lint clean, root check:design PASSED.
+- Flag flip committed `6b1efb1`: `ADMIN_OMNIROUTE` now defaults ON (empty/unset = on;
+  explicit `ADMIN_OMNIROUTE=off` opts back into the legacy control-plane flow). Old flow
+  archived in place — no tables dropped, no legacy code removed.
+- Whole-diff security review (3a89fc2..HEAD, simple-security scope): no eval/exec/dangerous
+  sinks, no secrets logged or hardcoded (masked keys only; adapter has an explicit
+  manage-key leak-guard test). No Critical/Important findings.
+- Full branch: 8 tasks complete, e0322e4..6b1efb1 on feat/omniroute-admin-plane.
