@@ -2,9 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { AdminApiError } from '../services/adminApi';
 import type {
   OmnirouteAdminClient,
+  OmnirouteEmbeddingsSettings,
   OmnirouteModel,
   OmnirouteProvider,
   OmniroutePublishedModel,
+  OmnirouteUsageRow,
+  OmnirouteUserKeyView,
 } from '../services/omnirouteAdminApi';
 
 export interface OmnirouteAdminState {
@@ -14,6 +17,9 @@ export interface OmnirouteAdminState {
   providers: OmnirouteProvider[];
   models: OmnirouteModel[];
   published: OmniroutePublishedModel[];
+  userKeys: OmnirouteUserKeyView[];
+  usage: OmnirouteUsageRow[];
+  embeddings: OmnirouteEmbeddingsSettings | null;
 }
 
 function message(error: unknown): string {
@@ -38,10 +44,13 @@ export function useOmnirouteAdmin(client: OmnirouteAdminClient | null, enabled: 
     providers: [],
     models: [],
     published: [],
+    userKeys: [],
+    usage: [],
+    embeddings: null,
   });
 
-  const patch = useCallback((changes: Partial<OmnirouteAdminState>) => {
-    setState((previous) => ({ ...previous, ...changes }));
+  const patch = useCallback((changes: Partial<OmnirouteAdminState> | ((previous: OmnirouteAdminState) => Partial<OmnirouteAdminState>)) => {
+    setState((previous) => ({ ...previous, ...(typeof changes === 'function' ? changes(previous) : changes) }));
   }, []);
 
   const fail = useCallback((error: unknown) => {
@@ -119,5 +128,92 @@ export function useOmnirouteAdmin(client: OmnirouteAdminClient | null, enabled: 
     }
   }, [client, fail, patch]);
 
-  return { state, refresh, testProvider, disconnectProvider, updatePublishedModels };
+  /** Task 7 — looks up a user's masked key and appends it to the panel list. */
+  const lookupUserKey = useCallback(async (userId: string): Promise<boolean> => {
+    if (!client) return false;
+    patch({ busyAction: 'lookup', error: null });
+    try {
+      const key = await client.getUserKey(userId);
+      patch((previous) => ({
+        busyAction: null,
+        userKeys: key
+          ? [...previous.userKeys.filter((k) => k.userId !== userId), key]
+          : previous.userKeys,
+        error: key ? null : `No active key found for ${userId}.`,
+      }));
+      return true;
+    } catch (error) {
+      fail(error);
+      return false;
+    }
+  }, [client, fail, patch]);
+
+  const revokeUserKey = useCallback(async (userId: string): Promise<boolean> => {
+    if (!client) return false;
+    patch({ busyAction: `revoke-${userId}`, error: null });
+    try {
+      await client.revokeUserKey(userId);
+      patch((previous) => ({
+        busyAction: null,
+        userKeys: previous.userKeys.filter((k) => k.userId !== userId),
+      }));
+      return true;
+    } catch (error) {
+      fail(error);
+      return false;
+    }
+  }, [client, fail, patch]);
+
+  const updateAllowedModels = useCallback(async (
+    userId: string,
+    allowedModels: string[],
+  ): Promise<boolean> => {
+    if (!client) return false;
+    patch({ busyAction: `models-${userId}`, error: null });
+    try {
+      await client.setKeyAllowedModels(userId, allowedModels);
+      patch((previous) => ({
+        busyAction: null,
+        userKeys: previous.userKeys.map((k) =>
+          k.userId === userId ? { ...k, allowedModels } : k),
+      }));
+      return true;
+    } catch (error) {
+      fail(error);
+      return false;
+    }
+  }, [client, fail, patch]);
+
+  const setEmbeddingsModel = useCallback(async (model: string | null): Promise<boolean> => {
+    if (!client) return false;
+    patch({ busyAction: 'embeddings', error: null });
+    try {
+      const settings = await client.setEmbeddingsSettings(model);
+      patch({ busyAction: null, embeddings: settings });
+      return true;
+    } catch (error) {
+      fail(error);
+      return false;
+    }
+  }, [client, fail, patch]);
+
+  // Task 7 — usage + embeddings load alongside the main refresh.
+  useEffect(() => {
+    if (!client || !enabled) return;
+    void Promise.all([client.listUsage(), client.getEmbeddingsSettings()])
+      .then(([usage, embeddings]) => patch({ usage, embeddings }))
+      .catch(() => undefined); // soft-fail: panels show empty states
+  }, [client, enabled, patch]);
+
+  return {
+    state,
+    refresh,
+    testProvider,
+    disconnectProvider,
+    updatePublishedModels,
+    lookupUserKey,
+    revokeUserKey,
+    updateAllowedModels,
+    setEmbeddingsModel,
+  };
 }

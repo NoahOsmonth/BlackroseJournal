@@ -28,6 +28,27 @@ export interface UpdatePublishedModelsInput {
   removes: string[];
 }
 
+/** Task 7 — masked per-user key view. Full keys are never retrievable. */
+export interface OmnirouteUserKeyView {
+  userId: string;
+  omnirouteKeyId: string;
+  maskedKey: string;
+  allowedModels: string[];
+  revokedAt: string | null;
+}
+
+/** Task 7 — per-key usage row (OmniRoute keys named brj-<userId>). */
+export interface OmnirouteUsageRow {
+  keyName: string;
+  requests: number;
+  totalTokens: number;
+}
+
+/** Task 7 — embeddings settings. */
+export interface OmnirouteEmbeddingsSettings {
+  embeddingModel: string | null;
+}
+
 export interface OmnirouteAdminClientOptions {
   baseUrl: string;
   getAccessToken: () => Promise<string | null>;
@@ -163,6 +184,73 @@ export class OmnirouteAdminClient {
     return this.request('/v1/admin/control/omniroute/published-models', {
       method: 'PUT',
       body: JSON.stringify(input),
+    });
+  }
+
+  /** Task 7 — per-user keys (masked view only; full keys are unretrievable). */
+  async getUserKey(userId: string): Promise<OmnirouteUserKeyView | null> {
+    const response = await this.request<{ key: unknown }>(
+      `/v1/admin/control/omniroute/keys/${encodeURIComponent(userId)}`,
+    );
+    const row = record(response.key);
+    if (!row.userId || typeof row.userId !== 'string') return null;
+    return {
+      userId: row.userId,
+      omnirouteKeyId: typeof row.omnirouteKeyId === 'string' ? row.omnirouteKeyId : '',
+      maskedKey: typeof row.maskedKey === 'string' ? row.maskedKey : '••••',
+      allowedModels: Array.isArray(row.allowedModels)
+        ? row.allowedModels.filter((m): m is string => typeof m === 'string')
+        : [],
+      revokedAt: typeof row.revokedAt === 'string' ? row.revokedAt : null,
+    };
+  }
+
+  setKeyAllowedModels(
+    userId: string,
+    allowedModels: string[],
+  ): Promise<{ ok: boolean }> {
+    return this.request(
+      `/v1/admin/control/omniroute/keys/${encodeURIComponent(userId)}/allowed-models`,
+      { method: 'PUT', body: JSON.stringify({ allowedModels }) },
+    );
+  }
+
+  revokeUserKey(userId: string): Promise<{ ok: boolean }> {
+    return this.request(
+      `/v1/admin/control/omniroute/keys/${encodeURIComponent(userId)}/revoke`,
+      { method: 'POST' },
+    );
+  }
+
+  /** Task 7 — usage analytics keyed by brj-<userId> OmniRoute key names. */
+  async listUsage(): Promise<OmnirouteUsageRow[]> {
+    const response = await this.request<{ usage: unknown }>('/v1/admin/control/omniroute/usage');
+    return (Array.isArray(response.usage) ? response.usage : []).map((value) => {
+      const row = record(value);
+      return {
+        keyName: typeof row.keyName === 'string' ? row.keyName : '',
+        requests: typeof row.requests === 'number' ? row.requests : 0,
+        totalTokens: typeof row.totalTokens === 'number' ? row.totalTokens : 0,
+      };
+    }).filter((row) => row.keyName.length > 0);
+  }
+
+  /** Task 7 — embeddings settings surface. */
+  async getEmbeddingsSettings(): Promise<OmnirouteEmbeddingsSettings> {
+    const response = await this.request<{ embeddingModel: unknown }>(
+      '/v1/admin/control/omniroute/embeddings',
+    );
+    return {
+      embeddingModel: typeof response.embeddingModel === 'string' ? response.embeddingModel : null,
+    };
+  }
+
+  setEmbeddingsSettings(
+    embeddingModel: string | null,
+  ): Promise<OmnirouteEmbeddingsSettings> {
+    return this.request('/v1/admin/control/omniroute/embeddings', {
+      method: 'PUT',
+      body: JSON.stringify({ embeddingModel }),
     });
   }
 }

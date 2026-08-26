@@ -5,11 +5,13 @@ import { useAdminConsole } from '../hooks/useAdminConsole';
 import { useOmnirouteAdmin } from '../hooks/useOmnirouteAdmin';
 import { AuditPanel } from './AuditPanel';
 import { ConflictBanner } from './ConflictBanner';
+import { OmnirouteKeysPanel } from './OmnirouteKeysPanel';
 import { OmnirouteModelsPanel } from './OmnirouteModelsPanel';
 import { OmnirouteProvidersPanel } from './OmnirouteProvidersPanel';
+import { OmnirouteUsagePanel } from './OmnirouteUsagePanel';
 import { RuntimePanel } from './RuntimePanel';
 
-type AdminView = 'providers' | 'models' | 'runtime' | 'audit';
+type AdminView = 'providers' | 'models' | 'keys' | 'usage' | 'runtime' | 'audit';
 
 interface AdminDashboardProps {
   client: AdminControlPlaneClient;
@@ -57,7 +59,7 @@ export function AdminDashboard({ client, omniroute, accountEmail, onSignOut }: A
     : view;
 
   const views = omnirouteEnabled
-    ? (['providers', 'models', 'runtime', 'audit'] as const)
+    ? (['providers', 'models', 'keys', 'usage', 'runtime', 'audit'] as const)
     : (['runtime', 'audit'] as const);
 
   return (
@@ -103,6 +105,25 @@ export function AdminDashboard({ client, omniroute, accountEmail, onSignOut }: A
               busyAction={omni.state.busyAction}
               error={omni.state.error}
               onUpdatePublished={omni.updatePublishedModels}
+            />
+          ) : null}
+          {effectiveView === 'keys' && omnirouteEnabled ? (
+            <OmnirouteKeysPanel
+              keys={omni.state.userKeys}
+              busyAction={omni.state.busyAction}
+              error={omni.state.error}
+              onLookup={omni.lookupUserKey}
+              onRevoke={omni.revokeUserKey}
+              onUpdateAllowedModels={omni.updateAllowedModels}
+            />
+          ) : null}
+          {effectiveView === 'usage' && omnirouteEnabled ? (
+            <OmnirouteUsagePanel
+              usage={omni.state.usage}
+              embeddings={omni.state.embeddings}
+              busyAction={omni.state.busyAction}
+              error={omni.state.error}
+              onSetEmbeddingsModel={omni.setEmbeddingsModel}
             />
           ) : null}
           {effectiveView === 'runtime' ? (
