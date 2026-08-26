@@ -72,16 +72,30 @@ export function createOmnirouteInferenceExecutor(
       if (!res.ok) {
         throw new OmnirouteRequestError(res.status, await res.json().catch(() => null));
       }
-      const body = (await res.json()) as { data?: Array<{ embedding?: number[] }> };
+      const body = (await res.json()) as { data?: Array<{ embedding?: number[]; index?: number }> };
       if (!Array.isArray(body.data)) {
         throw new OmnirouteRequestError(res.status, body, 'OmniRoute embeddings response is malformed.');
       }
-      return body.data.map((item) => {
+      // The embeddings API may return data out of order; honor index when present,
+      // otherwise fall back to positional mapping (data[i] ↔ input[i]).
+      const vectors = body.data.map((item) => {
         if (!Array.isArray(item.embedding)) {
           throw new OmnirouteRequestError(res.status, body, 'OmniRoute embeddings response is malformed.');
         }
         return item.embedding;
       });
+      const hasIndices = body.data.every((item) => Number.isInteger(item.index));
+      if (!hasIndices) return vectors;
+      const ordered: number[][] = new Array(vectors.length);
+      body.data.forEach((item, position) => {
+        ordered[item.index as number] = vectors[position];
+      });
+      for (let i = 0; i < ordered.length; i += 1) {
+        if (!Array.isArray(ordered[i])) {
+          throw new OmnirouteRequestError(res.status, body, 'OmniRoute embeddings response is malformed.');
+        }
+      }
+      return ordered;
     },
   };
 }

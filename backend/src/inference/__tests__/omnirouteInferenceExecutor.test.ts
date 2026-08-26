@@ -95,4 +95,27 @@ describe('omniroute inference executor', () => {
     const { executor } = makeExecutor(async () => jsonResponse({}));
     await assert.rejects(() => executor.embed({ userId: 'u1', input: ['x'] }), /embedding model/);
   });
+
+  it('preserves input order in embeddings regardless of response ordering', async () => {
+    // Upstream data arrives shuffled relative to input; vectors must map by index.
+    const { executor } = makeExecutor(async (_url, init) => {
+      const body = JSON.parse(String(init?.body)) as { input: string[] };
+      const byInput = new Map(body.input.map((text, index) => [text, { embedding: [index], index }]));
+      const reversed = [...body.input].reverse();
+      return jsonResponse({ data: reversed.map((text) => byInput.get(text)) });
+    }, { embeddingModel: 'gemini-embedding-001' });
+    const vectors = await executor.embed({ userId: 'u1', input: ['first', 'second', 'third'] });
+    assert.deepEqual(vectors, [[0], [1], [2]]);
+  });
+
+  it('rejects with OmnirouteRequestError on an upstream 500 (callers soft-fail)', async () => {
+    const { executor } = makeExecutor(
+      async () => jsonResponse({ error: 'boom' }, 500),
+      { embeddingModel: 'gemini-embedding-001' },
+    );
+    await assert.rejects(
+      () => executor.embed({ userId: 'u1', input: ['x'] }),
+      (error: unknown) => error instanceof Error && error.name === 'OmnirouteRequestError',
+    );
+  });
 });
