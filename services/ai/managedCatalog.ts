@@ -101,7 +101,7 @@ function createDefaultGatewayDependencies(): GatewayDependencies {
     return {
         // Bound explicitly: passing bare `fetch` loses its receiver, which
         // browsers reject at call time with "Illegal invocation".
-        fetchImpl: (...args) => fetch(...args),
+        fetchImpl: (input, init) => fetch(input, init),
         getAccessToken: defaultAccessToken,
         getGatewayBaseUrl: defaultGatewayBaseUrl,
     };
