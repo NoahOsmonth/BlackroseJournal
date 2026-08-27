@@ -1,12 +1,27 @@
 /* Full E2E memory-pipeline probe: sign in → send message → verify stream → finish entry →
    verify journal entry + atoms + day digest + session digest + identity in localStorage. */
 const { chromium } = require('playwright');
+const fs = require('fs');
+const path = require('path');
 
 const EMAIL = 'qa-e2e@brj.test';
 const PASS = 'qa-e2e-pass-123';
 const OUT = 'probes/artifacts/e2e-memory-pipeline.json';
 const results = { steps: [], errors: [] };
 const step = (name, data) => { results.steps.push({ name, ...data }); console.log(name, JSON.stringify(data).slice(0, 400)); };
+
+// Read device-direct provider creds from .env (never hardcode/commit).
+function readEnvFile() {
+  const text = fs.readFileSync(path.join(process.cwd(), '.env'), 'utf-8');
+  return Object.fromEntries(text.split(/\r?\n/).map(l => l.trim())
+    .filter(l => l && !l.startsWith('#'))
+    .map(l => { const i = l.indexOf('='); return i < 0 ? [l, ''] : [l.slice(0, i).trim(), l.slice(i + 1).trim()]; }));
+}
+const ENV = readEnvFile();
+const OPENROUTER = {
+  baseUrl: (ENV.EXPO_PUBLIC_NANO_GPT_API_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/+$/, ''),
+  model: ENV.EXPO_PUBLIC_NANO_GPT_MODEL || 'dots-studio/dots-3-note-preview:free',
+};
 
 (async () => {
   const browser = await chromium.launch({ executablePath: '/usr/bin/chromium', args: ['--no-sandbox'] });
@@ -21,6 +36,31 @@ const step = (name, data) => { results.steps.push({ name, ...data }); console.lo
   await page.click('div[role="button"]:has-text("Sign in"), button:has-text("Sign in")');
   await page.waitForTimeout(8000);
   step('signin', { url: page.url() });
+
+  // Enable BYOK (device-direct) so chat avoids the unconfigured managed backend.
+  // Transport mode = loadCustomAiProviderSettings().enabled ? 'byok' : 'managed'.
+  // Device-direct reads the inlined EXPO_PUBLIC_NANO_GPT_* env, so enabled:true
+  // + a valid free selection suffices; apiKey/baseUrl come from the build env.
+  const byok = await page.evaluate(({ baseUrl, model }) => {
+    const PREFIX = '@blackrose_account:v1:';
+    let uid = null;
+    const acctKey = Object.keys(localStorage).find(k => k.startsWith(PREFIX));
+    if (acctKey) uid = acctKey.slice(PREFIX.length).split(':')[0];
+    if (!uid) {
+      // Fallback: parse the Supabase session token for user.id.
+      const tokKey = Object.keys(localStorage).find(k => k.includes('-auth-token'));
+      try { if (tokKey) uid = (JSON.parse(localStorage.getItem(tokKey)).user || {}).id || null; } catch {}
+    }
+    if (!uid) return { injected: false, reason: 'could not determine active account uid' };
+    const scopedKey = `${PREFIX}${encodeURIComponent(uid)}:@blackrose_custom_ai_provider`;
+    localStorage.setItem(scopedKey, JSON.stringify({
+      enabled: true, baseUrl, apiKey: '', selectedModelId: model, models: [],
+      freeOnly: true, recentModelIds: [], fallbackContextWindow: 128000, updatedAt: Date.now(),
+    }));
+    return { injected: true, scopedKey, uid };
+  }, { baseUrl: OPENROUTER.baseUrl, model: OPENROUTER.model });
+  step('byok-inject', byok);
+  if (!byok.injected) { console.log(JSON.stringify(results)); await browser.close(); process.exit(1); }
 
   // Clear journal/history storage for clean recall probe (per AGENTS.md E2E rule)
   await page.evaluate(() => {
