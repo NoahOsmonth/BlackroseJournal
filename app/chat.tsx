@@ -10,7 +10,7 @@ import { usePersonas } from '@/hooks/personas/usePersonas';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { EntryFinishCelebration } from '../components/celebrations/EntryFinishCelebration';
 import { ChatModelPickerSheet } from '../components/ai/ChatModelPickerSheet';
@@ -337,6 +337,7 @@ export default function ChatScreen() {
 
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top', 'bottom']}>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1">
             <View className="flex-1 max-w-md mx-auto w-full bg-background-light dark:bg-background-dark">
                 <Header
                     onClose={
@@ -492,6 +493,7 @@ export default function ChatScreen() {
                 />
                 {showCelebration && <EntryFinishCelebration onDismiss={() => setShowCelebration(false)} />}
             </View>
+            </KeyboardAvoidingView>
         </SafeAreaView>
     );
 }

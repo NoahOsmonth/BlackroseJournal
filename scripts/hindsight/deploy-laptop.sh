@@ -19,6 +19,10 @@
 # Secrets are never baked in — inject at runtime:
 #   HINDSIGHT_LLM_API_KEY                 (OpenRouter)
 #   HINDSIGHT_VOYAGE_EMBEDDINGS_API_KEY   (Voyage AI, pa-...)
+# Optional toggles:
+#   HINDSIGHT_AUTO_CONSOLIDATION=true|false  (default true; E2E probes set false —
+#     background consolidation rewrites fresh facts within ~5 min, which races
+#     deterministic live-probe recall assertions)
 # POSIX-safe strict mode: the laptop's bash is dash-like and rejects pipefail.
 set -eu
 
@@ -28,6 +32,13 @@ VOLUME="hindsight-laptop-data"
 
 : "${HINDSIGHT_LLM_API_KEY:?set HINDSIGHT_LLM_API_KEY (OpenRouter)}"
 : "${HINDSIGHT_VOYAGE_EMBEDDINGS_API_KEY:?set HINDSIGHT_VOYAGE_EMBEDDINGS_API_KEY (Voyage AI)}"
+
+# Auto-consolidation toggle: on by default; E2E probes turn it off (see header).
+CONSOLIDATION_FLAG="${HINDSIGHT_AUTO_CONSOLIDATION:-true}"
+case "$CONSOLIDATION_FLAG" in
+  true|false) ;;
+  *) echo "HINDSIGHT_AUTO_CONSOLIDATION must be true or false" >&2; exit 1 ;;
+esac
 
 docker rm -f "$NAME" >/dev/null 2>&1 || true
 # Remove the former direct browser exposure if this host used an older deploy.
@@ -40,9 +51,9 @@ docker run -d --name "$NAME" \
   -p 127.0.0.1:9999:9999 \
   -v "$VOLUME":/home/hindsight/.pg0 \
   -e HINDSIGHT_API_LLM_PROVIDER=openrouter \
-  -e HINDSIGHT_API_LLM_BASE_URL=http://100.71.25.3:8877/v1 \
+  -e HINDSIGHT_API_LLM_BASE_URL=http://172.17.0.1:20128/v1 \
   -e HINDSIGHT_API_LLM_API_KEY="$HINDSIGHT_LLM_API_KEY" \
-  -e HINDSIGHT_API_LLM_MODEL=deepseek/deepseek-v4-flash \
+  -e HINDSIGHT_API_LLM_MODEL=merge/deepseek/deepseek-v4-flash-0731 \
   -e HINDSIGHT_API_EMBEDDINGS_PROVIDER=openai \
   -e HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY="$HINDSIGHT_VOYAGE_EMBEDDINGS_API_KEY" \
   -e HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL=https://api.voyageai.com/v1 \
@@ -54,6 +65,7 @@ docker run -d --name "$NAME" \
   -e HINDSIGHT_CP_DATAPLANE_API_URL=http://localhost:8888 \
   -e HINDSIGHT_ENABLE_API=true \
   -e HINDSIGHT_ENABLE_CP=true \
+  -e HINDSIGHT_API_ENABLE_AUTO_CONSOLIDATION="$CONSOLIDATION_FLAG" \
   "$IMAGE"
 
 # Voyage needs no local model download; just wait up to 300s for health.

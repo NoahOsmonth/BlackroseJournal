@@ -1,9 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-    ScrollView,
-    View,
-    Share,
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, View, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Speech from 'expo-speech';
@@ -412,6 +408,7 @@ export default function IntentionChatScreen() {
 
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top', 'bottom']}>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1">
             <View className="flex-1 max-w-md mx-auto w-full bg-background-light dark:bg-background-dark">
                 <IntentionChatHeader
                     personaName={activePersona?.name ?? 'Rosebud'}
@@ -492,6 +489,7 @@ export default function IntentionChatScreen() {
                     onOpenSettings={modelPicker.openSettings}
                 />
             </View>
+            </KeyboardAvoidingView>
         </SafeAreaView>
     );
 }

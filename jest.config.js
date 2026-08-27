@@ -6,4 +6,7 @@ module.exports = {
         "/backend/",
         "/__tests__/mocks/",
     ],
+    modulePathIgnorePatterns: [
+        "<rootDir>/.worktrees/",
+    ],
 };
