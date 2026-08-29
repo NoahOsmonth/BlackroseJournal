@@ -154,6 +154,41 @@ describe('omniroute adapter', () => {
     );
   });
 
+  it('unwraps the OmniRoute envelope for listProviders ({connections:[...]})', async () => {
+    const connection = { id: 'prov-1', name: 'main' };
+    installFetchMock(async () => jsonResponse(200, { connections: [connection] }));
+    const adapter = createOmnirouteAdapter({ baseUrl: 'http://x', manageKey: 'k' });
+    assert.deepEqual(await adapter.listProviders(), [connection]);
+  });
+
+  it('unwraps the OmniRoute envelope for listCombos ({combos:[...]})', async () => {
+    const combo = { id: 'combo-1', models: [] };
+    installFetchMock(async () => jsonResponse(200, { combos: [combo] }));
+    const adapter = createOmnirouteAdapter({ baseUrl: 'http://x', manageKey: 'k' });
+    assert.deepEqual(await adapter.listCombos(), [combo]);
+  });
+
+  it('unwraps the OmniRoute envelope for listKeys ({keys:[...]})', async () => {
+    const key = { id: 'key1' };
+    installFetchMock(async () => jsonResponse(200, { keys: [key] }));
+    const adapter = createOmnirouteAdapter({ baseUrl: 'http://x', manageKey: 'k' });
+    assert.deepEqual(await adapter.listKeys(), [key]);
+  });
+
+  it('unwraps the OmniRoute envelope for listModels ({models:[...]})', async () => {
+    const model = { fullModel: 'cl/tencent/hy3:free' };
+    const calls = installFetchMock(async () => jsonResponse(200, { models: [model] }));
+    const adapter = createOmnirouteAdapter({ baseUrl: 'http://x', manageKey: 'k' });
+    assert.deepEqual(await adapter.listModels(), [model]);
+    assert.equal(calls[0].url, 'http://x/api/models');
+  });
+
+  it('tolerates a missing envelope key by returning an empty array', async () => {
+    installFetchMock(async () => jsonResponse(200, { other: 'thing' }));
+    const adapter = createOmnirouteAdapter({ baseUrl: 'http://x', manageKey: 'k' });
+    assert.deepEqual(await adapter.listProviders(), []);
+  });
+
   it('tolerates non-JSON error bodies', async () => {
     installFetchMock(async () =>
       ({

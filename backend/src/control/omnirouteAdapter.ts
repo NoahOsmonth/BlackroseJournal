@@ -51,18 +51,34 @@ async function request<T>(
   }
 }
 
+/**
+ * OmniRoute management endpoints wrap their lists in an envelope object
+ * (`{connections:[...]}`, `{combos:[...]}`, `{keys:[...]}`) rather than a bare
+ * array. Unwrap the known key, tolerating a bare-array response for backward
+ * compatibility with older gateway versions.
+ */
+function unwrapArray(value: unknown, key: string): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'object' && value !== null) {
+    const inner = (value as Record<string, unknown>)[key];
+    if (Array.isArray(inner)) return inner;
+  }
+  return [];
+}
+
 export function createOmnirouteAdapter(cfg: OmnirouteAdapterConfig) {
   const req = <T>(path: string, method = 'GET', body?: unknown) =>
     request<T>(cfg, path, method, body);
 
   return {
-    listProviders: () => req<unknown[]>('/api/providers'),
+    listProviders: () => req<unknown>('/api/providers').then((body) => unwrapArray(body, 'connections')),
     createProvider: (input: { provider: string; apiKey?: string; name: string }) =>
       req<unknown>('/api/providers', 'POST', input),
     testProvider: (id: string) => req<{ valid: boolean; latencyMs?: number }>(`/api/providers/${id}/test`, 'POST'),
-    listCombos: () => req<unknown[]>('/api/combos'),
+    listCombos: () => req<unknown>('/api/combos').then((body) => unwrapArray(body, 'combos')),
     upsertCombo: (input: { id: string; models: string[] }) => req<unknown>('/api/combos', 'POST', input),
-    listKeys: () => req<unknown[]>('/api/keys'),
+    listModels: () => req<unknown>('/api/models').then((body) => unwrapArray(body, 'models')),
+    listKeys: () => req<unknown>('/api/keys').then((body) => unwrapArray(body, 'keys')),
     createKey: (input: { name: string; allowedModels?: string[] }) =>
       req<{ id: string; key: string }>('/api/keys', 'POST', input),
     updateKey: (id: string, patch: { allowedModels?: string[] }) =>

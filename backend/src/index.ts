@@ -6,7 +6,7 @@ import { getServerConfig } from './config/serverConfig';
 import { createReadinessController } from './readiness';
 import { createManagedAccessFromEnvironment } from './security/securityConfig';
 import { createMemoryGatewayFromEnvironment } from './memory/memoryConfig';
-import { createControlPlaneFromEnvironment, createOmnirouteControlFromEnvironment } from './control/controlPlaneConfig';
+import { createControlPlaneFromEnvironment } from './control/controlPlaneConfig';
 import { createManagedInferenceFromEnvironment } from './inference/managedInferenceConfig';
 import { registerChatWebSocket } from './ws/chatWebSocket';
 
@@ -24,7 +24,6 @@ const config = getServerConfig(readiness);
 const managedAccess = createManagedAccessFromEnvironment(process.env);
 const memoryGateway = createMemoryGatewayFromEnvironment(process.env);
 const controlPlaneService = createControlPlaneFromEnvironment(process.env);
-const omnirouteControl = createOmnirouteControlFromEnvironment(process.env);
 const managedInferenceService = createManagedInferenceFromEnvironment(process.env);
 const app = createApp({
   serverConfig: config,
@@ -32,7 +31,6 @@ const app = createApp({
   memoryGateway,
   controlPlaneService,
   managedInferenceService,
-  omnirouteControl,
 });
 
 const server = http.createServer(app);
