@@ -1,0 +1,63 @@
+
+> blackrosejournal-backend@0.0.1 dev
+> tsx watch src/index.ts
+
+Backend agent listening on :8787
+8:19:46 PM [tsx] change in ./src\index.ts Rerunning...
+cnode:internal/modules/cjs/loader:1500
+  const err = new Error(message);
+              ^
+
+Error: Cannot find module '../control/omnirouteAdminService'
+Require stack:
+- C:\Users\sigmu\Desktop\BlackroseJournal\backend\src\routes\controlPlaneRoutes.ts
+- C:\Users\sigmu\Desktop\BlackroseJournal\backend\src\app.ts
+- C:\Users\sigmu\Desktop\BlackroseJournal\backend\src\index.ts
+    at node:internal/modules/cjs/loader:1500:15
+    at nextResolveSimple (C:\Users\sigmu\Desktop\BlackroseJournal\backend\node_modules\tsx\dist\register-D46fvsV_.cjs:4:1004)
+    at C:\Users\sigmu\Desktop\BlackroseJournal\backend\node_modules\tsx\dist\register-D46fvsV_.cjs:3:2630
+    at C:\Users\sigmu\Desktop\BlackroseJournal\backend\node_modules\tsx\dist\register-D46fvsV_.cjs:3:1542
+    at resolveTsPaths (C:\Users\sigmu\Desktop\BlackroseJournal\backend\node_modules\tsx\dist\register-D46fvsV_.cjs:4:760)
+    at C:\Users\sigmu\Desktop\BlackroseJournal\backend\node_modules\tsx\dist\register-D46fvsV_.cjs:4:1102
+    at m._resolveFilename (file:///C:/Users/sigmu/Desktop/BlackroseJournal/backend/node_modules/tsx/dist/register-B7jrtLTO.mjs:1:789)
+    at wrapResolveFilename (node:internal/modules/cjs/loader:1071:27)
+    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1095:10)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1116:12) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\backend\\src\\routes\\controlPlaneRoutes.ts',
+    'C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\backend\\src\\app.ts',
+    'C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\backend\\src\\index.ts'
+  ]
+}
+
+Node.js v24.17.0
+8:19:53 PM [tsx] change in ./src\index.ts Rerunning...
+cnode:internal/modules/cjs/loader:1500
+  const err = new Error(message);
+              ^
+
+Error: Cannot find module '../control/omnirouteAdminService'
+Require stack:
+- C:\Users\sigmu\Desktop\BlackroseJournal\backend\src\routes\controlPlaneRoutes.ts
+- C:\Users\sigmu\Desktop\BlackroseJournal\backend\src\app.ts
+- C:\Users\sigmu\Desktop\BlackroseJournal\backend\src\index.ts
+    at node:internal/modules/cjs/loader:1500:15
+    at nextResolveSimple (C:\Users\sigmu\Desktop\BlackroseJournal\backend\node_modules\tsx\dist\register-D46fvsV_.cjs:4:1004)
+    at C:\Users\sigmu\Desktop\BlackroseJournal\backend\node_modules\tsx\dist\register-D46fvsV_.cjs:3:2630
+    at C:\Users\sigmu\Desktop\BlackroseJournal\backend\node_modules\tsx\dist\register-D46fvsV_.cjs:3:1542
+    at resolveTsPaths (C:\Users\sigmu\Desktop\BlackroseJournal\backend\node_modules\tsx\dist\register-D46fvsV_.cjs:4:760)
+    at C:\Users\sigmu\Desktop\BlackroseJournal\backend\node_modules\tsx\dist\register-D46fvsV_.cjs:4:1102
+    at m._resolveFilename (file:///C:/Users/sigmu/Desktop/BlackroseJournal/backend/node_modules/tsx/dist/register-B7jrtLTO.mjs:1:789)
+    at wrapResolveFilename (node:internal/modules/cjs/loader:1071:27)
+    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1095:10)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1116:12) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\backend\\src\\routes\\controlPlaneRoutes.ts',
+    'C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\backend\\src\\app.ts',
+    'C:\\Users\\sigmu\\Desktop\\BlackroseJournal\\backend\\src\\index.ts'
+  ]
+}
+
+Node.js v24.17.0
