@@ -8,7 +8,7 @@ import { LoadingBar } from '@/components/ui/LoadingBar';
 import { AnimatedSwitch } from '@/components/ui/AnimatedSwitch';
 import type { UseCustomAiModelsReturn } from '@/hooks/settings/useCustomAiModels';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { filterFreeModels, formatPickerModelName, hostLabelFromBaseUrl } from '@/utils/ai/modelDisplay';
+import { DEFAULT_AI_BASE_URL, filterFreeModels, formatPickerModelName, hostLabelFromBaseUrl } from '@/utils/ai/modelDisplay';
 import { SettingsSection } from './SettingsSection';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -275,7 +275,7 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                         <TextInput
                             value={draft.baseUrl}
                             onChangeText={setBaseUrl}
-                            placeholder="https://openrouter.ai/api/v1"
+                            placeholder={DEFAULT_AI_BASE_URL}
                             placeholderTextColor={placeholderColor}
                             autoCapitalize="none"
                             autoCorrect={false}

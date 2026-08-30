@@ -167,7 +167,7 @@ function buildConnectionError(request: PreparedDirectChatRequest, source: Resolv
     const provider = source === 'custom' ? 'custom AI provider' : 'AI provider';
     const setting = source === 'custom'
         ? 'the AI Model Base URL in Settings'
-        : 'EXPO_PUBLIC_NANO_GPT_API_BASE_URL (OpenRouter recommended)';
+        : 'EXPO_PUBLIC_NANO_GPT_API_BASE_URL (defaults to the OmniRoute gateway)';
     return new Error(
         `Failed to fetch: Could not connect to ${provider} at ${request.url}. ` +
         `Check your network and ${setting}.`

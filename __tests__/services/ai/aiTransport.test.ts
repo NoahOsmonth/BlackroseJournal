@@ -33,9 +33,21 @@ function deferred<T>() {
 }
 
 describe('aiTransport mode boundary', () => {
-    beforeEach(() => jest.clearAllMocks());
+    const KEY = 'EXPO_PUBLIC_NANO_GPT_API_KEY';
+    let keySnapshot: string | undefined;
 
-    it('uses only the managed gateway while BYOK is off', async () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+        keySnapshot = process.env[KEY];
+        delete process.env[KEY];
+    });
+
+    afterEach(() => {
+        if (keySnapshot === undefined) delete process.env[KEY];
+        else process.env[KEY] = keySnapshot;
+    });
+
+    it('uses only the managed gateway when BYOK is off and no direct key is configured', async () => {
         jest.mocked(loadCustomAiProviderSettings).mockResolvedValue({ enabled: false } as never);
         jest.mocked(fetchManagedChatCompletion).mockResolvedValue(new Response('{}'));
 
@@ -43,6 +55,17 @@ describe('aiTransport mode boundary', () => {
 
         expect(fetchManagedChatCompletion).toHaveBeenCalledWith(payload, undefined);
         expect(fetchDirectChatCompletion).not.toHaveBeenCalled();
+    });
+
+    it('uses the direct transport by default when a direct API key is configured', async () => {
+        process.env.EXPO_PUBLIC_NANO_GPT_API_KEY = 'sk-env-direct';
+        jest.mocked(loadCustomAiProviderSettings).mockResolvedValue({ enabled: false } as never);
+        jest.mocked(fetchDirectChatCompletion).mockResolvedValue(new Response('{}'));
+
+        await fetchAiChatCompletion(payload);
+
+        expect(fetchDirectChatCompletion).toHaveBeenCalledWith(payload, undefined);
+        expect(fetchManagedChatCompletion).not.toHaveBeenCalled();
     });
 
     it('uses only the direct custom provider while BYOK is on', async () => {

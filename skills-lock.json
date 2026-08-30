@@ -67,11 +67,24 @@
       "skillPath": "plugins/expo/skills/expo-ui/SKILL.md",
       "computedHash": "390bace26b19424ef390dc4d2c2c91474be1409151b87f69aa7508f9934ca0cd"
     },
+    "mcp2cli": {
+      "source": "knowsuchagency/mcp2cli",
+      "sourceType": "github",
+      "skillPath": "skills/mcp2cli/SKILL.md",
+      "computedHash": "e4b5653a5b6e454eec8399402e2afb7f1ec72c87d3a1cf84d4ee705f565e04b6"
+    },
     "native-data-fetching": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/native-data-fetching/SKILL.md",
       "computedHash": "21253dd72e2afa0cc0a6693295f043af3b149fa250c7aedef4d33144e69258ff"
+    },
+    "playwriter": {
+      "source": "playwriter.dev",
+      "sourceUrl": "https://playwriter.dev",
+      "sourceType": "well-known",
+      "computedHash": "7f21ea41d9c81f3b43fe0f3de6c95d4187594a310c9b1892c11b1f5a26c4b925",
+      "wellKnownDigest": "sha256:264dabeaae53560c8ffb759c80a0f64add58be7ddfbae2dfcab7ad5f5479de1d"
     },
     "upgrading-expo": {
       "source": "expo/skills",

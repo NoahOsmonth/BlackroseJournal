@@ -47,7 +47,7 @@ describe('useCustomAiModels', () => {
         jest.restoreAllMocks();
     });
 
-    it('fetches free OpenRouter models and saves the selected custom provider', async () => {
+    it('fetches OpenRouter models (all) and saves the selected custom provider', async () => {
         fetchMock.mockResolvedValue(new Response(JSON.stringify({
             data: [
                 { id: 'openai/gpt-4', name: 'GPT-4', context_length: 8192 },
@@ -67,7 +67,10 @@ describe('useCustomAiModels', () => {
             kind: 'success',
             message: 'AI model saved and enabled.',
         });
-        expect(result.current.settings.models.every((m) => m.id.includes(':free') || m.id === 'openrouter/free')).toBe(true);
+        expect(result.current.settings.models.map((m) => m.id)).toEqual([
+            'openai/gpt-4',
+            'tencent/hy3:free',
+        ]);
         await expect(getActiveCustomModelConfig()).resolves.toEqual(
             expect.objectContaining({
                 apiBaseUrl: 'https://openrouter.ai/api/v1',

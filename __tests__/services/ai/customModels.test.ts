@@ -61,10 +61,10 @@ describe('customModels service', () => {
             .toBe('https://openrouter.ai/api/v1');
     });
 
-    it('defaults freeOnly on and OpenRouter-style base', () => {
+    it('defaults freeOnly off and the OmniRoute gateway base', () => {
         const defaults = getDefaultCustomAiProviderSettings();
-        expect(defaults.freeOnly).toBe(true);
-        expect(defaults.baseUrl).toContain('openrouter.ai');
+        expect(defaults.freeOnly).toBe(false);
+        expect(defaults.baseUrl).toBe('http://100.107.7.52:20128/v1');
         expect(defaults.recentModelIds).toEqual([]);
     });
 
@@ -95,7 +95,7 @@ describe('customModels service', () => {
         }));
     });
 
-    it('fetches /models with bearer auth and returns free models only by default', async () => {
+    it('fetches /models with bearer auth and returns all models by default', async () => {
         fetchMock.mockResolvedValue(new Response(JSON.stringify({
             data: [
                 { id: 'openai/gpt-4', context_length: 8192 },
@@ -115,9 +115,26 @@ describe('customModels service', () => {
                 headers: expect.objectContaining({ Authorization: 'Bearer sk-or-test' }),
             })
         );
+        expect(result.models).toHaveLength(2);
+        expect(result.models.map((m) => m.id)).toEqual(['openai/gpt-4', 'tencent/hy3:free']);
+        expect(result.models[1].contextWindow).toBe(262000);
+    });
+
+    it('filters to free models only when freeOnly is true', async () => {
+        fetchMock.mockResolvedValue(new Response(JSON.stringify({
+            data: [
+                { id: 'openai/gpt-4', context_length: 8192 },
+                { id: 'tencent/hy3:free', context_length: 262000 },
+            ],
+        }), { status: 200 }));
+
+        const result = await fetchOpenAiCompatibleModels({
+            baseUrl: 'https://openrouter.ai',
+            apiKey: 'sk-or-test',
+            freeOnly: true,
+        });
         expect(result.models).toHaveLength(1);
         expect(result.models[0].id).toBe('tencent/hy3:free');
-        expect(result.models[0].contextWindow).toBe(262000);
     });
 
     it('can fetch all models when freeOnly is false', async () => {
@@ -190,7 +207,7 @@ describe('customModels service', () => {
 
     it('withManualModel blocks paid ids while freeOnly is on', () => {
         expect(() => withManualModel(
-            getDefaultCustomAiProviderSettings(),
+            { ...getDefaultCustomAiProviderSettings(), freeOnly: true },
             'cl/qwen/qwen3.8-max',
             128_000
         )).toThrow(/Free models only/);

@@ -1,4 +1,5 @@
 import { loadCustomAiProviderSettings } from './customModels';
+import { hasEnvDirectApiKey } from './directConfig';
 import {
     fetchDirectChatCompletion,
     prepareDirectChatRequest,
@@ -30,11 +31,16 @@ function accountSwitchCancellationError(): Error {
     return new Error('AI request was cancelled by an account switch.');
 }
 
+/**
+ * Device-direct is the default transport (matches AGENTS.md doctrine). The
+ * managed backend gateway is only a fallback for builds that have no direct
+ * API key configured (env or custom provider).
+ */
 export async function getAiTransportMode(): Promise<AiTransportMode> {
     return runAccountBoundOperation('ai-transport-mode', async ({ signal }) => {
         const settings = await loadCustomAiProviderSettings();
         if (signal.aborted) throw accountSwitchCancellationError();
-        return settings.enabled ? 'byok' : 'managed';
+        return settings.enabled || hasEnvDirectApiKey() ? 'byok' : 'managed';
     });
 }
 

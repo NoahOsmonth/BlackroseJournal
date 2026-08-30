@@ -1,6 +1,5 @@
 import { createMemoryBankDeriver } from './memoryBank';
 import type { MemoryGatewayConfig } from './memoryConfig';
-import type { SoftFailMemoryEmbedder } from './memoryEmbeddings';
 import { redactSensitive } from '../security/redaction';
 import { createHash } from 'node:crypto';
 import type {
@@ -19,8 +18,6 @@ export interface HindsightMemoryGateway {
 export interface HindsightMemoryGatewayDependencies {
   fetcher?: typeof fetch;
   logger?: MemoryGatewayLogger;
-  /** Optional OmniRoute-backed embeddings; failures are soft-fail inside the embedder. */
-  embedder?: SoftFailMemoryEmbedder;
 }
 
 export interface MemoryGatewayLogger {
@@ -77,17 +74,6 @@ export function createHindsightMemoryGateway(
   const fetcher = dependencies.fetcher ?? fetch;
   const logger = dependencies.logger ?? {
     warn: (event: string, details: unknown): void => console.warn(event, details),
-  };
-  const embedder = dependencies.embedder;
-  // Soft-fail embeddings: never throws; empty vector means "no embedding".
-  const embedContents = async (userId: string, contents: string[]): Promise<number[][]> => {
-    if (!embedder || contents.length === 0) return contents.map(() => []);
-    try {
-      return await embedder.embed(userId, contents);
-    } catch (error) {
-      logger.warn('memory_embedding_failed', { operation: 'embed', count: contents.length, error });
-      return contents.map(() => []);
-    }
   };
   const deriveBank = createMemoryBankDeriver({
     key: config.bankKey,
@@ -150,9 +136,8 @@ export function createHindsightMemoryGateway(
   return {
     async retain(userId, body) {
       const item = body as MemoryRetainRequest;
-      const [vector] = await embedContents(userId, [item.content]);
       await request(userId, 'retain', '/memories', 'POST', {
-        items: [{ ...toHindsightItem(item), ...withEmbedding(vector) }],
+        items: [toHindsightItem(item)],
       });
       return { retained: true };
     },
@@ -170,13 +155,9 @@ export function createHindsightMemoryGateway(
     },
     async rebuild(userId, body) {
       const input = body as MemoryRebuildRequest;
-      const vectors = await embedContents(userId, input.items.map((item) => item.content));
       await request(userId, 'rebuild_clear', '/memories', 'DELETE');
       await request(userId, 'rebuild_retain', '/memories', 'POST', {
-        items: input.items.map((item, index) => ({
-          ...toHindsightItem(item),
-          ...withEmbedding(vectors[index]),
-        })),
+        items: input.items.map((item) => toHindsightItem(item)),
       });
       return { accepted: input.items.length };
     },
@@ -192,11 +173,6 @@ function toHindsightItem(item: MemoryRetainRequest): Record<string, string> {
   const documentId = item.documentId ?? `memory:${createHash('sha256')
     .update(`${createdAt}\0${item.content}`, 'utf8').digest('hex')}`;
   return { content: item.content, timestamp: createdAt, document_id: documentId };
-}
-
-/** Attaches an OmniRoute embedding only when one was actually produced. */
-function withEmbedding(vector?: number[]): Record<string, number[]> {
-  return vector && vector.length > 0 ? { embedding: vector } : {};
 }
 
 function record(value: unknown): Record<string, unknown> {

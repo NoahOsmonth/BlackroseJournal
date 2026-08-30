@@ -6,7 +6,7 @@
 
 /** Curated free ids used when the user's cached model list is empty. */
 export const BUILTIN_FREE_FALLBACK_MODELS: readonly string[] = [
-    'dots-studio/dots-3-note-preview:free',
+    'cl/dots-studio/dots-3-note-preview:free',
     'openrouter/free',
     'nvidia/nemotron-3-ultra-550b-a55b:free',
 ];

@@ -3,8 +3,11 @@
  * No I/O — safe for UI and services.
  */
 
-export const PREFERRED_FREE_MODEL_ID = 'dots-studio/dots-3-note-preview:free';
+/** Preferred free model id — the OmniRoute gateway connection prefix (`cl/`) of the dots model. */
+export const PREFERRED_FREE_MODEL_ID = 'cl/dots-studio/dots-3-note-preview:free';
 export const OPENROUTER_DEFAULT_BASE_URL = 'https://openrouter.ai/api/v1';
+/** Default AI provider base URL — the local OmniRoute gateway (OpenAI-compatible). */
+export const DEFAULT_AI_BASE_URL = 'http://100.107.7.52:20128/v1';
 export const MAX_RECENT_MODEL_IDS = 3;
 
 /**

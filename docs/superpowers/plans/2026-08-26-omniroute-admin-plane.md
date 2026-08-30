@@ -1,5 +1,7 @@
 # OmniRoute-Driven Admin Plane Implementation Plan
 
+> **SUPERSEDED 2026-08-29.** The backend OmniRoute stack was removed (adapter, executor, route path, memory embedder) and the app now talks to the OmniRoute gateway device-direct via its default AI base URL (`DEFAULT_AI_BASE_URL`). The admin dashboard was already removed on 2026-08-27; this plan's remaining tasks are no longer wanted. See PROGRESS.md (2026-08-29 entry) and `services/ai/directConfig.ts`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the Supabase control-plane admin flow with an adapter over the local OmniRoute gateway REST API, making OmniRoute the single source of truth for providers/models/routing/keys and adding admin-managed embeddings.

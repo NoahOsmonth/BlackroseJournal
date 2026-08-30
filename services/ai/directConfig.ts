@@ -7,12 +7,12 @@
  *
  * Env vars (all read at call time, not at module load):
  *   EXPO_PUBLIC_NANO_GPT_API_KEY       (required; stored locally for device builds)
- *   EXPO_PUBLIC_NANO_GPT_API_BASE_URL  (optional; defaults to OpenRouter)
- *   EXPO_PUBLIC_NANO_GPT_MODEL         (optional; defaults to dots-studio/dots-3-note-preview:free)
- *   EXPO_PUBLIC_NANO_GPT_FLASH_MODEL   (optional; defaults to dots-studio/dots-3-note-preview:free)
+ *   EXPO_PUBLIC_NANO_GPT_API_BASE_URL  (optional; defaults to the OmniRoute gateway)
+ *   EXPO_PUBLIC_NANO_GPT_MODEL         (optional; defaults to cl/dots-studio/dots-3-note-preview:free)
+ *   EXPO_PUBLIC_NANO_GPT_FLASH_MODEL   (optional; defaults to cl/dots-studio/dots-3-note-preview:free)
  */
 
-import { OPENROUTER_DEFAULT_BASE_URL } from '@/utils/ai/modelDisplay';
+import { DEFAULT_AI_BASE_URL } from '@/utils/ai/modelDisplay';
 import { getActiveCustomModelConfig, type ContextWindowSource } from './customModels';
 
 export interface DirectConfig {
@@ -28,9 +28,9 @@ export interface ResolvedDirectConfig extends DirectConfig {
     contextWindowSource?: ContextWindowSource;
 }
 
-const DEFAULT_API_BASE_URL = OPENROUTER_DEFAULT_BASE_URL;
-const DEFAULT_MODEL = 'dots-studio/dots-3-note-preview:free';
-const DEFAULT_FLASH_MODEL = 'dots-studio/dots-3-note-preview:free';
+const DEFAULT_API_BASE_URL = DEFAULT_AI_BASE_URL;
+const DEFAULT_MODEL = 'cl/dots-studio/dots-3-note-preview:free';
+const DEFAULT_FLASH_MODEL = 'cl/dots-studio/dots-3-note-preview:free';
 const PLACEHOLDER_KEYS = new Set([
     'YOUR_NANO_GPT_API_KEY',
     'YOUR_OPENROUTER_API_KEY',
@@ -47,6 +47,12 @@ function readVar(value: string | undefined): string | undefined {
     return value && value.length > 0 ? value : undefined;
 }
 
+/** True when a real (non-placeholder) direct API key is configured in the env. */
+export function hasEnvDirectApiKey(): boolean {
+    const apiKey = readVar(process.env.EXPO_PUBLIC_NANO_GPT_API_KEY);
+    return Boolean(apiKey) && !PLACEHOLDER_KEYS.has(apiKey);
+}
+
 function throwIfConfigResolutionAborted(signal?: AbortSignal): void {
     if (!signal?.aborted) return;
     const error = new Error('AI config resolution was cancelled by an account switch.');
@@ -61,7 +67,7 @@ export function getDirectConfig(): DirectConfig {
 
     if (!apiKey) {
         throw new DirectConfigError(
-            'Missing EXPO_PUBLIC_NANO_GPT_API_KEY. Set it in .env (OpenRouter free key recommended).'
+            'Missing EXPO_PUBLIC_NANO_GPT_API_KEY. Set it in .env (OmniRoute gateway key recommended).'
         );
     }
     if (PLACEHOLDER_KEYS.has(apiKey)) {

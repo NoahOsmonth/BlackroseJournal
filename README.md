@@ -14,10 +14,10 @@ A React Native/Expo chat journal application with AI integration.
 
    Copy `.env.example` to `.env` and set your API key:
 
-   - `EXPO_PUBLIC_NANO_GPT_API_KEY` (required for direct on-phone NanoGPT calls)
-   - `EXPO_PUBLIC_NANO_GPT_API_BASE_URL` (defaults to `https://nano-gpt.com/api/v1`)
-   - `EXPO_PUBLIC_NANO_GPT_MODEL` (defaults to `moonshotai/kimi-k2.5:thinking`)
-   - `EXPO_PUBLIC_NANO_GPT_FLASH_MODEL` (defaults to `moonshotai/kimi-k2.5`)
+   - `EXPO_PUBLIC_NANO_GPT_API_KEY` (required for direct on-phone AI calls; use an OmniRoute data-plane key)
+   - `EXPO_PUBLIC_NANO_GPT_API_BASE_URL` (defaults to the local OmniRoute gateway `http://100.107.7.52:20128/v1`)
+   - `EXPO_PUBLIC_NANO_GPT_MODEL` (defaults to `cl/dots-studio/dots-3-note-preview:free`)
+   - `EXPO_PUBLIC_NANO_GPT_FLASH_MODEL` (defaults to `cl/dots-studio/dots-3-note-preview:free`)
 
    The app no longer requires Railway, SimpleMem, or a backend agent for chat.
    The key is bundled into local device builds, so keep `.env` uncommitted and

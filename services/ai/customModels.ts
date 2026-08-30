@@ -1,4 +1,5 @@
 import {
+    DEFAULT_AI_BASE_URL,
     filterFreeModels,
     isFreeModelId,
     OPENROUTER_DEFAULT_BASE_URL,
@@ -52,7 +53,7 @@ type ModelRecord = Record<string, unknown>;
 
 export const CUSTOM_AI_SETTINGS_KEY = '@blackrose_custom_ai_provider';
 export const DEFAULT_FALLBACK_CONTEXT_WINDOW = 128_000;
-export { OPENROUTER_DEFAULT_BASE_URL };
+export { DEFAULT_AI_BASE_URL, OPENROUTER_DEFAULT_BASE_URL };
 
 const MAX_FALLBACK_CONTEXT_WINDOW = 2_000_000;
 const CONTEXT_KEYS = [
@@ -75,6 +76,7 @@ const KNOWN_CONTEXT_WINDOWS: Record<string, number> = {
     'nvidia/nemotron-3-ultra-550b-a55b': 1_000_000,
     'nvidia/nemotron-3-ultra-550b-a55b:free': 1_000_000,
     'dots-studio/dots-3-note-preview:free': 512_000,
+    'cl/dots-studio/dots-3-note-preview:free': 128_000,
     'moonshotai/kimi-k2.5:thinking': 128_000,
     'moonshotai/kimi-k2.5': 128_000,
 };
@@ -131,7 +133,7 @@ export function resetCustomModelStorageAdapter(): void {
 export function readEnvProviderSeed(): { baseUrl: string; apiKey: string; model?: string } {
     const apiKey = (process.env.EXPO_PUBLIC_NANO_GPT_API_KEY ?? '').trim();
     const baseUrl = (process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL ?? '').trim()
-        || OPENROUTER_DEFAULT_BASE_URL;
+        || DEFAULT_AI_BASE_URL;
     const model = (process.env.EXPO_PUBLIC_NANO_GPT_MODEL ?? '').trim() || undefined;
     return { baseUrl, apiKey, model };
 }
@@ -142,11 +144,11 @@ export function getDefaultCustomAiProviderSettings(): CustomAiProviderSettings {
         && seed.apiKey !== 'YOUR_OPENROUTER_API_KEY';
     return {
         enabled: false,
-        baseUrl: seed.baseUrl || OPENROUTER_DEFAULT_BASE_URL,
+        baseUrl: seed.baseUrl || DEFAULT_AI_BASE_URL,
         apiKey: hasKey ? seed.apiKey : '',
         selectedModelId: null,
         models: [],
-        freeOnly: true,
+        freeOnly: false,
         recentModelIds: [],
         fallbackContextWindow: DEFAULT_FALLBACK_CONTEXT_WINDOW,
         updatedAt: 0,
@@ -393,7 +395,7 @@ export async function fetchOpenAiCompatibleModels(input: {
 }): Promise<{ readonly baseUrl: string; readonly models: CustomAiModel[]; readonly fetchedAt: number }> {
     const baseUrl = normalizeOpenAiBaseUrl(input.baseUrl);
     const apiKey = normalizeApiKey(input.apiKey);
-    const freeOnly = input.freeOnly !== false;
+    const freeOnly = input.freeOnly === true;
     const response = await fetch(`${baseUrl}/models`, {
         method: 'GET',
         headers: {

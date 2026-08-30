@@ -1,5 +1,7 @@
 # Design: OmniRoute-Driven Admin Plane (Replaces Supabase Control-Plane Admin)
 
+> **SUPERSEDED 2026-08-29.** Backend OmniRoute integration removed; the app talks to the gateway device-direct via its default AI base URL (`DEFAULT_AI_BASE_URL`). See PROGRESS.md (2026-08-29 entry).
+
 **Date:** 2026-08-26
 **Status:** Approved by tay (brainstorming complete) — pending spec review
 **Owner:** Mei / BlackroseJournal

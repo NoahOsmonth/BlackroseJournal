@@ -1,10 +1,11 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';
 
 import { useCustomAiModels } from '@/hooks/settings/useCustomAiModels';
 import { useActiveModelContext } from '@/hooks/settings/useActiveModelContext';
 import { useManagedAiCatalog } from '@/hooks/settings/useManagedAiCatalog';
-import { filterFreeModels, hostLabelFromBaseUrl, isFreeModelId } from '@/utils/ai/modelDisplay';
+import { hasEnvDirectApiKey } from '@/services/ai/directConfig';
+import { DEFAULT_AI_BASE_URL, filterFreeModels, hostLabelFromBaseUrl, isFreeModelId } from '@/utils/ai/modelDisplay';
 import type { ChatModelOption } from '@/features/chat/modelPicker.types';
 
 export interface UseChatModelPickerReturn {
@@ -31,13 +32,25 @@ export function useChatModelPicker(options?: {
 }): UseChatModelPickerReturn {
     const router = useRouter();
     const customAi = useCustomAiModels();
+    // The picker mirrors the transport: direct (BYOK) by default when a direct
+    // key is configured, falling back to the managed backend catalog otherwise.
+    const mode = customAi.settings.enabled || hasEnvDirectApiKey() ? 'byok' : 'managed';
     const managedAi = useManagedAiCatalog({
-        enabled: !customAi.isLoading && !customAi.settings.enabled,
+        enabled: !customAi.isLoading && mode === 'managed',
     });
     const { refresh: refreshContext } = useActiveModelContext();
     const [visible, setVisible] = useState(false);
 
-    const mode = customAi.settings.enabled ? 'byok' : 'managed';
+    // Bootstrap: when direct mode is active but no models are loaded yet, fetch
+    // them from the configured gateway once (skips after success/error).
+    useEffect(() => {
+        if (mode !== 'byok') return;
+        if (customAi.isLoading || customAi.isFetching) return;
+        if (customAi.settings.models.length > 0) return;
+        if (customAi.status.kind !== 'idle') return;
+        if (!(customAi.draft.baseUrl.trim() && customAi.draft.apiKey.trim())) return;
+        void customAi.fetchModels();
+    }, [customAi, mode]);
     const freeOnly = mode === 'byok' ? customAi.settings.freeOnly : false;
     const models = useMemo<ChatModelOption[]>(() => {
         if (mode === 'managed') {
@@ -68,7 +81,7 @@ export function useChatModelPicker(options?: {
     const hostLabel = mode === 'managed'
         ? 'Blackrose managed'
         : hostLabelFromBaseUrl(
-            customAi.draft.baseUrl || customAi.settings.baseUrl || 'https://openrouter.ai/api/v1'
+            customAi.draft.baseUrl || customAi.settings.baseUrl || DEFAULT_AI_BASE_URL
         );
 
     const hasApiKey = mode === 'managed' || Boolean(

@@ -22,6 +22,7 @@ import {
     DirectConfigError,
     getDirectConfig,
     getResolvedDirectConfig,
+    hasEnvDirectApiKey,
 } from '../../../services/ai/directConfig';
 import {
     getDefaultCustomAiProviderSettings,
@@ -102,12 +103,12 @@ describe('directConfig — getDirectConfig', () => {
         expect(() => getDirectConfig()).toThrow(/placeholder/i);
     });
 
-    it('4. falls back to OpenRouter when base URL env is missing', () => {
+    it('4. falls back to the OmniRoute gateway when base URL env is missing', () => {
         process.env[KEY] = 'sk-test-key';
 
         const cfg = getDirectConfig();
 
-        expect(cfg.apiBaseUrl).toBe('https://openrouter.ai/api/v1');
+        expect(cfg.apiBaseUrl).toBe('http://100.107.7.52:20128/v1');
     });
 
     it('5. falls back to free OpenRouter model defaults', () => {
@@ -115,8 +116,34 @@ describe('directConfig — getDirectConfig', () => {
 
         const cfg = getDirectConfig();
 
-        expect(cfg.model).toBe('dots-studio/dots-3-note-preview:free');
-        expect(cfg.flashModel).toBe('dots-studio/dots-3-note-preview:free');
+        expect(cfg.model).toBe('cl/dots-studio/dots-3-note-preview:free');
+        expect(cfg.flashModel).toBe('cl/dots-studio/dots-3-note-preview:free');
+    });
+});
+
+describe('directConfig — hasEnvDirectApiKey', () => {
+    beforeEach(() => {
+        // Clear to a known state so a live .env key leaked from other suites
+        // (which restore it in afterEach) can't flip the "missing" assertion.
+        delete process.env.EXPO_PUBLIC_NANO_GPT_API_KEY;
+    });
+
+    afterEach(() => {
+        delete process.env.EXPO_PUBLIC_NANO_GPT_API_KEY;
+    });
+
+    it('is false when the env key is missing', () => {
+        expect(hasEnvDirectApiKey()).toBe(false);
+    });
+
+    it('is false for placeholder keys', () => {
+        process.env.EXPO_PUBLIC_NANO_GPT_API_KEY = 'YOUR_OPENROUTER_API_KEY';
+        expect(hasEnvDirectApiKey()).toBe(false);
+    });
+
+    it('is true for a real key', () => {
+        process.env.EXPO_PUBLIC_NANO_GPT_API_KEY = 'sk-real-key';
+        expect(hasEnvDirectApiKey()).toBe(true);
     });
 });
 

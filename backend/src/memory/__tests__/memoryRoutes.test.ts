@@ -6,7 +6,6 @@ import { createApp } from '../../app';
 import { createReadinessController } from '../../readiness';
 import { createHindsightMemoryGateway } from '../hindsightMemoryGateway';
 import type { MemoryGatewayLogger } from '../hindsightMemoryGateway';
-import type { SoftFailMemoryEmbedder } from '../memoryEmbeddings';
 import type { MemoryGatewayConfig } from '../memoryConfig';
 
 const alphaBank = 'v1_tq7xxyffb7onhvcyk3x3nmpv3ylpc43z3fjeiyp7g3urawricerq';
@@ -26,7 +25,6 @@ async function withGateway(
     respond?: (request: SeenRequest, init?: RequestInit) => Promise<Response>;
     logger?: MemoryGatewayLogger;
     config?: Partial<MemoryGatewayConfig>;
-    embedder?: SoftFailMemoryEmbedder;
   } = {},
 ): Promise<void> {
   const seen: SeenRequest[] = [];
@@ -59,7 +57,7 @@ async function withGateway(
       bankKeyVersion: 1,
       requestTimeoutMs: options.config?.requestTimeoutMs ?? 1_000,
       maxResponseBytes: options.config?.maxResponseBytes ?? 64 * 1024,
-    }, { fetcher, logger: options.logger, embedder: options.embedder }),
+    }, { fetcher, logger: options.logger }),
   });
   const server = http.createServer(app);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -274,7 +272,7 @@ describe('authenticated memory gateway routes', () => {
     });
   });
 
-  it('keeps retain working when OmniRoute embeddings fail (soft-fail)', async () => {
+  it('retains items without an embedding field', async () => {
     await withGateway(async (baseUrl, seen) => {
       const response = await fetch(`${baseUrl}/v1/memory/retain`, {
         method: 'POST',
@@ -285,36 +283,10 @@ describe('authenticated memory gateway routes', () => {
       });
       assert.equal(response.status, 200);
       assert.deepEqual(await response.json(), { retained: true });
-      // Hindsight still receives the item, without an embedding field.
-      const items = (seen[0]?.body as { items?: Array<Record<string, unknown>> } | undefined)?.items;
+      // Hindsight receives the item without an embedding field.
+      const items = (seen[0]?.body as { items?: Record<string, unknown>[] } | undefined)?.items;
       assert.equal(items?.length, 1);
       assert.equal('embedding' in (items?.[0] ?? {}), false);
-    }, {
-      embedder: {
-        embed: async (_userId, input) => {
-          void input;
-          throw new Error('OmniRoute is down');
-        },
-      },
-    });
-  });
-
-  it('attaches OmniRoute embeddings to retained items when available', async () => {
-    await withGateway(async (baseUrl, seen) => {
-      const retained = await fetch(`${baseUrl}/v1/memory/retain`, {
-        method: 'POST',
-        headers: jsonHeaders('alpha-token'),
-        body: JSON.stringify({
-          content: 'alpha memory', documentId: 'a', createdAt: '2026-08-24T00:00:00.000Z',
-        }),
-      });
-      assert.equal(retained.status, 200);
-      const items = (seen[0]?.body as { items?: Array<Record<string, unknown>> } | undefined)?.items;
-      assert.deepEqual(items?.[0]?.embedding, [9, 8, 7]);
-    }, {
-      embedder: {
-        embed: async (_userId, input) => input.map(() => [9, 8, 7]),
-      },
     });
   });
 });
