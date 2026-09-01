@@ -77,6 +77,15 @@ app-release.apk
 # Windows stray file
 nul
 
+# Supabase CLI local state (machine-specific, never commit)
+supabase/.temp/
+
+# Backend runtime logs
+backend/*.log
+
+# Scratch / QA screenshots
+/tmp/
+
 # Design probe caches / large vectors (never commit)
 .probe-cache/
 probes/artifacts/

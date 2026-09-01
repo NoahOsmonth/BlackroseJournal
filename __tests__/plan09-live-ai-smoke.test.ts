@@ -25,6 +25,11 @@ jest.mock('@react-native-async-storage/async-storage', () => {
     };
 });
 
+// These are live-AI tests: when the backend is reachable they make real AI
+// calls (generateEntryTitle etc.) that take ~10s each, so the default 5s Jest
+// timeout is too tight. When the backend is down they skip (backendUp gate).
+jest.setTimeout(60000);
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
     finishIntentionChat,
@@ -38,7 +43,12 @@ const BACKEND_URL = process.env.EXPO_PUBLIC_AGENT_BASE_URL ?? 'http://localhost:
 
 async function backendUp(): Promise<boolean> {
     try {
-        const res = await fetch(`${BACKEND_URL}/health`);
+        // Hard timeout: an unreachable BACKEND_URL must fail fast so the
+        // "skip when backend is down" branch actually runs instead of hanging
+        // until Jest's 5s test timeout.
+        const res = await fetch(`${BACKEND_URL}/health`, {
+            signal: AbortSignal.timeout(1500),
+        });
         const data = await res.json() as { status?: string };
         return data.status === 'ok';
     } catch {

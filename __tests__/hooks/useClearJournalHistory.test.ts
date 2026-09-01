@@ -70,6 +70,11 @@ import * as hindsightClient from '../../services/memory/hindsight/hindsightClien
 describe('useClearJournalHistory', () => {
     beforeEach(async () => {
         mockAsyncStorageStore.clear();
+        // Clear the direct AI key so a live .env EXPO_PUBLIC_NANO_GPT_API_KEY
+        // cannot make the memory-atom extraction on createEntry/createCheckIn
+        // hit the real AI provider (not mocked here) and hang the suite.
+        delete process.env.EXPO_PUBLIC_NANO_GPT_API_KEY;
+        delete process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL;
         await activateAccount('clear-history-user');
     });
 
