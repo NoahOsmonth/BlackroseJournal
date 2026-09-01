@@ -5,7 +5,7 @@ const expoConfig = require('eslint-config-expo/flat');
 module.exports = defineConfig([
   expoConfig,
   {
-    ignores: ['dist/*', 'dist-prod/*', 'backend/dist/**', '.agents/**', '.superpowers/**', 'supabase/.temp/**'],
+    ignores: ['dist/*', 'dist-prod/*', 'backend/dist/**', '.agents/**', '.superpowers/**', 'supabase/.temp/**', '.worktrees/**'],
   },
   {
     // Expo inlines every EXPO_PUBLIC_* var at build time, so a *_KEY /

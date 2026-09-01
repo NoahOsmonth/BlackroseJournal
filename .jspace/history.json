@@ -1,1 +1,0 @@
-[{"t": 1787021507, "next": "wait for populate bg run to finish (~148 items)", "verified": 0, "open": 0}, {"t": 1787022368, "next": "run populate script 2nd time; observe idempotency (document count before/after)", "verified": 4, "open": 0}, {"t": 1787040967, "next": "commit scoped (test + README only); then final report", "verified": 5, "open": 0}]
