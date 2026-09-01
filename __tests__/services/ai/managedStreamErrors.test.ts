@@ -51,6 +51,12 @@ describe('managed stream terminal errors', () => {
         mockSwitchAfterPrepare = false;
         mockPostPrepareSwitch = null;
         process.env.EXPO_PUBLIC_AGENT_BASE_URL = 'https://gateway.example';
+        // These suites exercise the managed transport: clear the direct key so
+        // a live .env EXPO_PUBLIC_NANO_GPT_API_KEY cannot flip getAiTransportMode
+        // to 'byok' and send the test down the direct path (mock gap: customModels
+        // mock has no getActiveCustomModelConfig).
+        delete process.env.EXPO_PUBLIC_NANO_GPT_API_KEY;
+        delete process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL;
         await activateAccount('account-a');
         setManagedTransportSessionProvider(async () => ({
             accessToken: 'token', userId: 'account-a',

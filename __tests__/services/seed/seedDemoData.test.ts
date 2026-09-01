@@ -98,6 +98,11 @@ describe('seedDemoData', () => {
         mockDelayedRead = null;
         mockDelayedReadStarted = null;
         setDemoSeedEnabledForTests(true);
+        // Clear the direct AI key so a live .env EXPO_PUBLIC_NANO_GPT_API_KEY
+        // cannot make seeded check-in memory extraction hit the real AI provider
+        // (not mocked here) and hang the suite.
+        delete process.env.EXPO_PUBLIC_NANO_GPT_API_KEY;
+        delete process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL;
         await activateAccount('seed-user');
     });
 

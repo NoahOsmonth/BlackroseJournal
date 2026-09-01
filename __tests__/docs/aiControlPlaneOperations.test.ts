@@ -83,7 +83,13 @@ describe('AI control-plane operations assets', () => {
     });
 
     expect(readFileSync(path.join(output, 'manifest.txt'), 'utf8')).toContain('schema.sql');
-    expect((Number.parseInt(execFileSync('stat', ['-c', '%a', output], { encoding: 'utf8' }).trim(), 10))).toBe(700);
+    // The script does `mkdir -m 700`; assert the strict mode only where POSIX
+    // permissions are enforceable. Windows (Git Bash, msys) cannot change
+    // directory modes — chmod 700 still reports 755 — so the mode assertion is
+    // skipped there (the script itself is still exercised end-to-end).
+    if (process.platform !== 'win32') {
+        expect((Number.parseInt(execFileSync('stat', ['-c', '%a', output], { encoding: 'utf8' }).trim(), 10))).toBe(700);
+    }
     expect(readFileSync(exportScript, 'utf8')).not.toMatch(/drop database|truncate|reset\.sh|down -v/i);
   });
 
