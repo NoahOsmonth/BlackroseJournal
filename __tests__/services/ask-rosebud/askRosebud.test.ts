@@ -110,6 +110,40 @@ describe('askRosebud service with goals context', () => {
         expect(userContent).toContain('Local journal context:');
     });
 
+    it('labels the entry with the device-local write day, not UTC', async () => {
+        mockListGoals.mockResolvedValue([]);
+        mockFetchDirect.mockResolvedValue(
+            new Response(JSON.stringify({
+                choices: [{ message: { content: 'fine' } }],
+            }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' },
+            })
+        );
+
+        // A UTC+8 user writing Sat 2026-07-18 00:30 local => the UTC ISO date
+        // slips back to 2026-07-17. The prompt must carry the local YYYY-MM-DD.
+        const tz = process.env.TZ;
+        process.env.TZ = 'Asia/Manila';
+        try {
+            const ms = new Date(2026, 6, 18, 0, 30, 0).getTime();
+            await askRosebud('t', 'this-week', [
+                {
+                    title: 'Night entry',
+                    createdAt: ms,
+                    messages: [{ content: 'wrote late' }],
+                },
+            ]);
+        } finally {
+            process.env.TZ = tz;
+        }
+
+        const [payload] = mockFetchDirect.mock.calls[0];
+        const userContent = payload.messages[1].content as string;
+        expect(userContent).toContain('Date: 2026-07-18');
+        expect(userContent).not.toContain('Date: 2026-07-17');
+    });
+
     it('places goals context before the journal entries in the user message', async () => {
         mockListGoals.mockResolvedValue([
             makeGoal({ id: 'g1', title: 'Write daily' }),

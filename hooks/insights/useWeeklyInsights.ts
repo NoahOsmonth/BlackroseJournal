@@ -4,6 +4,7 @@ import { Message } from '@/services/ai/ai';
 import { generateWeeklyInsights } from '@/services/ai/insights';
 import type { WeeklyInsightsResult } from '@/services/ai/insightsTypes';
 import {
+    computeWeeklyContentHash,
     getCurrentWeekKey,
     loadCachedInsights,
     saveCachedInsights,
@@ -59,6 +60,7 @@ export function useWeeklyInsights() {
 
         const weeklyItems = getWeeklyItems();
         const weekKey = getCurrentWeekKey();
+        const contentHash = computeWeeklyContentHash(weeklyItems);
 
         // Check for no entries case first
         if (weeklyItems.length === 0) {
@@ -75,8 +77,13 @@ export function useWeeklyInsights() {
         if (!forceRefresh) {
             try {
                 const cached = await loadCachedInsights(weekKey);
-                if (cached && cached.entryCount === weeklyItems.length) {
-                    // Cache is valid for this week with same item count
+                const contentUnchanged = cached?.contentHash != null
+                    ? cached.contentHash === contentHash
+                    // Legacy cached record predates the content hash: the best
+                    // available signal is still the item count.
+                    : cached?.entryCount === weeklyItems.length;
+                if (cached && contentUnchanged) {
+                    // Cache is valid: same week, same content.
                     setInsights(cached.insights);
                     return;
                 }
@@ -96,7 +103,7 @@ export function useWeeklyInsights() {
 
             // Cache the results for this week
             try {
-                await saveCachedInsights(weekKey, result, weeklyItems.length);
+                await saveCachedInsights(weekKey, result, weeklyItems.length, contentHash);
             } catch (cacheError) {
                 console.warn('Failed to cache insights:', cacheError);
             }

@@ -1,6 +1,7 @@
 import { fetchAiChatCompletion } from '@/services/ai/aiTransport';
 import { listGoals } from '@/services/goals/goalsStorage';
 import { buildGoalsContext } from '@/services/goals/goalsPrompt';
+import { getLocalDateKeyFromTimestamp } from '@/utils/date';
 
 export type TimeRange = 'all-entries' | 'all-time' | 'this-year' | 'this-month' | 'this-week';
 
@@ -32,7 +33,9 @@ interface AskRosebudResponse {
 }
 
 function formatEntry(entry: AskRosebudEntryContext): string {
-    const date = new Date(entry.createdAt).toISOString().slice(0, 10);
+    // Device-local write-day key, not UTC: toISOString().slice(0,10) slips a day
+    // for positive-offset timezones near local midnight (see utils/date tests).
+    const date = getLocalDateKeyFromTimestamp(entry.createdAt);
     const title = entry.title?.trim() || 'Untitled';
     const text = entry.messages
         .map((message) => message.content)

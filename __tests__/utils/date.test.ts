@@ -37,6 +37,16 @@ describe('utils/date', () => {
         expect(resolveRelativeDateKey('last friday', fixed)).toBe('2026-07-10');
     });
 
+    it('resolves a bare weekday to the same day when asked on that weekday', () => {
+        // 2026-07-12 is a Sunday: asking "sunday" ON Sunday means today, not
+        // last week's Sunday (the bare-weekday branch must not +7 on delta 0).
+        const sunday = new Date(2026, 6, 12, 12, 0, 0);
+        expect(sunday.getDay()).toBe(0);
+        expect(resolveRelativeDateKey('sunday', sunday)).toBe('2026-07-12');
+        // "last sunday" ON a Sunday still means the PRIOR week.
+        expect(resolveRelativeDateKey('last sunday', sunday)).toBe('2026-07-05');
+    });
+
     it('adds local days without UTC shift', () => {
         expect(getLocalDateKey(addLocalDays(fixed, -1))).toBe('2026-07-12');
     });

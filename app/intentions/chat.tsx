@@ -25,6 +25,7 @@ import { markIntentionGoalComplete } from '@/services/goals/goalsStorage';
 import {
     finishIntentionChat,
     saveIntentionChatDraft,
+    shouldMarkIntentionGoalComplete,
     withPendingInput,
 } from '@/services/intentions/intentionChatCompletion';
 import { generateEntryTitle } from '@/services/ai';
@@ -302,7 +303,7 @@ export default function IntentionChatScreen() {
             }
 
             setFinishStage('Saving your check-in');
-            const { resolvedIntention } = await finishIntentionChat({
+            const { resolvedIntention, checkIn } = await finishIntentionChat({
                 messages,
                 inputValue,
                 draftCheckInId,
@@ -315,7 +316,9 @@ export default function IntentionChatScreen() {
                 title: generatedTitle,
             });
 
-            if (resolvedIntention && checkInType === 'intention') {
+            // Only stamp a completed goal when this finish produced a completed
+            // check-in; refine mode creates none and must not duplicate a goal.
+            if (resolvedIntention && shouldMarkIntentionGoalComplete(checkIn, checkInType)) {
                 await markIntentionGoalComplete(
                     resolvedIntention.title,
                     getLocalDateKey(new Date()),

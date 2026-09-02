@@ -53,7 +53,10 @@ export function useAchievements(): UseAchievementsReturn {
             checkDate.setDate(checkDate.getDate() - 1);
         }
 
-        // Calculate longest streak
+        // Calculate longest streak. Compare local calendar days directly — never
+        // getTime()/86400000: a DST-transition day is 23 or 25 h, so the ms diff is
+        // 0.9583/1.0417 and `=== 1` silently truncates a real streak to 4 when the
+        // contiguous days cross the boundary.
         let longestStreak = 0;
         let tempStreak = 0;
         const sortedDates = Array.from(daysWithEntries)
@@ -64,9 +67,17 @@ export function useAchievements(): UseAchievementsReturn {
             if (i === 0) {
                 tempStreak = 1;
             } else {
-                const diff = sortedDates[i].getTime() - sortedDates[i - 1].getTime();
-                const daysDiff = diff / (1000 * 60 * 60 * 24);
-                if (daysDiff === 1) {
+                const curr = sortedDates[i];
+                const prev = sortedDates[i - 1];
+                // True when `curr` is the single following calendar day of `prev`,
+                // handling month/year wraps. y/m/d getters are local and DST-proof.
+                const lastOfMonth = new Date(prev.getFullYear(), prev.getMonth() + 1, 0).getDate();
+                const isNext =
+                    prev.getMonth() === curr.getMonth()
+                        ? curr.getDate() === prev.getDate() + 1
+                        : curr.getDate() === 1
+                            && prev.getDate() === lastOfMonth;
+                if (isNext) {
                     tempStreak++;
                 } else {
                     tempStreak = 1;

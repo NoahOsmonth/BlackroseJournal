@@ -20,6 +20,19 @@ export function buildIntentionChatSummary(messages: Pick<Message, 'role' | 'cont
     return text.length > 160 ? `${text.slice(0, 160).trim()}...` : text;
 }
 
+/**
+ * Whether a finished intention session should stamp a completed goal row.
+ * Refine mode updates the intention without producing a completed check-in
+ * (`checkIn` is null), so marking a goal there would duplicate a green goal
+ * row on every refine-finish.
+ */
+export function shouldMarkIntentionGoalComplete(
+    checkIn: IntentionCheckIn | null,
+    checkInType: IntentionCheckInType,
+): boolean {
+    return checkInType === 'intention' && checkIn !== null;
+}
+
 export function withPendingInput(messages: Message[], inputValue: string): Message[] {
     const trimmed = inputValue.trim();
     if (!trimmed) return [...messages];

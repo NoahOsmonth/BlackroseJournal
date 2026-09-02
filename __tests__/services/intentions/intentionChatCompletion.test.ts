@@ -2,6 +2,7 @@ import {
     buildIntentionChatSummary,
     finishIntentionChat,
     saveIntentionChatDraft,
+    shouldMarkIntentionGoalComplete,
     withPendingInput,
 } from '../../../services/intentions/intentionChatCompletion';
 import {
@@ -54,6 +55,18 @@ describe('intentionChatCompletion', () => {
 
         expect(buildIntentionChatSummary([userMessage])).toBe(userMessage.content);
         expect(buildIntentionChatSummary([{ ...userMessage, content: long }])).toHaveLength(163);
+    });
+
+    it('only marks an intention goal complete when a completed check-in was produced', () => {
+        const completedCheckIn = { id: 'c1' } as unknown as import('../../../services/intentions/intentionsStorage.types').IntentionCheckIn;
+
+        // Normal intention finish produces a completed check-in → stamp the goal.
+        expect(shouldMarkIntentionGoalComplete(completedCheckIn, 'intention')).toBe(true);
+        // Refine mode updates the intention without a check-in → no duplicate goal.
+        expect(shouldMarkIntentionGoalComplete(null, 'intention')).toBe(false);
+        // Morning/evening types never stamp an intention goal.
+        expect(shouldMarkIntentionGoalComplete(completedCheckIn, 'morning')).toBe(false);
+        expect(shouldMarkIntentionGoalComplete(completedCheckIn, 'evening')).toBe(false);
     });
 
     it('appends pending input as a user message', () => {

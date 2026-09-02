@@ -488,7 +488,7 @@ export function updateCheckIn(
 ): Promise<IntentionCheckIn | null> {
     return runAccountBoundOperation('check-ins-update', async (context) => {
         const storage = getStorageForAccount(context.accountId);
-        const updated = await withMutationLock(async () => {
+        const result = await withMutationLock(async () => {
             assertAccountOperationActive(context);
             const map = await loadMap<IntentionCheckIn>(storage, CHECKINS_KEY);
             assertAccountOperationActive(context);
@@ -504,13 +504,18 @@ export function updateCheckIn(
             map[id] = next;
             await saveMap(storage, CHECKINS_KEY, map);
             assertAccountOperationActive(context);
-            return next;
+            return { existing, next };
         });
         assertAccountOperationActive(context);
-        if (!updated) return null;
+        if (!result) return null;
 
+        const { existing, next: updated } = result;
         await queueCheckInUpsertForAccount(updated, context);
-        if (updated.status === 'completed') {
+        // Only run the heavy Finish side-effects (memory/identity/session-digest/
+        // Hindsight retain) on the draft → completed TRANSITION. Re-running them on
+        // every update of an already-completed check-in would duplicate retains,
+        // re-extract identity, and re-build the session digest for routine edits.
+        if (updated.status === 'completed' && existing.status !== 'completed') {
             await runCompletedCheckInSideEffects(updated, context);
         }
         return updated;

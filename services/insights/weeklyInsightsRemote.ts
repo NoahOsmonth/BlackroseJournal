@@ -10,6 +10,7 @@ export interface RemoteWeeklyInsights {
     insights: WeeklyInsightsResult;
     entryCount: number;
     cachedAt: number;
+    contentHash?: string;
 }
 
 interface WeeklyInsightsRecord {
@@ -18,6 +19,7 @@ interface WeeklyInsightsRecord {
     insights: WeeklyInsightsResult;
     entry_count: number;
     cached_at: string;
+    content_hash?: string | null;
 }
 
 function parseTimestamp(value: unknown): number {
@@ -57,13 +59,15 @@ export async function loadRemoteWeeklyInsights(weekKey: string): Promise<RemoteW
         insights: record.insights,
         entryCount: record.entry_count,
         cachedAt: parseTimestamp(record.cached_at),
+        ...(record.content_hash != null ? { contentHash: record.content_hash } : {}),
     };
 }
 
 export async function saveRemoteWeeklyInsights(
     weekKey: string,
     insights: WeeklyInsightsResult,
-    entryCount: number
+    entryCount: number,
+    contentHash?: string
 ): Promise<void> {
     const ownerId = await getSupabaseUserId();
     if (!ownerId) {
@@ -75,6 +79,7 @@ export async function saveRemoteWeeklyInsights(
         week_key: weekKey,
         insights,
         entry_count: entryCount,
+        ...(contentHash !== undefined ? { content_hash: contentHash } : {}),
         cached_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
     };

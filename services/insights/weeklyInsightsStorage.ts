@@ -35,6 +35,12 @@ export interface CachedWeeklyInsights {
     insights: WeeklyInsightsResult;
     cachedAt: number;
     entryCount: number;
+    /**
+     * Lightweight digest of the weekly item set. Guards against stale AI
+     * summaries when an entry within the week is EDITED without changing the
+     * entry count (entryCount alone could not detect that).
+     */
+    contentHash?: string;
 }
 
 /**
@@ -89,6 +95,7 @@ async function loadCachedInsightsForAccount(
                     insights: remote.insights,
                     cachedAt: remote.cachedAt,
                     entryCount: remote.entryCount,
+                    contentHash: remote.contentHash,
                 };
                 await storage.setItem(STORAGE_KEY, JSON.stringify(cache));
                 assertAccountOperationActive(context);
@@ -117,6 +124,7 @@ async function loadCachedInsightsForAccount(
                 insights: remote.insights,
                 cachedAt: remote.cachedAt,
                 entryCount: remote.entryCount,
+                contentHash: remote.contentHash,
             };
             await storage.setItem(STORAGE_KEY, JSON.stringify(synced));
             assertAccountOperationActive(context);
@@ -144,6 +152,7 @@ async function saveCachedInsightsForAccount(
     weekKey: string,
     insights: WeeklyInsightsResult,
     entryCount: number,
+    contentHash: string | undefined,
     storage: AccountStorageAdapter,
     context: AccountOperationContext,
 ): Promise<void> {
@@ -153,11 +162,12 @@ async function saveCachedInsightsForAccount(
             insights,
             cachedAt: Date.now(),
             entryCount,
+            ...(contentHash !== undefined ? { contentHash } : {}),
         };
         await storage.setItem(STORAGE_KEY, JSON.stringify(cache));
         assertAccountOperationActive(context);
         try {
-            await saveRemoteWeeklyInsights(weekKey, insights, entryCount);
+            await saveRemoteWeeklyInsights(weekKey, insights, entryCount, contentHash);
             assertAccountOperationActive(context);
         } catch (error) {
             if (context.signal.aborted) throw error;
@@ -174,16 +184,32 @@ export function saveCachedInsights(
     weekKey: string,
     insights: WeeklyInsightsResult,
     entryCount: number,
+    contentHash?: string,
 ): Promise<void> {
     return runAccountBoundOperation('weekly-insights-save', (context) => enqueueMutation(() => (
         saveCachedInsightsForAccount(
             weekKey,
             insights,
             entryCount,
+            contentHash,
             getStorageForAccount(context.accountId),
             context,
         )
     )));
+}
+
+/**
+ * Digest of the weekly item set, used to invalidate the cache when an entry is
+ * edited (content changes without the count changing). Deterministic across
+ * calls and cheap enough for cache-invalidation purposes.
+ */
+export function computeWeeklyContentHash(
+    items: readonly { createdAt: number; messages?: { content?: string }[] | null }[],
+): string {
+    const sorted = [...items].sort((a, b) => a.createdAt - b.createdAt);
+    return sorted
+        .map((item) => `${item.createdAt}:${(item.messages ?? []).map((m) => m.content ?? '').join('|')}`)
+        .join('#\n#');
 }
 
 /**

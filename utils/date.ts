@@ -108,8 +108,11 @@ export function resolveRelativeDateKey(
     const weekday = WEEKDAY_ALIASES[raw];
     if (weekday !== undefined) {
         const today = now.getDay();
+        // Most recent past occurrence INCLUDING today: asking "what did I do on
+        // Monday" on a Monday means today, not last week's Monday. ("last
+        // monday" below keeps the <=0 rule so it explicitly means the PRIOR week.)
         let delta = today - weekday;
-        if (delta <= 0) delta += 7;
+        if (delta < 0) delta += 7;
         return getLocalDateKey(addLocalDays(now, -delta));
     }
 

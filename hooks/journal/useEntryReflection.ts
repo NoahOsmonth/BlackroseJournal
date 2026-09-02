@@ -35,7 +35,7 @@ export function useEntryReflection(entryId?: string): UseEntryReflectionState {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const load = useCallback(async () => {
+    const load = useCallback(async (forceRegenerate = false) => {
         if (!resolvedEntryId) {
             setEntry(null);
             setData(null);
@@ -43,7 +43,14 @@ export function useEntryReflection(entryId?: string): UseEntryReflectionState {
             return;
         }
 
-        const cached = reflectionCache.get(resolvedEntryId);
+        // A cached reflection is a source-of-truth for the initial mount, but
+        // refresh() must force a fresh generation — otherwise editing an entry
+        // leaves a stale reflection forever and "Regenerate" is a silent no-op.
+        if (forceRegenerate) {
+            reflectionCache.delete(resolvedEntryId);
+        }
+
+        const cached = forceRegenerate ? undefined : reflectionCache.get(resolvedEntryId);
         if (cached) {
             setIsLoading(false);
             setError(null);
@@ -86,6 +93,6 @@ export function useEntryReflection(entryId?: string): UseEntryReflectionState {
         data,
         isLoading,
         error,
-        refresh: load,
+        refresh: () => load(true),
     };
 }

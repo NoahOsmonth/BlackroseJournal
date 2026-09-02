@@ -196,6 +196,34 @@ describe('intentionsStorage', () => {
         expect(mockedRetain).toHaveBeenCalledTimes(1);
     });
 
+    it('does not re-run completed side effects when editing an already-completed check-in', async () => {
+        const created = await createCheckIn({
+            type: 'morning',
+            title: 'Morning check-in',
+            summary: 'Summary.',
+            mood: 'Reflective',
+            status: 'completed',
+            messages: [],
+        });
+        expect(mockedRetain).toHaveBeenCalledTimes(1);
+
+        // A routine edit of a completed check-in must not re-retain to
+        // hindsight, re-extract identity, or re-build the session digest.
+        await updateCheckIn(created.id, {
+            title: 'Morning check-in (edited)',
+            mood: 'Calm',
+        });
+
+        expect(mockedRetain).toHaveBeenCalledTimes(1);
+
+        // Editing a different field while still completed stays quiet too,
+        // but a completed→draft transition is fine and no new retain fires.
+        await updateCheckIn(created.id, {
+            status: 'draft',
+        });
+        expect(mockedRetain).toHaveBeenCalledTimes(1);
+    });
+
     it('clears all check-ins', async () => {
         await createCheckIn({
             type: 'morning',

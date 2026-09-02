@@ -39,6 +39,7 @@ jest.mock('../../services/insights/weeklyInsightsStorage', () => ({
     getCurrentWeekKey: jest.fn().mockReturnValue('2026-W24'),
     loadCachedInsights: jest.fn().mockResolvedValue(null),
     saveCachedInsights: jest.fn().mockResolvedValue(undefined),
+    computeWeeklyContentHash: jest.fn(() => 'hash'),
 }));
 
 import { useWeeklyInsights } from '../../hooks/insights/useWeeklyInsights';
