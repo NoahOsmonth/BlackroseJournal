@@ -103,6 +103,27 @@ barrel (>50% of bundle). All glyph usage swapped to already-bundled MaterialIcon
   `resolveUpcomingWeekdayKey` event-orientation — all correct.
 - No `space-*` / hardcoded-dark-chrome / bare `JSON.parse` violations found in prod code.
 
-## Phase C — pending
-- Playwright/playwriter E2E against the running app (per AGENTS.md E2E-required gate:
-  structured extraction / finish-path verification). Clear demo data before recall probes.
+## Phase C — E2E via playwriter (DONE, with an auth-gated limitation)
+
+Ran a real Playwright run (playwriter, headless Chrome) against the running Expo web app
+(`expo start --web` on :8081):
+
+| Check | Result |
+|---|---|
+| Web bundle compiles (1847 modules) after the Phase A icon codemod | ✅ no resolution errors |
+| App boots to auth screens with zero fatal JS errors | ✅ (no `pageerror`/TypeError/ReferenceError in capture) |
+| Login + Signup screens render; MaterialIcons subpath glyphs (👁 Show password, ← Back) paint | ✅ (snapshot + screenshot in `/tmp/rosebud-login.png`) |
+| Per-family `@expo/vector-icons/MaterialIcons` imports actually render | ✅ |
+| Full in-app finish/insights/reﬁne flow E2E | ⛔ auth-gated |
+
+**Limitation (documented, not silent):** the main tabs are behind `Stack.Protected guard={auth.isAuthenticated}`,
+and `EXPO_PUBLIC_DATA_PROVIDER=local` suppresses auth network by design (`resolveAuthBootstrap` returns
+`signed-out` with no remembered account). Reaching the finish/intentions views requires an email-confirmed
+Supabase account on the configured backend, which I did not create autonomously while the user is away.
+The Phase B fixes are deterministic storage/date/hook changes covered by unit tests that ran green; no
+LLM-extraction code was changed in Phase B, so the strongest E2E-mandated risk surface (structured
+extraction) is untouched.
+
+**Follow-up:** when someone can auth locally (remembered account / confirmed signup), run the Playwright
+finish-path pass against the app; clear the `__DEV__` demo seed first (AGENTS.md §8) before any recall
+probes.
