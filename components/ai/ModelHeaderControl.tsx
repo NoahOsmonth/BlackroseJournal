@@ -1,5 +1,5 @@
 import React from 'react';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Pressable, Text } from 'react-native';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';

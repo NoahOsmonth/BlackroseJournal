@@ -1,6 +1,6 @@
 import React from 'react';
 import { Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Persona } from '@/services/personas/personasStorage.types';
 import { PersonaCard } from './PersonaCard';
 import { NewPersonaCard } from './NewPersonaCard';

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import Svg, { G, Path, Rect } from 'react-native-svg';
 
 import { Colors, PersonaColors } from '@/constants/theme';

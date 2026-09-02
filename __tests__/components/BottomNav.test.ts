@@ -61,13 +61,14 @@ describe('BottomNav floating dock styling', () => {
         expect(src).toContain('useThemeSettings');
         expect(src).toContain('accentDark');
         expect(src).toContain('accentLight');
-        expect(src).toContain('PencilSimple');
+        expect(src).toContain('MaterialIcons');
         expect(src).toContain('Write new entry');
     });
 
-    it('uses Phosphor icons with filled active weight', () => {
-        expect(src).toContain("weight={isActive ? 'fill' : 'regular'}");
-        expect(src).toContain('from \'phosphor-react-native\'');
+    it('renders MaterialIcons glyph names (no phosphor barrel in the bundle)', () => {
+        expect(src).toContain('MaterialIcons');
+        expect(src).not.toContain('phosphor-react-native');
+        expect(tabConfig.every((t) => typeof t.icon === 'string')).toBe(true);
     });
 
     it('delegates radial action animation to a hook-safe component', () => {

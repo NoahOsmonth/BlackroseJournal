@@ -13,7 +13,7 @@ import {
     listDayDigests,
 } from '@/services/memory/dayDigestStorage';
 import { buildSessionRecallContext } from '@/services/memory/sessionRecall';
-import { resolveRelativeDateKey } from '@/utils/date';
+import { addLocalDays, getLocalDateKey, resolveRelativeDateKey } from '@/utils/date';
 import { estimateTokensFromChars } from './promptBudget';
 
 /** PR8c: max estimated tokens (chars/4) for eager augment blob. */
@@ -25,17 +25,54 @@ const HISTORY_INTENT_RE =
 const RELATIVE_DATE_RE =
     /\b(yesterday|today|tomorrow|last\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun)|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{4}-\d{2}-\d{2})\b/gi;
 
+/** Range phrases with no single day key; expand to a window of day keys. */
+const RELATIVE_RANGE_RE =
+    /\b(last\s+week|this\s+week|past\s+week|last\s+fortnight|last\s+month|past\s+month|last\s+year|past\s+year)\b/gi;
+
+const WEEK_DAYS = 7;
+const FORTNIGHT_DAYS = 14;
+const MONTH_DAYS = 30;
+const YEAR_DAYS = 365;
+
 export function detectHistoryIntent(text: string): boolean {
     return HISTORY_INTENT_RE.test(text.trim());
 }
 
+/**
+ * Resolve relative date + window phrases into day keys. Range phrases ("last
+ * week", "this week", "last month") expand to a window of day keys so recall
+ * covers the requested span instead of silently falling back to recent days.
+ */
 function extractDateHints(text: string, now: Date = new Date()): string[] {
     const keys: string[] = [];
+
     const matches = text.match(RELATIVE_DATE_RE) ?? [];
     for (const match of matches) {
         const resolved = resolveRelativeDateKey(match.trim(), now);
         if (resolved && !keys.includes(resolved)) keys.push(resolved);
     }
+
+    const rangeMatches = text.match(RELATIVE_RANGE_RE) ?? [];
+    for (const match of rangeMatches) {
+        const range = match.trim().toLowerCase();
+        const daysBack = /fortnight/.test(range)
+            ? FORTNIGHT_DAYS
+            : /last year|past year/.test(range)
+                ? YEAR_DAYS
+                : /month/.test(range)
+                    ? MONTH_DAYS
+                    : WEEK_DAYS;
+        // Widen slightly so the leading edge is also covered (e.g. "this week"
+        // starts at the current Monday, not tonight exactly).
+        const windowStart = addLocalDays(now, -(daysBack + 1));
+        for (let offset = 0; offset <= daysBack + 1; offset += 1) {
+            const key = getLocalDateKey(addLocalDays(windowStart, offset));
+            if (key <= getLocalDateKey(addLocalDays(now, 1)) && !keys.includes(key)) {
+                keys.push(key);
+            }
+        }
+    }
+
     return keys;
 }
 
@@ -183,11 +220,17 @@ export async function buildRetrievedHistoryContext(
     const blocks: string[] = [];
 
     if (dateKeys.length > 0) {
-        for (const key of dateKeys.slice(0, 3)) {
+        // Scan the whole resolved window (including expanded week/month ranges) for
+        // digests, newest-first, so a mid-window day is not skipped because it falls
+        // after the 3-day slice of the window's oldest edge.
+        const ordered = [...dateKeys].sort().reverse();
+        const MAX_BLOCKS = 6;
+        for (const key of ordered) {
+            if (blocks.length >= MAX_BLOCKS) break;
             const digest = await getDayDigest(key);
             if (digest) {
                 blocks.push(formatDayDigestForTool(digest));
-            } else {
+            } else if (blocks.length === 0) {
                 blocks.push(`date: ${key}\nsummary: (no completed sessions on this day)`);
             }
         }

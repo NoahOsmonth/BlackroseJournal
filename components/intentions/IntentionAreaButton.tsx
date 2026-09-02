@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { IntentionArea } from '@/services/intentions/intentionsStorage.types';
 import { getIntentionAreaConfig } from '@/constants/intentions';
 
@@ -11,7 +11,6 @@ interface IntentionAreaButtonProps {
 
 export function IntentionAreaButton({ area, onPress }: IntentionAreaButtonProps) {
     const config = getIntentionAreaConfig(area);
-    const Icon = config?.icon;
     const color = config?.color ?? '#F472B6';
 
     return (
@@ -22,7 +21,7 @@ export function IntentionAreaButton({ area, onPress }: IntentionAreaButtonProps)
         >
             <View className="flex-row items-center gap-4">
                 <View className="w-8 items-center justify-center">
-                    {Icon ? <Icon size={28} color={color} weight="fill" /> : null}
+                    {config?.icon ? <MaterialIcons name={config.icon} size={28} color={color} /> : null}
                 </View>
                 <Text className="text-[17px] font-medium text-text-light dark:text-text-dark">
                     {config?.label ?? area}

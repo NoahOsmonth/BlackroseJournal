@@ -6,7 +6,7 @@
 import { StreakHaikuSkeleton } from '@/components/streak/StreakHaikuSkeleton';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useStreakHaiku } from '@/hooks/useStreakHaiku';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { Pressable, Text, View } from 'react-native';

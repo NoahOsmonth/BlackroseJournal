@@ -7,7 +7,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AchievementProgress, useAchievements } from '@/hooks/useAchievements';
 import { RewardsSkeleton } from '@/components/rewards/RewardsSkeleton';
 import { StaggerEntranceItem } from '@/components/ui/StaggerEntrance';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';

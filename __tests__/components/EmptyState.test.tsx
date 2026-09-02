@@ -3,13 +3,14 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { EmptyState } from '../../components/ui/EmptyState';
 
-jest.mock('@expo/vector-icons', () => ({
-    MaterialIcons: ({ name }: { name: string }) => {
-        const React = jest.requireActual('react');
-        const { Text } = jest.requireActual('react-native');
-        return <Text>{name}</Text>;
-    },
-}));
+jest.mock('@expo/vector-icons/MaterialIcons', () => {
+    const React = jest.requireActual('react');
+    const { Text } = jest.requireActual('react-native');
+    return {
+        __esModule: true,
+        default: ({ name }: { name: string }) => <Text>{name}</Text>,
+    };
+});
 
 jest.mock('../../hooks/use-color-scheme', () => ({
     useColorScheme: () => 'light',

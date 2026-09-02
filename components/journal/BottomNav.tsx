@@ -8,15 +8,8 @@
 
 import { useColorScheme } from '@/hooks/theme/use-color-scheme';
 import { useThemeSettings } from '@/hooks/theme/useThemeSettings';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Haptics from 'expo-haptics';
-import {
-    BookOpen,
-    GearSix,
-    Graph,
-    Lightbulb,
-    PencilSimple,
-    Sun,
-} from 'phosphor-react-native';
 import React, { useCallback, useState } from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
 import Animated, {
@@ -37,11 +30,11 @@ interface BottomNavProps {
     onFabPress?: () => void;
 }
 
-type PhosphorIcon = typeof Sun;
+type TabIcon = keyof typeof MaterialIcons.glyphMap;
 
 interface TabConfig {
     name: TabName;
-    icon: PhosphorIcon;
+    icon: TabIcon;
     /** Stable id for tests / analytics (not rendered as Material glyph). */
     iconId: string;
     label: string;
@@ -49,11 +42,11 @@ interface TabConfig {
 
 /** Canonical tab list (settings lives in headers; dock shows four + write). */
 export const tabConfig: TabConfig[] = [
-    { name: 'today', icon: Sun, iconId: 'sun', label: 'Today' },
-    { name: 'explore', icon: Graph, iconId: 'graph', label: 'Memory' },
-    { name: 'insights', icon: Lightbulb, iconId: 'lightbulb', label: 'Insights' },
-    { name: 'entries', icon: BookOpen, iconId: 'book-open', label: 'History' },
-    { name: 'settings', icon: GearSix, iconId: 'gear', label: 'Settings' },
+    { name: 'today', icon: 'wb-sunny', iconId: 'sun', label: 'Today' },
+    { name: 'explore', icon: 'show-chart', iconId: 'graph', label: 'Memory' },
+    { name: 'insights', icon: 'lightbulb', iconId: 'lightbulb', label: 'Insights' },
+    { name: 'entries', icon: 'menu-book', iconId: 'book-open', label: 'History' },
+    { name: 'settings', icon: 'settings', iconId: 'gear', label: 'Settings' },
 ];
 
 const DOCK_TABS: TabConfig[] = [
@@ -102,7 +95,6 @@ function DockTab({
     onPress: () => void;
 }) {
     const scale = useSharedValue(1);
-    const IconComponent = tab.icon;
 
     const animStyle = useAnimatedStyle(() => ({
         transform: [{ scale: scale.value }],
@@ -142,10 +134,10 @@ function DockTab({
                             : null),
                     }}
                 >
-                    <IconComponent
+                    <MaterialIcons
+                        name={tab.icon}
                         size={22}
                         color={isActive ? accent : inactiveColor}
-                        weight={isActive ? 'fill' : 'regular'}
                     />
                     <Text
                         className={`text-[10px] tracking-wide ${
@@ -234,7 +226,7 @@ function WriteButton({
                         },
                     ]}
                 >
-                    <PencilSimple size={24} color="#FFFFFF" weight="bold" />
+                    <MaterialIcons name="edit" size={24} color="#FFFFFF" />
                 </AnimatedPressable>
                 <RadialMenu
                     isVisible={radialVisible}

@@ -4,7 +4,7 @@
  */
 
 import { DayInfo } from '@/hooks/today/useSelectedDay';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 

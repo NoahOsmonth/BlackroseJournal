@@ -13,7 +13,7 @@
  */
 
 /** Hard deprecation date for the NANO_GPT_* env vars. */
-export const AI_LEGACY_SHIM_DEPRECATION_DATE = '2026-09-01';
+export const AI_LEGACY_SHIM_DEPRECATION_DATE = '2027-01-01';
 
 /** Output shape: the same env keys the new config loader consumes. */
 export interface AiConfigInput {

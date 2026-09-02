@@ -10,7 +10,7 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { useEntryReflection } from '@/hooks/useEntryReflection';
 import type { AiFeedbackValue } from '@/services/feedback/feedbackStorage';
 import { saveAiFeedback } from '@/services/feedback/feedbackStorage';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';

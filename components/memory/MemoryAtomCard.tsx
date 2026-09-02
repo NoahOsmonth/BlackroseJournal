@@ -1,6 +1,6 @@
 import React from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Haptics from 'expo-haptics';
 
 import { MemoryLayerColors } from '@/constants/theme';

@@ -1,4 +1,4 @@
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import React from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { useColorScheme } from '@/hooks/use-color-scheme';

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { getIntentionAreaConfig } from '@/constants/intentions';
 import { Intention } from '@/services/intentions/intentionsStorage.types';
 
@@ -10,7 +11,6 @@ interface IntentionCardProps {
 
 export function IntentionCard({ intention, onPress }: IntentionCardProps) {
     const config = getIntentionAreaConfig(intention.area);
-    const Icon = config?.icon;
     const iconColor = config?.color ?? '#F87171';
     const iconBg = `${iconColor}33`;
 
@@ -24,7 +24,7 @@ export function IntentionCard({ intention, onPress }: IntentionCardProps) {
                 className="w-8 h-8 rounded-full items-center justify-center mb-2"
                 style={{ backgroundColor: iconBg }}
             >
-                {Icon ? <Icon size={18} color={iconColor} weight="fill" /> : null}
+                {config?.icon ? <MaterialIcons name={config.icon} size={18} color={iconColor} /> : null}
             </View>
             <Text className="font-medium text-sm leading-tight text-text-light dark:text-text-dark" numberOfLines={2}>
                 {intention.title}

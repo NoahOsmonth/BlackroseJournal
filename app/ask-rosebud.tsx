@@ -9,7 +9,7 @@ import { useAskRosebud } from '@/hooks/useAskRosebud';
 import { useJournalEntries } from '@/hooks/useJournalEntries';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { TimeRange, TIME_RANGE_LABELS } from '@/services/ask-rosebud/askRosebud';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {

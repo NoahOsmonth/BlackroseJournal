@@ -7,7 +7,7 @@ import { SuggestionsSkeleton } from '@/components/entries/SuggestionsSkeleton';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useEntryReflection } from '@/hooks/useEntryReflection';
 import { useHappinessRecipe } from '@/hooks/useHappinessRecipe';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';

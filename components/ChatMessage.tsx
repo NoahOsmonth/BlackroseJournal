@@ -2,7 +2,7 @@ import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { getMarkdownStyles } from '@/constants/markdownStyles';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useThemeSettings } from '@/hooks/useThemeSettings';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import React, { useEffect, useState } from 'react';
 import { Pressable, Text, TextStyle, View } from 'react-native';
 import Markdown from 'react-native-marked';

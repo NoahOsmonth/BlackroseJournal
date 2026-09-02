@@ -13,13 +13,14 @@ jest.mock('expo-haptics', () => ({
     ImpactFeedbackStyle: { Light: 'light' },
 }));
 
-jest.mock('@expo/vector-icons', () => ({
-    MaterialIcons: ({ name }: { name: string }) => {
-        const React = jest.requireActual('react');
-        const { Text } = jest.requireActual('react-native');
-        return <Text>{name}</Text>;
-    },
-}));
+jest.mock('@expo/vector-icons/MaterialIcons', () => {
+    const React = jest.requireActual('react');
+    const { Text } = jest.requireActual('react-native');
+    return {
+        __esModule: true,
+        default: ({ name }: { name: string }) => <Text>{name}</Text>,
+    };
+});
 
 const journalItem: HistoryItem = {
     id: 'journal-1',

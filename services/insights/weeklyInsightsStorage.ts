@@ -41,22 +41,32 @@ export interface CachedWeeklyInsights {
  * Generate a unique key for the current week (Sunday-Saturday)
  * Format: "YYYY-WNN" where NN is the week number
  */
-export function getCurrentWeekKey(): string {
-    const now = new Date();
-    const startOfYear = new Date(now.getFullYear(), 0, 1);
+export function getCurrentWeekKey(now: Date = new Date()): string {
     const day = now.getDay(); // 0 = Sunday
 
-    // Get the start of current week (Sunday)
+    // Get the start of current week (Sunday, normalized to local midnight)
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - day);
     startOfWeek.setHours(0, 0, 0, 0);
 
-    // Calculate week number based on start of week
-    const diff = startOfWeek.getTime() - startOfYear.getTime();
-    const oneWeek = 7 * 24 * 60 * 60 * 1000;
-    const weekNum = Math.floor(diff / oneWeek) + 1;
+    // Anchor the label year to the ISO week's Thursday (Sunday+3) so the
+    // mid-week boundary week (e.g. Dec 27 2026 → Jan 2 2027) always resolves
+    // to one stable key instead of "W53" one day and "W01" the next.
+    const thursday = new Date(startOfWeek);
+    thursday.setDate(thursday.getDate() + 3);
+    const labelYear = thursday.getFullYear();
 
-    return `${now.getFullYear()}-W${weekNum.toString().padStart(2, '0')}`;
+    // Week 1 is the week containing Jan 1 – anchored to the Sunday on/before
+    // it, so week numbers never hit "W00" and stay correct across year
+    // boundaries.
+    const jan1 = new Date(labelYear, 0, 1);
+    const week1Start = new Date(jan1);
+    week1Start.setDate(jan1.getDate() - jan1.getDay());
+
+    const diffDays = Math.round((startOfWeek.getTime() - week1Start.getTime()) / (24 * 60 * 60 * 1000));
+    const weekNum = Math.floor(diffDays / 7) + 1;
+
+    return `${labelYear}-W${weekNum.toString().padStart(2, '0')}`;
 }
 
 /**

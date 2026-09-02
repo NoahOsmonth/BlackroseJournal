@@ -1,6 +1,6 @@
 import React from 'react';
 import { Modal, Pressable, Text, View } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { Persona } from '@/services/personas/personasStorage.types';
 import { useColorScheme } from '@/hooks/use-color-scheme';

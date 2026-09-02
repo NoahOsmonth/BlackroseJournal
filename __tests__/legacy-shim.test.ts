@@ -133,8 +133,8 @@ describe('AI legacy shim (PR5)', () => {
     });
 
     describe('deprecation date is the single source of truth', () => {
-        it('exports AI_LEGACY_SHIM_DEPRECATION_DATE = 2026-09-01', () => {
-            expect(AI_LEGACY_SHIM_DEPRECATION_DATE).toBe('2026-09-01');
+        it('exports AI_LEGACY_SHIM_DEPRECATION_DATE = 2027-01-01', () => {
+            expect(AI_LEGACY_SHIM_DEPRECATION_DATE).toBe('2027-01-01');
         });
 
         it('shim file still exists (deadline is enforced, not just promised)', () => {

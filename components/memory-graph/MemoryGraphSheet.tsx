@@ -10,7 +10,7 @@ import type {
     MemorySourcePreview,
 } from '@/services/memory/memoryGraph.types';
 import { truncateToWordCount } from '@/services/memory/memoryGraphUtils';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import React, { useMemo } from 'react';
 import {
     Pressable,

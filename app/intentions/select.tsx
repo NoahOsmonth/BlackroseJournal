@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Sparkle, X } from 'phosphor-react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { INTENTION_AREAS } from '@/constants/intentions';
 import { IntentionAreaButton } from '@/components/intentions/IntentionAreaButton';
@@ -21,9 +21,9 @@ function CompassBadge() {
                     <Text className="absolute top-1 text-[8px] font-bold text-text-secondary-light dark:text-text-secondary-dark">N</Text>
                 </View>
             </View>
-            <Sparkle size={18} color="#FCD34D" weight="fill" style={{ position: 'absolute', top: 0, right: 6 }} />
-            <Sparkle size={14} color="#FDE68A" weight="fill" style={{ position: 'absolute', bottom: 8, left: 4 }} />
-            <Sparkle size={10} color="#FFFFFF" weight="fill" style={{ position: 'absolute', top: 10, left: 10 }} />
+            <MaterialIcons name="auto-awesome" size={18} color="#FCD34D" style={{ position: 'absolute', top: 0, right: 6 }} />
+            <MaterialIcons name="auto-awesome" size={14} color="#FDE68A" style={{ position: 'absolute', bottom: 8, left: 4 }} />
+            <MaterialIcons name="auto-awesome" size={10} color="#FFFFFF" style={{ position: 'absolute', top: 10, left: 10 }} />
         </View>
     );
 }
@@ -55,7 +55,7 @@ export default function IntentionSelectScreen() {
                         className="p-2 rounded-full"
                         accessibilityLabel="Close"
                     >
-                        <X size={24} color="#9CA3AF" />
+                        <MaterialIcons name="close" size={24} color="#9CA3AF" />
                     </Pressable>
                 </View>
 

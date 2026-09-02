@@ -1,4 +1,4 @@
-import { BookOpen, Graph, Lightbulb, PencilSimple } from 'phosphor-react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
@@ -10,7 +10,7 @@ import Animated, {
     withTiming,
 } from 'react-native-reanimated';
 
-type RadialIcon = typeof PencilSimple;
+type RadialIcon = keyof typeof MaterialIcons.glyphMap;
 
 interface RadialOption {
     label: string;
@@ -35,10 +35,10 @@ interface RadialMenuItemProps {
 }
 
 const RADIAL_OPTIONS: RadialOption[] = [
-    { label: 'New Entry', icon: PencilSimple, route: '/chat', params: { mode: 'new' } },
-    { label: 'New Check-in', icon: BookOpen, route: '/intentions/select' },
-    { label: 'Ask Rosebud', icon: Lightbulb, route: '/ask-rosebud' },
-    { label: 'Memory', icon: Graph, route: '/memory-graph' },
+    { label: 'New Entry', icon: 'edit', route: '/chat', params: { mode: 'new' } },
+    { label: 'New Check-in', icon: 'menu-book', route: '/intentions/select' },
+    { label: 'Ask Rosebud', icon: 'lightbulb', route: '/ask-rosebud' },
+    { label: 'Memory', icon: 'show-chart', route: '/memory-graph' },
 ];
 
 const RADIAL_SPRING = {
@@ -67,7 +67,6 @@ function RadialMenuItem({
 }: RadialMenuItemProps) {
     const scale = useSharedValue(0);
     const opacity = useSharedValue(0);
-    const IconComponent = option.icon;
 
     React.useEffect(() => {
         if (isVisible) {
@@ -97,7 +96,7 @@ function RadialMenuItem({
             hitSlop={12}
         >
             <View style={styles.radialItemInner}>
-                <IconComponent size={24} color="#FFFFFF" weight="bold" />
+                <MaterialIcons name={option.icon} size={24} color="#FFFFFF" />
                 <Text style={styles.radialLabel}>{option.label}</Text>
             </View>
         </AnimatedPressable>

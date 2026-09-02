@@ -8,7 +8,7 @@ import { useHappinessRecipe } from '@/hooks/useHappinessRecipe';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { HappinessRecipeSkeleton } from '@/components/happiness/HappinessRecipeSkeleton';
 import { RecipeItem, RecipeItemType } from '@/services/happinessRecipeStorage.types';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
