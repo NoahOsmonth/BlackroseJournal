@@ -11,7 +11,7 @@ import {
 import { useAuthSession } from '@/hooks/auth/useAuthSession';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SignupScreen() {
@@ -23,8 +23,8 @@ export default function SignupScreen() {
     const [confirmPassword, setConfirmPassword] = useState('');
     const [status, setStatus] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const passwordInputRef = React.useRef<null | any>(null);
-    const confirmInputRef = React.useRef<null | any>(null);
+    const passwordInputRef = React.useRef<TextInput>(null);
+    const confirmInputRef = React.useRef<TextInput>(null);
 
     const handleSignup = useCallback(async () => {
         if (isSubmitting) return;

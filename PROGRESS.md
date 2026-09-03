@@ -1,5 +1,45 @@
 # PROGRESS — Optimization + Bug Hunt (2026-09-02)
 
+## 2026-09-03 — Untested-path coverage + launch/input UX papercuts
+
+### Risk-focused tests (production paths that had zero direct coverage)
+
+| Path | Risk | Coverage added |
+|---|---|---|
+| `utils/streak.ts` + `utils/streakStats.ts` | Streaks drive Today + streak-view; DST/day-boundary bug class already bit `useAchievements` | `__tests__/utils/streakStats.test.ts`: TZ-offset bucketing, gap/duplicate/month-boundary semantics, calendar padding + leap Feb |
+| `services/theme/colorDerivation.ts` | Color Studio derives dark/light partners from user colors | `__tests__/services/theme/colorDerivation.test.ts`: round-trips, clamping, partner targets (l=70/38), neutral softening, invalid input |
+| `services/ai/sseParser.ts` | Core chat streaming path; only error paths were covered | `__tests__/services/ai/sseParser.test.ts`: chunk-split JSON, `[DONE]` in buffer at EOF, usage callback, reasoning-only rejection, non-streaming fallback, `buildResponseError` shapes |
+| `services/happiness-recipe/happinessRecipeStorage.ts` | Account-bound read-modify-write storage (rule 4) with remote queue | `__tests__/services/happiness-recipe/happinessRecipeStorage.test.ts`: serialized concurrent adds, habit dedupe, completedAt semantics, corrupt-payload fallback, account isolation, remote hydrate |
+
+### UX papercuts fixed (each verified + tested)
+
+1. **Launch landed on History instead of Today.** `app/index.tsx` redirected to
+   `/(tabs)/entries` although Today is the first tab and the daily home. Now
+   redirects to `/(tabs)/today`. Test: `__tests__/app/launchRedirect.test.ts`.
+2. **`InlineTypingInput` logged `[ITI]` debug `console.warn` on every web Enter/
+   submit** — leftover scaffolding removed. Test:
+   `__tests__/components/InlineTypingInput.test.tsx` (trim/clear/disabled/no-warn).
+3. **`useRef<null | any>` in login/signup** replaced with typed `TextInput` refs
+   (repo bans `any`; `AuthInput` forwards `TextInput` refs). Type-level change —
+   no behavioral test feasible, covered by `tsc`.
+
+### Gates
+`npx tsc --noEmit` ✅ · `npm run lint` 0 errors ✅ · `npm run check:design` ✅ ·
+full jest 246 suites / 1188 tests ✅ (19 existing skips, integration-gated).
+
+### Notes
+- Backend deps were missing in this sandbox (`express`/`cors` unresolved in lint
+  + root tsc); `cd backend && npm install` repaired it. Both `backend` tsconfig
+  and root tsc now green.
+- HSL round-trips are intentionally ±2 RGB channels (integer-percent rounding);
+  the pipeline is for partner derivation, not lossless color archiving.
+- Jest still prints its usual "did not exit" open-handle notice on full runs
+  (pre-existing, unrelated to these changes).
+
+---
+
+# PROGRESS — Optimization + Bug Hunt (2026-09-02)
+
 Solo-harness deep-work pass. Goal: ≥50% optimization, then 10–25 tested bug fixes
 (no security), all gates green, E2E via playwriter at the end.
 

@@ -11,7 +11,7 @@ import {
 } from '@/components/auth/AuthPrimitives';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function LoginScreen() {
@@ -22,7 +22,7 @@ export default function LoginScreen() {
     const [password, setPassword] = useState('');
     const [status, setStatus] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const passwordInputRef = React.useRef<null | any>(null);
+    const passwordInputRef = React.useRef<TextInput>(null);
 
     const isSignedIn = useMemo(() => Boolean(user?.email), [user?.email]);
 
