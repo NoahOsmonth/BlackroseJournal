@@ -1,0 +1,12 @@
+{
+  "blackrosejournal-harness-hermes": {
+    "command": "node",
+    "args": [
+      "C:\\Users\\sigmu\\Desktop\\.harness-stage\\blackrosejournal-harness-hermes\\bin\\cli.js",
+      "mcp",
+      "start"
+    ],
+    "enabled": false,
+    "_note": "Disabled: staged bin/cli.js has no 'mcp' subcommand (only init/doctor/--version/--help). See .harness/MCP-NOTE.md. Re-enable only after implementing 'mcp start'."
+  }
+}
