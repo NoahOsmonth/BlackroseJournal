@@ -64,11 +64,12 @@ async function loadRecipeItemsForAccount(
         if (json) {
             let state: HappinessRecipeState;
             try {
-                state = JSON.parse(json) as HappinessRecipeState;
+                const parsed = JSON.parse(json) as Partial<HappinessRecipeState> | null;
+                state = { items: Array.isArray(parsed?.items) ? parsed.items : [] };
             } catch {
                 state = { items: [] };
             }
-            const items = state.items || [];
+            const items = state.items;
             await seedRemoteItems(items, context);
             return items;
         }
