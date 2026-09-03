@@ -157,14 +157,22 @@ describe('happiness recipe storage', () => {
         expect(remote().queueRecipeItemDelete).toHaveBeenCalledWith(item.id);
     });
 
-    it('falls back to an empty list when the stored payload is corrupt', async () => {
+    it('falls back to an empty list for unparseable or structurally corrupt payloads', async () => {
         const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
-        mockValues.set(
-            getAccountScopedStorageKeyForAccount(STORAGE_KEY, 'user-a'),
-            '{not valid json'
-        );
+        const scopedKey = getAccountScopedStorageKeyForAccount(STORAGE_KEY, 'user-a');
+        const corruptPayloads = [
+            '{not valid json',
+            JSON.stringify({ items: {} }),
+            JSON.stringify({ items: 'nope' }),
+            JSON.stringify({ items: '' }),
+            JSON.stringify({ items: 7 }),
+            'null',
+        ];
 
-        await expect(loadRecipeItems()).resolves.toEqual([]);
+        for (const payload of corruptPayloads) {
+            mockValues.set(scopedKey, payload);
+            await expect(loadRecipeItems()).resolves.toEqual([]);
+        }
 
         consoleSpy.mockRestore();
     });

@@ -27,6 +27,18 @@
 `npx tsc --noEmit` ✅ · `npm run lint` 0 errors ✅ · `npm run check:design` ✅ ·
 full jest 246 suites / 1188 tests ✅ (19 existing skips, integration-gated).
 
+### Review-loop fixes (2026-09-03, PR #1 Sourcery review)
+- **`readStreamResponse` dropped an unterminated final frame.** A provider closing
+  the stream right after the last line (no trailing newline) left `[DONE]` /
+  usage / tail content stranded in the buffer; usage was lost and tail content
+  silently dropped. Now flushes the decoder and processes the leftover line at
+  EOF. Tests: unterminated `[DONE]`, unterminated usage frame, unterminated
+  content tail.
+- **Happiness-recipe loader trusted structurally corrupt payloads.** Valid JSON
+  with a non-array `items` (e.g. `{"items":""}`) leaked a non-array into
+  callers instead of falling back. Now validates `Array.isArray(items)`. Tests:
+  object/string/number/null-items payloads all resolve `[]`.
+
 ### Notes
 - Backend deps were missing in this sandbox (`express`/`cors` unresolved in lint
   + root tsc); `cd backend && npm install` repaired it. Both `backend` tsconfig

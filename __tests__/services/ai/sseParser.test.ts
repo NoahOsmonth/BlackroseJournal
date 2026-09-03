@@ -113,7 +113,8 @@ describe('readStreamResponse', () => {
         expect(cancel).toHaveBeenCalled();
     });
 
-    it('handles [DONE] left in the buffer at EOF without a trailing newline', async () => {
+    it('completes when [DONE] is the final line without a trailing newline', async () => {
+        // Provider closes the stream right after the final frame.
         const { body, cancel } = streamBody([
             'data: {"choices":[{"delta":{"content":"done-ish"}}]}\n',
             'data: [DONE]',
@@ -124,6 +125,33 @@ describe('readStreamResponse', () => {
 
         expect(onComplete).toHaveBeenCalledWith('done-ish', '');
         expect(cancel).toHaveBeenCalled();
+    });
+
+    it('preserves content and usage from a final unterminated line', async () => {
+        const { body } = streamBody([
+            'data: {"choices":[{"delta":{"content":"hi"}}]}\n',
+            'data: {"usage":{"prompt_tokens":3,"total_tokens":9},"choices":[]}',
+        ]);
+        const onComplete = jest.fn();
+        const onUsage = jest.fn();
+
+        const usage = await readStreamResponse(body, jest.fn(), onComplete, onUsage);
+
+        expect(onComplete).toHaveBeenCalledWith('hi', '');
+        expect(usage).toEqual({ prompt_tokens: 3, total_tokens: 9 });
+        expect(onUsage).toHaveBeenCalledWith({ prompt_tokens: 3, total_tokens: 9 });
+    });
+
+    it('appends content from a final line that has no trailing newline', async () => {
+        const { body } = streamBody([
+            'data: {"choices":[{"delta":{"content":"Hello"}}]}\n',
+            'data: {"choices":[{"delta":{"content":" world"}}]}',
+        ]);
+        const onComplete = jest.fn();
+
+        await readStreamResponse(body, jest.fn(), onComplete);
+
+        expect(onComplete).toHaveBeenCalledWith('Hello world', '');
     });
 
     it('reports usage through the usage callback and returns it', async () => {

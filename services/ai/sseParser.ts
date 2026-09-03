@@ -147,24 +147,35 @@ export async function readStreamResponse(
     const accumulator: ChatAccumulator = { content: '', reasoning: '', usage: null };
     let buffer = '';
 
+    const finish = (): ChatUsage | null => {
+        const usage = accumulator.usage ?? null;
+        onUsage?.(usage);
+        return usage;
+    };
+
     try {
         while (true) {
             const { done, value } = await reader.read();
-            if (done) break;
             buffer = decodeStreamChunk(decoder, value, buffer);
             const { lines, remainder } = splitStreamBuffer(buffer);
             buffer = remainder;
             if (processStreamLines(lines, accumulator, onChunk, onComplete)) {
-                const usage = accumulator.usage ?? null;
-                onUsage?.(usage);
-                return usage;
+                return finish();
+            }
+            if (done) break;
+        }
+        // Providers may close the stream right after the final frame without a
+        // trailing newline; flush the decoder and process the leftover line so
+        // a trailing [DONE] or usage frame is not silently dropped.
+        if (buffer) {
+            const flushed = buffer + decoder.decode();
+            if (processStreamLines(flushed.split('\n'), accumulator, onChunk, onComplete)) {
+                return finish();
             }
         }
         assertFinalContent(accumulator);
         onComplete(accumulator.content, accumulator.reasoning);
-        const usage = accumulator.usage ?? null;
-        onUsage?.(usage);
-        return usage;
+        return finish();
     } finally {
         // Normal SSE completion returns before EOF. Cancel the body so transport
         // leases tied to the stream are released deterministically.
