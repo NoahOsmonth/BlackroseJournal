@@ -163,8 +163,10 @@ export function parseTextToolCalls(content: string, idPrefix = 'text_call'): Tex
 
     // 1) XML / tag forms: <tool_call name="get_day">{"date":"yesterday"}</tool_call>
     //    also <function=get_day>...</function>, <tool>get_day\n{}</tool>
+    //    dots-3 free model: <dots_function_call>…</dots_function_call> with
+    //    inner <parameter name="query">…</parameter> arg tags.
     const xmlRe = new RegExp(
-        `<(?:tool_call|function_call|invoke|tool_request|tool|function)\\b([^>]*)>([\\s\\S]*?)</(?:tool_call|function_call|invoke|tool_request|tool|function)>`,
+        `<(?:dots_function_call|tool_call|function_call|invoke|tool_request|tool|function)\\b([^>]*)>([\\s\\S]*?)</(?:dots_function_call|tool_call|function_call|invoke|tool_request|tool|function)>`,
         'gi'
     );
     cleaned = cleaned.replace(xmlRe, (full, attrs: string, body: string) => {
@@ -173,8 +175,10 @@ export function parseTextToolCalls(content: string, idPrefix = 'text_call'): Tex
             ?? '';
         const bodyTrim = body.trim();
         const bodyNameMatch = new RegExp(`^(${TOOL_NAME_RE})\\b`, 'i').exec(bodyTrim);
-        const name = attrName || bodyNameMatch?.[1] || '';
-        if (!name || !TOOL_NAMES.includes(name)) return full;
+        // dots-3 shape: <function=search_history> marker line inside the tag.
+        const innerFnName = /<function\s*=\s*["']?([a-zA-Z_][\w]*)["']?\s*\/?>/i.exec(bodyTrim)?.[1] ?? '';
+        const name = attrName || bodyNameMatch?.[1] || innerFnName || '';
+        if (name && !TOOL_NAMES.includes(name)) return full;
 
         let args = '{}';
         const jsonStart = bodyTrim.indexOf('{');
@@ -184,6 +188,46 @@ export function parseTextToolCalls(content: string, idPrefix = 'text_call'): Tex
         } else if (bodyNameMatch) {
             const after = bodyTrim.slice(bodyNameMatch[0].length).trim();
             if (after) args = parseKwargStyleArgs(after);
+        } else {
+            // <parameter name="x">v</parameter> blocks (dots-3 shape)
+            const params: Record<string, unknown> = {};
+            const paramRe = /<parameter\s+name\s*=\s*["']?([a-zA-Z_][\w]*)["']?\s*>([\s\S]*?)<\/parameter>/gi;
+            let pm: RegExpExecArray | null;
+            while ((pm = paramRe.exec(bodyTrim)) !== null) {
+                const key = pm[1];
+                const raw = pm[2].trim();
+                params[key] = /^\d+$/.test(raw) ? Number(raw) : raw;
+            }
+            if (Object.keys(params).length > 0) args = JSON.stringify(params);
+        }
+        // dots-3 dumps may omit the tool name entirely — infer it from the
+        // parameter keys (id/titleQuery→get_conversation, date→get_day,
+        // days/from/to→list_recent_days, title→create_goal, query→search_history).
+        if (!name) {
+            let paramKeys: string[] = [];
+            try {
+                paramKeys = Object.keys(JSON.parse(args) as Record<string, unknown>);
+            } catch {
+                return full;
+            }
+            const has = (...keys: string[]) => keys.some((k) => paramKeys.includes(k));
+            const inferred = has('kind', 'id', 'titleQuery')
+                ? 'get_conversation'
+                : has('date')
+                    ? 'get_day'
+                    : has('days', 'order', 'from', 'to')
+                        ? 'list_recent_days'
+                        : has('title', 'type', 'dateKey')
+                            ? 'create_goal'
+                            : has('preferredName', 'pronouns', 'about', 'keyPeople', 'facts')
+                                ? 'update_identity'
+                                : has('query')
+                                    ? 'search_history'
+                                    : '';
+            if (!inferred) return full;
+            pushUnique(toolCalls, seen, inferred, args, idPrefix, matchIndex);
+            matchIndex += 1;
+            return '\n';
         }
         pushUnique(toolCalls, seen, name, args, idPrefix, matchIndex);
         matchIndex += 1;
@@ -307,8 +351,9 @@ export function parseTextToolCalls(content: string, idPrefix = 'text_call'): Tex
     // Strip common leftover scaffolding lines
     cleaned = cleaned
         .replace(/```[\w]*\s*```/g, '\n')
-        .replace(/^\s*(?:tool_call|function_call|tool_request|invoke|arguments?)\s*:?\s*$/gim, '\n')
-        .replace(/<\/?(?:tool_call|function_call|invoke|tool_request|tool|function)[^>]*>/gi, '\n')
+        .replace(/^\s*(?:dots_function_call|tool_call|function_call|tool_request|invoke|arguments?)\s*:?\s*$/gim, '\n')
+        .replace(/<\/?(?:dots_function_call|tool_call|function_call|invoke|tool_request|tool|function)[^>]*>/gi, '\n')
+        .replace(/<\/?parameter[^>]*>/gi, '\n')
         .replace(/\n{3,}/g, '\n\n')
         .trim();
 
@@ -334,12 +379,14 @@ export function looksLikeToolDump(content: string): boolean {
         'tool_call',
         'function_call',
         'tool_request',
+        'dots_function_call',
         'invoke',
         'arguments',
         'parameters',
         '```',
         '<tool',
         '<function',
+        '<parameter',
         'call tool',
         'run tool',
     ];

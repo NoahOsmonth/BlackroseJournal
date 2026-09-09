@@ -1,5 +1,52 @@
 # PROGRESS — Optimization + Bug Hunt (2026-09-02)
 
+## 2026-09-09 — Tool-calling accuracy: 3-turn live probe + dots-3 dump parser fix
+
+### Outcome
+
+Built and ran a real 3-turn live conversation probe
+(`__tests__/integration/toolCallingMultiTurnLive.test.ts`,
+`RUN_INTEGRATION_TESTS=1` gate) against the OmniRoute gateway
+(`cl/dots-studio/dots-3-note-preview:free`) exercising the REAL agent loop,
+tool schema/validate/execute pipeline, and seeded on-device digests + journal
+storage. Only stub: `hindsightRecall` at the module boundary (external local
+Docker), with a seeded needle to verify recall delivery.
+
+**Live result (1 passing run, 41s):** all 3 turns called the right tools with
+the right args and grounded their replies:
+
+- Turn 1 ("what did I talk about yesterday?") → `get_clock` → `get_day
+  ({"date":"yesterday"})` → `get_conversation(id from digest)`; reply echoed
+  seeded themes (sleep/deck/boss) without inventing a date.
+- Turn 2 ("exact words about my boss?") → `get_day` → `get_conversation` with
+  the seeded entry id; reply quoted the journal verbatim.
+- Turn 3 ("remember when I first started journaling?") → `recall_memory
+  ({"query":…,"limit":10})`; needle (teapot/Lisbon) reached the reply. The
+  loop's duplicate-call guard also fired correctly on a repeated call.
+
+### Fixed (real bug found by the probe)
+
+dots-3 emits tool calls as `<dots_function_call><parameter name="x">v
+</parameter></dots_function_call>` **text dumps** — unknown to the parser, so
+raw pseudo-code leaked into the user-visible reply (observed live). Fix in
+`services/ai/tools/parseTextToolCalls.ts`: `dots_function_call` added to the
+XML tag regex + scaffolding strip + `looksLikeToolDump` markers; inner
+`<parameter>` blocks parsed to args; tool-name inference from parameter keys
+when the dump omits the name (query→search_history, date→get_day, id/kind→
+get_conversation, title→create_goal, etc.).
+
+### Tests
+
+- `__tests__/services/ai/parseTextToolCalls.test.ts`: +2 cases (dots-tag parse
+  with parameter blocks; strip guard for mixed prose). 13/13 pass.
+- `__tests__/integration/toolCallingMultiTurnLive.test.ts`: new 3-turn live
+  probe (skipped unless `RUN_INTEGRATION_TESTS=1`). 1/1 pass live.
+
+### Gates
+
+- `npx tsc --noEmit` clean; `npx eslint` clean on touched files; parse +
+  agent-loop unit suites 33/33 pass.
+
 ## 2026-09-09 — Finish Entry: local save + immediate reflection navigation, background side effects
 
 ### Outcome

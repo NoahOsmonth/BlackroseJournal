@@ -42,6 +42,33 @@ describe('parseTextToolCalls', () => {
         expect(JSON.parse(result.toolCalls[0].arguments)).toEqual({ days: 5 });
     });
 
+    it('parses dots_function_call tags with parameter blocks (dots-3 dump shape)', () => {
+        const raw = [
+            '<dots_function_call>',
+            '<parameter name="query">boss</parameter>',
+            '</dots_function_call>',
+        ].join('\n');
+        const result = parseTextToolCalls(raw);
+        expect(result.toolCalls).toHaveLength(1);
+        expect(result.toolCalls[0].name).toBe('search_history');
+        expect(JSON.parse(result.toolCalls[0].arguments)).toEqual({ query: 'boss' });
+        expect(result.cleanedContent).toBe('');
+        expect(result.lookedLikeToolDump).toBe(true);
+    });
+
+    it('strips dots_function_call scaffolding from mixed prose (UI leak guard)', () => {
+        const raw = [
+            '<dots_function_call>',
+            '<parameter name="query">boss</parameter>',
+            '</dots_function_call>',
+            '',
+            'I looked on your device and could not find more.',
+        ].join('\n');
+        const stripped = stripToolCallSyntax(raw);
+        expect(stripped).not.toMatch(/dots_function_call|parameter/);
+        expect(stripped).toContain('could not find more');
+    });
+
     it('parses invoke phrasing', () => {
         const raw = 'call tool get_conversation with {"kind":"journal_entry","id":"abc"}';
         const result = parseTextToolCalls(raw);
