@@ -3,6 +3,7 @@ import React, { useCallback } from 'react';
 import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { FinishBackgroundBanner } from '@/components/entries/FinishBackgroundBanner';
 import { BottomNav } from '@/components/journal';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingStatus } from '@/components/ui/LoadingStatus';
@@ -61,6 +62,7 @@ export function MemoryGraphScreen({
                     onBack={onBack}
                 />
                 <MemoryGraphFilters activeLayers={graph.activeLayers} onToggle={graph.toggleLayer} />
+                <FinishBackgroundBanner />
             </View>
 
             <View

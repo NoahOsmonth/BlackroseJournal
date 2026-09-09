@@ -54,7 +54,7 @@ function getNanoEnv(): NanoEnv {
         apiBaseUrl: (
             process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL
             ?? fileEnv.EXPO_PUBLIC_NANO_GPT_API_BASE_URL
-            ?? 'https://nano-gpt.com/api/v1'
+            ?? 'http://100.107.7.52:20128/v1'
         ).replace(/\/+$/, ''),
         model: process.env.EXPO_PUBLIC_NANO_GPT_MODEL
             ?? fileEnv.EXPO_PUBLIC_NANO_GPT_MODEL

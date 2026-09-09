@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Finish in background — preview</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; background: #EEF1F8; color: #111827; display: flex; gap: 24px; justify-content: center; padding: 32px 16px; flex-wrap: wrap; }
+  body.dark { background: #06080F; color: #F9FAFB; }
+  .phone { width: 340px; border-radius: 28px; overflow: hidden; background: #FFFFFF; border: 1px solid #E5E7EB; box-shadow: 0 12px 32px rgba(0,0,0,.12); }
+  body.dark .phone { background: #0B0F1A; border-color: #1F2937; }
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 16px; }
+  .header b { font-size: 16px; }
+  .status { display: flex; align-items: center; gap: 8px; margin: 0 16px 12px; padding: 10px 12px; border-radius: 12px; font-size: 13px; background: #EEF1F8; color: #374151; }
+  body.dark .status { background: #131A2A; color: #D1D5DB; }
+  .status.done { background: #E7F6EC; color: #166534; }
+  body.dark .status.done { background: #0E2A1A; color: #86EFAC; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #EAB308; animation: pulse 1.2s infinite; flex-shrink: 0; }
+  .status.done .dot { background: #16A34A; animation: none; }
+  @keyframes pulse { 50% { opacity: .3; } }
+  .body { padding: 0 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+  .card { border-radius: 14px; padding: 14px; background: #F8FAFC; border: 1px solid #E5E7EB; }
+  body.dark .card { background: #101624; border-color: #1F2937; }
+  .card h3 { font-size: 14px; margin-bottom: 6px; }
+  .card p { font-size: 13px; opacity: .75; line-height: 1.5; }
+  .skeleton { border-radius: 8px; height: 12px; background: #E5E7EB; }
+  body.dark .skeleton { background: #1F2937; }
+  .toggle { position: fixed; top: 16px; right: 16px; padding: 8px 14px; border-radius: 999px; border: 1px solid #ccc; background: #fff; cursor: pointer; font-size: 13px; }
+  .label { width: 100%; text-align: center; font-size: 13px; opacity: .6; }
+</style>
+</head>
+<body>
+<button class="toggle" onclick="document.body.classList.toggle('dark')">Toggle dark</button>
+<div class="label">Temporary preview — open this file in a browser. Click Toggle dark to check both modes.</div>
+
+<!-- Screen 1: reflection right after Finish -->
+<div class="phone">
+  <div class="header"><span>←</span><b>Entry Reflection</b><span></span></div>
+  <div class="status"><span class="dot"></span><span>Updating memories… analysis and digests running</span></div>
+  <div class="body">
+    <div class="card"><h3>Your entry is saved</h3><p>You can leave this screen. Everything below fills in by itself.</p></div>
+    <div class="card"><h3>Insights</h3><div class="skeleton" style="width:90%"></div><div style="height:8px"></div><div class="skeleton" style="width:70%"></div></div>
+  </div>
+</div>
+
+<!-- Screen 2: same entry when background finishes -->
+<div class="phone">
+  <div class="header"><span>←</span><b>Entry Reflection</b><span></span></div>
+  <div class="status done"><span class="dot"></span><span>Memories updated just now</span></div>
+  <div class="body">
+    <div class="card"><h3>Your entry is saved</h3><p>Analysis, day digest and session digest are done.</p></div>
+    <div class="card"><h3>Insights</h3><p>Main theme: overload at work. Small win: evening walk helped.</p></div>
+  </div>
+</div>
+
+<!-- Screen 3: memory screen while background still running -->
+<div class="phone">
+  <div class="header"><span>←</span><b>Memories</b><span></span></div>
+  <div class="status"><span class="dot"></span><span>Updating from your latest entry… list refreshes when done</span></div>
+  <div class="body">
+    <div class="card"><h3>Recent atoms</h3><p>Showing saved items. New ones appear automatically.</p></div>
+    <div class="card"><h3>Day digest</h3><p>Yesterday's summary stays until today's digest lands.</p></div>
+  </div>
+</div>
+
+</body>
+</html>

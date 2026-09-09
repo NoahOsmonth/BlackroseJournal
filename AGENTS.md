@@ -137,7 +137,7 @@ Every change updates or adds tests. If a test isn't feasible, document why in `P
 | Session compact | Older turns → rolling summary when ctx fills | `conversationCompact.ts` inside `streamChat` / `completeChat` |
 | Long-term recollections | Hindsight container (local-first) | `services/memory/hindsight/` — retain on finish, recall block + `recall_memory` tool |
 
-Long-term memory is **Hindsight** (vectorize-io, local Docker): every completed journal entry / check-in fires a fire-and-forget retain (`retainJournalEntryToHindsight` / `retainCheckInToHindsight`); recall surfaces as the always-on `## Relevant long-term context` block (via `useHindsightRecallContext` → `ChatFlowContext.retrievedHistoryContext`) and on-demand via the `recall_memory` agent tool. Everything is **soft-fail**: Hindsight down → chat, finish path, and navigation are unaffected. Gemini (`gemini-embedding-001`, 768-dim) is **embeddings-only — never an LLM**; all LLM work goes to OpenRouter (`dots-studio/dots-3-note-preview:free` default). The abandoned custom cloud-memory platform (`LOCAL → MIRROR → SHADOW → CLOUD`) was removed 2026-08-18 — never resurrect it or its storage keys (`@rosebud_cloud_memory_mirror_outbox`, `@rosebud_memory_dataset_binding`).
+Long-term memory is **Hindsight** (vectorize-io, local Docker): every completed journal entry / check-in fires a fire-and-forget retain (`retainJournalEntryToHindsight` / `retainCheckInToHindsight`); **recall is tool-driven** — the AI calls `recall_memory` on demand (curiosity nudge in `HISTORY_TOOLS_POLICY`); the send path never awaits Hindsight and no reactive recall block is injected into prompts (`ChatFlowContext.retrievedHistoryContext` stays as the flow slot the tool fills mid-reply). Everything is **soft-fail**: Hindsight down → chat, finish path, and navigation are unaffected. Gemini (`gemini-embedding-001`, 768-dim) is **embeddings-only — never an LLM**; all LLM work goes to the local OmniRoute gateway (`cl/dots-studio/dots-3-note-preview:free` default). The abandoned custom cloud-memory platform (`LOCAL → MIRROR → SHADOW → CLOUD`) was removed 2026-08-18 — never resurrect it or its storage keys (`@rosebud_cloud_memory_mirror_outbox`, `@rosebud_memory_dataset_binding`). OpenRouter was removed 2026-09-10 — OmniRoute (`http://100.107.7.52:20128/v1`, data-plane key) is the only chat gateway; do not re-add openrouter.ai defaults.
 
 Guard: `__tests__/backend-local-only.test.ts` (cloud-memory removal boundary + credential isolation).
 
@@ -187,7 +187,7 @@ Registry: `services/ai/tools/*`. Agent loop: `services/ai/agentLoop.ts`. Wired f
 | `@rosebud_memory_rollup_index` + `@rosebud_memory_rollup:<kind>:<periodKey>` (week/month/year rollups + embeddings) | `services/memory/memoryRollupStorage.ts` |
 | `@rosebud_memory_rollup_attempts` (last LLM attempt per period — offline backoff) | `services/memory/memoryRollupBuild.ts` |
 | `@blackrose_local_backup_session_digest:<backupId>:<sessionId>` (backup bodies only; meta in `@blackrose_local_backups`) | `services/backup/localBackup.ts` |
-| `@blackrose_custom_ai_provider` (OpenRouter/custom provider, freeOnly, recentModelIds, selected model) | `services/ai/customModels.ts` |
+| `@blackrose_custom_ai_provider` (OmniRoute/custom provider, freeOnly, recentModelIds, selected model) | `services/ai/customModels.ts` |
 | `@blackrose_generation_settings` | `services/ai/generationSettings.ts` |
 | `@blackrose_model_context_cache` | `services/ai/modelContext.ts` |
 | chat autosave sessions | `services/ai/sessionStorage.ts` |
@@ -243,7 +243,7 @@ npm test -- --watch / --verbose
 # Unit: history / prompt / tools / compact
 npx jest --runInBand __tests__/utils/date.test.ts __tests__/services/dayDigestStorage.test.ts __tests__/services/ai/historyTools.test.ts __tests__/services/ai/agentLoop.test.ts __tests__/services/ai/conversationCompact.test.ts __tests__/constants/rosebudCompanionPrompt.test.ts __tests__/features/chatFlows.test.ts
 
-# Live AI (real OpenRouter key in gitignored .env) — PowerShell:
+# Live AI (real OmniRoute data-plane key in gitignored .env) — PowerShell:
 #   $env:RUN_INTEGRATION_TESTS='1'
 #   npx jest --runInBand __tests__/integration/rosebudHistoryLive.test.ts --forceExit
 # Also: __tests__/integration/nanoGptRealKey.test.ts
@@ -263,12 +263,12 @@ cd backend && npm test
 
 Project root `.env` (gitignored):
 ```
-EXPO_PUBLIC_NANO_GPT_API_KEY=...          # OpenRouter or OpenAI-compat key
-EXPO_PUBLIC_NANO_GPT_API_BASE_URL=https://openrouter.ai/api/v1
+EXPO_PUBLIC_NANO_GPT_API_KEY=...          # OmniRoute data-plane key
+EXPO_PUBLIC_NANO_GPT_API_BASE_URL=http://100.107.7.52:20128/v1
 EXPO_PUBLIC_NANO_GPT_MODEL=cl/dots-studio/dots-3-note-preview:free
 EXPO_PUBLIC_NANO_GPT_FLASH_MODEL=cl/dots-studio/dots-3-note-preview:free
 ```
-Names are legacy (`NANO_GPT_*`); OpenRouter free is the recommended default. Prefer free models with **≥32k** context when using the long freeform prompt.
+Names are legacy (`NANO_GPT_*`); the local OmniRoute gateway is the only supported provider (OpenRouter removed 2026-09-10). Prefer free models with **≥32k** context when using the long freeform prompt.
 
 ### Backend (optional local agent) — `backend/.env`
 
@@ -351,6 +351,7 @@ Key files:
 
 This file grows from real incidents only. When an agent does something wrong, add the one line that stops it recurring; when a rule stops preventing real bugs, delete it. Prefer replacing a rule with a guard test or CI check — the best rule is an automated one.
 
+- Blocking send on Hindsight recall made chat feel slow and free models rarely lacked auto-context → tool-only long-term recall (`recall_memory`), no per-turn/open-time hook; if recall rate regresses, strengthen the `HISTORY_TOOLS_POLICY` curiosity nudge, do not re-add a blocking path.
 - Shipped broken Goals spacing → ban `space-*` (rule 2).
 - Dark mode invisible text → every `Text` needs `dark:` (rule 1).
 - Light mode stuck-black chrome (BottomNav, Open the map, memory graph canvas) → both schemes on surfaces + WebView `SET_THEME` (rule 1).

@@ -57,8 +57,8 @@ describe('customModels service', () => {
     it('normalizes provider roots to OpenAI-compatible v1 bases', () => {
         expect(normalizeOpenAiBaseUrl('https://api.example.com'))
             .toBe('https://api.example.com/v1');
-        expect(normalizeOpenAiBaseUrl('https://openrouter.ai'))
-            .toBe('https://openrouter.ai/api/v1');
+        expect(normalizeOpenAiBaseUrl('http://100.107.7.52:20128'))
+            .toBe('http://100.107.7.52:20128/v1');
     });
 
     it('defaults freeOnly off and the OmniRoute gateway base', () => {
@@ -104,15 +104,15 @@ describe('customModels service', () => {
         }), { status: 200 }));
 
         const result = await fetchOpenAiCompatibleModels({
-            baseUrl: 'https://openrouter.ai',
-            apiKey: 'sk-or-test',
+            baseUrl: 'http://100.107.7.52:20128',
+            apiKey: 'omni-test',
         });
 
         expect(fetchMock).toHaveBeenCalledWith(
-            'https://openrouter.ai/api/v1/models',
+            'http://100.107.7.52:20128/v1/models',
             expect.objectContaining({
                 method: 'GET',
-                headers: expect.objectContaining({ Authorization: 'Bearer sk-or-test' }),
+                headers: expect.objectContaining({ Authorization: 'Bearer omni-test' }),
             })
         );
         expect(result.models).toHaveLength(2);
@@ -129,8 +129,8 @@ describe('customModels service', () => {
         }), { status: 200 }));
 
         const result = await fetchOpenAiCompatibleModels({
-            baseUrl: 'https://openrouter.ai',
-            apiKey: 'sk-or-test',
+            baseUrl: 'http://100.107.7.52:20128/v1',
+            apiKey: 'omni-test',
             freeOnly: true,
         });
         expect(result.models).toHaveLength(1);
@@ -146,8 +146,8 @@ describe('customModels service', () => {
         }), { status: 200 }));
 
         const result = await fetchOpenAiCompatibleModels({
-            baseUrl: 'https://openrouter.ai/api/v1',
-            apiKey: 'sk-or-test',
+            baseUrl: 'http://100.107.7.52:20128/v1',
+            apiKey: 'omni-test',
             freeOnly: false,
         });
         expect(result.models).toHaveLength(2);
@@ -218,8 +218,8 @@ describe('customModels service', () => {
             ...getDefaultCustomAiProviderSettings(),
             enabled: true,
             freeOnly: true,
-            baseUrl: 'https://openrouter.ai/api/v1',
-            apiKey: 'sk-or-test',
+            baseUrl: 'http://100.107.7.52:20128/v1',
+            apiKey: 'omni-test',
             selectedModelId: 'tencent/hy3:free',
             models: [{
                 id: 'tencent/hy3:free',
@@ -229,8 +229,8 @@ describe('customModels service', () => {
         });
 
         await expect(getActiveCustomModelConfig()).resolves.toEqual({
-            apiBaseUrl: 'https://openrouter.ai/api/v1',
-            apiKey: 'sk-or-test',
+            apiBaseUrl: 'http://100.107.7.52:20128/v1',
+            apiKey: 'omni-test',
             model: 'tencent/hy3:free',
             flashModel: 'tencent/hy3:free',
             contextWindow: 262000,

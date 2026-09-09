@@ -20,6 +20,7 @@ import {
     sanitizeGenerationSettings,
 } from './generationSettings';
 import { fetchAiChatCompletion } from './aiTransport';
+import { latestUserText, selectToolShortlist } from './agenticGate';
 import { HISTORY_TOOL_DEFINITIONS, executeToolCalls, toOpenAiToolSpecs } from './tools';
 import {
     formatToolResultsForModel,
@@ -39,7 +40,11 @@ import {
 } from './tools/validateToolCalls';
 import type { AgentMessage, ToolCall, ToolResult } from './tools/types';
 import type { Message } from './chatTypes';
+import type { ToolDefinition } from './tools/types';
 import { estimateTokensFromChars, extractUsageFromCompletion } from './promptBudget';
+
+/** Per-turn sequence for idempotency run ids (module-local; resets on reload). */
+let agentTurnSeq = 0;
 
 /**
  * Max non-streaming tool rounds per agent turn. 6 rounds so multi-step
@@ -146,6 +151,23 @@ interface AgentLoopOptions {
     turnTokenBudget?: number;
     /** Override whole-turn wall-clock deadline (tests). Defaults to AGENT_TURN_TIMEOUT_MS. */
     turnTimeoutMs?: number;
+}
+
+/**
+ * Record dedupe keys only for calls that actually executed. REFUSED calls
+ * never ran, so a later re-request of the same call stays eligible.
+ */
+function markExecutedKeys(
+    toolCalls: readonly { id: string; name: string; arguments: string }[],
+    results: readonly ToolResult[]
+): Set<string> {
+    const keys = new Set<string>();
+    toolCalls.forEach((call, index) => {
+        if (!results[index]?.refused) {
+            keys.add(toolCallDedupeKey(call));
+        }
+    });
+    return keys;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -308,7 +330,8 @@ function agentRoundMaxTokens(settings: GenerationSettings): number {
 /** Estimate prompt tokens for a round when the provider omits usage (chars/4). */
 export function estimateAgentRoundPromptTokens(
     agentMessages: readonly AgentMessage[],
-    sendTools: boolean
+    sendTools: boolean,
+    toolDefs: readonly ToolDefinition[] = HISTORY_TOOL_DEFINITIONS
 ): number {
     let chars = 0;
     try {
@@ -318,7 +341,7 @@ export function estimateAgentRoundPromptTokens(
     }
     if (sendTools) {
         try {
-            chars += JSON.stringify(toOpenAiToolSpecs(HISTORY_TOOL_DEFINITIONS)).length;
+            chars += JSON.stringify(toOpenAiToolSpecs(toolDefs)).length;
         } catch {
             chars += 3_600; // ~tools-schema framing ballpark
         }
@@ -329,14 +352,15 @@ export function estimateAgentRoundPromptTokens(
 function accountRoundTokens(
     data: unknown,
     agentMessages: readonly AgentMessage[],
-    sendTools: boolean
+    sendTools: boolean,
+    toolDefs: readonly ToolDefinition[] = HISTORY_TOOL_DEFINITIONS
 ): { tokens: number; source: AgentTokenSource } {
     const usage = extractUsageFromCompletion(data);
     if (usage && typeof usage.prompt_tokens === 'number' && Number.isFinite(usage.prompt_tokens)) {
         return { tokens: usage.prompt_tokens, source: 'real' };
     }
     return {
-        tokens: estimateAgentRoundPromptTokens(agentMessages, sendTools),
+        tokens: estimateAgentRoundPromptTokens(agentMessages, sendTools, toolDefs),
         source: 'est',
     };
 }
@@ -359,7 +383,8 @@ async function completeWithTools(
     agentMessages: AgentMessage[],
     settings: GenerationSettings,
     model: string,
-    sendTools: boolean
+    sendTools: boolean,
+    toolDefs: readonly ToolDefinition[] = HISTORY_TOOL_DEFINITIONS
 ): Promise<unknown> {
     const response = await fetchAiChatCompletion({
         model,
@@ -370,7 +395,7 @@ async function completeWithTools(
         max_tokens: agentRoundMaxTokens(settings),
         ...(sendTools
             ? {
-                tools: toOpenAiToolSpecs(HISTORY_TOOL_DEFINITIONS),
+                tools: toOpenAiToolSpecs(toolDefs),
                 tool_choice: 'auto' as const,
             }
             : {}),
@@ -535,6 +560,19 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
 
     const agentMessages = buildAgentMessages(options.systemPrompt, options.messages);
     const executedKeys = new Set<string>();
+    // Idempotency scope for this turn: identical calls share one execution.
+    const runId = `agent_${Date.now().toString(36)}_${(agentTurnSeq += 1)}`;
+    // Per-turn shortlist: send only the specs this turn plausibly needs.
+    const shortlist = selectToolShortlist(latestUserText(options.messages));
+    const shortlisted = HISTORY_TOOL_DEFINITIONS.filter((def) =>
+        shortlist.names.includes(def.name)
+    );
+    const activeToolDefs = shortlisted.length > 0 ? shortlisted : HISTORY_TOOL_DEFINITIONS;
+    logToolTelemetry('agent_tool_shortlist', {
+        model,
+        branch: shortlist.branch,
+        specs: activeToolDefs.length,
+    });
 
     let usedTools = false;
     let rounds = 0;
@@ -546,6 +584,9 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
     let lastUsage: AgentLoopResult['usage'] = null;
     let cumulativePromptTokens = 0;
     let stopReason: NonNullable<AgentLoopResult['stopReason']> = 'complete';
+    // Structured|text|mixed ratio for this turn (text-dump demotion tuning).
+    let structuredCallCount = 0;
+    let textCallCount = 0;
     // One-shot thin-result retry nudge: at most one per turn; the round cap bounds the rest.
     let retryNudged = false;
 
@@ -577,13 +618,13 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
         const roundStart = Date.now();
         let data: unknown;
         try {
-            data = await completeWithTools(agentMessages, settings, model, sendTools);
+            data = await completeWithTools(agentMessages, settings, model, sendTools, activeToolDefs);
         } catch (error) {
             if (error instanceof ToolsUnsupportedError && sendTools) {
                 // Provider rejected tools mid-session — fall back to text-only completion once.
                 sendTools = false;
                 markToolsUnsupported(model);
-                data = await completeWithTools(agentMessages, settings, model, false);
+                data = await completeWithTools(agentMessages, settings, model, false, activeToolDefs);
             } else {
                 throw error;
             }
@@ -591,7 +632,7 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
 
         lastUsage = extractUsageFromCompletion(data) ?? lastUsage;
 
-        const accounted = accountRoundTokens(data, agentMessages, sendTools);
+        const accounted = accountRoundTokens(data, agentMessages, sendTools, activeToolDefs);
         cumulativePromptTokens += accounted.tokens;
         logRoundTokenBudget({
             round: rounds,
@@ -688,6 +729,8 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
                 rounds,
                 usedTools,
                 toolCallSource,
+                structuredCalls: structuredCallCount,
+                textCalls: textCallCount,
                 toolsRepaired,
                 toolsSkippedInvalid,
                 toolsSkippedDuplicate,
@@ -719,10 +762,8 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
             toolCallSource,
             toolCalls.map((c) => c.origin)
         );
-
-        for (const call of toolCalls) {
-            executedKeys.add(toolCallDedupeKey(call));
-        }
+        structuredCallCount += toolCalls.filter((c) => c.origin === 'structured').length;
+        textCallCount += toolCalls.filter((c) => c.origin === 'text').length;
 
         const useTextProtocol =
             capability.preferTextResultProtocol
@@ -734,7 +775,10 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
                 content: cleanedAssistant,
             });
             const batchStart = Date.now();
-            const results = await executeToolCalls(toolCalls);
+            const results = await executeToolCalls(toolCalls, { runId });
+            for (const key of markExecutedKeys(toolCalls, results)) {
+                executedKeys.add(key);
+            }
             toolBatchMs.push(Date.now() - batchStart);
             toolsExecuted += results.length;
             agentMessages.push({
@@ -756,7 +800,10 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
                 })),
             });
             const batchStart = Date.now();
-            const results = await executeToolCalls(toolCalls);
+            const results = await executeToolCalls(toolCalls, { runId });
+            for (const key of markExecutedKeys(toolCalls, results)) {
+                executedKeys.add(key);
+            }
             toolBatchMs.push(Date.now() - batchStart);
             toolsExecuted += results.length;
             for (const result of results) {
@@ -801,6 +848,8 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
         mode: capability.mode,
         rounds,
         toolCallSource,
+        structuredCalls: structuredCallCount,
+        textCalls: textCallCount,
         toolsRepaired,
         stopReason,
         roundMs: roundMs[roundMs.length - 1],

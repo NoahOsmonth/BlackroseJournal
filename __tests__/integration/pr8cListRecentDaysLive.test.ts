@@ -88,7 +88,7 @@ function applyLiveEnv(): { model: string; apiBaseUrl: string } {
     const apiBaseUrl = (
         process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL
         ?? fileEnv.EXPO_PUBLIC_NANO_GPT_API_BASE_URL
-        ?? 'https://openrouter.ai/api/v1'
+        ?? 'http://100.107.7.52:20128/v1'
     ).replace(/\/+$/, '');
     const model =
         process.env.EXPO_PUBLIC_NANO_GPT_MODEL

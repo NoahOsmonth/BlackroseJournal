@@ -58,6 +58,17 @@ module.exports = {
                 'divider-dark': '#2C2C2E',
                 // Secondary surface (history drafts badge, etc.)
                 'secondary-dark': '#1C1C1E',
+                // Finish-background status banner (running / done)
+                'status-running-bg-light': '#EEF1F8',
+                'status-running-bg-dark': '#131A2A',
+                'status-running-text-light': '#374151',
+                'status-running-text-dark': '#D1D5DB',
+                'status-running-dot': '#EAB308',
+                'status-done-bg-light': '#E7F6EC',
+                'status-done-bg-dark': '#0E2A1A',
+                'status-done-text-light': '#166534',
+                'status-done-text-dark': '#86EFAC',
+                'status-done-dot': '#16A34A',
             },
             boxShadow: {
                 'soft': '0 2px 8px rgba(0, 0, 0, 0.04)',

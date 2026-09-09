@@ -1,5 +1,5 @@
 /**
- * Live integration: real OpenRouter/model + Rosebud prompt + day digests + tools.
+ * Live integration: real OmniRoute gateway model + Rosebud prompt + day digests + tools.
  *
  * Run:
  *   set RUN_INTEGRATION_TESTS=1
@@ -38,7 +38,7 @@ import {
 import { HISTORY_TOOLS_POLICY } from '../../services/ai/tools';
 import { executeToolCall } from '../../services/ai/tools/executeTool';
 
-// Skipped unless RUN_INTEGRATION_TESTS=1: hits a real OpenRouter/model with a live API key.
+// Skipped unless RUN_INTEGRATION_TESTS=1: hits the real OmniRoute gateway with a live API key.
 // Not a silent product gap — unit suites cover digests/tools/prompt weave offline.
 // TODO(follow-up): keep offline. Do not un-skip in default CI without a secret + quota budget.
 const describeMaybe = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
@@ -69,7 +69,7 @@ function applyLiveEnv(): { model: string; apiBaseUrl: string } {
     const apiBaseUrl = (
         process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL
         ?? fileEnv.EXPO_PUBLIC_NANO_GPT_API_BASE_URL
-        ?? 'https://openrouter.ai/api/v1'
+        ?? 'http://100.107.7.52:20128/v1'
     ).replace(/\/+$/, '');
     const model =
         process.env.EXPO_PUBLIC_NANO_GPT_MODEL

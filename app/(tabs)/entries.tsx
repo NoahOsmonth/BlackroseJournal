@@ -1,24 +1,24 @@
+import { useFocusEffect } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
-import { useRouter } from 'expo-router';
 
-import { AppHeader } from '@/components/navigation';
-import { BottomNav, ResumeSessionBanner } from '@/components/journal';
-import { ScreenContainer } from '@/components/ui/ScreenContainer';
-import { RevealItem } from '@/components/ui/RevealItem';
-import { useScrollReveal } from '@/components/ui/useScrollReveal';
-import { StaggerEntranceItem } from '@/components/ui/StaggerEntrance';
-import { navAwareBottomPadding } from '@/constants/spacing';
-import { HistorySection } from '@/components/history/HistorySection';
-import { HistoryWeekRhythm } from '@/components/history/HistoryWeekRhythm';
+import { FinishBackgroundBanner } from '@/components/entries/FinishBackgroundBanner';
+import { HistoryEmpty } from '@/components/history/HistoryEmpty';
 import { HistoryFilterBar } from '@/components/history/HistoryFilterBar';
 import { HistoryMonthBreak } from '@/components/history/HistoryMonthBreak';
-import { HistoryEmpty } from '@/components/history/HistoryEmpty';
+import { HistorySection } from '@/components/history/HistorySection';
 import { HistorySkeleton } from '@/components/history/HistorySkeleton';
-import { useHistoryFeed } from '@/hooks/history/useHistoryFeed';
+import { HistoryWeekRhythm } from '@/components/history/HistoryWeekRhythm';
+import { BottomNav, ResumeSessionBanner } from '@/components/journal';
+import { AppHeader } from '@/components/navigation';
+import { RevealItem } from '@/components/ui/RevealItem';
+import { ScreenContainer } from '@/components/ui/ScreenContainer';
+import { StaggerEntranceItem } from '@/components/ui/StaggerEntrance';
+import { useScrollReveal } from '@/components/ui/useScrollReveal';
+import { navAwareBottomPadding } from '@/constants/spacing';
 import {
     filterHistorySections,
     formatMonthYear,
@@ -26,8 +26,9 @@ import {
     HistoryItem,
     HistorySection as HistorySectionModel,
 } from '@/hooks/history/historyUtils';
-import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
+import { useHistoryFeed } from '@/hooks/history/useHistoryFeed';
 import { useIntentionCheckIns } from '@/hooks/intentions/useIntentionCheckIns';
+import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
 import { useTabNavigation } from '@/hooks/navigation/useTabNavigation';
 import {
     getMostRecentActiveSession,
@@ -160,6 +161,8 @@ export default function EntriesScreen() {
                 draftCount={draftCount}
                 onDraftsPress={() => router.push('/drafts')}
             />
+
+            <FinishBackgroundBanner />
 
             <Animated.ScrollView
                 className="flex-1 px-4"

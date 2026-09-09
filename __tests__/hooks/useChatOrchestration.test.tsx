@@ -203,29 +203,13 @@ describe('useChatOrchestration initialPrompt + flow', () => {
     });
 });
 
-describe('useChatOrchestration turn-resolved recall', () => {
-    const setSystemPrompt = (useChat as jest.Mock & { __mockSetSystemPrompt: jest.Mock })
-        .__mockSetSystemPrompt;
-    const useChatMock = useChat as jest.Mock;
-    const getSendMessage = () => useChatMock.mock.results.at(-1)?.value.sendMessage as jest.Mock;
-
-    beforeEach(() => {
-        jest.clearAllMocks();
-    });
-
-    it('awaits resolveRecallContext before send and re-freezes the prompt with this turn\'s recall', async () => {
-        let release: () => void = () => undefined;
-        const resolveRecallContext = jest.fn(
-            () =>
-                new Promise<string | undefined>((resolve) => {
-                    release = () =>
-                        resolve('## Relevant long-term context\n- sim=0.61 brass compass (Written 2026-08-18)');
-                })
-        );
-
+describe('useChatOrchestration — tool-only long-term recall', () => {
+    // The send path no longer awaits Hindsight. Long-term memory is fetched only
+    // when the AI calls `recall_memory` mid-reply via the agent loop.
+    it('sends immediately without awaiting any Hindsight recall resolution', async () => {
         let exposed: HookResult | null = null;
 
-        function RecallHarness() {
+        function Harness() {
             const scrollViewRef = useRef<ScrollView | null>(null);
             const inputRef = useRef<InlineTypingInputRef | null>(null);
             const recallHarness = useChatOrchestration({
@@ -233,7 +217,6 @@ describe('useChatOrchestration turn-resolved recall', () => {
                 inputRef,
                 flow: FLOWS.freeform,
                 flowContext: {},
-                resolveRecallContext,
             });
             useEffect(() => {
                 exposed = recallHarness;
@@ -241,22 +224,28 @@ describe('useChatOrchestration turn-resolved recall', () => {
             return null;
         }
 
-        render(<RecallHarness />);
+        render(<Harness />);
 
-        let sendDone: Promise<void>;
+        const useChatMock = useChat as jest.Mock;
+        const getSendMessage = () => useChatMock.mock.results.at(-1)?.value.sendMessage as jest.Mock;
+
         await act(async () => {
-            sendDone = exposed!.handleSendMessage('brass compass dad');
-            // The turn-resolved recall is still pending; sendMessage must NOT fire yet.
-            expect(getSendMessage()).not.toHaveBeenCalled();
-            await Promise.resolve();
-            release();
+            const sendDone = exposed!.handleSendMessage('brass compass dad');
             await sendDone;
         });
 
         expect(getSendMessage()).toHaveBeenCalledWith(expect.any(String), expect.any(Function), expect.any(Function), expect.any(Function));
-        // The frozen prompt contains the turn-specific recall block.
-        expect(setSystemPrompt).toHaveBeenCalledWith(
-            expect.stringContaining('- sim=0.61 brass compass')
-        );
+    });
+
+    it('drops the resolveRecallContext option from the orchestration API', () => {
+        const options = null as unknown as Record<string, unknown>;
+        void options;
+        // The option type no longer declares resolveRecallContext: a caller passing
+        // it is a TS error, and the hook must not consult it at runtime either.
+        const source = require('fs').readFileSync(
+            require('path').join(process.cwd(), 'features/chat/hooks/useChatOrchestration.ts'),
+            'utf-8'
+        ) as string;
+        expect(source).not.toContain('resolveRecallContext');
     });
 });

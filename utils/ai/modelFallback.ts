@@ -7,7 +7,7 @@
 /** Curated free ids used when the user's cached model list is empty. */
 export const BUILTIN_FREE_FALLBACK_MODELS: readonly string[] = [
     'cl/dots-studio/dots-3-note-preview:free',
-    'openrouter/free',
+    'cl/tencent/hy3:free',
     'nvidia/nemotron-3-ultra-550b-a55b:free',
 ];
 
@@ -55,7 +55,7 @@ export function isModelNotFoundError(status: number, bodyText: string): boolean 
     const hasHint = MODEL_MISSING_HINTS.some((hint) => lower.includes(hint));
 
     if (status === 404) {
-        // OpenRouter/NanoGPT often 404 with "No endpoints found for …".
+        // Gateways often 404 with "No endpoints found for …".
         // Bare 404 with no body is still usually a bad/missing model on
         // /chat/completions (wrong base URL fails all fallbacks the same).
         return hasHint || lower.includes('model') || lower.trim().length === 0;

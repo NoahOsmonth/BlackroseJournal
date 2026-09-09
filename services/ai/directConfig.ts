@@ -3,10 +3,11 @@
  *
  * Reads the EXPO_PUBLIC_NANO_GPT_* env vars that the phone-side app needs
  * to talk to an OpenAI-compatible API without going through the local
- * Express backend. Naming is legacy; recommended default is OpenRouter free.
+ * Express backend. Naming is legacy; the only supported provider is the
+ * local OmniRoute gateway (OpenAI-compatible).
  *
  * Env vars (all read at call time, not at module load):
- *   EXPO_PUBLIC_NANO_GPT_API_KEY       (required; stored locally for device builds)
+ *   EXPO_PUBLIC_NANO_GPT_API_KEY       (required; OmniRoute data-plane key, stored locally for device builds)
  *   EXPO_PUBLIC_NANO_GPT_API_BASE_URL  (optional; defaults to the OmniRoute gateway)
  *   EXPO_PUBLIC_NANO_GPT_MODEL         (optional; defaults to cl/dots-studio/dots-3-note-preview:free)
  *   EXPO_PUBLIC_NANO_GPT_FLASH_MODEL   (optional; defaults to cl/dots-studio/dots-3-note-preview:free)
@@ -33,7 +34,7 @@ const DEFAULT_MODEL = 'cl/dots-studio/dots-3-note-preview:free';
 const DEFAULT_FLASH_MODEL = 'cl/dots-studio/dots-3-note-preview:free';
 const PLACEHOLDER_KEYS = new Set([
     'YOUR_NANO_GPT_API_KEY',
-    'YOUR_OPENROUTER_API_KEY',
+    'YOUR_OMNIROUTE_DATA_PLANE_KEY',
 ]);
 
 export class DirectConfigError extends Error {
@@ -73,7 +74,7 @@ export function getDirectConfig(): DirectConfig {
     if (PLACEHOLDER_KEYS.has(apiKey)) {
         throw new DirectConfigError(
             `EXPO_PUBLIC_NANO_GPT_API_KEY is still a placeholder ("${apiKey}"). ` +
-            'Replace it with a real OpenRouter or OpenAI-compatible key.'
+            'Replace it with a real OmniRoute data-plane key.'
         );
     }
 

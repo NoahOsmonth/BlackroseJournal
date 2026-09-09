@@ -98,13 +98,6 @@ export interface UseChatOrchestrationOptions {
     flow?: ChatFlow;
     /** Inputs consumed by the active `flow`. */
     flowContext?: ChatFlowContext;
-    /**
-     * Optional turn-resolved recall context. When provided (and a `flow` is active),
-     * it is awaited before the send so the outgoing message's long-term recall lands
-     * in the system prompt for THIS turn. The reactive `flowContext` path lags one
-     * turn: it only updates after the message has already been frozen into the prompt.
-     */
-    resolveRecallContext?: (text: string) => Promise<string | undefined>;
     /** When provided, the conversation is debounced-autosaved to the session store. */
     persist?: ChatPersistOptions;
 }
@@ -149,7 +142,6 @@ export function useChatOrchestration({
     systemPrompt,
     flow,
     flowContext,
-    resolveRecallContext,
     persist,
 }: UseChatOrchestrationOptions): UseChatOrchestrationReturn {
     const [messages, setMessages] = useState<Message[]>([]);
@@ -477,16 +469,10 @@ export function useChatOrchestration({
         const tempStreamingId = beginStreaming();
 
         try {
-            // Resolve this turn's long-term recall BEFORE freezing the prompt. The
-            // reactive `flowContext` path only updates after this message lands, so it
-            // would starve the reply of its own recall (first message got none).
-            if (flow && resolveRecallContext) {
-                const recall = await resolveRecallContext(text).catch(() => undefined);
-                if (recall !== undefined) {
-                    setSystemPrompt(flow.buildSystemPrompt({ ...flowContext, retrievedHistoryContext: recall }));
-                }
-            }
-
+            // Long-term recall is tool-driven: the AI calls `recall_memory` on demand
+            // mid-reply via the agent loop. The send path never awaits Hindsight —
+            // sends stay instant, and long-term context arrives only when the AI is
+            // curious enough to fetch it.
             await sendMessage(
                 text,
                 (chunk, reasoning) => {
@@ -517,7 +503,7 @@ export function useChatOrchestration({
         } catch (error) {
             handleAiError(error instanceof Error ? error : new Error('Unknown error'));
         }
-    }, [sendMessage, scrollToBottom, focusInput, beginStreaming, clearError, handleAiError, flow, resolveRecallContext, flowContext, setSystemPrompt]);
+    }, [sendMessage, scrollToBottom, focusInput, beginStreaming, clearError, handleAiError]);
 
     const retryLastMessage = useCallback(async () => {
         if (!lastUserMessage || isLoading) {
@@ -530,13 +516,6 @@ export function useChatOrchestration({
         setChatMessages(messages.filter(message => message.id !== lastUserMessage.id));
 
         try {
-            if (flow && resolveRecallContext) {
-                const recall = await resolveRecallContext(lastUserMessage.content).catch(() => undefined);
-                if (recall !== undefined) {
-                    setSystemPrompt(flow.buildSystemPrompt({ ...flowContext, retrievedHistoryContext: recall }));
-                }
-            }
-
             await sendMessage(
                 lastUserMessage.content,
                 (chunk, reasoning) => {
@@ -567,7 +546,7 @@ export function useChatOrchestration({
         } catch (error) {
             handleAiError(error instanceof Error ? error : new Error('Unknown error'));
         }
-    }, [beginStreaming, clearError, focusInput, handleAiError, isLoading, lastUserMessage, messages, scrollToBottom, sendMessage, setChatMessages, flow, resolveRecallContext, flowContext, setSystemPrompt]);
+    }, [beginStreaming, clearError, focusInput, handleAiError, isLoading, lastUserMessage, messages, scrollToBottom, sendMessage, setChatMessages]);
 
     const handleNewChat = useCallback(() => {
         hasInitialized.current = false;

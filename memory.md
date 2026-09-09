@@ -5,10 +5,10 @@
 Long-term memory is **Hindsight** (vectorize-io, local Docker container) —
 see `docs/superpowers/plans/2026-08-18-hindsight-integration.md` for the
 integration plan and `services/memory/hindsight/` for the client. Every
-completed journal entry / check-in fires a fire-and-forget retain; recall
-surfaces as the always-on `## Relevant long-term context` block and the
-`recall_memory` agent tool. Gemini is embeddings-only (768-dim); all LLM work
-is OpenRouter. Everything is soft-fail.
+completed journal entry / check-in fires a fire-and-forget retain; recall is
+**tool-driven**: the AI calls the `recall_memory` agent tool on demand — the send
+path never awaits Hindsight and no always-on recall block is injected. Gemini is
+embeddings-only (768-dim); all LLM work is OpenRouter. Everything is soft-fail.
 
 The earlier custom cloud-memory platform (`LOCAL → MIRROR → SHADOW → CLOUD`)
 was removed on 2026-08-18; do not resurrect it or its storage keys

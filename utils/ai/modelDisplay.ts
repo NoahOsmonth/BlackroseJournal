@@ -5,6 +5,7 @@
 
 /** Preferred free model id — the OmniRoute gateway connection prefix (`cl/`) of the dots model. */
 export const PREFERRED_FREE_MODEL_ID = 'cl/dots-studio/dots-3-note-preview:free';
+/** Legacy OpenRouter base URL — removed from defaults; kept only as a historical export marker. */
 export const OPENROUTER_DEFAULT_BASE_URL = 'https://openrouter.ai/api/v1';
 /** Default AI provider base URL — the local OmniRoute gateway (OpenAI-compatible). */
 export const DEFAULT_AI_BASE_URL = 'http://100.107.7.52:20128/v1';
@@ -12,8 +13,8 @@ export const MAX_RECENT_MODEL_IDS = 3;
 
 /**
  * OmniRoute account-cookie web providers are flat-rate (no per-token billing),
- * so they are treated as free alongside OpenRouter `:free` ids. These prefixes
- * never collide with OpenRouter ids (OpenRouter never emits `ds-web/`, etc.).
+ * so they are treated as free alongside `:free` ids. These prefixes
+ * never collide with other gateways' ids.
  */
 export const FREE_WEB_PROVIDER_PREFIXES = [
     'ds-web/',
@@ -24,7 +25,11 @@ export const FREE_WEB_PROVIDER_PREFIXES = [
     'chatgpt-web/',
 ] as const;
 
-/** Free = `:free` suffix, OpenRouter free router, `-free` suffix (zenmux), or a free web provider. */
+/**
+ * Free = `:free` suffix, `-free` suffix (zenmux), or a free web provider.
+ * (`openrouter/free` kept as a legacy stored-id tolerance; new ids never come
+ * from OpenRouter — OmniRoute is the only gateway.)
+ */
 export function isFreeModelId(id: string): boolean {
     const n = id.trim().toLowerCase();
     if (!n) return false;

@@ -2,18 +2,17 @@
 import { PromptPeriod } from '@/constants/dailyPrompts';
 import { useAiFeedback } from '@/hooks/feedback/useAiFeedback';
 import { useGoalsContext } from '@/hooks/goals/useGoalsContext';
-import { useHindsightRecallContext } from '@/hooks/memory/useHindsightRecallContext';
 import { useIdentityContext } from '@/hooks/memory/useIdentityContext';
 import { useLocalMemoryContext } from '@/hooks/memory/useLocalMemoryContext';
 import { useRecentDaysContext } from '@/hooks/memory/useRecentDaysContext';
 import { usePersonas } from '@/hooks/personas/usePersonas';
-import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { EntryFinishCelebration } from '../components/celebrations/EntryFinishCelebration';
 import { ChatModelPickerSheet } from '../components/ai/ChatModelPickerSheet';
+import { EntryFinishCelebration } from '../components/celebrations/EntryFinishCelebration';
 import { ChatMessage } from '../components/ChatMessage';
 import { FooterActions } from '../components/FooterActions';
 import { Header } from '../components/Header';
@@ -24,9 +23,9 @@ import { ChatMode, FLOWS, useChatOrchestration, useChatSessionFlush, useResumeCh
 import { useChatModelPicker } from '../hooks/settings/useChatModelPicker';
 import { generateTitle, hasContent, inferMoodEmoji } from '../hooks/useEntryUtils';
 import { useJournalEntries } from '../hooks/useJournalEntries';
-import { generateEntryAnalysis, generateEntryTitle } from '../services/ai';
-import type { JournalEntry, JournalEntryAnalysis } from '../services/journal/journalStorage.types';
-import { runJournalFinishSideEffects } from '../services/journal/journalFinishSideEffects';
+import { generateEntryTitle } from '../services/ai';
+import { runJournalFinishBackground } from '../services/journal/journalFinishSideEffects';
+import type { JournalEntry } from '../services/journal/journalStorage.types';
 import { latestUserMemoryQuery, resolveMemoryCapsuleQuery } from '../utils/memoryCapsuleQuery';
 
 type ChatParams = {
@@ -91,7 +90,9 @@ export default function ChatScreen() {
     const { context: recentDaysContext } = useRecentDaysContext({ days: 3 });
     const { context: identityContext } = useIdentityContext();
     const { goalsContext } = useGoalsContext();
-    const { context: hindsightRecallContext, recallFor } = useHindsightRecallContext({ query: memoryCapsuleQuery });
+    // Long-term recall is tool-driven: the AI calls `recall_memory` on demand.
+    // No blocking per-turn recall and no reactive open-time recall — the prompt's
+    // `## Relevant long-term context` slot stays empty unless the tool fills it.
     const flow = resolvedMode === 'continue' ? FLOWS.continue : FLOWS.freeform;
     const flowContext = useMemo(
         () => ({
@@ -99,13 +100,12 @@ export default function ChatScreen() {
             identityContext,
             localMemoryContext,
             recentDaysContext,
-            retrievedHistoryContext: hindsightRecallContext,
             goalsContext,
             feedbackGuidance,
         }),
         [
             activePersona, identityContext, localMemoryContext,
-            recentDaysContext, hindsightRecallContext, goalsContext, feedbackGuidance,
+            recentDaysContext, goalsContext, feedbackGuidance,
         ]
     );
 
@@ -148,7 +148,6 @@ export default function ChatScreen() {
         conversationId,
         flow,
         flowContext,
-        resolveRecallContext: recallFor,
         persist,
         initialPrompt,
     });
@@ -268,16 +267,6 @@ export default function ChatScreen() {
             }
 
             const emoji = inferMoodEmoji(messages);
-            let analysis: JournalEntryAnalysis | undefined;
-            try {
-                if (entryText.trim()) {
-                    setFinishStage('Creating your insights');
-                    const generated = await generateEntryAnalysis({ entryText });
-                    analysis = { ...generated, generatedAt: Date.now() };
-                }
-            } catch (err) {
-                console.warn('AI entry analysis failed, saving entry without analysis', err);
-            }
 
             let savedEntry: JournalEntry | null = null;
             setFinishStage('Saving your entry');
@@ -288,7 +277,6 @@ export default function ChatScreen() {
                     emoji,
                     messages,
                     status: 'completed',
-                    analysis,
                 });
             } else {
                 savedEntry = await create({
@@ -296,21 +284,20 @@ export default function ChatScreen() {
                     emoji,
                     messages,
                     status: 'completed',
-                    analysis,
                 });
             }
             const savedEntryId = savedEntry?.id ?? entryId;
-            if (savedEntry) {
-                setFinishStage('Updating your memories');
-                await runJournalFinishSideEffects(savedEntry);
-            }
             // Completed work must not linger as an active session.
             await clearPersistedSession();
             handleNewChat();
             if (savedEntryId) {
                 void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => { });
                 setShowCelebration(true);
-                await new Promise((resolve) => setTimeout(resolve, 500));
+                // Analysis + memory side effects run in the background; the
+                // reflection screen shows a status banner until they settle.
+                if (savedEntry) {
+                    void runJournalFinishBackground(savedEntry);
+                }
                 router.replace({ pathname: '/entry-reflection', params: { entryId: savedEntryId } });
             } else {
                 router.replace('/(tabs)/entries');

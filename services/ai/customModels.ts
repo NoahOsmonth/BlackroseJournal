@@ -2,7 +2,6 @@ import {
     DEFAULT_AI_BASE_URL,
     filterFreeModels,
     isFreeModelId,
-    OPENROUTER_DEFAULT_BASE_URL,
     preferFreeModelId,
     pushRecentModelId,
 } from '@/utils/ai/modelDisplay';
@@ -53,7 +52,7 @@ type ModelRecord = Record<string, unknown>;
 
 export const CUSTOM_AI_SETTINGS_KEY = '@blackrose_custom_ai_provider';
 export const DEFAULT_FALLBACK_CONTEXT_WINDOW = 128_000;
-export { DEFAULT_AI_BASE_URL, OPENROUTER_DEFAULT_BASE_URL };
+export { DEFAULT_AI_BASE_URL };
 
 const MAX_FALLBACK_CONTEXT_WINDOW = 2_000_000;
 const CONTEXT_KEYS = [
@@ -141,7 +140,7 @@ export function readEnvProviderSeed(): { baseUrl: string; apiKey: string; model?
 export function getDefaultCustomAiProviderSettings(): CustomAiProviderSettings {
     const seed = readEnvProviderSeed();
     const hasKey = Boolean(seed.apiKey) && seed.apiKey !== 'YOUR_NANO_GPT_API_KEY'
-        && seed.apiKey !== 'YOUR_OPENROUTER_API_KEY';
+        && seed.apiKey !== 'YOUR_OMNIROUTE_DATA_PLANE_KEY';
     return {
         enabled: false,
         baseUrl: seed.baseUrl || DEFAULT_AI_BASE_URL,
@@ -187,7 +186,7 @@ export function normalizeOpenAiBaseUrl(input: string): string {
     }
 
     if (parsed.pathname === '' || parsed.pathname === '/') {
-        parsed.pathname = parsed.hostname === 'openrouter.ai' ? '/api/v1' : '/v1';
+        parsed.pathname = '/v1';
     }
 
     parsed.search = '';
@@ -425,7 +424,7 @@ export async function fetchOpenAiCompatibleModels(input: {
     if (models.length === 0) {
         throw new CustomModelSettingsError(
             freeOnly
-                ? 'No free models were returned. Free mode only keeps ids with :free (or openrouter/free).'
+                ? 'No free models were returned. Free mode only keeps ids with :free (or openrouter/free legacy ids).'
                 : 'No usable models were returned.'
         );
     }

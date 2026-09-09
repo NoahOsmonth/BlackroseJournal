@@ -3,6 +3,7 @@ import {
     getClockTool,
     getDayTool,
     listRecentDaysTool,
+    HISTORY_TOOLS_POLICY,
 } from '../../../services/ai/tools';
 import {
     clearDayDigests,
@@ -132,5 +133,21 @@ describe('history tools + intent detection', () => {
     it('get_day rejects bad date strings', async () => {
         const out = await getDayTool({ date: 'not-a-date' });
         expect(out).toContain('Error');
+    });
+});
+
+describe('HISTORY_TOOLS_POLICY — tool-only long-term recall', () => {
+    // Long-term recall is no longer injected automatically: the send path never
+    // awaits Hindsight, so the curiosity nudge is the only recall driver for
+    // free models that are lazy about tools.
+    it('keeps the recall_memory curiosity nudge load-bearing', () => {
+        expect(HISTORY_TOOLS_POLICY).toContain('recall_memory');
+        expect(HISTORY_TOOLS_POLICY).toContain('be curious about it');
+        expect(HISTORY_TOOLS_POLICY).toContain('"remember when\u2026"');
+        expect(HISTORY_TOOLS_POLICY).toContain('one call costs nothing');
+    });
+
+    it('stays within the prompt budget', () => {
+        expect(HISTORY_TOOLS_POLICY.length).toBeLessThan(900);
     });
 });

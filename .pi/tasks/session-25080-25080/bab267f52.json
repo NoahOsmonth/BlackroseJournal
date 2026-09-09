@@ -1,0 +1,19 @@
+{
+  "id": "bab267f52",
+  "name": "live recall E2E probe",
+  "command": "set RUN_INTEGRATION_TESTS=1 && npx jest --runInBand __tests__/integration/recallMemoryCuriosityLive.test.ts --forceExit",
+  "status": "completed",
+  "outputPath": ".pi\\tasks\\session-25080-25080\\bab267f52.output",
+  "cwd": "C:\\Users\\sigmu\\Desktop\\BlackroseJournal",
+  "startTime": 1788944835681,
+  "endTime": 1788944841189,
+  "exitCode": 0,
+  "signal": null,
+  "pid": 26044,
+  "bytesWritten": 357,
+  "isAgent": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 900
+}

@@ -4,7 +4,9 @@
  */
 
 import { EntryReflectionSkeleton } from '@/components/entries/EntryReflectionSkeleton';
+import { FinishBackgroundBanner } from '@/components/entries/FinishBackgroundBanner';
 import { FeedbackCommentModal } from '@/components/intentions/FeedbackCommentModal';
+import { useFinishBackgroundStatus } from '@/hooks/journal/useFinishBackgroundStatus';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useEntryReflection } from '@/hooks/useEntryReflection';
@@ -12,7 +14,7 @@ import type { AiFeedbackValue } from '@/services/feedback/feedbackStorage';
 import { saveAiFeedback } from '@/services/feedback/feedbackStorage';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -38,7 +40,16 @@ export default function EntryReflectionScreen() {
         return Array.isArray(raw) ? raw[0] : raw;
     }, [params.entryId]);
 
-    const { data, isLoading, error } = useEntryReflection(entryId);
+    const { data, isLoading, error, refresh } = useEntryReflection(entryId);
+    const { isDone } = useFinishBackgroundStatus();
+
+    // When the background analysis lands, refresh the reflection so the
+    // entry's analysis-backed content (and any regenerated reflection) shows.
+    useEffect(() => {
+        if (isDone) {
+            void refresh();
+        }
+    }, [isDone, refresh]);
 
     const handleBack = () => {
         router.replace('/(tabs)/entries');
@@ -101,6 +112,8 @@ export default function EntryReflectionScreen() {
                         </Pressable>
                     </View>
                 </View>
+
+                <FinishBackgroundBanner />
 
                 <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
                     {isLoading && <EntryReflectionSkeleton />}

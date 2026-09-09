@@ -1,6 +1,10 @@
 /**
  * PR8c: six tool schemas OTHER than list_recent_days stay byte-identical.
  * list_recent_days may gain optional order/from/to — nothing else may drift.
+ *
+ * Toolfix (2026-09): descriptions were DELIBERATELY rewritten (verb +
+ * when-use + when-NOT-use + arg example) and the pin re-frozen below.
+ * Parameters/required must still not drift without a matching pin update.
  */
 
 import {
@@ -14,7 +18,7 @@ const PINNED_OTHER_TOOLS_JSON = JSON.stringify([
         type: 'function',
         function: {
             name: 'get_clock',
-            description: 'Return the device local date and time. Use to resolve relative day phrases.',
+            description: 'Get the device local date and time. Use FIRST to resolve relative day phrases ("yesterday", "last Friday", "tonight") — never invent the date. Do not call it for timeless questions ("what is grief?"). No arguments.',
             parameters: {
                 type: 'object',
                 properties: {},
@@ -27,7 +31,7 @@ const PINNED_OTHER_TOOLS_JSON = JSON.stringify([
         function: {
             name: 'get_day',
             description:
-                'Get the digest for one calendar day: summary, topics, and session ids/titles. Accepts YYYY-MM-DD, today, yesterday, or a weekday name.',
+                'Get the digest for one calendar day: summary, topics, and session ids/titles. Use after list_recent_days when one day matters. Accepts YYYY-MM-DD, today, yesterday, or a weekday name. Do NOT use for full transcripts — pass an id from this digest to get_conversation. Example args: {"date":"yesterday"}.',
             parameters: {
                 type: 'object',
                 properties: {
@@ -46,7 +50,7 @@ const PINNED_OTHER_TOOLS_JSON = JSON.stringify([
         function: {
             name: 'get_conversation',
             description:
-                'Load the full transcript for one past session (journal entry or intention check-in). Prefer get_day first to discover ids.',
+                'Load the full transcript for one past session (journal entry or intention check-in). Use ONLY when you need exact prior words — prefer get_day first to discover ids. Do NOT use to browse; it returns the whole session. Example args: {"kind":"journal_entry","id":"<id from a day digest>"}.',
             parameters: {
                 type: 'object',
                 properties: {
@@ -77,7 +81,7 @@ const PINNED_OTHER_TOOLS_JSON = JSON.stringify([
         function: {
             name: 'search_history',
             description:
-                'Search day digests and local memory for a topic or keyword, optionally within a date range.',
+                'Search day digests and local memory for a topic or keyword across days. Use for recurring themes ("what do I keep writing about work?"). Do NOT use for one known day (use get_day) or exact transcripts (use get_conversation). Example args: {"query":"work stress"}.',
             parameters: {
                 type: 'object',
                 properties: {
@@ -96,7 +100,7 @@ const PINNED_OTHER_TOOLS_JSON = JSON.stringify([
         function: {
             name: 'recall_memory',
             description:
-                'Query the long-term memory bank (Hindsight) for recollections relevant to a topic. Use for "remember when\u2026", themes older than recent digests, or grounding across past months.',
+                'Query the long-term memory bank (Hindsight) for recollections relevant to a topic. Use for "remember when…", feelings echoing an older pattern, or grounding across past months. Do NOT use for recent days — use get_day or list_recent_days. Example args: {"query":"argument that kept looping"}.',
             parameters: {
                 type: 'object',
                 properties: {
@@ -113,7 +117,7 @@ const PINNED_OTHER_TOOLS_JSON = JSON.stringify([
         function: {
             name: 'get_identity',
             description:
-                'Read the on-device always-on identity profile (preferred name, pronouns, key people, durable facts). Prefer the injected Identity block when present; call this if you need to re-check after an update.',
+                'Read the on-device always-on identity profile (preferred name, pronouns, key people, durable facts). Use the injected Identity block when present; call this to re-check after an update. Do NOT call it to discover new facts about the user — ask them. No arguments.',
             parameters: {
                 type: 'object',
                 properties: {},
@@ -126,7 +130,7 @@ const PINNED_OTHER_TOOLS_JSON = JSON.stringify([
         function: {
             name: 'update_identity',
             description:
-                'Persist durable identity facts the user clearly stated (preferred name, pronouns, about, key people, hard facts). Secondary to automatic extraction — use when you are sure and want an immediate pin. Do not invent.',
+                'Persist durable identity facts the user clearly stated (preferred name, pronouns, about, key people, hard facts). Use ONLY when the user explicitly stated a fact — never infer or invent. Secondary to automatic extraction. Example args: {"preferredName":"Sam","pronouns":"they/them"}.',
             parameters: {
                 type: 'object',
                 properties: {
@@ -176,7 +180,7 @@ const PINNED_OTHER_TOOLS_JSON = JSON.stringify([
         function: {
             name: 'list_goals',
             description:
-                'List the user\u2019s current goals and habits with status. Use before creating a goal to avoid duplicates.',
+                'List the user’s current goals and habits with status. Use before create_goal to avoid duplicates. Do NOT call it for journal-history questions. No arguments.',
             parameters: {
                 type: 'object',
                 properties: {},
@@ -189,7 +193,7 @@ const PINNED_OTHER_TOOLS_JSON = JSON.stringify([
         function: {
             name: 'create_goal',
             description:
-                'Create a goal or habit ONLY when the user clearly asked to set/track one; never invent a goal the user did not state. Returns the created goal id.',
+                'Create a goal or habit ONLY when the user clearly asked to set/track one — never invent a goal the user did not state. Returns the created goal id. Example args: {"title":"Run 3x a week","type":"habit"}.',
             parameters: {
                 type: 'object',
                 properties: {

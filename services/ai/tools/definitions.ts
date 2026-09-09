@@ -3,17 +3,19 @@ import type { OpenAiToolSpec, ToolDefinition } from './types';
 export const HISTORY_TOOL_DEFINITIONS: ToolDefinition[] = [
     {
         name: 'get_clock',
-        description: 'Return the device local date and time. Use to resolve relative day phrases.',
+        description:
+            'Get the device local date and time. Use FIRST to resolve relative day phrases ("yesterday", "last Friday", "tonight") — never invent the date. Do not call it for timeless questions ("what is grief?"). No arguments.',
         parameters: {
             type: 'object',
             properties: {},
             additionalProperties: false,
         },
+        execClass: 'pure',
     },
     {
         name: 'list_recent_days',
         description:
-            'List recent journaling day digests (summaries + topics + session titles). Prefer this before loading full conversations. Use order=oldest or from/to to reach older history without paging forever.',
+            'List recent journaling day digests (summaries, topics, session titles). Use to orient before loading a transcript; use order=oldest or from/to to reach older history without paging forever. Do NOT use for full text — fetch get_day next. Example args: {"days":7}.',
         parameters: {
             type: 'object',
             properties: {
@@ -38,11 +40,12 @@ export const HISTORY_TOOL_DEFINITIONS: ToolDefinition[] = [
             },
             additionalProperties: false,
         },
+        execClass: 'pure',
     },
     {
         name: 'get_day',
         description:
-            'Get the digest for one calendar day: summary, topics, and session ids/titles. Accepts YYYY-MM-DD, today, yesterday, or a weekday name.',
+            'Get the digest for one calendar day: summary, topics, and session ids/titles. Use after list_recent_days when one day matters. Accepts YYYY-MM-DD, today, yesterday, or a weekday name. Do NOT use for full transcripts — pass an id from this digest to get_conversation. Example args: {"date":"yesterday"}.',
         parameters: {
             type: 'object',
             properties: {
@@ -54,11 +57,12 @@ export const HISTORY_TOOL_DEFINITIONS: ToolDefinition[] = [
             required: ['date'],
             additionalProperties: false,
         },
+        execClass: 'pure',
     },
     {
         name: 'get_conversation',
         description:
-            'Load the full transcript for one past session (journal entry or intention check-in). Prefer get_day first to discover ids.',
+            'Load the full transcript for one past session (journal entry or intention check-in). Use ONLY when you need exact prior words — prefer get_day first to discover ids. Do NOT use to browse; it returns the whole session. Example args: {"kind":"journal_entry","id":"<id from a day digest>"}.',
         parameters: {
             type: 'object',
             properties: {
@@ -82,11 +86,12 @@ export const HISTORY_TOOL_DEFINITIONS: ToolDefinition[] = [
             },
             additionalProperties: false,
         },
+        execClass: 'pure',
     },
     {
         name: 'search_history',
         description:
-            'Search day digests and local memory for a topic or keyword, optionally within a date range.',
+            'Search day digests and local memory for a topic or keyword across days. Use for recurring themes ("what do I keep writing about work?"). Do NOT use for one known day (use get_day) or exact transcripts (use get_conversation). Example args: {"query":"work stress"}.',
         parameters: {
             type: 'object',
             properties: {
@@ -98,11 +103,12 @@ export const HISTORY_TOOL_DEFINITIONS: ToolDefinition[] = [
             required: ['query'],
             additionalProperties: false,
         },
+        execClass: 'pure',
     },
     {
         name: 'recall_memory',
         description:
-            'Query the long-term memory bank (Hindsight) for recollections relevant to a topic. Use for "remember when\u2026", themes older than recent digests, or grounding across past months.',
+            'Query the long-term memory bank (Hindsight) for recollections relevant to a topic. Use for "remember when\u2026", feelings echoing an older pattern, or grounding across past months. Do NOT use for recent days — use get_day or list_recent_days. Example args: {"query":"argument that kept looping"}.',
         parameters: {
             type: 'object',
             properties: {
@@ -112,21 +118,23 @@ export const HISTORY_TOOL_DEFINITIONS: ToolDefinition[] = [
             required: ['query'],
             additionalProperties: false,
         },
+        execClass: 'pure',
     },
     {
         name: 'get_identity',
         description:
-            'Read the on-device always-on identity profile (preferred name, pronouns, key people, durable facts). Prefer the injected Identity block when present; call this if you need to re-check after an update.',
+            'Read the on-device always-on identity profile (preferred name, pronouns, key people, durable facts). Use the injected Identity block when present; call this to re-check after an update. Do NOT call it to discover new facts about the user — ask them. No arguments.',
         parameters: {
             type: 'object',
             properties: {},
             additionalProperties: false,
         },
+        execClass: 'pure',
     },
     {
         name: 'update_identity',
         description:
-            'Persist durable identity facts the user clearly stated (preferred name, pronouns, about, key people, hard facts). Secondary to automatic extraction — use when you are sure and want an immediate pin. Do not invent.',
+            'Persist durable identity facts the user clearly stated (preferred name, pronouns, about, key people, hard facts). Use ONLY when the user explicitly stated a fact — never infer or invent. Secondary to automatic extraction. Example args: {"preferredName":"Sam","pronouns":"they/them"}.',
         parameters: {
             type: 'object',
             properties: {
@@ -169,21 +177,23 @@ export const HISTORY_TOOL_DEFINITIONS: ToolDefinition[] = [
             },
             additionalProperties: false,
         },
+        execClass: 'mutating',
     },
     {
         name: 'list_goals',
         description:
-            'List the user\u2019s current goals and habits with status. Use before creating a goal to avoid duplicates.',
+            'List the user\u2019s current goals and habits with status. Use before create_goal to avoid duplicates. Do NOT call it for journal-history questions. No arguments.',
         parameters: {
             type: 'object',
             properties: {},
             additionalProperties: false,
         },
+        execClass: 'pure',
     },
     {
         name: 'create_goal',
         description:
-            'Create a goal or habit ONLY when the user clearly asked to set/track one; never invent a goal the user did not state. Returns the created goal id.',
+            'Create a goal or habit ONLY when the user clearly asked to set/track one — never invent a goal the user did not state. Returns the created goal id. Example args: {"title":"Run 3x a week","type":"habit"}.',
         parameters: {
             type: 'object',
             properties: {
@@ -204,6 +214,7 @@ export const HISTORY_TOOL_DEFINITIONS: ToolDefinition[] = [
             required: ['title'],
             additionalProperties: false,
         },
+        execClass: 'mutating',
     },
 ];
 
@@ -218,11 +229,12 @@ export function toOpenAiToolSpecs(definitions: readonly ToolDefinition[] = HISTO
     }));
 }
 
-/** PR8b-1: tight tools policy (was ~1.9k chars). Proactive stance kept. */
+/** PR8c-then-toolfix: decision-rule policy with a good/bad chain + STOP rules. Kept under 900 chars (prompt budget). */
 export const HISTORY_TOOLS_POLICY = [
     '## On-device tools — use freely (proactive)',
-    'Tools run on the phone. Call when they improve care — do not wait for "search my history."',
-    'get_clock: liberally; never invent local time. list_recent_days: orient. get_day: before full transcript. get_conversation: exact prior words. search_history: themes. recall_memory: long-term themes older than digests ("remember when\u2026"). get_identity / update_identity: re-check or pin; never invent.',
-    'create_goal/list_goals: act only on explicit goal/habit requests; never invent goals.',
-    'Chain when useful. Never invent results. If empty, say so and stay with the live message. Do not narrate tool names. Structured tool_calls only — never fake tool syntax in the reply. Use ## Identity name if present; never invent one.',
+    'Tools run on the phone — call freely when they improve care.',
+    'Decision rule: get_clock (never invent time) → list_recent_days → get_day for one day → get_conversation for exact words only. search_history: themes; recall_memory: older-than-digest memory — be curious about it, a "remember when…" echo or thin digests — one call costs nothing.',
+    'Good: "what did I write about work last week?" → get_clock, list_recent_days, get_day, get_conversation. Bad: answering from memory, narrating tool names.',
+    'get_identity / update_identity: re-check or pin stated facts; never invent. list_goals/create_goal: explicit requests only; never invent goals.',
+    'STOP: never invent results; empty → say so and answer from the live message. Never narrate tool names or fake tool syntax — structured tool_calls only. Use ## Identity name if present.',
 ].join('\n');

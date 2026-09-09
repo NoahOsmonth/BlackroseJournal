@@ -1,5 +1,165 @@
 # PROGRESS — Optimization + Bug Hunt (2026-09-02)
 
+## 2026-09-09 — Finish Entry: local save + immediate reflection navigation, background side effects
+
+### Outcome
+
+"Finish Entry" no longer waits on LLM analysis or memory writes before
+navigating. The blocking path is now: title generation → entry save
+(`status: 'completed'`, no analysis) → clear session → haptic + celebration →
+`router.replace('/entry-reflection')`. All heavy side effects (analysis,
+memories, day digest, identity extraction, session digest, Hindsight retain)
+run in a background operation that settles a status store; reflection,
+entries, saved-insights, and memory-graph screens show a live banner and
+refresh when it lands.
+
+### Added
+
+- `services/journal/finishBackgroundStore.ts`: in-memory status store
+  (`startFinishBackground` / `settleFinishBackground` / `clearFinishBackground`
+  / `subscribeFinishBackground`). Ephemeral UI state only — no storage key.
+- `services/journal/journalFinishSideEffects.ts`: `runJournalFinishBackground`
+  runs the 5 heavy steps via `Promise.allSettled` (30s per-step timeout, first
+  error kept, abort-aware) then awaits Hindsight retain with timeout
+  (soft-fail). Never rejects. The sequential `runJournalFinishSideEffects`
+  wrapper is preserved for the account-switch abort race test.
+- `hooks/journal/useFinishBackgroundStatus.ts`: subscribes to the store;
+  exposes `{ status, isRunning, isDone }`.
+- `components/entries/FinishBackgroundBanner.tsx`: running/done banner
+  (auto-hides 4s after done), both schemes via new tokens.
+- Tailwind tokens: `status-running-*` and `status-done-*` (bg/text/dot,
+  light+dark) in `tailwind.config.js`.
+- Banner mounts: `app/entry-reflection.tsx` (+ refresh on done),
+  `app/(tabs)/entries.tsx`, `app/saved-insights.tsx` (+ refresh on done),
+  `components/memory-graph/MemoryGraphScreen.tsx` (auto-refreshes via
+  `subscribeMemoryChanges`).
+
+### Changed
+
+- `app/chat.tsx` `handleFinishEntry`: analysis generation removed from the
+  blocking path (moved to background); navigation is immediate
+  (`router.replace`), no 500ms delay.
+
+### Tests
+
+- `__tests__/services/journal/finishBackgroundStore.test.ts` (new, 5 tests).
+- `__tests__/services/journal/journalFinishSideEffects.test.ts`: 5 new
+  background-runner tests (parallel settle, never rejects, error recorded,
+  analysis persisted, empty-entry skip). 13/13 pass.
+- `__tests__/screens/chat.test.tsx`: 2 new tests — navigates to reflection
+  immediately without awaiting background work; blocking path saves
+  `status: 'completed'` and never calls `generateEntryAnalysis`. 4/4 pass.
+- `__tests__/services/journal/journalAccountSwitchRaces.test.ts`: 8/8 pass
+  (sequential wrapper preserved).
+
+### Gates
+
+- `npm run test:run`: 1214 passed / 3 failed / 21 skipped. The 3 failures are
+  pre-existing Windows-only environment issues (`aiControlPlaneOperations` and
+  `metro-phosphor-resolve` spawn Unix binaries `mkdir -p`/`chmod`/`grep` →
+  ENOENT); unrelated to this change.
+- `npx tsc --noEmit`: clean (fixed `accessibilityRole="status"` → `"alert"`,
+  not a valid RN role).
+- `npm run lint`: 0 errors (80 pre-existing warnings).
+- `npm run check:design`: PASSED (0 errors; 3 files ≥450 lines are
+  pre-existing).
+
+### Follow-ups
+
+- Light/dark QA of the banner on all 4 mounted screens.
+- Live E2E per AGENTS.md step 7–8: cleared demo data, tap Finish, verify
+  time-to-reflection <1s, banner transitions running→done, reflection shows
+  analysis once background lands.
+
+## 2026-09-09 — Tool-only long-term recall: send path no longer awaits Hindsight
+
+### Decision
+
+Long-term recall moved from "always injected" to "AI-driven": the send path
+never awaits Hindsight, and no reactive/open-time recall block is injected into
+any prompt. The AI fetches long-term memory on demand via the `recall_memory`
+tool when it is curious — nudged by a strengthened `HISTORY_TOOLS_POLICY`
+(curiosity line: "remember when…" moments, feelings echoing older patterns,
+thin digests; "one call costs nothing"). The `ChatFlowContext.retrievedHistoryContext`
+slot in `composeHistoryContextBlocks` is kept — it simply stays empty unless a
+tool result fills it mid-reply. Retain-on-finish and the soft-fail client are
+untouched. Rationale: the per-turn await added latency to every send, while
+auto-injected recall fired even when the reply did not need it.
+
+### Removed
+
+- `features/chat/hooks/useChatOrchestration.ts`: the `resolveRecallContext`
+  option and both pre-send awaits (`handleSendMessage` + `retryLastMessage`);
+  dep arrays slimmed accordingly.
+- `hooks/memory/useHindsightRecallContext.ts` + its test: deleted — no
+  remaining consumer.
+- `app/chat.tsx`: hindsight recall hook import/wiring removed.
+- `hooks/intentions/useIntentionChatFlowContext.ts`: reactive open-time recall
+  removed (the "keep open-time" middle option was rejected — simplest is none,
+  and the intention-title query was a weak recall prompt anyway).
+
+### Added / changed
+
+- `services/ai/tools/definitions.ts`: `recall_memory` policy line strengthened
+  (936 → 897 chars; still under the 900-char gate; `update_identity` clause
+  restored after its guard test caught the first rewrite dropping it).
+- `__tests__/hooks/useChatOrchestration.test.tsx`: blocking-await test replaced
+  by its inverse — send fires with no recall resolution available, and the
+  option is gone from the orchestration API.
+- `__tests__/features/chatFlows.test.ts` + `__tests__/services/ai/historyTools.test.ts`:
+  tool-only-recall guards (policy is the only recall driver; curiosity phrases
+  load-bearing).
+- `AGENTS.md` + `memory.md`: Hindsight contract rewritten to tool-driven recall
+  (`agentsMemoryGraph.test.ts` pins the AGENTS.md text; updated in-diff).
+  Changelog line added: if recall rate regresses, strengthen the nudge — do not
+  re-add a blocking path.
+- `__tests__/integration/recallMemoryCuriosityLive.test.ts` (new, `RUN_INTEGRATION_TESTS=1`
+  gated): real provider + real agent loop + real prompt weave, Hindsight stubbed
+  at the module boundary; asserts the model spontaneously calls `recall_memory`
+  on a "remember when…" probe with no injected recall, with per-attempt retry
+  (repo convention) and a verbatim needle-echo assertion.
+
+### Gates
+
+`npx tsc --noEmit` ✅ · `npm run lint` 0 errors (76 pre-existing warnings) ✅ ·
+`npm run check:design` ✅ · full jest 245 suites / 1189 tests ✅ (21 skips, all
+integration-gated; new probe skips offline).
+
+### Live verification (rule 7) — honest record
+
+**Run 1 (full app Playwright, cleared demo): NOT executed.** The control-plane
+app probe (`scripts/control-plane/app-live-probe.js`) hard-codes the OLD
+contract — it asserts an automatic recall request and a recall block in the
+managed chat body per turn, which this change deliberately removes. Running it
+would test the removed design. Rewriting that probe + provisioning an
+authenticated disposable Supabase user is the follow-up; the probe's own
+assertions must flip to tool-call evidence (below) as part of that work.
+
+**Run 2 (real-model tool-calling probe: EXECUTED, PASSING).**
+`RUN_INTEGRATION_TESTS=1` + `recallMemoryCuriosityLive.test.ts` against
+`cl/dots-studio/dots-3-note-preview:free` (OmniRoute gateway), real agent loop,
+prompt contains zero injected recall:
+
+- Tool trace (attempt 2): `TOOL_CALL name=recall_memory args={"query":"recurring themes patterns what keeps coming back over months journaling"}` —
+  spontaneous, no instruction to look anything up.
+- Verbatim reply (needle echo): "Honestly, I'm looking at a pretty blank slate here. There are no journal entries or day digests on the device yet — nothing I can search through or look back at. The only thing I have from long-term memory is a mention of your grandfather's brass compass from a windowsill trip back in November 2024."
+- Caveat, exactly the risk flagged in the plan: attempt 1 of the same probe did
+  NOT call `recall_memory` (reached for `search_history`, got thin results, and
+  answered from digests alone). Per-take recall rate is model-luck-dependent;
+  the strengthened policy line is the lever. If real-world recall rate drops,
+  tune the nudge and re-run this probe before considering structural fixes.
+
+### Follow-ups
+
+1. Flip `scripts/control-plane/app-live-probe.js` recall assertions from
+   auto-injection evidence to `recall_memory` tool-call evidence, then run the
+   full auth-gated Playwright pass against cleared demo data (needs a
+   disposable confirmed Supabase account; same blocker as the 2026-09-03 note).
+2. Track recall-call rate across a few real sessions; if lazy, iterate on the
+   curiosity line only (it is now the single recall driver).
+
+---
+
 ## 2026-09-03 — Untested-path coverage + launch/input UX papercuts
 
 ### Risk-focused tests (production paths that had zero direct coverage)
@@ -179,3 +339,130 @@ extraction) is untouched.
 **Follow-up:** when someone can auth locally (remembered account / confirmed signup), run the Playwright
 finish-path pass against the app; clear the `__DEV__` demo seed first (AGENTS.md §8) before any recall
 probes.
+## Toolfix — OpenRouter removal + agentic tool-calling (2026-09-10)
+
+Mission: (1) remove OpenRouter, standardize on the local OmniRoute gateway;
+(2) fix journal-chat tool-calling so free models reliably chain tools.
+Invariant kept: send path never awaits Hindsight — long-term memory only via
+`recall_memory` on AI demand (verified: `app/chat.tsx:93-94` still tool-driven,
+no blocking recall reintroduced).
+
+### Verified before changing
+- OmniRoute gateway live at `http://100.107.7.52:20128/v1` (OpenAI-compatible
+  error shape); `/models` (real key, never printed) lists 3806 models incl.
+  `cl/dots-studio/dots-3-note-preview:free` and `cl/tencent/hy3:free` — the
+  `:free` convention is still required, `-free`/web prefixes kept.
+
+### Phase 0 — OpenRouter removal (defaults/docs only; `NANO_GPT_*` names kept)
+- `services/ai/customModels.ts`: dropped `OPENROUTER_DEFAULT_BASE_URL`
+  re-export + the `openrouter.ai → /api/v1` pathname special-case (bare hosts
+  now always get `/v1`); placeholder guard `YOUR_OPENROUTER_API_KEY` →
+  `YOUR_OMNIROUTE_DATA_PLANE_KEY` (matches `.env.example`).
+- `services/ai/directConfig.ts`: header comment + placeholder error now say
+  OmniRoute data-plane key.
+- `services/ai/providerCapabilities.ts`: removed the `openrouter.ai`
+  `HTTP-Referer`/`X-Title` host override (OpenRouter free-tier routing
+  requirement; meaningless on OmniRoute). Unknown hosts → plain OpenAI defaults.
+- `services/ai/tools/toolCapability.ts`: comment "free OpenRouter" → free gateway.
+- `utils/ai/modelDisplay.ts`: `OPENROUTER_DEFAULT_BASE_URL` kept only as a
+  marked legacy export; comments reworded (`openrouter/free` kept as a
+  stored-id tolerance in `isFreeModelId` only).
+- `utils/ai/modelFallback.ts`: builtin fallback `openrouter/free` (dead on
+  OmniRoute — not a real model id) → `cl/tencent/hy3:free` (verified on gateway).
+- `backend/.env.example`: `NANO_GPT_*` defaults → OmniRoute URL + dots free
+  model; `AI_DEFAULT_*` noted as preferred.
+- `AGENTS.md` (rule 9 row, storage table, live-AI section, env block) + 4
+  integration-test fallback URLs → OmniRoute. README was already clean.
+- Out of scope, left alone: `backend/src/control/providerDiscovery.ts`
+  ("OpenRouter-style" = wire-format adjective, not a provider dep) and
+  `safeTransport.test.ts` (`openrouter.ai` = arbitrary public-host DNS fixture).
+
+### Phase 1 — Executor correctness (`services/ai/tools/`)
+- `types.ts`: new `ToolExecClass` (`pure`/`reads-mutable`/`mutating`) on
+  `ToolDefinition` + `refused?: boolean` on `ToolResult`.
+- `definitions.ts`: all 10 tools tagged (8 reads = `pure`,
+  `update_identity`/`create_goal` = `mutating`; unknown names fail safe to mutating).
+- `executeTool.ts` rewritten around the 2026 executor discipline:
+  - phase 1: pure + reads-mutable concurrently, cap 4, input order preserved;
+  - phase 2: at most ONE mutating call runs, extras → `REFUSED: … re-request
+    alone`, every input id gets exactly one result;
+  - idempotency `sha256(runId + tool + canonical args)` (local pure-TS sha256 —
+    no crypto dep on device, lockfile untouched) dedupes identical in-batch
+    calls without re-executing;
+  - fatal (unknown tool/validation) → terse message + available-tools hint, no
+    retry; retryable (timeout/429/5xx) → N=1 retry for pure calls only;
+    mutating timeouts are never blind-retried — result tells the model to verify
+    via a read tool first (effect ≠ response channel);
+  - 12k truncate now appends a refetch hint (narrower query/date/limit).
+- `agentLoop.ts` (minimal): per-turn `runId` passed to the executor; dedupe
+  keys recorded only for actually-executed calls so a REFUSED call re-requested
+  alone stays eligible; structured|text call counts added to telemetry.
+
+### Phase 2 — Prompt + selection
+- `HISTORY_TOOLS_POLICY` rewritten (868 chars, under the 900 budget): decision
+  rule (clock → orient → day → transcript; search = themes; recall = older-than-
+  digest), one good + one bad chain example, STOP rules (never invent, never
+  narrate tool names, never fake syntax, empty → answer from the live message).
+  All pinned test substrings kept (`be curious about it`, `"remember when…"`,
+  `one call costs nothing`, proactive stance).
+- Every tool description rewritten as verb + when-use + when-NOT-use + arg
+  example; `toolSchemaPin.test.ts` deliberately re-frozen to the new text.
+- `agenticGate.ts`: new pure `selectToolShortlist()` — remember-when →
+  recall+search, history Q → day-tool chain, goal verbs → goals tools, identity
+  cues → identity tools, union on combined intents, full catalog fallback.
+  `agentLoop.ts` sends only shortlisted specs (`tool_choice: 'auto'` unchanged)
+  and logs the branch.
+
+### Phase 3 — Loop hardening
+Kept 6 rounds / 45s / 24k budget, thin-retry nudge, duplicate→no-tools pass,
+and the exhaustion fallback (never narration). Text-dump path unchanged in
+precedence (structured wins; text only when structured yields zero prepared
+calls) with source-ratio telemetry now explicit per turn.
+
+### Tests (all green)
+- New: `executeTool.test.ts` phase block (3 pure + 2 mutating → 3 ran, 1 ran,
+  1 REFUSED, order kept, all ids covered; cap-4; idempotency incl. canonical
+  arg ordering; fatal unknown-tool; N=1 pure retry vs no mutating retry;
+  mutating-timeout verify hint; truncate refetch hint), `agenticGate.test.ts`
+  shortlist block (6 cases), `agentLoop.shortlist.test.ts` (REFUSED re-request
+  alone executes + both round-1 ids get tool messages; shortlisted specs sent;
+  full-catalog fallback).
+- Updated: customModels, directConfig, providerCapabilities, useCustomAiModels
+  (bare-host `/api/v1` expectation → gateway `/v1`), toolSchemaPin (re-frozen),
+  integration fallback URLs.
+- Gates: full jest 245 suites / 1204 tests ✅ (7 skipped integration-gated;
+  the single failure during the run was `useCustomAiModels.test.ts` pinning the
+  old bare-host `/api/v1` behavior — updated to gateway `/v1`, now green) · `npx tsc
+  --noEmit` ✅ · `npm run lint` 0 errors (78 pre-existing warnings) ✅ ·
+  `npm run check:design` ✅.
+
+### Live E2E (OmniRoute, cleared-storage harness) — PASSED 2026-09-10
+- `RUN_INTEGRATION_TESTS=1 recallMemoryCuriosityLive.test.ts` (real
+  `cl/dots-studio/dots-3-note-preview:free` via `http://100.107.7.52:20128/v1`,
+  Hindsight stubbed at the module boundary, "remember when…" probe, no
+  injected recall block): 2/2 passed, first attempt, ~37s.
+- Shortlist telemetry: `branch: 'remember-when', specs: 6` (was 10).
+- Tool trace (test 1): `get_clock {}` + `list_recent_days {"days":14,
+  "order":"oldest"}` in one batch → thin digests → `recall_memory
+  {"query":"first journal entry beginning started journaling"}` → answer.
+  The decision-rule chain fired exactly as the rewritten policy prescribes.
+- Structured-vs-text ratio: test 1 `structuredCalls: 3, textCalls: 0`;
+  test 2 `structuredCalls: 6, textCalls: 0` — 100% structured, zero text
+  dumps on OmniRoute dots-3-note. `toolsRepaired: 6/2` (arg-alias repair
+  carrying weight), 0 invalid, 0 duplicates, 0 refused.
+- Verbatim reply (test 1, "Remember when I first started journaling here?
+  What keeps coming back over the months?"):
+  > I don't see any journal entries or day digests on this device yet — it
+  > looks like this might be the beginning of our journal here, or at least
+  > the first entries that have been saved. The only older memory I have
+  > tucked away is that one about your grandfather's brass compass from the
+  > windowsill trip back in November 2024, but that's not journaling per se.
+  > So I don't have a record of what's been coming back for you over the
+  > months. I'm curious, though — what did you imagine I'd find? And what's
+  > actually been on your mind lately that you'd like to put down here?
+- Verbatim reply (test 2, needle echo — proves recalled content reaches prose):
+  > It looks like this device doesn't have any journal entries or day digests
+  > yet — no completed entries, no history of themes. […] The one thing that
+  > did surface from long-term memory was a note about your grandfather's
+  > brass compass from a windowsill trip back in November 2024 — but that
+  > doesn't seem to connect to journaling at all […]

@@ -47,7 +47,7 @@ describe('useCustomAiModels', () => {
         jest.restoreAllMocks();
     });
 
-    it('fetches OpenRouter models (all) and saves the selected custom provider', async () => {
+    it('fetches gateway models (all) and saves the selected custom provider', async () => {
         fetchMock.mockResolvedValue(new Response(JSON.stringify({
             data: [
                 { id: 'openai/gpt-4', name: 'GPT-4', context_length: 8192 },
@@ -58,8 +58,8 @@ describe('useCustomAiModels', () => {
         const { result } = renderHook(() => useCustomAiModels());
         await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-        act(() => result.current.setBaseUrl('https://openrouter.ai'));
-        act(() => result.current.setApiKey('sk-or-test'));
+        act(() => result.current.setBaseUrl('http://100.107.7.52:20128'));
+        act(() => result.current.setApiKey('omni-test'));
         await act(async () => result.current.fetchModels());
         await act(async () => result.current.saveSettings());
 
@@ -73,7 +73,7 @@ describe('useCustomAiModels', () => {
         ]);
         await expect(getActiveCustomModelConfig()).resolves.toEqual(
             expect.objectContaining({
-                apiBaseUrl: 'https://openrouter.ai/api/v1',
+                apiBaseUrl: 'http://100.107.7.52:20128/v1',
                 model: 'tencent/hy3:free',
                 contextWindow: 262000,
             })
@@ -91,8 +91,8 @@ describe('useCustomAiModels', () => {
         const { result } = renderHook(() => useCustomAiModels());
         await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-        act(() => result.current.setBaseUrl('https://openrouter.ai'));
-        act(() => result.current.setApiKey('sk-or-test'));
+        act(() => result.current.setBaseUrl('http://100.107.7.52:20128'));
+        act(() => result.current.setApiKey('omni-test'));
         await act(async () => result.current.fetchModels());
         await act(async () => result.current.selectModel('nvidia/nemotron:free'));
 
@@ -116,8 +116,8 @@ describe('useCustomAiModels', () => {
         const { result } = renderHook(() => useCustomAiModels());
         await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-        act(() => result.current.setBaseUrl('https://openrouter.ai'));
-        act(() => result.current.setApiKey('sk-or-test'));
+        act(() => result.current.setBaseUrl('http://100.107.7.52:20128'));
+        act(() => result.current.setApiKey('omni-test'));
         await act(async () => result.current.fetchModels());
         await act(async () => result.current.selectModel('openai/gpt-4'));
 

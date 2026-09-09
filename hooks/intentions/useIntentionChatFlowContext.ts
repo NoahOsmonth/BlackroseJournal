@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { flowForCheckInType, type ChatFlow, type ChatFlowContext } from '@/features/chat';
 import { useGoalsContext } from '@/hooks/goals/useGoalsContext';
-import { useHindsightRecallContext } from '@/hooks/memory/useHindsightRecallContext';
 import { useIdentityContext } from '@/hooks/memory/useIdentityContext';
 import { useLocalMemoryContext } from '@/hooks/memory/useLocalMemoryContext';
 import { useRecentDaysContext } from '@/hooks/memory/useRecentDaysContext';
@@ -47,9 +46,7 @@ export function useIntentionChatFlowContext({
     });
     const { context: recentDaysContext } = useRecentDaysContext({ days: 3 });
     const { context: identityContext } = useIdentityContext();
-    const { context: hindsightRecallContext } = useHindsightRecallContext({
-        query: intentionTitle ?? '',
-    });
+    // Long-term recall is tool-driven (recall_memory); no reactive Hindsight hook here.
 
     const flow = useMemo(
         () => (isRefineMode ? flowForCheckInType('intentionRefine') : flowForCheckInType(checkInType)),
@@ -65,7 +62,6 @@ export function useIntentionChatFlowContext({
             identityContext,
             localMemoryContext,
             recentDaysContext,
-            retrievedHistoryContext: hindsightRecallContext,
             goalsContext,
             feedbackGuidance,
         }),
@@ -77,7 +73,6 @@ export function useIntentionChatFlowContext({
             identityContext,
             localMemoryContext,
             recentDaysContext,
-            hindsightRecallContext,
             goalsContext,
             feedbackGuidance,
         ]

@@ -1,13 +1,31 @@
 /* eslint-disable import/first */
 
-import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import React from 'react';
 
 const mockUseChatOrchestration = jest.fn();
 const mockReplace = jest.fn();
 const mockBuildLocalMemoryContext = jest.fn(
     async (_opts?: { query?: string }) => '## Memory capsule',
 );
+const mockCreateEntry = jest.fn(async () => ({
+    id: 'entry-1',
+    title: 'Test',
+    emoji: '📝',
+    messages: [],
+    status: 'completed',
+    createdAt: 1,
+    updatedAt: 1,
+}));
+const mockUpdateEntry = jest.fn(async () => ({
+    id: 'entry-1',
+    title: 'Test',
+    emoji: '📝',
+    messages: [],
+    status: 'completed',
+    createdAt: 1,
+    updatedAt: 1,
+}));
 
 jest.mock('expo-router', () => ({
     useRouter: () => ({ replace: mockReplace }),
@@ -50,9 +68,20 @@ jest.mock('../../components/ChatMessage', () => ({
     ChatMessage: () => null,
 }));
 
-jest.mock('../../components/FooterActions', () => ({
-    FooterActions: () => null,
-}));
+jest.mock('../../components/FooterActions', () => {
+    const ReactActual = jest.requireActual('react') as typeof import('react');
+    const { Pressable, Text } = jest.requireActual('react-native') as typeof import('react-native');
+    return {
+        FooterActions: (props: { onFinishEntry?: () => void }) => (
+            <Pressable
+                accessibilityLabel="test-finish-entry"
+                onPress={() => props.onFinishEntry?.()}
+            >
+                <Text>finish</Text>
+            </Pressable>
+        ),
+    };
+});
 
 jest.mock('../../components/Header', () => ({
     Header: () => null,
@@ -161,7 +190,11 @@ jest.mock('../../hooks/personas/usePersonas', () => ({
 }));
 
 jest.mock('../../hooks/useJournalEntries', () => ({
-    useJournalEntries: () => ({ create: jest.fn(), update: jest.fn(), getById: jest.fn() }),
+    useJournalEntries: () => ({
+        create: mockCreateEntry,
+        update: mockUpdateEntry,
+        getById: jest.fn(async () => null),
+    }),
 }));
 
 jest.mock('../../services/ai', () => ({
@@ -186,6 +219,10 @@ jest.mock('../../services/memory/identityExtraction', () => ({
 
 jest.mock('../../services/journal/journalFinishSideEffects', () => ({
     runJournalFinishSideEffects: jest.fn(async () => undefined),
+    runJournalFinishBackground: jest.fn(() => ({
+        runId: 'finish-test',
+        promise: Promise.resolve(),
+    })),
 }));
 
 import ChatScreen from '../../app/chat';
@@ -246,5 +283,61 @@ describe('ChatScreen', () => {
         // Last capsule load after send must use the live user text (not stay empty).
         const lastQuery = queriesPassedToCapsule().at(-1);
         expect(lastQuery).toBe(userText);
+    });
+
+    it('navigates to reflection immediately after saving, without awaiting background work', async () => {
+        const { runJournalFinishBackground } = jest.requireMock(
+            '../../services/journal/journalFinishSideEffects',
+        ) as { runJournalFinishBackground: jest.Mock };
+        const { generateEntryAnalysis } = jest.requireMock('../../services/ai') as {
+            generateEntryAnalysis: jest.Mock;
+        };
+        // Background analysis would hang forever if awaited — the screen must
+        // not block navigation on it.
+        generateEntryAnalysis.mockReturnValue(new Promise(() => undefined));
+        runJournalFinishBackground.mockClear();
+
+        const screen = render(<ChatScreen />);
+        await act(async () => {
+            fireEvent.press(screen.getByLabelText('test-send-user-message'));
+        });
+
+        await act(async () => {
+            fireEvent.press(screen.getByLabelText('test-finish-entry'));
+        });
+
+        // Navigation happened without waiting for the background run.
+        expect(mockReplace).toHaveBeenCalledWith({
+            pathname: '/entry-reflection',
+            params: { entryId: 'entry-1' },
+        });
+        expect(runJournalFinishBackground).toHaveBeenCalledTimes(1);
+    });
+
+    it('saves the entry as completed before navigating (no analysis in the blocking path)', async () => {
+        const { generateEntryAnalysis } = jest.requireMock('../../services/ai') as {
+            generateEntryAnalysis: jest.Mock;
+        };
+        mockCreateEntry.mockClear();
+        generateEntryAnalysis.mockClear();
+
+        const screen = render(<ChatScreen />);
+        await act(async () => {
+            fireEvent.press(screen.getByLabelText('test-send-user-message'));
+        });
+
+        await act(async () => {
+            fireEvent.press(screen.getByLabelText('test-finish-entry'));
+        });
+
+        // The blocking save path must not call the LLM analysis.
+        expect(generateEntryAnalysis).not.toHaveBeenCalled();
+        expect(mockCreateEntry).toHaveBeenCalledWith(expect.objectContaining({
+            status: 'completed',
+        }));
+        expect(mockReplace).toHaveBeenCalledWith({
+            pathname: '/entry-reflection',
+            params: { entryId: 'entry-1' },
+        });
     });
 });

@@ -137,7 +137,7 @@ describe('directConfig — hasEnvDirectApiKey', () => {
     });
 
     it('is false for placeholder keys', () => {
-        process.env.EXPO_PUBLIC_NANO_GPT_API_KEY = 'YOUR_OPENROUTER_API_KEY';
+        process.env.EXPO_PUBLIC_NANO_GPT_API_KEY = 'YOUR_OMNIROUTE_DATA_PLANE_KEY';
         expect(hasEnvDirectApiKey()).toBe(false);
     });
 
@@ -186,8 +186,8 @@ describe('directConfig — getResolvedDirectConfig', () => {
             ...getDefaultCustomAiProviderSettings(),
             enabled: true,
             freeOnly: true,
-            baseUrl: 'https://openrouter.ai/api/v1',
-            apiKey: 'sk-or-test',
+            baseUrl: 'http://100.107.7.52:20128/v1',
+            apiKey: 'omni-test',
             selectedModelId: 'tencent/hy3:free',
             models: [{
                 id: 'tencent/hy3:free',
@@ -197,8 +197,8 @@ describe('directConfig — getResolvedDirectConfig', () => {
         });
 
         await expect(getResolvedDirectConfig()).resolves.toEqual({
-            apiKey: 'sk-or-test',
-            apiBaseUrl: 'https://openrouter.ai/api/v1',
+            apiKey: 'omni-test',
+            apiBaseUrl: 'http://100.107.7.52:20128/v1',
             model: 'tencent/hy3:free',
             flashModel: 'tencent/hy3:free',
             source: 'custom',

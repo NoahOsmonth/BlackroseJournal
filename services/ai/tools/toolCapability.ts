@@ -69,7 +69,8 @@ export function resolveToolCapability(modelId: string | undefined | null): ToolC
     const id = normalizeModelId(modelId);
 
     if (!id || id === 'agent-default') {
-        // Resolved model unknown until transport — assume hybrid (safe for free OpenRouter).
+        // Resolved model unknown until transport — assume hybrid (safe for free
+        // OmniRoute gateway models).
         return hybridCapability();
     }
 

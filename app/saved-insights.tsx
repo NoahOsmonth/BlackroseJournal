@@ -1,27 +1,38 @@
-import React, { useCallback, useState } from 'react';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useNavBack } from '@/hooks/navigation/useNavBack';
-import { useSavedInsights } from '@/hooks/saved-insights/useSavedInsights';
+import { FinishBackgroundBanner } from '@/components/entries/FinishBackgroundBanner';
+import { AnimatedRemove } from '@/components/ui/AnimatedRemove';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingStatus } from '@/components/ui/LoadingStatus';
 import { RevealItem } from '@/components/ui/RevealItem';
-import { useScrollReveal } from '@/components/ui/useScrollReveal';
 import { StaggerEntranceItem } from '@/components/ui/StaggerEntrance';
-import { AnimatedRemove } from '@/components/ui/AnimatedRemove';
+import { useScrollReveal } from '@/components/ui/useScrollReveal';
+import { useFinishBackgroundStatus } from '@/hooks/journal/useFinishBackgroundStatus';
+import { useNavBack } from '@/hooks/navigation/useNavBack';
+import { useSavedInsights } from '@/hooks/saved-insights/useSavedInsights';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function SavedInsightsScreen() {
     const goBack = useNavBack('/(tabs)/insights');
     const { scrollY, onScroll } = useScrollReveal();
-    const { insights, isLoading, remove } = useSavedInsights();
+    const { insights, isLoading, remove, refresh } = useSavedInsights();
+    const { isDone } = useFinishBackgroundStatus();
     const colorScheme = useColorScheme();
     const iconColor = colorScheme === 'dark' ? '#F9FAFB' : '#111827';
     const [removingId, setRemovingId] = useState<string | null>(null);
     const [removedCount, setRemovedCount] = useState<Record<string, boolean>>({});
+
+    // Saved insights are not memory-change subscribers; refresh when the
+    // finish background run settles so new insights appear automatically.
+    useEffect(() => {
+        if (isDone) {
+            void refresh();
+        }
+    }, [isDone, refresh]);
 
     const handleRemove = useCallback((id: string) => {
         setRemovingId(id);
@@ -44,6 +55,8 @@ export default function SavedInsightsScreen() {
                     <Text className="text-lg font-semibold text-text-light dark:text-text-dark">Saved insights</Text>
                     <View className="w-10" />
                 </View>
+
+                <FinishBackgroundBanner />
 
                 {isLoading ? (
                     <View className="flex-1 max-w-md mx-auto w-full items-center justify-center px-6">

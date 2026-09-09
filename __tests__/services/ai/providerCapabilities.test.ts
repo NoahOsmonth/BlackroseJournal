@@ -33,15 +33,11 @@ describe('providerCapabilities — getProviderCapabilities', () => {
         expect(caps.extraHeaders).toEqual({});
     });
 
-    it('maps OpenRouter to app identity headers and transient gateway retries', () => {
-        const caps = getProviderCapabilities('https://openrouter.ai/api/v1');
+    it('defaults unknown hosts (including the OmniRoute gateway) to plain OpenAI behavior', () => {
+        const caps = getProviderCapabilities('http://100.107.7.52:20128/v1');
         expect(caps.maxTokensField).toBe('max_tokens');
-        expect(caps.extraHeaders['HTTP-Referer']).toBeTruthy();
-        expect(caps.extraHeaders['X-Title']).toBe('Blackrose Journal');
+        expect(caps.extraHeaders).toEqual({});
         expect(caps.retryableStatuses.has(429)).toBe(true);
-        expect(caps.retryableStatuses.has(502)).toBe(true);
-        expect(caps.retryableStatuses.has(503)).toBe(true);
-        expect(caps.retryableStatuses.has(504)).toBe(true);
     });
 
     it('maps NanoGPT to the OpenAI schema', () => {

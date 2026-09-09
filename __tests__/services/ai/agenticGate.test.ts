@@ -6,6 +6,7 @@
 import {
     resolveAgentTurnTokenBudget,
     resolveHistoryToolsBranch,
+    selectToolShortlist,
     shouldEnableHistoryTools,
 } from '../../../services/ai/agenticGate';
 import type { Message } from '../../../services/ai/chatTypes';
@@ -95,8 +96,58 @@ describe('resolveHistoryToolsBranch — branch precedence', () => {
     });
 });
 
-describe('resolveAgentTurnTokenBudget', () => {
-    it('floors small windows up to 12_000', () => {
+describe('selectToolShortlist — per-turn spec subset', () => {
+    it('remember-when serves recall_memory + search_history', () => {
+        const short = selectToolShortlist('remember when I first mentioned Maya?');
+        expect(short.branch).toBe('remember-when');
+        expect(short.names).toEqual(expect.arrayContaining(['recall_memory', 'search_history']));
+        expect(short.names).not.toContain('create_goal');
+    });
+
+    it('history questions serve the day-tool chain, not goals tools', () => {
+        const short = selectToolShortlist('what did I write about work last week?');
+        expect(short.branch).toBe('history-days');
+        expect(short.names).toEqual(expect.arrayContaining([
+            'get_clock',
+            'list_recent_days',
+            'get_day',
+            'get_conversation',
+            'search_history',
+        ]));
+        expect(short.names).not.toContain('create_goal');
+        expect(short.names).not.toContain('update_identity');
+    });
+
+    it('goal verbs serve the goals tools', () => {
+        const short = selectToolShortlist('I want to track a new running habit');
+        expect(short.branch).toBe('goal-task');
+        expect(short.names).toEqual(expect.arrayContaining(['list_goals', 'create_goal']));
+    });
+
+    it('identity cues serve the identity tools', () => {
+        const short = selectToolShortlist('please call me Sam');
+        expect(short.branch).toBe('identity');
+        expect(short.names).toEqual(expect.arrayContaining(['get_identity', 'update_identity']));
+    });
+
+    it('unmatched turns fall back to the full catalog', () => {
+        const short = selectToolShortlist('hello there friend');
+        expect(short.branch).toBe('all-fallback');
+        expect(short.names).toHaveLength(10);
+    });
+
+    it('combined intents union both subsets', () => {
+        const short = selectToolShortlist('call me Sam, and remember that I want to track a running habit');
+        expect(short.names).toEqual(expect.arrayContaining([
+            'get_identity',
+            'update_identity',
+            'list_goals',
+            'create_goal',
+        ]));
+    });
+});
+
+describe('resolveAgentTurnTokenBudget', () => {    it('floors small windows up to 12_000', () => {
         // floor(16_384 * 0.5) = 8_192, clamped up to the 12_000 floor.
         expect(resolveAgentTurnTokenBudget(16_384, 24_000)).toBe(12_000);
         expect(resolveAgentTurnTokenBudget(2_048, 24_000)).toBe(12_000);
