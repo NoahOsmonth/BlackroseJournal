@@ -1,10 +1,68 @@
 # PROGRESS — Optimization + Bug Hunt (2026-09-02)
 
+## 2026-09-10 — Tool-calling accuracy: FULL GREEN 4-turn live probe (turn-4 first-conversation anti-hallucination verified)
+
+### Outcome
+
+The 4-turn live probe (`__tests__/integration/toolCallingMultiTurnLive.test.ts`)
+passed end-to-end for the first time: `1 passed, 1 total` in 244.5s on
+`cl/dots-studio/dots-3-note-preview:free` (default model, no env override),
+gateway `http://100.107.7.52:20128/v1`, 2026-09-10. All four turns used
+`source=structured` tool calls; no retries were consumed (every turn passed on
+attempt 1); the only stop other than `complete` was turn-4's `duplicate_call`,
+which is the agent loop's duplicate-call guard correctly rejecting a third
+identical `list_recent_days` burst.
+
+Per-turn evidence (verbatim from `live-run8.log`):
+
+- **Turn 1 — yesterday grounding** (`get_clock` → `get_day({"date":"yesterday"})`
+  → `get_conversation({"id":"entry_…","kind":"journal_entry","date":"2026-09-09")`):
+  reply grounded in the seed (sleep/Slack/deck three times/boss rework), no
+  invented date.
+- **Turn 2 — exact words** (`get_day({"date":"yesterday"})` →
+  `get_conversation` with the seeded digest id): verbatim quote —
+  `"The rework. My boss keeps changing the requirements and I take it out on
+  everyone."`
+- **Turn 3 — long-term recall** (`recall_memory({"query":"early journaling
+  first started memories recurring themes","limit":8})` →
+  `list_recent_days({"days":14,"order":"oldest"})` → `search_history`):
+  needle reached the reply — "the earliest memory I can pull is from November
+  2024, about your grandmother's blue enamel teapot from the Lisbon trip" —
+  and the model honestly flagged `search_history` finding nothing.
+- **Turn 4 — very first chat (anti-hallucination core)**:
+  `list_recent_days({"order":"oldest","days":14})` →
+  `recall_memory({"query":"first journal entry beginning started
+  journaling","limit":5})` → `list_recent_days({"days":30,"order":"oldest"})`,
+  then **honest limitation instead of fabrication**: "As for our very first
+  conversation together, it's not on the device. The journal only [goes so
+  far]…" plus correct surfacing of the oldest available memory (teapot,
+  November 2024). The invented-first-conversation failure mode did not occur.
+
+### Congestion runbook (validated across 8 live runs)
+
+Turn-level 504s (`requestQueue.maxWaitMs=15000ms`) are gateway saturation, not
+test failures — do not interpret them as assertion failures. Read the attempt
+log line (`[multi-turn] turn-N <label> attempt X failed: …`) before
+concluding anything. Validated escape hatches, in order:
+
+1. Full log to file (`*> live-runN.log`), never poll the terminal — `|
+   Out-String` buffers all jest output and shows nothing.
+2. Probe `/v1/models` with the data-plane key before launching; if the
+   gateway is hot (or unreachable, as in run 6), wait instead of hammering.
+3. Retry ladder is 60/120/240s + 60s between-turn cooldowns, 60-min jest
+   ceiling — sized for saturation windows.
+4. glm-5.3-combo remains viable for turns 1–2 (run 7: both green, structured,
+   verbatim) but its 13–39s rounds soak the queue; dots-3 (default) completed
+   all 4 turns in 244s with zero retries. Default to dots-3 for this probe.
+5. Don't forget `RUN_INTEGRATION_TESTS='1'` when dropping the model env
+   overrides — without it the suite silently skips (`1 skipped`, EXIT=0).
+
 ## 2026-09-09 — Tool-calling accuracy: 3-turn live probe + dots-3 dump parser fix
 
 ### Outcome
 
-Built and ran a real 3-turn live conversation probe
+Built and ran a real 3-turn live conversation probe (later extended to 4
+turns; see the 2026-09-10 entry above for the full-green result)
 (`__tests__/integration/toolCallingMultiTurnLive.test.ts`,
 `RUN_INTEGRATION_TESTS=1` gate) against the OmniRoute gateway
 (`cl/dots-studio/dots-3-note-preview:free`) exercising the REAL agent loop,
@@ -39,8 +97,9 @@ get_conversation, title→create_goal, etc.).
 
 - `__tests__/services/ai/parseTextToolCalls.test.ts`: +2 cases (dots-tag parse
   with parameter blocks; strip guard for mixed prose). 13/13 pass.
-- `__tests__/integration/toolCallingMultiTurnLive.test.ts`: new 3-turn live
-  probe (skipped unless `RUN_INTEGRATION_TESTS=1`). 1/1 pass live.
+- `__tests__/integration/toolCallingMultiTurnLive.test.ts`: new live probe
+  (3 turns at the time; since extended to 4 — skipped unless
+  `RUN_INTEGRATION_TESTS=1`). 1/1 pass live.
 
 ### Gates
 
@@ -49,7 +108,7 @@ get_conversation, title→create_goal, etc.).
 
 ### glm-5.3-combo cross-check (same probe, env override)
 
-Re-ran the same 3-turn probe with `EXPO_PUBLIC_NANO_GPT_MODEL=glm-5.3-combo`:
+Re-ran the then-3-turn probe with `EXPO_PUBLIC_NANO_GPT_MODEL=glm-5.3-combo`:
 PASS in ~347s. Turn 1 resolved "yesterday" → `get_day({"date":"2026-09-08"})`
 using the injected clock (no invented date) then `get_conversation(id)`;
 turn 2 quoted both journal messages verbatim; turn 3 called
