@@ -57,6 +57,26 @@ concluding anything. Validated escape hatches, in order:
 5. Don't forget `RUN_INTEGRATION_TESTS='1'` when dropping the model env
    overrides — without it the suite silently skips (`1 skipped`, EXIT=0).
 
+### Reproduction (same day, ~09:57–10:02, independent run)
+
+A second full run on the default dots-3 model minutes later reproduced the
+green result: `1 passed, 1 total` in 301.03s, all turns `source=structured`.
+Two things this run adds to the runbook:
+
+- **First real assertion failure ever recorded, and it self-healed.** Turn-4
+  attempt 1 failed the no-tool-narration guard: the loop stopped on
+  `duplicate_call` and shipped the model's leaked planning text ("…I have
+  list_recent_days showing only 2026-09-09. Let me check recall_memory or
+  search_history…") as the reply. Attempt 2 (after the 60s rung) passed
+  cleanly with an honest-limitation reply. One flaky narration leak does not
+  make the probe unstable — the retry ladder is doing its job; do not weaken
+  the assertion.
+- **Log-filename collision:** two sessions ran the probe concurrently and
+  both redirected to `live-run8.log`; the survivor on disk is the
+  reproduction run (301.03s), so the transcript quoted in the section above
+  is no longer reconstructable from that file. Future runs: use a unique
+  suffix per session (`live-runN-<tag>.log`).
+
 ## 2026-09-09 — Tool-calling accuracy: 3-turn live probe + dots-3 dump parser fix
 
 ### Outcome
