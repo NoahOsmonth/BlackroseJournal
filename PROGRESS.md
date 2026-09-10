@@ -47,6 +47,18 @@ get_conversation, title→create_goal, etc.).
 - `npx tsc --noEmit` clean; `npx eslint` clean on touched files; parse +
   agent-loop unit suites 33/33 pass.
 
+### glm-5.3-combo cross-check (same probe, env override)
+
+Re-ran the same 3-turn probe with `EXPO_PUBLIC_NANO_GPT_MODEL=glm-5.3-combo`:
+PASS in ~347s. Turn 1 resolved "yesterday" → `get_day({"date":"2026-09-08"})`
+using the injected clock (no invented date) then `get_conversation(id)`;
+turn 2 quoted both journal messages verbatim; turn 3 called
+`recall_memory` and echoed the needle. Latency caveat: glm-5.3-combo rounds
+take 13–39s, so turn 3 hit the 45s `AGENT_TURN_TIMEOUT_MS` — the loop
+degraded correctly (final no-tools pass shipped an answer grounded in the
+already-fetched tool results). One transient transport error was auto-healed
+by the existing self-heal retry.
+
 ## 2026-09-09 — Finish Entry: local save + immediate reflection navigation, background side effects
 
 ### Outcome

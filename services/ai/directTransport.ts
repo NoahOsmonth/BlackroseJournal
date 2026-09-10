@@ -8,15 +8,15 @@
  */
 
 import {
+    acquireAccountOperationLease,
+    type AccountOperationLease,
+} from '@/services/account/accountRuntime';
+import {
     buildModelFallbackQueue,
     isModelNotFoundError,
 } from '@/utils/ai/modelFallback';
 import { loadCustomAiProviderSettings } from './customModels';
 import { getResolvedDirectConfig, type ResolvedDirectConfig } from './directConfig';
-import {
-    acquireAccountOperationLease,
-    type AccountOperationLease,
-} from '@/services/account/accountRuntime';
 import { getProviderCapabilities, type ProviderCapabilities } from './providerCapabilities';
 
 export interface DirectChatRequest {
@@ -233,6 +233,41 @@ function backoffMs(attempt: number): number {
     return Math.round(base + (Math.random() * 2 - 1) * variance);
 }
 
+/**
+ * Statuses that signal gateway/rate-limit congestion. Unlike a plain network
+ * blip, retrying a few hundred ms later lands in the same saturated window
+ * (e.g. OmniRoute expires queued requests at maxWaitMs=15s), so the backoff
+ * must be on the order of seconds, not milliseconds.
+ */
+const CONGESTION_STATUSES = new Set([429, 503, 504]);
+/** Long-form backoff steps for congestion, ~1s → ~4s → ~16s. */
+const CONGESTION_BACKOFF_MS = [1_000, 4_000, 16_000];
+
+function congestionBackoffMs(attempt: number): number {
+    const idx = Math.min(attempt, CONGESTION_BACKOFF_MS.length - 1);
+    const base = CONGESTION_BACKOFF_MS[idx];
+    const variance = base * 0.2;
+    return Math.round(base + (Math.random() * 2 - 1) * variance);
+}
+
+/**
+ * Retry-After (seconds or HTTP-date) from a gateway response, if present.
+ * Capped so a hostile/misconfigured value cannot stall the turn indefinitely.
+ */
+async function retryAfterMs(response: Response): Promise<number | null> {
+    const header = response.headers.get('retry-after');
+    if (!header) return null;
+    const asSeconds = Number(header);
+    if (Number.isFinite(asSeconds) && asSeconds >= 0) {
+        return Math.min(asSeconds * 1000, 30_000);
+    }
+    const asDate = Date.parse(header);
+    if (!Number.isNaN(asDate)) {
+        return Math.min(Math.max(asDate - Date.now(), 0), 30_000);
+    }
+    return null;
+}
+
 function delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -383,7 +418,7 @@ async function resolveModelFallbacks(
 
 type AttemptOutcome =
     | { kind: 'ok'; response: Response }
-    | { kind: 'response'; response: Response; modelMissing: boolean; retryable: boolean }
+    | { kind: 'response'; response: Response; modelMissing: boolean; retryable: boolean; congestion: boolean }
     | { kind: 'network'; error: unknown };
 
 /**
@@ -409,7 +444,8 @@ async function singleFetch(
         const modelMissing = isModelNotFoundError(response.status, bodyText);
         const retryable =
             !modelMissing && request.capabilities.retryableStatuses.has(response.status);
-        return { kind: 'response', response, modelMissing, retryable };
+        const congestion = CONGESTION_STATUSES.has(response.status);
+        return { kind: 'response', response, modelMissing, retryable, congestion };
     } catch (err) {
         if (accountSignal.aborted) throw accountSwitchCancellationError();
         if (isAbortError(err) || options.signal?.aborted) {
@@ -531,7 +567,10 @@ async function fetchWithSelfHeal(
             }
 
             if (outcome.retryable && attempt < MAX_ATTEMPTS - 1) {
-                await delayUnlessAccountSwitched(backoffMs(attempt), accountSignal);
+                const waitMs = outcome.congestion
+                    ? (await retryAfterMs(outcome.response)) ?? congestionBackoffMs(attempt)
+                    : backoffMs(attempt);
+                await delayUnlessAccountSwitched(waitMs, accountSignal);
                 continue;
             }
 
@@ -604,3 +643,4 @@ export async function fetchDirectChatCompletion(
 
 export { DirectConfigError, getDirectConfig, getResolvedDirectConfig } from './directConfig';
 export type { DirectConfig, ResolvedDirectConfig } from './directConfig';
+

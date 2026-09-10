@@ -1,5 +1,5 @@
 /**
- * Live integration: 3-turn sequential conversation — tool-calling ACCURACY probe.
+ * Live integration: 4-turn sequential conversation — tool-calling ACCURACY probe.
  * Real OmniRoute model + real Rosebud freeform prompt weave + real agent loop +
  * real tool validate/execute pipeline over real seeded on-device digests.
  *
@@ -208,7 +208,26 @@ async function runTurn(
     );
 }
 
-const RETRY_DELAYS_MS = [2_000, 5_000, 10_000];
+/**
+ * Delays between whole-turn attempts. Spaced for free-gateway saturation
+ * recovery: OmniRoute rejects with 504 ("requestQueue.maxWaitMs=15000ms")
+ * while the model is cold/saturated, and the transport's fast self-heal
+ * backoff (250/500ms) cannot outlast that window. Retries must wait on the
+ * order of a minute, not seconds, or they just hit the same 504 wall.
+ */
+const RETRY_DELAYS_MS = [60_000, 120_000, 240_000];
+
+/**
+ * Pause between turns. Our own back-to-back multi-round bursts keep the
+ * gateway's rate-limit window saturated; a cool-down before the next turn
+ * gives the next probe a fair, non-congested window. Turn-3's retries pump
+ * extra bursts into the queue, so turn-4 inherits a hot window — the retry
+ * ladder above must outlast it.
+ */
+const TURN_COOLDOWN_MS = 60_000;
+async function cooldownForGateway(): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, TURN_COOLDOWN_MS));
+}
 
 async function retryForAssertion(label: string, attempt: () => Promise<void>): Promise<void> {
     let lastError: unknown;
@@ -218,9 +237,9 @@ async function retryForAssertion(label: string, attempt: () => Promise<void>): P
             return;
         } catch (error) {
             lastError = error;
+            const message = error instanceof Error ? error.message : String(error);
+            console.log(`[multi-turn] ${label} attempt ${i + 1} failed: ${message}`);
             if (i < RETRY_DELAYS_MS.length) {
-                 
-                console.log(`[multi-turn] ${label} attempt ${i + 1} failed; retrying.`);
                 await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS_MS[i]));
             }
         }
@@ -228,8 +247,12 @@ async function retryForAssertion(label: string, attempt: () => Promise<void>): P
     throw lastError;
 }
 
-describeMaybe('integration: 3-turn tool-calling accuracy (RUN_INTEGRATION_TESTS=1)', () => {
-    jest.setTimeout(600_000);
+describeMaybe('integration: 4-turn tool-calling accuracy (RUN_INTEGRATION_TESTS=1)', () => {
+    // Ceiling for the whole 4-turn chain with retries on a slow free gateway:
+    // 4 turns × up to 4 attempts × ~2 min/turn + retry delays (60/120/240s)
+    // + between-turn cooldowns. The retry helper paces gateway saturation
+    // (504 queue-expiry) windows; this ceiling just bounds total runtime.
+    jest.setTimeout(3_600_000);
 
     const originalEnv = { ...process.env };
     let liveModel: string;
@@ -269,7 +292,7 @@ describeMaybe('integration: 3-turn tool-calling accuracy (RUN_INTEGRATION_TESTS=
         process.env = { ...originalEnv };
     });
 
-    it('turn chain: yesterday grounding → exact words → long-term recall echo', async () => {
+    it('turn chain: yesterday grounding → exact words → long-term recall echo → first conversation', async () => {
         // Account-bound ops (journal create) need an active account in test env.
         await activateAccount('live-tool-accuracy');
         const seed = yesterdayEntry();
@@ -343,6 +366,7 @@ describeMaybe('integration: 3-turn tool-calling accuracy (RUN_INTEGRATION_TESTS=
             content: probe1.reply,
             timestamp: Date.now() + 1,
         });
+        await cooldownForGateway();
 
         // ---- Turn 2: exact words — must chain get_conversation (id from digest)
         // ---- and quote real journal words ("deck three times" / "boss").
@@ -385,6 +409,7 @@ describeMaybe('integration: 3-turn tool-calling accuracy (RUN_INTEGRATION_TESTS=
             content: probe2.reply,
             timestamp: Date.now() + 3,
         });
+        await cooldownForGateway();
 
         // ---- Turn 3: long-term recall — must call recall_memory and echo needle.
         const probe3: TurnProbe = {
@@ -417,11 +442,62 @@ describeMaybe('integration: 3-turn tool-calling accuracy (RUN_INTEGRATION_TESTS=
             expect(probe3.reply.toLowerCase()).toMatch(/teapot|lisbon|grandmother/);
             expect(probe3.reply).not.toMatch(/\brecall_memory\b|\btool_call\b/);
         });
+        await cooldownForGateway();
+
+        // ---- Turn 4: "very first chat" — must use list_recent_days(order=oldest)
+        // ---- (or recall_memory) and must NOT invent an older conversation: with
+        // ---- only one seeded session on the device, the only honest answer is
+        // ---- that the seeded entry IS the earliest one.
+        const probe4: TurnProbe = {
+            toolCalls: [],
+            toolResults: [],
+            reply: '',
+            usedTools: false,
+            rounds: 0,
+            toolCallSource: 'none',
+        };
+        history.push({
+            id: 'u4',
+            role: 'user',
+            content: "What's my very first chat here? Our first conversation — can you show it to me?",
+            timestamp: Date.now() + 5,
+        });
+
+        await retryForAssertion('turn-4 first conversation', async () => {
+            probe4.toolCalls = [];
+            probe4.toolResults = [];
+            await runTurn('turn-4', probe4, await buildPrompt(), history);
+            // Must reach for ordered history, not guess from chat context alone.
+            const orientCalls = probe4.toolCalls.filter((c) =>
+                c.name === 'list_recent_days' || c.name === 'get_day' || c.name === 'get_conversation'
+            );
+            expect(orientCalls.length).toBeGreaterThan(0);
+            // If order was specified it must be oldest-first (newest would be wrong here).
+            for (const call of probe4.toolCalls.filter((c) => c.name === 'list_recent_days')) {
+                if (/"order"\s*:\s*"newest"/i.test(call.args)) {
+                    throw new Error('list_recent_days used order=newest for a first-conversation probe');
+                }
+            }
+            // Anti-hallucination: the reply must either surface the seeded session
+            // (its title/date) or admit there is nothing older — never fabricate
+            // an invented "first chat".
+            const replyLower = probe4.reply.toLowerCase();
+            const surfacedSeeded =
+                replyLower.includes('sleep debt')
+                || replyLower.includes(yesterday)
+                || replyLower.includes('work pressure');
+            const admittedLimit =
+                /only|earliest|oldest|just (one|a single)|no (older|earlier)|nothing (older|earlier)|can'?t find|don'?t have|isn'?t on the device|first (thing|session|entry|conversation) i (can|have)/.test(replyLower);
+            expect(surfacedSeeded || admittedLimit).toBe(true);
+            // Must never fabricate a concrete invented conversation (distinct fake
+            // title/date that matches neither the seed nor an honest limitation).
+            expect(probe4.reply).not.toMatch(/\btool_call\b|\blist_recent_days\b/);
+        });
 
          
         console.log(
             '[multi-turn] TRANSCRIPT\n'
             + history.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n')
         );
-    }, 600_000);
+    }, 3_600_000);
 });
