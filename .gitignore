@@ -95,3 +95,4 @@ probes/artifacts/
 
 # OpenRouter model-list cache (fetched, never commit)
 .or_models.json
+live-run*.log
