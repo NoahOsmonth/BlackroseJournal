@@ -6,6 +6,12 @@ Every rule below prevents a real bug that already happened. Rules are ordered by
 
 ---
 
+## Skills
+
+Skills live in this repo at `.agents/skills/` (absolute path: `C:\Users\sigmu\Desktop\BlackroseJournal\.agents\skills`). View/read the relevant skill from that directory when the user asks for it.
+
+---
+
 ## Most-violated rules (read first)
 
 ### 1. Every color is a token. Both schemes. Every `<Text>` has a `dark:` variant.
@@ -137,7 +143,7 @@ Every change updates or adds tests. If a test isn't feasible, document why in `P
 | Session compact | Older turns → rolling summary when ctx fills | `conversationCompact.ts` inside `streamChat` / `completeChat` |
 | Long-term recollections | Hindsight container (local-first) | `services/memory/hindsight/` — retain on finish, recall block + `recall_memory` tool |
 
-Long-term memory is **Hindsight** (vectorize-io, local Docker): every completed journal entry / check-in fires a fire-and-forget retain (`retainJournalEntryToHindsight` / `retainCheckInToHindsight`); **recall is tool-driven** — the AI calls `recall_memory` on demand (curiosity nudge in `HISTORY_TOOLS_POLICY`); the send path never awaits Hindsight and no reactive recall block is injected into prompts (`ChatFlowContext.retrievedHistoryContext` stays as the flow slot the tool fills mid-reply). Everything is **soft-fail**: Hindsight down → chat, finish path, and navigation are unaffected. Gemini (`gemini-embedding-001`, 768-dim) is **embeddings-only — never an LLM**; all LLM work goes to the local OmniRoute gateway (`cl/dots-studio/dots-3-note-preview:free` default). The abandoned custom cloud-memory platform (`LOCAL → MIRROR → SHADOW → CLOUD`) was removed 2026-08-18 — never resurrect it or its storage keys (`@rosebud_cloud_memory_mirror_outbox`, `@rosebud_memory_dataset_binding`). OpenRouter was removed 2026-09-10 — OmniRoute (`http://100.107.7.52:20128/v1`, data-plane key) is the only chat gateway; do not re-add openrouter.ai defaults.
+Long-term memory is **Hindsight** (vectorize-io, local Docker): every completed journal entry / check-in fires a fire-and-forget retain (`retainJournalEntryToHindsight` / `retainCheckInToHindsight`); **recall is tool-driven** — the AI calls `recall_memory` on demand (curiosity nudge in `HISTORY_TOOLS_POLICY`); the send path never awaits Hindsight and no reactive recall block is injected into prompts (`ChatFlowContext.retrievedHistoryContext` stays as the flow slot the tool fills mid-reply). Everything is **soft-fail**: Hindsight down → chat, finish path, and navigation are unaffected. Gemini (`gemini-embedding-001`, 768-dim) is **embeddings-only — never an LLM**; all LLM work goes to the local OmniRoute gateway (structured default `merge/deepseek/deepseek-v4-flash-0731`; free dump-prone models are fallback only). The abandoned custom cloud-memory platform (`LOCAL → MIRROR → SHADOW → CLOUD`) was removed 2026-08-18 — never resurrect it or its storage keys (`@rosebud_cloud_memory_mirror_outbox`, `@rosebud_memory_dataset_binding`). OpenRouter was removed 2026-09-10 — OmniRoute (`http://100.107.7.52:20128/v1`, data-plane key) is the only chat gateway; do not re-add openrouter.ai defaults.
 
 Guard: `__tests__/backend-local-only.test.ts` (cloud-memory removal boundary + credential isolation).
 
@@ -271,7 +277,9 @@ EXPO_PUBLIC_NANO_GPT_API_BASE_URL=http://100.107.7.52:20128/v1
 EXPO_PUBLIC_NANO_GPT_MODEL=merge/deepseek/deepseek-v4-flash-0731
 EXPO_PUBLIC_NANO_GPT_FLASH_MODEL=merge/deepseek/deepseek-v4-flash-0731
 ```
-Names are legacy (`NANO_GPT_*`); the local OmniRoute gateway is the only supported provider (OpenRouter removed 2026-09-10). Prefer free models with **≥32k** context when using the long freeform prompt.
+Names are legacy (`NANO_GPT_*`); the local OmniRoute gateway is the only supported provider (OpenRouter removed 2026-09-10).
+
+**Agent harness doctrine (overrides older free-model advice):** design for **structured tool calling** like Pi/Claude Code — native `tool_calls`, multi-round turn loop, live activity. Default chat models must be **tool-capable** (e.g. `merge/deepseek/deepseek-v4-flash-0731`, GPT/Claude/Gemini routes). Do **not** center new work on free dump-prone models (`*:free`, dots-3, GLM flash). Text-dump repair + promise-continue exist only as a **fallback tier** for those weak routes; they are not the product path. Long freeform prompt still needs **≥32k** context on whatever structured model you pick.
 
 ### Backend (optional local agent) — `backend/.env`
 

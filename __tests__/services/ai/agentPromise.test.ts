@@ -3,9 +3,11 @@
  * Pure function — no transport, no timers.
  */
 import {
+    looksLikeStatusOnlyReply,
     looksLikeUnfinishedPromise,
     PROMISE_CONTINUATION_MAX,
     PROMISE_TEXT_MAX_LENGTH,
+    STATUS_ONLY_MAX_LENGTH,
 } from '../../../services/ai/agentPromise';
 
 describe('looksLikeUnfinishedPromise', () => {
@@ -19,6 +21,13 @@ describe('looksLikeUnfinishedPromise', () => {
         expect(looksLikeUnfinishedPromise('I will now search your history.')).toBe(true);
         expect(looksLikeUnfinishedPromise('Still searching through the digests.')).toBe(true);
         expect(looksLikeUnfinishedPromise('digging deeper')).toBe(true);
+    });
+
+    it('flags pull/get/fetch status lines from live journal traces', () => {
+        expect(looksLikeUnfinishedPromise('Let me pull that up for you.')).toBe(true);
+        expect(looksLikeUnfinishedPromise("I'll get that conversation now.")).toBe(true);
+        expect(looksLikeUnfinishedPromise('One moment — fetching that entry.')).toBe(true);
+        expect(looksLikeUnfinishedPromise('Coming up.')).toBe(true);
     });
 
     it('does not flag a real multi-paragraph answer that mentions searching', () => {
@@ -63,5 +72,21 @@ describe('looksLikeUnfinishedPromise', () => {
 
     it('caps promise continuations at 2 per turn', () => {
         expect(PROMISE_CONTINUATION_MAX).toBe(2);
+    });
+
+    it('flags structural short status-only replies the verb list would miss', () => {
+        expect(looksLikeStatusOnlyReply('Sure, on it.')).toBe(true);
+        expect(looksLikeUnfinishedPromise('Sure, on it.')).toBe(true);
+        expect(looksLikeStatusOnlyReply('Let me open the first chat.')).toBe(true);
+        expect(STATUS_ONLY_MAX_LENGTH).toBeLessThan(PROMISE_TEXT_MAX_LENGTH);
+    });
+
+    it('does not treat a full first-chat answer as status-only', () => {
+        const answer =
+            'Yeah, I remember it. September 1st — a Sunday. You cooked a long lunch '
+            + 'with your sibling and the kids, and the noise was nice. That was our first real conversation.';
+        expect(answer.length).toBeGreaterThan(STATUS_ONLY_MAX_LENGTH);
+        expect(looksLikeStatusOnlyReply(answer)).toBe(false);
+        expect(looksLikeUnfinishedPromise(answer)).toBe(false);
     });
 });

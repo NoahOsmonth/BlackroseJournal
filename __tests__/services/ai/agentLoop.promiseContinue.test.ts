@@ -101,6 +101,33 @@ describe('runAgentTurnWithTools promise keep-alive', () => {
                 (m) => typeof m.content === 'string' && m.content.includes('Do not stop on a status line')
             )
         ).toBe(true);
+
+        // Industry-style pressure: the keep-alive round requests tool_choice=required.
+        const thirdBody = fetchMock.mock.calls[2][0] as { tool_choice?: string };
+        expect(thirdBody.tool_choice).toBe('required');
+    });
+
+    it('treats "Let me pull that up for you." as unfinished and continues', async () => {
+        fetchMock
+            .mockResolvedValueOnce(jsonResponse(textMessage('Let me pull that up for you.')))
+            .mockResolvedValueOnce(
+                jsonResponse(toolCallMessage('get_conversation', '{"kind":"journal_entry","id":"entry_1"}'))
+            )
+            .mockResolvedValueOnce(jsonResponse(textMessage('Here is that first chat in full.')));
+
+        toolsMock.mockResolvedValue([
+            { toolCallId: 'call_1', name: 'get_conversation', content: 'title: Sunday reset\n…' },
+        ]);
+
+        const result = await runAgentTurnWithTools({
+            systemPrompt: 'sys',
+            messages: [{ id: '1', role: 'user', content: 'can you get the whole conversation', timestamp: 1 }],
+        });
+
+        expect(result.content).toBe('Here is that first chat in full.');
+        expect(result.content).not.toMatch(/pull that up/i);
+        expect(result.promiseContinuations).toBe(1);
+        expect(result.usedTools).toBe(true);
     });
 
     it('continues a promise on the first turn even with no prior tools', async () => {

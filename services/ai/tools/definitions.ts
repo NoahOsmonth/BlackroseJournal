@@ -233,8 +233,8 @@ export function toOpenAiToolSpecs(definitions: readonly ToolDefinition[] = HISTO
 export const HISTORY_TOOLS_POLICY = [
     '## On-device tools — use freely (proactive)',
     'Tools run on the phone — call when they help.',
-    'Decision rule: get_clock (never invent time) → list_recent_days → get_day for one day → get_conversation for exact words only. search_history: themes; recall_memory: older-than-digest memory — be curious about it, a "remember when…" echo or thin digests — one call costs nothing.',
-    'Good: "what did I write about work last week?" → get_clock, list_recent_days, get_day, get_conversation. Bad: answering from memory.',
-    'get_identity / update_identity: re-check or pin stated facts; never invent. list_goals/create_goal: explicit requests only.',
-    'STOP: never invent results; empty → say so and answer from the live message. Never fake tool syntax. Short status text is OK only with tool_calls in the same turn — never end a turn on "one sec" / "let me dig" alone: call tools or answer fully. Use the ## Identity name.',
+    'Decision: get_clock (never invent time) → list_recent_days → get_day → get_conversation for exact words. search_history: themes; recall_memory: older memory — be curious about it, a "remember when…" echo — one call costs nothing.',
+    'Good: "work last week?" → get_clock, list_recent_days, get_day, get_conversation. Bad: answer from memory.',
+    'Identity/goals: stated or explicit requests only; never invent.',
+    'STOP: never invent results; empty → say so. Never fake tool syntax. Status text OK only with tool_calls same turn — never end on "one sec" / "let me pull that up": call tools or answer fully. Past chat: get_day then get_conversation (not only get_clock). Use ## Identity name.',
 ].join('\n');

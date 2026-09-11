@@ -80,7 +80,7 @@ function normalizeToolChoice(
     choice: DirectChatRequest['tool_choice']
 ): NormalizedInferenceRequest['toolChoice'] | undefined {
     if (!choice) return undefined;
-    if (choice === 'auto' || choice === 'none') return choice;
+    if (choice === 'auto' || choice === 'none' || choice === 'required') return choice;
     return { name: choice.function.name };
 }
 

@@ -422,7 +422,8 @@ async function completeWithTools(
     settings: GenerationSettings,
     model: string,
     sendTools: boolean,
-    toolDefs: readonly ToolDefinition[] = HISTORY_TOOL_DEFINITIONS
+    toolDefs: readonly ToolDefinition[] = HISTORY_TOOL_DEFINITIONS,
+    toolChoice: 'auto' | 'required' = 'auto'
 ): Promise<unknown> {
     const response = await fetchAiChatCompletion({
         model,
@@ -434,13 +435,20 @@ async function completeWithTools(
         ...(sendTools
             ? {
                 tools: toOpenAiToolSpecs(toolDefs),
-                tool_choice: 'auto' as const,
+                tool_choice: toolChoice,
             }
             : {}),
     });
 
     const rawText = await response.text();
     if (!response.ok) {
+        // tool_choice:required is optional pressure — a gateway that rejects it
+        // is not "tools unsupported". Caller falls back to auto.
+        if (toolChoice === 'required' && (response.status === 400 || response.status === 422)) {
+            throw new ToolsUnsupportedError(
+                `tool_choice=required rejected (${response.status}). ${rawText.slice(0, 120)}`
+            );
+        }
         if (sendTools && looksLikeToolsError(response.status, rawText)) {
             markToolsUnsupported(model);
             throw new ToolsUnsupportedError(
@@ -630,6 +638,8 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
     let retryNudged = false;
     // Pi keep-alive: turns continued purely because the model promised to keep looking.
     let promiseContinuations = 0;
+    /** After a status-only continue, pressure the next completion toward tool_calls. */
+    let forceToolsNextRound = false;
     // Truncated tool calls: at most one re-issue nudge per turn.
     let truncationNudged = false;
     // Tool-use claims with nothing parsed: at most one nudge per turn.
@@ -689,10 +699,23 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
         emitActivity({ type: 'turn_start', round: rounds });
         const roundStart = Date.now();
         let data: unknown;
+        const wantRequiredTools = forceToolsNextRound && sendTools;
+        forceToolsNextRound = false;
         try {
-            data = await completeWithTools(agentMessages, settings, model, sendTools, activeToolDefs);
+            data = await completeWithTools(
+                agentMessages,
+                settings,
+                model,
+                sendTools,
+                activeToolDefs,
+                wantRequiredTools ? 'required' : 'auto'
+            );
         } catch (error) {
-            if (error instanceof ToolsUnsupportedError && sendTools) {
+            if (error instanceof ToolsUnsupportedError && wantRequiredTools && sendTools) {
+                // tool_choice:required rejected — retry auto; tools themselves are fine.
+                logToolTelemetry('agent_tool_choice_required_fallback', { model, rounds });
+                data = await completeWithTools(agentMessages, settings, model, sendTools, activeToolDefs, 'auto');
+            } else if (error instanceof ToolsUnsupportedError && sendTools) {
                 // Provider rejected tools mid-session — fall back to text-only completion once.
                 sendTools = false;
                 markToolsUnsupported(model);
@@ -880,6 +903,8 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
                 captureIntermediateText(rounds, safe);
                 agentMessages.push({ role: 'assistant', content: safe });
                 agentMessages.push({ role: 'user', content: PROMISE_CONTINUE_NOTE });
+                // Pressure the next round toward actual tool_calls (soft-fail to auto).
+                forceToolsNextRound = true;
                 emitActivity({ type: 'follow_up_injected', reason: 'promised_more' });
                 logToolTelemetry('agent_promise_continue', {
                     model,

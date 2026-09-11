@@ -61,7 +61,7 @@ export interface ChatRequestPayload {
     max_tokens: number;
     conversationId?: string;
     tools?: unknown[];
-    tool_choice?: 'auto' | 'none';
+    tool_choice?: 'auto' | 'none' | 'required';
     /** OpenAI: include usage on the final stream chunk. */
     stream_options?: { include_usage?: boolean };
 }

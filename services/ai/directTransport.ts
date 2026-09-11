@@ -30,7 +30,7 @@ export interface DirectChatRequest {
     max_completion_tokens?: number;
     response_format?: { type: 'json_object' };
     tools?: unknown[];
-    tool_choice?: 'auto' | 'none' | { type: 'function'; function: { name: string } };
+    tool_choice?: 'auto' | 'none' | 'required' | { type: 'function'; function: { name: string } };
     /** OpenAI stream usage on final chunk. */
     stream_options?: { include_usage?: boolean };
 }
