@@ -111,13 +111,13 @@ describe('directConfig — getDirectConfig', () => {
         expect(cfg.apiBaseUrl).toBe('http://100.107.7.52:20128/v1');
     });
 
-    it('5. falls back to free OpenRouter model defaults', () => {
+    it('5. falls back to the OmniRoute deepseek model defaults', () => {
         process.env[KEY] = 'sk-test-key';
 
         const cfg = getDirectConfig();
 
-        expect(cfg.model).toBe('cl/dots-studio/dots-3-note-preview:free');
-        expect(cfg.flashModel).toBe('cl/dots-studio/dots-3-note-preview:free');
+        expect(cfg.model).toBe('merge/deepseek/deepseek-v4-flash-0731');
+        expect(cfg.flashModel).toBe('merge/deepseek/deepseek-v4-flash-0731');
     });
 });
 

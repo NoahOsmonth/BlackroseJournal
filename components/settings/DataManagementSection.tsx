@@ -1,12 +1,11 @@
 import React from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Pressable, Text, View } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { BLACKROSE_PALETTE } from '@/constants/theme';
 import type { LocalBackupManifest } from '@/services/backup/localBackup';
 import { SettingsSection } from './SettingsSection';
-
-type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
 interface DataManagementSectionProps {
     readonly latestBackup: LocalBackupManifest | null;
@@ -26,58 +25,52 @@ interface DataManagementSectionProps {
     readonly embedded?: boolean;
 }
 
+const HAIRLINE = 'border-hairline-light dark:border-hairline-dark';
+
 interface SettingsRowProps {
     readonly label: string;
     readonly detail?: string;
-    readonly iconName: IoniconName;
-    readonly iconColor: string;
     readonly destructive?: boolean;
     readonly disabled?: boolean;
     readonly showBorder?: boolean;
     readonly onPress: () => void;
 }
 
+/** One data row: label + detail on the left, chevron right, hairline between. */
 function SettingsRow({
     label,
     detail,
-    iconName,
-    iconColor,
     destructive = false,
     disabled = false,
     showBorder = true,
     onPress,
 }: SettingsRowProps) {
+    const isDark = useColorScheme() === 'dark';
+    const chevronColor = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
     const textClass = destructive
-        ? 'text-red-600 dark:text-red-400'
-        : 'text-text-light dark:text-text-dark';
+        ? 'text-[16px] text-danger-light dark:text-danger-dark'
+        : 'text-[16px] text-text-light dark:text-text-dark';
 
     return (
-        <TouchableOpacity
+        <Pressable
             onPress={onPress}
             disabled={disabled}
-            className={`flex-row items-center justify-between py-3 ${
-                showBorder ? 'border-b border-divider-light dark:border-divider-dark mb-2' : 'mt-2'
+            className={`min-h-12 flex-row items-center justify-between gap-3 py-3.5 ${
+                showBorder ? `border-b ${HAIRLINE}` : ''
             } ${disabled ? 'opacity-50' : ''}`}
             accessibilityRole="button"
             accessibilityState={{ disabled }}
         >
-            <View className="flex-row items-center gap-3 flex-1 pr-4">
-                <View className="bg-background-light dark:bg-secondary-dark p-2 rounded-lg">
-                    <Ionicons name={iconName} size={20} color={iconColor} />
-                </View>
-                <View className="flex-1">
-                    <Text className={`${textClass} font-medium text-base`}>
-                        {label}
+            <View className="min-w-0 flex-1">
+                <Text className={textClass}>{label}</Text>
+                {detail ? (
+                    <Text className="mt-1 text-[13px] leading-5 text-text-secondary-light dark:text-text-secondary-dark">
+                        {detail}
                     </Text>
-                    {detail ? (
-                        <Text className="text-xs text-subtext-light dark:text-subtext-dark mt-1">
-                            {detail}
-                        </Text>
-                    ) : null}
-                </View>
+                ) : null}
             </View>
-            <Ionicons name="chevron-forward" size={20} color={iconColor} />
-        </TouchableOpacity>
+            <MaterialIcons name="chevron-right" size={20} color={chevronColor} />
+        </Pressable>
     );
 }
 
@@ -95,10 +88,6 @@ export function DataManagementSection({
     onClearHistory,
     embedded = false,
 }: DataManagementSectionProps) {
-    const colorScheme = useColorScheme();
-    const isDark = colorScheme === 'dark';
-    const iconColor = isDark ? '#F9FAFB' : '#111827';
-    const dangerIconColor = isDark ? '#F87171' : '#DC2626';
     const latestLabel = latestBackup ? `Latest: ${latestBackup.name}` : 'No local backup yet';
     const showSeed = showDemoSeedControls && typeof onSeedDemoData === 'function';
     const showBulk = showDemoSeedControls && typeof onSeedBulkProbe === 'function';
@@ -107,35 +96,27 @@ export function DataManagementSection({
     return (
         <SettingsSection title="Data Management" embedded={embedded}>
             <SettingsRow
-                label="Create Local Backup"
+                label="Create local backup"
                 detail="Saves journal, goals, intentions, insights, personas, and settings on this device."
-                iconName="archive-outline"
-                iconColor={iconColor}
                 disabled={isBusy}
                 onPress={onCreateBackup}
             />
             <SettingsRow
-                label="Restore Latest Backup"
+                label="Restore latest backup"
                 detail={latestLabel}
-                iconName="refresh-outline"
-                iconColor={iconColor}
                 disabled={isBusy || !latestBackup}
                 onPress={onRestoreLatestBackup}
             />
             <SettingsRow
-                label="Export Journal JSON"
+                label="Export journal JSON"
                 detail="Shares a plain JSON export of journal entries only."
-                iconName="share-outline"
-                iconColor={iconColor}
                 disabled={isBusy}
                 onPress={onExportJournalJson}
             />
             {showSeed ? (
                 <SettingsRow
-                    label="Seed Demo Data"
+                    label="Seed demo data"
                     detail="Dev only. Adds sample journals/intentions without wiping real rows; replaces prior seed."
-                    iconName="sparkles-outline"
-                    iconColor={iconColor}
                     disabled={isBusy}
                     onPress={onSeedDemoData}
                 />
@@ -144,8 +125,6 @@ export function DataManagementSection({
                 <SettingsRow
                     label="Seed 365 probe entries"
                     detail="Dev only. Bulk journals + day digests for prompt-budget (tracked, clearable)."
-                    iconName="layers-outline"
-                    iconColor={iconColor}
                     disabled={isBusy}
                     onPress={onSeedBulkProbe}
                 />
@@ -154,17 +133,13 @@ export function DataManagementSection({
                 <SettingsRow
                     label="Clear demo data"
                     detail="Dev only. Removes tracked seed IDs only — real user rows stay."
-                    iconName="brush-outline"
-                    iconColor={iconColor}
                     disabled={isBusy}
                     onPress={onClearDemoData}
                 />
             ) : null}
             <SettingsRow
-                label="Clear History & Memories"
+                label="Clear history & memories"
                 detail="Removes journal entries, intentions, chat sessions, insights, and saved AI memories."
-                iconName="trash-outline"
-                iconColor={dangerIconColor}
                 destructive
                 disabled={isBusy || isClearingHistory}
                 showBorder={false}

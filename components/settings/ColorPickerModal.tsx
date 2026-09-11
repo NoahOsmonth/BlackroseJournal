@@ -25,6 +25,8 @@ import {
 import { ColorSlider } from '@/components/ui/ColorSlider';
 import { AnimatedSwitch } from '@/components/ui/AnimatedSwitch';
 
+const SERIF = { fontFamily: 'PlayfairDisplayRegular' };
+
 interface ColorPickerModalProps {
     /**
      * The slot the user is editing (e.g. 'accentLight'). The picker uses this
@@ -78,8 +80,8 @@ const SLOT_LABELS: Record<ColorThemeSlot, string> = {
     secondaryTextDark: 'Muted font · Dark',
     chatUserTextLight: 'Chat — you · Light',
     chatUserTextDark: 'Chat — you · Dark',
-    chatAiTextLight: 'Chat — Rosebud · Light',
-    chatAiTextDark: 'Chat — Rosebud · Dark',
+    chatAiTextLight: 'Chat — Blackrose · Light',
+    chatAiTextDark: 'Chat — Blackrose · Dark',
     appBackgroundLight: 'Background · Light',
     appBackgroundDark: 'Background · Dark',
 };
@@ -183,7 +185,7 @@ export function ColorPickerModal({
                         keyboardShouldPersistTaps="handled"
                         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}
                     >
-                        <Text className="text-[17px] font-semibold text-text-light dark:text-text-dark text-center mb-1">
+                        <Text className="text-center text-[24px] leading-[32px] text-text-light dark:text-text-dark" style={SERIF}>
                             {slot ? SLOT_LABELS[slot] : 'Color'}
                         </Text>
                         <Text className="text-xs text-text-secondary-light dark:text-text-secondary-dark text-center mb-5">
@@ -193,11 +195,11 @@ export function ColorPickerModal({
                         {/* Big swatch + partner preview — no overlapping, two distinct cards */}
                         <View className="flex-row gap-3 mb-5">
                             <View className="flex-1 gap-2">
-                                <Text className="text-[11px] font-bold uppercase text-text-secondary-light dark:text-text-secondary-dark text-center">
+                                <Text className="text-center text-[11px] uppercase tracking-[1.3px] text-text-secondary-light dark:text-text-secondary-dark">
                                     {editingLight ? 'Light' : 'Dark'} · you
                                 </Text>
                                 <View
-                                    className="h-24 rounded-2xl border border-divider-light dark:border-divider-dark"
+                                    className="h-24 rounded-card border border-hairline-light dark:border-hairline-dark"
                                     style={{ backgroundColor: previewSourceIsValid ? normalizedDraft : '#000000' }}
                                 />
                                 <Text className="text-xs font-mono text-center text-text-secondary-light dark:text-text-secondary-dark">
@@ -205,11 +207,11 @@ export function ColorPickerModal({
                                 </Text>
                             </View>
                             <View className="flex-1 gap-2">
-                                <Text className="text-[11px] font-bold uppercase text-text-secondary-light dark:text-text-secondary-dark text-center">
+                                <Text className="text-center text-[11px] uppercase tracking-[1.3px] text-text-secondary-light dark:text-text-secondary-dark">
                                     {editingLight ? 'Dark' : 'Light'} · auto
                                 </Text>
                                 <View
-                                    className="h-24 rounded-2xl border border-divider-light dark:border-divider-dark"
+                                    className="h-24 rounded-card border border-hairline-light dark:border-hairline-dark"
                                     style={{ backgroundColor: previewPartner }}
                                 />
                                 <Text className="text-xs font-mono text-center text-text-secondary-light dark:text-text-secondary-dark">
@@ -222,7 +224,7 @@ export function ColorPickerModal({
                         <View className="gap-5 mb-5">
                             <View className="gap-2">
                                 <View className="flex-row justify-between">
-                                    <Text className="text-xs font-semibold text-text-secondary-light dark:text-text-secondary-dark uppercase">
+                                    <Text className="text-[12px] uppercase tracking-[1.3px] text-text-secondary-light dark:text-text-secondary-dark">
                                         Hue
                                     </Text>
                                     <Text className="text-xs font-mono text-text-secondary-light dark:text-text-secondary-dark">
@@ -239,7 +241,7 @@ export function ColorPickerModal({
                             </View>
                             <View className="gap-2">
                                 <View className="flex-row justify-between">
-                                    <Text className="text-xs font-semibold text-text-secondary-light dark:text-text-secondary-dark uppercase">
+                                    <Text className="text-[12px] uppercase tracking-[1.3px] text-text-secondary-light dark:text-text-secondary-dark">
                                         Tone
                                     </Text>
                                     <Text className="text-xs font-mono text-text-secondary-light dark:text-text-secondary-dark">
@@ -258,7 +260,7 @@ export function ColorPickerModal({
 
                         {/* Hex input */}
                         <View className="mb-5">
-                            <Text className="text-xs font-semibold text-text-secondary-light dark:text-text-secondary-dark uppercase mb-2">
+                            <Text className="mb-2 text-[12px] uppercase tracking-[1.3px] text-text-secondary-light dark:text-text-secondary-dark">
                                 Hex
                             </Text>
                             <TextInput
@@ -270,10 +272,10 @@ export function ColorPickerModal({
                                 accessibilityLabel="Hex value"
                                 placeholder="#000000"
                                 className={[
-                                    'rounded-xl border px-3 py-3 text-base font-mono font-semibold',
+                                    'rounded-control border px-3 py-3 font-mono text-[15px]',
                                     'text-text-light dark:text-text-dark',
                                     previewSourceIsValid || draftHex.trim().length === 0
-                                        ? 'border-divider-light dark:border-divider-dark'
+                                        ? 'border-hairline-light dark:border-hairline-dark'
                                         : 'border-red-500 dark:border-red-400',
                                 ].join(' ')}
                             />
@@ -281,7 +283,7 @@ export function ColorPickerModal({
 
                         {/* Quick pick grid */}
                         <View className="mb-5">
-                            <Text className="text-xs font-semibold text-text-secondary-light dark:text-text-secondary-dark uppercase mb-2">
+                            <Text className="mb-2 text-[12px] uppercase tracking-[1.3px] text-text-secondary-light dark:text-text-secondary-dark">
                                 Quick colors
                             </Text>
                             <View className="flex-row flex-wrap gap-2">
@@ -295,8 +297,8 @@ export function ColorPickerModal({
                                             className={[
                                                 'h-10 w-10 rounded-full border-2 items-center justify-center',
                                                 isActive
-                                                    ? 'border-primary'
-                                                    : 'border-divider-light dark:border-divider-dark',
+                                                    ? 'border-bone-light dark:border-bone-dark'
+                                                    : 'border-hairline-light dark:border-hairline-dark',
                                             ].join(' ')}
                                             style={{ backgroundColor: color }}
                                         >
@@ -317,10 +319,10 @@ export function ColorPickerModal({
 
                         {/* Sync partner toggle */}
                         <View
-                            className="flex-row items-center justify-between rounded-xl border border-divider-light dark:border-divider-dark px-3 py-3 mb-5"
+                            className="mb-5 flex-row items-center justify-between rounded-control border border-hairline-light px-3.5 py-3.5 dark:border-hairline-dark"
                         >
                             <View className="flex-1 pr-3">
-                                <Text className="text-sm font-semibold text-text-light dark:text-text-dark">
+                                <Text className="text-[16px] text-text-light dark:text-text-dark">
                                     Sync {editingLight ? 'dark' : 'light'} partner
                                 </Text>
                                 <Text className="text-xs text-text-secondary-light dark:text-text-secondary-dark mt-0.5">
@@ -342,9 +344,9 @@ export function ColorPickerModal({
                         <Pressable
                             onPress={onClose}
                             accessibilityLabel="Cancel color change"
-                            className="flex-1 items-center justify-center py-3 rounded-xl bg-background-light dark:bg-background-dark"
+                            className="min-h-12 flex-1 items-center justify-center rounded-control border border-hairline-light dark:border-hairline-dark"
                         >
-                            <Text className="text-base font-semibold text-text-light dark:text-text-dark">
+                            <Text className="text-[15px] text-text-light dark:text-text-dark">
                                 Cancel
                             </Text>
                         </Pressable>
@@ -353,19 +355,13 @@ export function ColorPickerModal({
                             disabled={!canConfirm}
                             accessibilityLabel="Apply color"
                             className={[
-                                'flex-1 items-center justify-center py-3 rounded-xl',
-                                canConfirm
-                                    ? 'bg-primary dark:bg-primary-dark'
-                                    : 'bg-primary/40 dark:bg-primary-dark/40',
+                                'min-h-12 flex-1 items-center justify-center rounded-control border border-bone-light dark:border-bone-dark',
+                                canConfirm ? '' : 'opacity-40',
                             ].join(' ')}
                         >
                             <Text
-                                className={[
-                                    'text-base font-semibold',
-                                    canConfirm
-                                        ? 'text-white'
-                                        : 'text-white/80',
-                                ].join(' ')}
+                                className="text-[15px] text-text-light dark:text-text-dark"
+                                style={{ fontFamily: 'PlayfairDisplayRegular' }}
                             >
                                 Use color
                             </Text>

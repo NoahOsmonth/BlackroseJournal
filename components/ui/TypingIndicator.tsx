@@ -1,9 +1,11 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, View } from 'react-native';
+import { Animated, Easing, Text, View } from 'react-native';
 
 interface TypingIndicatorProps {
     colorClassName?: string;
     sizeClassName?: string;
+    /** Optional uppercase caption next to the dots (concept: “THINKING”). */
+    label?: string;
 }
 
 const DOTS = [0, 1, 2];
@@ -17,9 +19,14 @@ function toBackgroundClass(colorClassName: string): string {
         .join(' ');
 }
 
+/**
+ * Three bone dots, the Blackrose “companion is working” mark. Deliberately a
+ * small dot wave rather than a spinner or a word-by-word typewriter.
+ */
 export function TypingIndicator({
-    colorClassName = 'text-text-secondary-light dark:text-text-secondary-dark',
+    colorClassName = 'text-bone-light dark:text-bone-dark',
     sizeClassName = 'text-base',
+    label,
 }: TypingIndicatorProps) {
     const dotColorClassName = toBackgroundClass(colorClassName);
     const dotSizeClassName = sizeClassName.includes('sm') ? 'h-1.5 w-1.5' : 'h-2 w-2';
@@ -81,6 +88,11 @@ export function TypingIndicator({
                     <View className={`${dotColorClassName} ${dotSizeClassName} rounded-full`} />
                 </Animated.View>
             ))}
+            {label ? (
+                <Text className="ml-2 text-[11px] uppercase tracking-[1.5px] text-text-secondary-light dark:text-text-secondary-dark">
+                    {label}
+                </Text>
+            ) : null}
         </View>
     );
 }

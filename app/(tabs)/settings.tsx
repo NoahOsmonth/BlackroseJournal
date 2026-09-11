@@ -310,18 +310,26 @@ export default function SettingsScreen() {
                 <SettingsSkeleton />
             ) : (
                 <ScrollView
-                    className="flex-1 px-4 pt-6"
-                    contentContainerStyle={{ paddingBottom: navAwareBottomPadding(insets.bottom) }}
+                    className="flex-1"
+                    contentContainerStyle={{
+                        paddingHorizontal: 24,
+                        paddingBottom: navAwareBottomPadding(insets.bottom),
+                    }}
                     showsVerticalScrollIndicator={false}
                 >
-                <View className="mb-6">
-                    <Text className="text-3xl font-serif font-bold text-text-light dark:text-text-dark">
+                <View className="pt-6 pb-4">
+                    <Text
+                        className="text-[40px] leading-tight text-text-light dark:text-text-dark"
+                        style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                    >
                         Settings
                     </Text>
-                    <Text className="text-sm text-text-secondary-light dark:text-text-secondary-dark mt-1">
+                    <Text className="mt-1 text-[15px] text-text-secondary-light dark:text-text-secondary-dark">
                         Theme, AI, data & account
                     </Text>
                 </View>
+
+                <View className="h-px w-full bg-hairline-light dark:bg-hairline-dark" />
 
                 <SettingsAccordionSection
                     id="appearance"

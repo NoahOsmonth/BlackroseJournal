@@ -12,6 +12,9 @@ import Animated, {
   FadeOut,
   Layout
 } from 'react-native-reanimated';
+import { AgentToolActivity } from '@/components/ai/AgentToolActivity';
+import type { AgentToolCallSnapshot } from '@/services/ai/agentEvents';
+import type { AgentStatusLine } from '@/features/chat/types';
 
 interface ChatMessageProps {
   text: string;
@@ -19,6 +22,10 @@ interface ChatMessageProps {
   isStreaming?: boolean;
   reasoning?: string;
   isReadOnly?: boolean;
+  /** Live or finished tool timeline for this assistant turn. */
+  toolActivity?: AgentToolCallSnapshot[];
+  /** Working status lines between tool batches (live turns only). */
+  statusLines?: AgentStatusLine[];
 }
 
 function hasMarkdownSyntax(value: string): boolean {
@@ -28,12 +35,21 @@ function hasMarkdownSyntax(value: string): boolean {
   return markdownPattern.test(value);
 }
 
+/**
+ * One chat turn, Blackrose presentation:
+ * - you: right-aligned surface-2 slip, no bubble tail;
+ * - companion: a bone left rule with the complete paragraph beside it —
+ *   never a letter-by-letter typewriter.
+ * The engine, prompts and message payloads are untouched; this is paint only.
+ */
 export function ChatMessage({
   text,
   isAi = false,
   isStreaming = false,
   reasoning,
   isReadOnly = false,
+  toolActivity,
+  statusLines,
 }: ChatMessageProps) {
   const [displayedText, setDisplayedText] = useState('');
   const [showReasoning, setShowReasoning] = useState(false);
@@ -64,7 +80,7 @@ export function ChatMessage({
   );
   const canToggleReasoning = hasReasoning;
   const markdownStyles = getMarkdownStyles(isDark, {
-    fontWeight: '600',
+    fontWeight: '400',
     color: aiTextColor,
     headingColor: aiTextColor,
     linkColor: accentColor,
@@ -75,8 +91,8 @@ export function ChatMessage({
   };
 
   const messageTextClassName = isAi
-    ? 'text-[15px] leading-[22px] font-semibold text-text-light dark:text-text-dark'
-    : 'text-[15px] leading-[22px] font-bold text-user-text dark:text-user-text-dark';
+    ? 'text-[15px] leading-[24px] text-text-light dark:text-text-dark'
+    : 'text-[15px] leading-[22px] text-user-text dark:text-user-text-dark';
   const messageTextStyle: TextStyle = {
     color: isAi ? aiTextColor : userTextColor,
   };
@@ -99,67 +115,95 @@ export function ChatMessage({
     )
   );
 
+  const body = (
+    <>
+      {isAi && (!!toolActivity?.length || !!statusLines?.length) && (
+        <View className="mb-3">
+          <AgentToolActivity
+            toolActivity={toolActivity ?? []}
+            statusLines={statusLines}
+            compact={!isStreaming}
+          />
+        </View>
+      )}
+
+      {/* AI messages use markdown rendering once complete; streaming text stays plain for web safety. */}
+      {isAi && isStreaming && displayedText.length === 0 ? (
+        <View>
+          {/* Tool/status stack already shows a Thinking footer — don't stack a second TypingIndicator. */}
+          {toolActivity?.length || statusLines?.length ? null : inlineStreamingReasoning ? (
+            <View>
+              <Text className="mb-1 text-[11px] uppercase tracking-[1.5px] text-text-secondary-light dark:text-text-secondary-dark">
+                Companion reasoning (live)
+              </Text>
+              <Text
+                className="text-[14px] leading-[22px] italic text-text-secondary-light dark:text-text-secondary-dark"
+                style={{ color: secondaryTextColor }}
+              >
+                {reasoning}
+              </Text>
+            </View>
+          ) : (
+            <TypingIndicator label="Thinking" />
+          )}
+        </View>
+      ) : isAi && isStreaming ? (
+        <Text className={messageTextClassName} style={messageTextStyle}>
+          {displayedText}
+        </Text>
+      ) : isAi ? (
+        renderFormattedText(displayedText, messageTextClassName, markdownStyles)
+      ) : (
+        <Text
+          className={messageTextClassName}
+          style={messageTextStyle}
+        >
+          {displayedText}
+        </Text>
+      )}
+
+      {/* Reasoning indicator */}
+      {hasReasoning && (
+        <View className="mt-3 flex-row items-center gap-1.5 border-t border-hairline-light pt-3 dark:border-hairline-dark">
+          <MaterialIcons
+            name={showReasoning ? 'expand-less' : 'psychology'}
+            size={16}
+            color={secondaryTextColor}
+          />
+          <Text
+            className="text-xs text-text-secondary-light dark:text-text-secondary-dark"
+            style={{ color: secondaryTextColor }}
+          >
+            {showReasoning ? 'Hide reasoning' : 'View reasoning'}
+            {isStreaming && ' (thinking…)'}
+          </Text>
+        </View>
+      )}
+    </>
+  );
+
   return (
     <Animated.View
       entering={FadeInDown.duration(250).springify()}
       layout={Layout.springify()}
-      className={`w-full ${isReadOnly ? 'opacity-70' : ''}`}
+      className={`w-full ${isReadOnly ? 'opacity-80' : ''}`}
     >
       <Pressable
         onPress={toggleReasoning}
         disabled={!canToggleReasoning}
-        className="py-1"
-        android_ripple={canToggleReasoning ? { color: 'rgba(0,0,0,0.1)' } : undefined}
+        className={[
+          isAi ? 'w-full' : 'w-full items-end',
+          canToggleReasoning ? 'py-1' : '',
+        ].join(' ')}
       >
-        {/* AI messages use markdown rendering once complete; streaming text stays plain for web safety. */}
-        {isAi && isStreaming && displayedText.length === 0 ? (
-          <View className="py-1">
-            {inlineStreamingReasoning ? (
-              <View>
-                <Text className="text-[11px] font-semibold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide mb-1">
-                  AI reasoning (live)
-                </Text>
-                <Text
-                  className="text-[14px] leading-[22px] italic text-text-secondary-light dark:text-text-secondary-dark"
-                  style={{ color: secondaryTextColor }}
-                >
-                  {reasoning}
-                </Text>
-              </View>
-            ) : (
-              <TypingIndicator colorClassName="text-text-secondary-light dark:text-text-secondary-dark" />
-            )}
+        {isAi ? (
+          <View className="flex-row">
+            <View className="mr-4 w-px self-stretch bg-bone-light dark:bg-bone-dark" />
+            <View className="min-w-0 flex-1">{body}</View>
           </View>
-        ) : isAi && isStreaming ? (
-          <Text className={messageTextClassName} style={messageTextStyle}>
-            {displayedText}
-          </Text>
-        ) : isAi ? (
-          renderFormattedText(displayedText, messageTextClassName, markdownStyles)
         ) : (
-          <Text
-            className={messageTextClassName}
-            style={messageTextStyle}
-          >
-            {displayedText}
-          </Text>
-        )}
-
-        {/* Reasoning indicator */}
-        {hasReasoning && (
-          <View className="flex-row items-center mt-3 pt-2 border-t border-blue-100 dark:border-slate-600">
-            <MaterialIcons
-              name={showReasoning ? "expand-less" : "psychology"}
-              size={16}
-              color={accentColor}
-            />
-            <Text
-              className="ml-1.5 text-xs text-accent-blue dark:text-ai-text font-medium"
-              style={{ color: aiTextColor }}
-            >
-              {showReasoning ? 'Hide reasoning' : 'View AI reasoning'}
-              {isStreaming && ' (thinking...)'}
-            </Text>
+          <View className="max-w-[88%] rounded-card bg-surface-2-light px-4 py-3 dark:bg-surface-2-dark">
+            {body}
           </View>
         )}
       </Pressable>
@@ -169,22 +213,12 @@ export function ChatMessage({
         <Animated.View
           entering={FadeIn.duration(300)}
           exiting={FadeOut.duration(200)}
-          className="px-4 pb-4"
+          className="mt-2"
         >
-          <View className="bg-blue-100/50 dark:bg-slate-700/50 rounded-xl p-3 border border-blue-200/50 dark:border-slate-600/50">
-            <View className="flex-row items-center mb-2">
-              <MaterialIcons
-                name="psychology"
-                size={14}
-                color={secondaryTextColor}
-              />
-              <Text
-                className="ml-1.5 text-xs font-semibold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide"
-                style={{ color: secondaryTextColor }}
-              >
-                AI Reasoning
-              </Text>
-            </View>
+          <View className="gap-2 rounded-card border border-hairline-light bg-surface-light p-4 dark:border-hairline-dark dark:bg-surface-dark">
+            <Text className="text-[11px] uppercase tracking-[1.5px] text-text-secondary-light dark:text-text-secondary-dark">
+              Companion reasoning
+            </Text>
             <Text
               className="text-[14px] leading-[22px] italic text-text-secondary-light dark:text-text-secondary-dark"
               style={{ color: secondaryTextColor }}

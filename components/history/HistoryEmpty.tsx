@@ -1,49 +1,26 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 
-import type { HistoryFilter } from '@/hooks/history/historyUtils';
-
 interface HistoryEmptyProps {
-    filter: HistoryFilter;
     hasAnyItems: boolean;
+    isSearching: boolean;
     onWritePress: () => void;
 }
 
-function copyFor(filter: HistoryFilter, hasAnyItems: boolean): {
-    title: string;
-    message: string;
-    showCta: boolean;
-} {
-    if (!hasAnyItems) {
-        return {
-            title: 'Nothing written yet',
-            message: 'Finished journal entries and check-ins will live here as a quiet ledger of your days.',
-            showCta: true,
-        };
-    }
-    if (filter === 'journal') {
-        return {
-            title: 'No journal entries',
-            message: 'Journal sessions will appear here once you finish one.',
-            showCta: true,
-        };
-    }
-    if (filter === 'ritual') {
-        return {
-            title: 'No rituals yet',
-            message: 'Morning, evening, and intention check-ins show up when you complete them.',
-            showCta: false,
-        };
-    }
-    return {
-        title: 'Nothing here',
-        message: 'Try another filter, or write something new.',
-        showCta: true,
-    };
-}
+/**
+ * Archive empty state. Two cases only: nothing written yet, or a search that
+ * matched nothing. The CTA is a quiet outline button — no filled brand orange.
+ */
+export function HistoryEmpty({ hasAnyItems, isSearching, onWritePress }: HistoryEmptyProps) {
+    const title = isSearching
+        ? 'Nothing found'
+        : hasAnyItems
+            ? 'No entries here'
+            : 'Nothing written yet';
 
-export function HistoryEmpty({ filter, hasAnyItems, onWritePress }: HistoryEmptyProps) {
-    const { title, message, showCta } = copyFor(filter, hasAnyItems);
+    const message = isSearching
+        ? 'Try a different word, or clear the search to see every entry.'
+        : 'Finished journal entries and check-ins will live here as a quiet ledger of your days.';
 
     return (
         <View
@@ -51,23 +28,23 @@ export function HistoryEmpty({ filter, hasAnyItems, onWritePress }: HistoryEmpty
             accessibilityLabel={`${title}. ${message}`}
         >
             <Text
-                className="text-center text-2xl font-bold text-text-light dark:text-text-dark"
-                style={{ fontFamily: 'PlayfairDisplayBold' }}
+                className="text-center text-[22px] text-text-light dark:text-text-dark"
+                style={{ fontFamily: 'PlayfairDisplayRegular' }}
             >
                 {title}
             </Text>
             <Text className="mt-2 max-w-xs text-center text-sm leading-relaxed text-text-secondary-light dark:text-text-secondary-dark">
                 {message}
             </Text>
-            {showCta ? (
+            {!isSearching ? (
                 <Pressable
                     onPress={onWritePress}
-                    className="mt-6 rounded-full bg-primary px-5 py-2.5 dark:bg-primary-dark"
+                    className="mt-6 rounded-control border border-hairline-light px-5 py-2.5 dark:border-hairline-dark"
                     accessibilityRole="button"
                     accessibilityLabel="Write an entry"
-                    style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }]}
+                    style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}
                 >
-                    <Text className="text-sm font-bold text-white dark:text-gray-900">
+                    <Text className="text-sm text-text-light dark:text-text-dark">
                         Write an entry
                     </Text>
                 </Pressable>

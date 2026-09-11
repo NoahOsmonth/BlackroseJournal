@@ -1,17 +1,8 @@
-import React, { ComponentProps, useEffect } from 'react';
+import React, { ComponentProps } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import Animated, {
-    Easing,
-    useAnimatedStyle,
-    useReducedMotion,
-    useSharedValue,
-    withRepeat,
-    withSequence,
-    withTiming,
-} from 'react-native-reanimated';
 
-import { Colors } from '@/constants/theme';
+import { BLACKROSE_PALETTE } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 type MaterialIconName = ComponentProps<typeof MaterialIcons>['name'];
@@ -24,6 +15,10 @@ interface EmptyStateProps {
     onActionPress?: () => void;
 }
 
+/**
+ * Quiet empty state: a muted medallion, serif line, then an outlined verb.
+ * Replaces the tinted icon chip + filled orange CTA of the old theme.
+ */
 export function EmptyState({
     title,
     message,
@@ -32,56 +27,34 @@ export function EmptyState({
     onActionPress,
 }: EmptyStateProps) {
     const isDark = useColorScheme() === 'dark';
-    const iconColor = isDark ? Colors.dark.primary : Colors.light.primary;
+    const ink = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
     const hasAction = Boolean(actionLabel && onActionPress);
-
-    const reduceMotion = useReducedMotion();
-    const breath = useSharedValue(1);
-
-    useEffect(() => {
-        if (reduceMotion) {
-            breath.value = 1;
-            return;
-        }
-        breath.value = withRepeat(
-            withSequence(
-                withTiming(1.02, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
-                withTiming(1, { duration: 1500, easing: Easing.inOut(Easing.ease) })
-            ),
-            -1,
-            true
-        );
-    }, [reduceMotion, breath]);
-
-    const iconStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: breath.value }],
-    }));
 
     return (
         <View
-            className="items-center rounded-2xl border border-divider-light bg-background-light px-4 py-5 dark:border-divider-dark dark:bg-background-dark"
+            className="items-center rounded-card border border-hairline-light bg-surface-light px-5 py-7 dark:border-hairline-dark dark:bg-surface-dark"
             accessibilityLabel={`${title}. ${message}`}
         >
-            <Animated.View
-                className="mb-3 rounded-full bg-primary/10 p-3 dark:bg-primary-dark/20"
-                style={iconStyle}
+            <View className="mb-4 h-12 w-12 items-center justify-center rounded-full border border-hairline-light dark:border-hairline-dark">
+                <MaterialIcons name={icon} size={20} color={ink} />
+            </View>
+            <Text
+                className="text-center text-[21px] leading-[29px] text-text-light dark:text-text-dark"
+                style={{ fontFamily: 'PlayfairDisplayRegular' }}
             >
-                <MaterialIcons name={icon} size={22} color={iconColor} />
-            </Animated.View>
-            <Text className="text-center text-sm font-semibold text-text-light dark:text-text-dark">
                 {title}
             </Text>
-            <Text className="mt-1 text-center text-xs text-text-secondary-light dark:text-text-secondary-dark">
+            <Text className="mt-2 text-center text-[15px] leading-[23px] text-text-secondary-light dark:text-text-secondary-dark">
                 {message}
             </Text>
             {hasAction ? (
                 <Pressable
                     onPress={onActionPress}
-                    className="mt-4 rounded-full bg-primary px-4 py-2"
+                    className="mt-5 min-h-12 items-center justify-center rounded-control border border-bone-light px-6 dark:border-bone-dark"
                     accessibilityRole="button"
                     accessibilityLabel={actionLabel}
                 >
-                    <Text className="text-xs font-bold text-white">
+                    <Text className="text-[16px] text-text-light dark:text-text-dark">
                         {actionLabel}
                     </Text>
                 </Pressable>

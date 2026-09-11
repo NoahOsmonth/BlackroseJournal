@@ -1,5 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { BLACKROSE_PALETTE } from '@/constants/theme';
 import React, { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Animated, {
@@ -13,7 +14,7 @@ export interface SuccessOverlayProps {
     visible: boolean;
     /** MaterialIcons glyph rendered inside the celebratory circle (e.g. 'check-circle'). */
     icon?: React.ComponentProps<typeof MaterialIcons>['name'];
-    /** Main message shown under the icon (e.g. 'Entry saved ✨'). */
+    /** Main message shown under the icon (e.g. 'Entry saved'). */
     message: string;
     /** Optional secondary detail line. */
     detail?: string;
@@ -58,7 +59,7 @@ export function SuccessOverlay({
 
     const backdropColor = isDark ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.9)';
     // Backdrop contrasting text/icon derive from theme tokens (both schemes).
-    const iconAccent = isDark ? '#FFB340' : '#FF9F0A';
+    const iconAccent = isDark ? BLACKROSE_PALETTE.dark.accent : BLACKROSE_PALETTE.light.accent;
 
     return (
         <Animated.View
@@ -83,11 +84,14 @@ export function SuccessOverlay({
                 </View>
 
                 <View className="items-center gap-1">
-                    <Text className="text-2xl font-bold text-center text-text-light dark:text-white">
+                    <Text
+                        className="text-center text-[30px] leading-[38px] text-text-light dark:text-white"
+                        style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                    >
                         {message}
                     </Text>
                     {detail ? (
-                        <Text className="text-sm text-center text-text-secondary-light dark:text-text-secondary-dark">
+                        <Text className="mt-1 text-center text-[15px] leading-[23px] text-text-secondary-light dark:text-text-secondary-dark">
                             {detail}
                         </Text>
                     ) : null}
@@ -98,9 +102,9 @@ export function SuccessOverlay({
                         onPress={onAction}
                         accessibilityRole="button"
                         accessibilityLabel={actionLabel}
-                        className="mt-2 px-6 py-3 bg-primary rounded-full active:opacity-80"
+                        className="mt-3 min-h-12 items-center justify-center rounded-control border border-bone-light px-6 active:opacity-80 dark:border-bone-dark"
                     >
-                        <Text className="font-bold text-[15px] text-white">{actionLabel}</Text>
+                        <Text className="text-[16px] text-text-light dark:text-text-dark">{actionLabel}</Text>
                     </Pressable>
                 ) : null}
             </View>

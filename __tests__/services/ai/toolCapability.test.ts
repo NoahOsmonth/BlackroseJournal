@@ -20,6 +20,29 @@ describe('resolveToolCapability', () => {
         expect(cap.preferTextResultProtocol).toBe(true);
     });
 
+    it('routes on the model, not the price tag (OmniRoute serves strong :free models)', () => {
+        // Opus/Sonnet on a free route still deliver native structured tool_calls.
+        const opus = resolveToolCapability('auto/claude-opus:free');
+        expect(opus.mode).toBe('structured');
+        expect(opus.preferTextResultProtocol).toBe(false);
+        expect(resolveToolCapability('auto/gemini:free').mode).toBe('structured');
+        expect(resolveToolCapability('op-router/z-ai/glm-5.2:free').mode).toBe('hybrid');
+    });
+
+    it('keeps weak free routes hybrid even when the name looks strong', () => {
+        // "glm-5.3-flash" is a strong name on a route that dumps tool syntax as text.
+        expect(resolveToolCapability('merge/zai/glm-5.3-flash').mode).toBe('hybrid');
+        expect(resolveToolCapability('cl/dots-studio/dots-3-note-preview:free').mode).toBe('hybrid');
+    });
+
+    it('routes the current default deepseek-v4 route as structured', () => {
+        // Probed live 2026-09-11: native tool_calls, correct role:tool round-trip,
+        // native response_format json_object — no text-dump repair needed.
+        const cap = resolveToolCapability('merge/deepseek/deepseek-v4-flash-0731');
+        expect(cap.mode).toBe('structured');
+        expect(cap.preferTextResultProtocol).toBe(false);
+    });
+
     it('marks strong models as structured', () => {
         const cap = resolveToolCapability('openai/gpt-4o-mini');
         expect(cap.mode).toBe('structured');

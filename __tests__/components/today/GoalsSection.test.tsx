@@ -48,7 +48,7 @@ describe('buildGoalListItems', () => {
 });
 
 describe('GoalsSection', () => {
-    it('shows empty copy when there are no items', () => {
+    it('shows a quiet add row when there are no items', () => {
         render(
             <GoalsSection
                 items={[]}
@@ -58,9 +58,9 @@ describe('GoalsSection', () => {
             />
         );
 
-        expect(screen.getByText(/No goals yet/)).toBeTruthy();
+        // Empty state is one tappable text row, not a card with two buttons.
+        expect(screen.getByText('Add a goal for today')).toBeTruthy();
         expect(screen.getByLabelText('Add goal')).toBeTruthy();
-        expect(screen.getByLabelText('Manage goals')).toBeTruthy();
     });
 
     it('renders checklist rows and fires toggle', () => {

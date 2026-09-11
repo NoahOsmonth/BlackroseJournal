@@ -127,6 +127,51 @@ function pushUnique(
     });
 }
 
+/** Wrapper tag names some models use instead of emitting `tool_calls`. */
+const WRAPPER_TAGS = 'dots_function_call|tool_call|function_call|invoke|tool_request|tool|function';
+
+/**
+ * Free models (glm 5.3 flash) also emit the tool name itself as the tag:
+ * `<search_history>{"query":"work"}</search_history>`. The tag name IS the
+ * tool name in that shape, so it must be part of the alternation.
+ */
+const XML_TAG_NAMES = `${WRAPPER_TAGS}|${TOOL_NAME_RE}`;
+
+/**
+ * Unclosed tool tags (`<search_history>\n{...}` with no `</search_history>`)
+ * still mean the model tried to call the tool. Strip the tag plus the JSON body
+ * directly after it, reporting whatever was found so it can be executed.
+ */
+function extractOrphanToolTags(
+    text: string,
+    onCall: (name: string, args: string) => void
+): string {
+    const re = new RegExp(`<\\s*(${TOOL_NAME_RE})\\b[^>]*>`, 'gi');
+    let out = '';
+    let cursor = 0;
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(text)) !== null) {
+        const name = match[1].toLowerCase();
+        if (!TOOL_NAMES.includes(name)) continue;
+        const afterTag = match.index + match[0].length;
+        const rest = text.slice(afterTag);
+        const lead = rest.length - rest.trimStart().length;
+        let args = '{}';
+        let end = afterTag;
+        if (rest[lead] === '{') {
+            const bal = extractBalancedJsonObject(text, afterTag + lead);
+            if (bal) {
+                args = bal.json;
+                end = bal.end;
+            }
+        }
+        out += `${text.slice(cursor, match.index)}\n`;
+        cursor = end;
+        onCall(name, args);
+    }
+    return cursor === 0 ? text : out + text.slice(cursor);
+}
+
 function parseJsonToolObject(obj: Record<string, unknown>): { name: string; args: string } | null {
     const nameRaw =
         (typeof obj.name === 'string' && obj.name)
@@ -165,11 +210,14 @@ export function parseTextToolCalls(content: string, idPrefix = 'text_call'): Tex
     //    also <function=get_day>...</function>, <tool>get_day\n{}</tool>
     //    dots-3 free model: <dots_function_call>…</dots_function_call> with
     //    inner <parameter name="query">…</parameter> arg tags.
+    //    glm 5.3 free model: the tool name is the tag itself,
+    //    <search_history>{"query":"work"}</search_history>.
     const xmlRe = new RegExp(
-        `<(?:dots_function_call|tool_call|function_call|invoke|tool_request|tool|function)\\b([^>]*)>([\\s\\S]*?)</(?:dots_function_call|tool_call|function_call|invoke|tool_request|tool|function)>`,
+        `<(${XML_TAG_NAMES})\\b([^>]*)>([\\s\\S]*?)</\\1\\s*>`,
         'gi'
     );
-    cleaned = cleaned.replace(xmlRe, (full, attrs: string, body: string) => {
+    cleaned = cleaned.replace(xmlRe, (full, tag: string, attrs: string, body: string) => {
+        const tagToolName = TOOL_NAMES.includes(tag.toLowerCase()) ? tag.toLowerCase() : '';
         const attrName =
             /(?:name|function)\s*=\s*["']?([a-zA-Z_][\w]*)["']?/i.exec(attrs)?.[1]
             ?? '';
@@ -177,7 +225,7 @@ export function parseTextToolCalls(content: string, idPrefix = 'text_call'): Tex
         const bodyNameMatch = new RegExp(`^(${TOOL_NAME_RE})\\b`, 'i').exec(bodyTrim);
         // dots-3 shape: <function=search_history> marker line inside the tag.
         const innerFnName = /<function\s*=\s*["']?([a-zA-Z_][\w]*)["']?\s*\/?>/i.exec(bodyTrim)?.[1] ?? '';
-        const name = attrName || bodyNameMatch?.[1] || innerFnName || '';
+        const name = attrName || bodyNameMatch?.[1] || innerFnName || tagToolName || '';
         if (name && !TOOL_NAMES.includes(name)) return full;
 
         let args = '{}';
@@ -232,6 +280,12 @@ export function parseTextToolCalls(content: string, idPrefix = 'text_call'): Tex
         pushUnique(toolCalls, seen, name, args, idPrefix, matchIndex);
         matchIndex += 1;
         return '\n';
+    });
+
+    // 1b) Unclosed tool-named tags left over from a stream that got cut off.
+    cleaned = extractOrphanToolTags(cleaned, (name, args) => {
+        pushUnique(toolCalls, seen, name, args, idPrefix, matchIndex);
+        matchIndex += 1;
     });
 
     // 2) Qwen / Hermes fence blocks:
@@ -353,6 +407,7 @@ export function parseTextToolCalls(content: string, idPrefix = 'text_call'): Tex
         .replace(/```[\w]*\s*```/g, '\n')
         .replace(/^\s*(?:dots_function_call|tool_call|function_call|tool_request|invoke|arguments?)\s*:?\s*$/gim, '\n')
         .replace(/<\/?(?:dots_function_call|tool_call|function_call|invoke|tool_request|tool|function)[^>]*>/gi, '\n')
+        .replace(new RegExp(`</?(?:${TOOL_NAME_RE})\\b[^>]*>`, 'gi'), '\n')
         .replace(/<\/?parameter[^>]*>/gi, '\n')
         .replace(/\n{3,}/g, '\n\n')
         .trim();
@@ -392,9 +447,10 @@ export function looksLikeToolDump(content: string): boolean {
     ];
     const markerHit = markers.some((m) => lower.includes(m));
     const fnHit = new RegExp(`\\b(${TOOL_NAME_RE})\\s*\\(`, 'i').test(text);
+    const tagHit = new RegExp(`<\\s*/?(?:${TOOL_NAME_RE})\\b`, 'i').test(text);
     const jsonHit = /"(?:name|tool|function)"\s*:\s*"(get_clock|list_recent_days|get_day|get_conversation|search_history|recall_memory|get_identity|update_identity)"/.test(text);
 
-    if (!(markerHit || fnHit || jsonHit)) return false;
+    if (!(markerHit || fnHit || tagHit || jsonHit)) return false;
 
     // If there's substantial prose beyond tool syntax, still flag so caller can strip.
     const withoutCode = text

@@ -11,10 +11,16 @@ interface EntryAnalysisPanelProps {
     isLoading?: boolean;
 }
 
+const SERIF = { fontFamily: 'PlayfairDisplayRegular' };
+const LABEL = 'text-[12px] uppercase tracking-[1.5px] text-text-secondary-light dark:text-text-secondary-dark';
+
 export function EntryAnalysisPanel({ analysis, isLoading = false }: EntryAnalysisPanelProps) {
     if (isLoading && !analysis) {
         return (
-            <View className="gap-4 rounded-2xl bg-surface-light dark:bg-surface-dark p-5" accessibilityLabel="Loading analysis">
+            <View
+                className="gap-4 rounded-card border border-hairline-light bg-surface-light p-5 dark:border-hairline-dark dark:bg-surface-dark"
+                accessibilityLabel="Loading analysis"
+            >
                 <LoadingStatus label="Reading the themes in this entry" compact />
                 <Skeleton className="h-3 w-16" accessibilityLabel="Loading analysis label" />
                 <Skeleton className="h-3 w-12" accessibilityLabel="Loading insight label" />
@@ -36,43 +42,41 @@ export function EntryAnalysisPanel({ analysis, isLoading = false }: EntryAnalysi
     const quote = `"${analysis.quote}"`;
 
     return (
-        <View className="rounded-2xl bg-surface-light dark:bg-surface-dark p-5">
-            <Text className="text-xs font-bold uppercase tracking-wide text-text-secondary-light dark:text-text-secondary-dark">
-                Analysis
-            </Text>
+        <View className="rounded-card border border-hairline-light bg-surface-light p-5 dark:border-hairline-dark dark:bg-surface-dark">
+            <Text className={LABEL}>Analysis</Text>
 
-            <View className="mt-4">
-                <Text className="text-xs font-bold uppercase tracking-wide text-primary">
-                    Insight
-                </Text>
-                <Text className="mt-1 text-base leading-6 text-text-light dark:text-text-dark">
+            <View className="mt-5">
+                <Text className={LABEL}>Insight</Text>
+                <Text
+                    className="mt-2 text-[19px] leading-[29px] text-text-light dark:text-text-dark"
+                    style={SERIF}
+                >
                     {analysis.insight}
                 </Text>
             </View>
 
-            <View className="mt-4">
-                <Text className="text-xs font-bold uppercase tracking-wide text-primary">
-                    Quote
-                </Text>
-                <Text className="mt-1 text-base italic leading-6 text-text-light dark:text-text-dark">
+            <View className="mt-5 border-t border-hairline-light pt-5 dark:border-hairline-dark">
+                <Text className={LABEL}>Quote</Text>
+                <Text
+                    className="mt-2 text-[17px] leading-[27px] text-text-light dark:text-text-dark"
+                    style={SERIF}
+                >
                     {quote}
                 </Text>
             </View>
 
-            <View className="mt-4">
-                <Text className="text-xs font-bold uppercase tracking-wide text-primary">
-                    Mood & Topics
-                </Text>
-                <Text className="mt-1 text-sm text-text-secondary-light dark:text-text-secondary-dark">
+            <View className="mt-5 border-t border-hairline-light pt-5 dark:border-hairline-dark">
+                <Text className={LABEL}>Mood & Topics</Text>
+                <Text className="mt-2 text-[15px] text-text-secondary-light dark:text-text-secondary-dark">
                     {analysis.mood}
                 </Text>
                 <View className="mt-3 flex-row flex-wrap gap-2">
                     {analysis.topics.map((topic) => (
                         <View
                             key={topic}
-                            className="rounded-full bg-primary/10 px-3 py-1.5 dark:bg-primary/20"
+                            className="rounded-control border border-hairline-light px-3 py-1.5 dark:border-hairline-dark"
                         >
-                            <Text className="text-xs font-semibold text-primary">
+                            <Text className="text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
                                 {topic}
                             </Text>
                         </View>

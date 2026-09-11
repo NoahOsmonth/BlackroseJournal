@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+
+import { BLACKROSE_PALETTE } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export interface IntentionFormValues {
@@ -19,6 +21,10 @@ interface IntentionFormProps {
     isSaving?: boolean;
 }
 
+const SERIF = { fontFamily: 'PlayfairDisplayRegular' };
+const HAIRLINE = 'border-hairline-light dark:border-hairline-dark';
+
+/** Quiet editor: serif header, hairline field card, muted counter. */
 export function IntentionForm({
     title,
     submitLabel,
@@ -30,8 +36,9 @@ export function IntentionForm({
     isSaving = false,
 }: IntentionFormProps) {
     const [values, setValues] = useState<IntentionFormValues>(initialValues);
-    const colorScheme = useColorScheme();
-    const iconColor = colorScheme === 'dark' ? '#F9FAFB' : '#111827';
+    const isDark = useColorScheme() === 'dark';
+    const ink = isDark ? BLACKROSE_PALETTE.dark.text : BLACKROSE_PALETTE.light.text;
+    const quietInk = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
 
     useEffect(() => {
         setValues(initialValues);
@@ -46,47 +53,57 @@ export function IntentionForm({
 
     return (
         <View className="flex-1 bg-background-light dark:bg-background-dark">
-            <View className="flex-row items-center justify-between px-4 py-3">
+            <View className="flex-row items-center justify-between px-5 py-4">
                 <Pressable
                     onPress={onCancel}
-                    className="p-2 -ml-2"
+                    className="-ml-2 min-h-11 min-w-11 items-center justify-center"
                     accessibilityLabel="Back"
                 >
-                    <MaterialIcons name="arrow-back" size={24} color={iconColor} />
+                    <MaterialIcons name="arrow-back" size={26} color={ink} />
                 </Pressable>
-                <Text className="text-[17px] font-semibold text-text-light dark:text-text-dark">
+                <Text
+                    className="text-[26px] leading-[34px] text-text-light dark:text-text-dark"
+                    style={SERIF}
+                >
                     {title}
                 </Text>
                 <Pressable
                     onPress={() => canSubmit && onSubmit(values)}
                     disabled={!canSubmit}
                     accessibilityLabel={submitLabel}
+                    className="min-h-11 items-center justify-center"
                 >
-                    <Text className={`text-[17px] ${canSubmit ? 'text-primary' : 'text-text-secondary-light'}`}>
+                    <Text
+                        className={`text-[17px] ${
+                            canSubmit
+                                ? 'text-text-light underline dark:text-text-dark'
+                                : 'text-text-secondary-light dark:text-text-secondary-dark'
+                        }`}
+                    >
                         {submitLabel}
                     </Text>
                 </Pressable>
             </View>
 
-            <View className="px-4 pb-10">
+            <View className="px-5 pb-10">
                 {areaLabel && (
                     <View className="items-center py-4">
-                        <View className="px-4 py-1 rounded-full bg-surface-light dark:bg-surface-dark border border-divider-light dark:border-divider-dark">
-                            <Text className="text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark">
+                        <View className={`rounded-full border ${HAIRLINE} px-4 py-1.5`}>
+                            <Text className="text-[14px] text-text-secondary-light dark:text-text-secondary-dark">
                                 {areaLabel}
                             </Text>
                         </View>
                     </View>
                 )}
 
-                <View className="bg-surface-light dark:bg-surface-dark rounded-xl overflow-hidden shadow-soft mb-6">
-                    <View className="border-b border-divider-light dark:border-divider-dark">
+                <View className={`mb-6 overflow-hidden rounded-card border ${HAIRLINE} bg-surface-light dark:bg-surface-dark`}>
+                    <View className={`border-b ${HAIRLINE}`}>
                         <TextInput
                             value={values.title}
                             onChangeText={(text) => updateValues({ ...values, title: text })}
                             placeholder="Intention title"
-                            placeholderTextColor="#9CA3AF"
-                            className="px-4 py-3 text-[17px] text-text-light dark:text-text-dark"
+                            placeholderTextColor={quietInk}
+                            className="min-h-14 px-4 py-3 text-[19px] text-text-light dark:text-text-dark"
                             maxLength={80}
                         />
                     </View>
@@ -95,8 +112,8 @@ export function IntentionForm({
                             value={values.description}
                             onChangeText={(text) => updateValues({ ...values, description: text })}
                             placeholder="Describe why this intention matters..."
-                            placeholderTextColor="#9CA3AF"
-                            className="text-[17px] text-text-light dark:text-text-dark h-32"
+                            placeholderTextColor={quietInk}
+                            className="h-32 text-[17px] text-text-light dark:text-text-dark"
                             multiline
                             maxLength={280}
                         />

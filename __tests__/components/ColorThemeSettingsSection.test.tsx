@@ -14,7 +14,7 @@ jest.mock('../../hooks/use-color-scheme', () => ({
 }));
 
 describe('ColorThemeSettingsSection', () => {
-    it('renders the 8 palette presets and editable swatch rows', () => {
+    it('renders the palette presets (Blackrose first) and editable swatch rows', () => {
         const { getByLabelText, getByText } = render(
             <ColorThemeSettingsSection
                 colorTheme={DEFAULT_COLOR_THEME}
@@ -24,8 +24,9 @@ describe('ColorThemeSettingsSection', () => {
             />
         );
 
-        // All 8 palettes are present in the grid.
-        expect(getByLabelText('Select Rosebud colors')).toBeTruthy();
+        // Blackrose leads the grid; the legacy amber palette stays available.
+        expect(getByLabelText('Select Blackrose colors')).toBeTruthy();
+        expect(getByLabelText('Select Amber colors')).toBeTruthy();
         expect(getByLabelText('Select Ocean colors')).toBeTruthy();
         expect(getByLabelText('Select Forest colors')).toBeTruthy();
         expect(getByLabelText('Select Plum colors')).toBeTruthy();
@@ -42,7 +43,7 @@ describe('ColorThemeSettingsSection', () => {
         expect(getByLabelText('Edit App font Dark color')).toBeTruthy();
         expect(getByLabelText('Edit Muted font Light color')).toBeTruthy();
         expect(getByLabelText('Edit Chat — you Light color')).toBeTruthy();
-        expect(getByLabelText('Edit Chat — Rosebud Dark color')).toBeTruthy();
+        expect(getByLabelText('Edit Chat — Blackrose Dark color')).toBeTruthy();
         expect(getByLabelText('Edit Background Light color')).toBeTruthy();
         expect(getByLabelText('Edit Background Dark color')).toBeTruthy();
     });
@@ -98,7 +99,7 @@ describe('ColorThemeSettingsSection', () => {
 
         expect(getByText('Journal preview').props.style.color).toBe('#102030');
         expect(getByText('I want the chat to feel like mine.').props.style.color).toBe('#405060');
-        expect(getByText('Rosebud can match that tone.').props.style.color).toBe('#708090');
+        expect(getByText('Blackrose can match that tone.').props.style.color).toBe('#708090');
     });
 
     it('marks the auto-derived partner swatch with an "auto" badge', () => {

@@ -49,10 +49,19 @@ export default function SavedInsightsScreen() {
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
             <View className="flex-1 max-w-md mx-auto w-full">
                 <View className="flex-row items-center justify-between px-4 py-4">
-                    <Pressable onPress={goBack} className="p-2 -ml-2">
-                        <MaterialIcons name="arrow-back" size={24} color={iconColor} />
+                    <Pressable
+                        onPress={goBack}
+                        className="-ml-2 min-h-11 min-w-11 items-center justify-center"
+                        accessibilityLabel="Back"
+                    >
+                        <MaterialIcons name="arrow-back" size={26} color={iconColor} />
                     </Pressable>
-                    <Text className="text-lg font-semibold text-text-light dark:text-text-dark">Saved insights</Text>
+                    <Text
+                        className="text-[26px] leading-[34px] text-text-light dark:text-text-dark"
+                        style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                    >
+                        Saved insights
+                    </Text>
                     <View className="w-10" />
                 </View>
 
@@ -71,7 +80,10 @@ export default function SavedInsightsScreen() {
                         />
                     </View>
                 ) : (
-                    <Animated.ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false} onScroll={onScroll} scrollEventThrottle={16}>
+                    <Animated.ScrollView
+                        className="flex-1"
+                        contentContainerStyle={{ paddingHorizontal: 16 }}
+                        showsVerticalScrollIndicator={false} onScroll={onScroll} scrollEventThrottle={16}>
                         <View className="gap-4 pb-8">
                             {visibleInsights.map((insight, index) => (
                                 <RevealItem key={insight.id} scrollY={scrollY}>
@@ -91,19 +103,24 @@ export default function SavedInsightsScreen() {
                                                 remove(insight.id);
                                             }}
                                         >
-                                            <View className="bg-surface-light dark:bg-surface-dark rounded-2xl p-5 shadow-soft border border-gray-100 dark:border-divider-dark">
-                                                <Text className="text-sm text-text-secondary-light dark:text-text-secondary-dark mb-2">
+                                            <View className="rounded-card border border-hairline-light bg-surface-light p-5 dark:border-hairline-dark dark:bg-surface-dark">
+                                                <Text className="text-[13px] uppercase tracking-[1.4px] text-text-secondary-light dark:text-text-secondary-dark">
                                                     {insight.sourceDate ?? 'Saved'}
                                                 </Text>
-                                                <Text className="text-base font-medium text-text-light dark:text-text-dark">
+                                                <Text
+                                                    className="mt-3 text-[20px] leading-[29px] text-text-light dark:text-text-dark"
+                                                    style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                                                >
                                                     {insight.question}
                                                 </Text>
                                                 <Pressable
                                                     onPress={() => handleRemove(insight.id)}
-                                                    className="flex-row items-center gap-2 mt-4"
+                                                    className="mt-4 min-h-11 flex-row items-center gap-2 self-start"
+                                                    accessibilityRole="button"
+                                                    accessibilityLabel={`Remove saved insight: ${insight.question}`}
                                                 >
-                                                    <MaterialIcons name="delete" size={18} color="#9CA3AF" />
-                                                    <Text className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
+                                                    <MaterialIcons name="delete-outline" size={18} color="#9CA3AF" />
+                                                    <Text className="text-[15px] text-text-secondary-light dark:text-text-secondary-dark">
                                                         Remove
                                                     </Text>
                                                 </Pressable>

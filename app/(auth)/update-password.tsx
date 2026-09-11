@@ -1,19 +1,23 @@
 import { useAuthActions } from '@/hooks/auth/useAuthActions';
 import { AuthFormSkeleton } from '@/components/auth/AuthFormSkeleton';
+import {
+    AuthInput,
+    FieldLabel,
+    PrimaryButton,
+    StatusBanner,
+} from '@/components/auth/AuthPrimitives';
+import {
+    AuthBackLink,
+    AuthCard,
+    AuthHeading,
+    AuthWordmark,
+} from '@/components/auth/AuthScaffold';
 import { useRouter } from 'expo-router';
 import * as Linking from 'expo-linking';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthSession } from '@/hooks/auth/useAuthSession';
-
-function FieldLabel({ text }: { text: string }) {
-    return (
-        <Text className="text-xs font-bold uppercase tracking-wider text-subtext-light dark:text-subtext-dark mb-2">
-            {text}
-        </Text>
-    );
-}
 
 export default function UpdatePasswordScreen() {
     const router = useRouter();
@@ -111,80 +115,67 @@ export default function UpdatePasswordScreen() {
 
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
-            <View className="flex-1 max-w-md mx-auto w-full px-6 pt-6">
-                <Pressable onPress={() => router.back()} className="mb-4">
-                    <Text className="text-sm text-primary font-semibold dark:text-primary">Back</Text>
-                </Pressable>
+            <View className="w-full max-w-md mx-auto flex-1 px-6 pt-2">
+                <AuthBackLink onPress={() => router.back()} />
+                <AuthHeading
+                    title="Update password"
+                    subtitle="Set a new password to regain access to your account."
+                />
 
-                <Text className="text-3xl font-serif font-bold text-text-light dark:text-text-dark">
-                    Update password
-                </Text>
-                <Text className="text-sm text-subtext-light dark:text-subtext-dark mt-2">
-                    Set a new password to regain access to your account.
-                </Text>
-
-                <View className="bg-surface-light dark:bg-surface-dark rounded-2xl p-5 shadow-sm mt-6">
+                <AuthCard>
                     {isLoading || (isProcessingLink && !canReset) ? (
                         <AuthFormSkeleton fields={2} />
                     ) : (
                         <View>
                             {!canReset && (
-                                <View className="mb-4 rounded-xl p-3 bg-yellow-300/20 dark:bg-yellow-300/10">
-                                    <Text className="text-sm text-text-light dark:text-text-dark">
+                                <View className="mb-4 rounded-card border border-hairline-light p-4 dark:border-hairline-dark">
+                                    <Text className="text-[14px] text-text-light dark:text-text-dark">
                                         Open the password reset link from your email to continue.
                                     </Text>
                                 </View>
                             )}
 
                             <FieldLabel text="New password" />
-                            <TextInput
+                            <AuthInput
+                                label="New password"
                                 value={password}
                                 onChangeText={setPassword}
                                 placeholder="••••••••"
                                 secureTextEntry
+                                showVisibilityToggle
                                 autoCapitalize="none"
                                 textContentType="newPassword"
-                                className="rounded-xl border border-divider-light dark:border-divider-dark bg-background-light dark:bg-background-dark px-4 py-3 text-text-light dark:text-text-dark"
                             />
 
                             <View className="mt-4">
                                 <FieldLabel text="Confirm password" />
-                                <TextInput
+                                <AuthInput
+                                    label="Confirm password"
                                     value={confirmPassword}
                                     onChangeText={setConfirmPassword}
                                     placeholder="••••••••"
                                     secureTextEntry
+                                    showVisibilityToggle
                                     autoCapitalize="none"
                                     textContentType="newPassword"
-                                    className="rounded-xl border border-divider-light dark:border-divider-dark bg-background-light dark:bg-background-dark px-4 py-3 text-text-light dark:text-text-dark"
+                                    returnKeyType="go"
+                                    onSubmitEditing={() => void handleUpdatePassword()}
                                 />
                             </View>
 
-                            {status && (
-                                <View
-                                    className={`mt-4 rounded-xl p-3 ${status.type === 'error'
-                                        ? 'bg-yellow-300/20 dark:bg-yellow-300/10'
-                                        : 'bg-green-300/20 dark:bg-green-300/10'
-                                        }`}
-                                >
-                                    <Text className="text-sm text-text-light dark:text-text-dark">
-                                        {status.message}
-                                    </Text>
-                                </View>
-                            )}
+                            {status && <StatusBanner type={status.type} message={status.message} />}
 
-                            <Pressable
-                                onPress={handleUpdatePassword}
-                                disabled={isSubmitting}
-                                className={`mt-5 rounded-xl py-3 ${isSubmitting ? 'bg-primary/70' : 'bg-primary'}`}
-                            >
-                                <Text className="text-white font-semibold text-center dark:text-white">
-                                    {isSubmitting ? 'Updating...' : 'Update password'}
-                                </Text>
-                            </Pressable>
+                            <PrimaryButton
+                                label="Update password"
+                                loadingLabel="Updating…"
+                                isLoading={isSubmitting}
+                                onPress={() => void handleUpdatePassword()}
+                            />
                         </View>
                     )}
-                </View>
+                </AuthCard>
+
+                <AuthWordmark />
             </View>
         </SafeAreaView>
     );

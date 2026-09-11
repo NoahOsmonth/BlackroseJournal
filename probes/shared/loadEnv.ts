@@ -55,7 +55,7 @@ export function applyProbeEnv(): {
     const model = (
         process.env.EXPO_PUBLIC_NANO_GPT_MODEL
         ?? fileEnv.EXPO_PUBLIC_NANO_GPT_MODEL
-        ?? 'dots-studio/dots-3-note-preview:free'
+        ?? 'merge/deepseek/deepseek-v4-flash-0731'
     ).trim();
     const flashModel = (
         process.env.EXPO_PUBLIC_NANO_GPT_FLASH_MODEL

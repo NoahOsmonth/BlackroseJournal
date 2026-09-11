@@ -2,7 +2,8 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import React from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Colors } from '@/constants/theme';
+import { BLACKROSE_PALETTE } from '@/constants/theme';
+import { RoseMark } from '@/components/ui/RoseMark';
 
 interface HeaderProps {
     query: string;
@@ -10,49 +11,52 @@ interface HeaderProps {
     onBack?: () => void;
 }
 
+/**
+ * Threads header: back, the line rose mark centred, serif "Threads" title, then
+ * a hairline search field. Matches black-rose-threads.png.
+ */
 export function MemoryGraphHeader({ query, onQueryChange, onBack }: HeaderProps) {
-    const colorScheme = useColorScheme();
-    const isDark = colorScheme === 'dark';
-    const iconColor = isDark ? Colors.dark.text : Colors.light.icon;
-    const placeholderColor = isDark ? Colors.dark.icon : Colors.light.icon;
+    const isDark = useColorScheme() === 'dark';
+    const ink = isDark ? BLACKROSE_PALETTE.dark.text : BLACKROSE_PALETTE.light.text;
+    const muted = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
 
     return (
-        <View className="border-b border-divider-light px-5 pb-4 pt-3 dark:border-divider-dark">
-            <View className="flex-row items-center gap-3">
-                {onBack ? (
-                    <Pressable
-                        onPress={onBack}
-                        accessibilityRole="button"
-                        accessibilityLabel="Back from memory graph"
-                        className="h-10 w-10 items-center justify-center rounded-2xl
-                        border border-divider-light bg-surface-light
-                        dark:border-divider-dark dark:bg-surface-dark"
-                    >
-                        <MaterialIcons name="arrow-back" size={20} color={iconColor} />
-                    </Pressable>
-                ) : null}
-                <View className="min-w-0 flex-1">
-                    <Text
-                        className="text-2xl font-bold text-text-light dark:text-text-dark"
-                        style={{ fontFamily: 'PlayfairDisplayBold' }}
-                    >
-                        Memory map
-                    </Text>
-                    <Text className="mt-0.5 text-xs text-text-secondary-light dark:text-text-secondary-dark">
-                        Your inner constellation
-                    </Text>
+        <View className="px-5 pb-3 pt-2">
+            <View className="flex-row items-center justify-between">
+                <View className="w-10">
+                    {onBack ? (
+                        <Pressable
+                            onPress={onBack}
+                            accessibilityRole="button"
+                            accessibilityLabel="Back from memory graph"
+                            hitSlop={8}
+                            className="h-10 w-10 items-center justify-center"
+                        >
+                            <MaterialIcons name="chevron-left" size={26} color={ink} />
+                        </Pressable>
+                    ) : null}
                 </View>
+
+                <RoseMark
+                    size={30}
+                    color={isDark ? BLACKROSE_PALETTE.dark.accent : BLACKROSE_PALETTE.light.accent}
+                />
+
+                <Text
+                    className="w-24 text-right text-[22px] text-text-light dark:text-text-dark"
+                    style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                >
+                    Threads
+                </Text>
             </View>
-            <View
-                className="mt-3.5 flex-row items-center rounded-2xl border border-divider-light
-                bg-surface-light px-3.5 dark:border-divider-dark dark:bg-surface-dark"
-            >
-                <MaterialIcons name="search" size={18} color={iconColor} />
+
+            <View className="mt-3 flex-row items-center border-b border-hairline-light dark:border-hairline-dark pb-2">
+                <MaterialIcons name="search" size={18} color={muted} />
                 <TextInput
                     accessibilityLabel="Search memory graph"
-                    className="ml-2 flex-1 py-3 text-sm text-text-light dark:text-text-dark"
-                    placeholder="Search stars, themes, keywords…"
-                    placeholderTextColor={placeholderColor}
+                    className="ml-2 flex-1 py-1.5 text-[15px] text-text-light dark:text-text-dark"
+                    placeholder="Search memories, themes, keywords…"
+                    placeholderTextColor={muted}
                     value={query}
                     onChangeText={onQueryChange}
                     returnKeyType="search"

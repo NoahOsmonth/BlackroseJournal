@@ -49,7 +49,7 @@ describe('personasStorage', () => {
         process.env.EXPO_PUBLIC_ENABLE_REMOTE_DATA_SYNC = originalRemoteFlag;
     });
 
-    it('seeds the active Rosebud persona locally when no personas exist', async () => {
+    it('seeds the active Blackrose persona locally when no personas exist', async () => {
         const personas = await listPersonas();
         const activePersona = await getActivePersona();
 
@@ -58,7 +58,7 @@ describe('personasStorage', () => {
         expect(personas).toHaveLength(1);
         expect(personas[0]).toMatchObject({
             id: DEFAULT_PERSONA_ID,
-            name: 'Rosebud',
+            name: 'Blackrose',
             tagline: 'Balanced and thoughtful',
             isActive: true,
             avatarKey: 'persona-default',
@@ -67,6 +67,6 @@ describe('personasStorage', () => {
 
         const storedJson = mockStore.get('@personas') ?? '{}';
         const stored = JSON.parse(storedJson) as Record<string, Persona>;
-        expect(stored[DEFAULT_PERSONA_ID]?.name).toBe('Rosebud');
+        expect(stored[DEFAULT_PERSONA_ID]?.name).toBe('Blackrose');
     });
 });

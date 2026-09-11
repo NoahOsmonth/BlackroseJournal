@@ -18,8 +18,8 @@ export function SettingsSection({
     }
 
     return (
-        <View className="bg-surface-light dark:bg-surface-dark rounded-2xl p-5 shadow-sm mb-6">
-            <Text className="text-sm font-bold text-subtext-light dark:text-subtext-dark uppercase tracking-wider mb-4">
+        <View className="mb-6 rounded-card border border-hairline-light bg-surface-light p-5 dark:border-hairline-dark dark:bg-surface-dark">
+            <Text className="mb-4 text-[12px] uppercase tracking-[1.5px] text-text-secondary-light dark:text-text-secondary-dark">
                 {title}
             </Text>
             {children}

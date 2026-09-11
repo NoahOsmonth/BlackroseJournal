@@ -4,7 +4,11 @@ import { fireEvent, render } from '@testing-library/react-native';
 import { DataManagementSection } from '../components/settings/DataManagementSection';
 
 jest.mock('@expo/vector-icons', () => ({
-    Ionicons: () => null,
+    MaterialIcons: () => null,
+}));
+
+jest.mock('../hooks/use-color-scheme', () => ({
+    useColorScheme: () => 'light',
 }));
 
 describe('DataManagementSection', () => {
@@ -20,11 +24,11 @@ describe('DataManagementSection', () => {
             />
         );
 
-        expect(getByText('Create Local Backup')).toBeTruthy();
-        expect(getByText('Restore Latest Backup')).toBeTruthy();
+        expect(getByText('Create local backup')).toBeTruthy();
+        expect(getByText('Restore latest backup')).toBeTruthy();
         expect(getByText('Latest: Friday backup')).toBeTruthy();
         // Production default: demo seed controls hidden
-        expect(queryByText('Seed Demo Data')).toBeNull();
+        expect(queryByText('Seed demo data')).toBeNull();
         expect(queryByText('Clear demo data')).toBeNull();
     });
 
@@ -42,7 +46,7 @@ describe('DataManagementSection', () => {
                 onClearHistory={jest.fn()}
             />
         );
-        expect(getByText('Seed Demo Data')).toBeTruthy();
+        expect(getByText('Seed demo data')).toBeTruthy();
         expect(getByText('Clear demo data')).toBeTruthy();
     });
 
@@ -60,8 +64,8 @@ describe('DataManagementSection', () => {
             />
         );
 
-        fireEvent.press(getByText('Create Local Backup'));
-        fireEvent.press(getByText('Restore Latest Backup'));
+        fireEvent.press(getByText('Create local backup'));
+        fireEvent.press(getByText('Restore latest backup'));
 
         expect(onCreateBackup).toHaveBeenCalledTimes(1);
         expect(onRestoreLatestBackup).toHaveBeenCalledTimes(1);

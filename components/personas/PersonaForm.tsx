@@ -7,6 +7,10 @@ import { getPersonaAvatarSource, PERSONA_VOICES, PersonaAvatarKey } from '@/cons
 import { AvatarPickerModal } from './AvatarPickerModal';
 import { VoicePickerModal } from './VoicePickerModal';
 import { StaggerEntranceItem } from '@/components/ui/StaggerEntrance';
+import { RoseMark } from '@/components/ui/RoseMark';
+import { BLACKROSE_PALETTE } from '@/constants/theme';
+
+const SERIF = { fontFamily: 'PlayfairDisplayRegular' };
 
 export interface PersonaFormValues {
     name: string;
@@ -42,8 +46,10 @@ export function PersonaForm({
     const [values, setValues] = useState<PersonaFormValues>(initialValues);
     const [showAvatarPicker, setShowAvatarPicker] = useState(false);
     const [showVoicePicker, setShowVoicePicker] = useState(false);
-    const colorScheme = useColorScheme();
-    const iconColor = colorScheme === 'dark' ? '#F9FAFB' : '#111827';
+    const isDark = useColorScheme() === 'dark';
+    const inkColor = isDark ? BLACKROSE_PALETTE.dark.text : BLACKROSE_PALETTE.light.text;
+    const mutedColor = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
+    const accentColor = isDark ? BLACKROSE_PALETTE.dark.accent : BLACKROSE_PALETTE.light.accent;
 
     useEffect(() => {
         setValues(initialValues);
@@ -64,31 +70,46 @@ export function PersonaForm({
 
     return (
         <View className="flex-1 bg-background-light dark:bg-background-dark">
-            <View className="flex-row items-center justify-between px-4 py-3">
+            <View className="min-h-[56px] flex-row items-center justify-between px-4 py-2">
                 <Pressable
                     onPress={onBack}
-                    className="p-2 -ml-2"
+                    className="h-11 w-11 items-center justify-center"
+                    accessibilityRole="button"
                     accessibilityLabel="Back"
                 >
-                    <MaterialIcons name="arrow-back" size={24} color={iconColor} />
+                    <MaterialIcons name="arrow-back" size={26} color={inkColor} />
                 </Pressable>
-                <Text className="text-[17px] font-semibold text-text-light dark:text-text-dark">{title}</Text>
+                <Text
+                    className="flex-1 text-center text-[26px] text-text-light dark:text-text-dark"
+                    style={SERIF}
+                >
+                    {title}
+                </Text>
                 <Pressable
                     onPress={() => canSubmit && onSubmit(values)}
                     disabled={!canSubmit}
+                    accessibilityRole="button"
                     accessibilityLabel={submitLabel}
+                    className="min-h-11 justify-center px-2"
                 >
-                    <Text className={`text-[17px] ${canSubmit ? 'text-primary' : 'text-text-secondary-light'}`}>
+                    <Text
+                        className={`text-[17px] ${
+                            canSubmit
+                                ? 'text-text-light underline dark:text-text-dark'
+                                : 'text-text-secondary-light dark:text-text-secondary-dark'
+                        }`}
+                    >
                         {submitLabel}
                     </Text>
                 </Pressable>
             </View>
 
             <View className="px-4 pb-10">
-                <View className="flex items-center py-8">
+                <View className="flex items-center py-6">
                     <Pressable
                         onPress={() => setShowAvatarPicker(true)}
-                        className="w-28 h-28 rounded-full bg-orange-600 overflow-hidden items-center justify-center"
+                        className="h-28 w-28 items-center justify-center overflow-hidden rounded-full border border-hairline-light bg-surface-light dark:border-hairline-dark dark:bg-surface-dark"
+                        accessibilityRole="button"
                         accessibilityLabel="Edit avatar"
                     >
                         {avatarSource ? (
@@ -97,89 +118,84 @@ export function PersonaForm({
                                 style={{ width: 112, height: 112 }}
                             />
                         ) : (
-                            <Text className="text-white text-2xl">
-                                {values.name.trim().charAt(0).toUpperCase() || 'O'}
-                            </Text>
+                            <RoseMark size={56} color={accentColor} strokeWidth={1.2} />
                         )}
-                        <View className="absolute top-0 right-0 w-8 h-8 rounded-full bg-surface-light items-center justify-center">
-                            <MaterialIcons name="edit" size={16} color="#6B7280" />
+                        <View className="absolute bottom-0 right-0 h-8 w-8 items-center justify-center rounded-full border border-hairline-light bg-surface-light dark:border-hairline-dark dark:bg-surface-dark">
+                            <MaterialIcons name="edit" size={16} color={mutedColor} />
                         </View>
                     </Pressable>
                 </View>
 
-                <View className="bg-surface-light dark:bg-surface-dark rounded-xl overflow-hidden shadow-soft mb-6">
-                    <StaggerEntranceItem index={0} columns={1} totalItems={3} staggerType="linear" baseDelayMs={20} delayFactorMs={50} className="w-full">
-                        <View className="border-b border-divider-light dark:border-divider-dark">
-                            <TextInput
-                                value={values.name}
-                                onChangeText={(text) => updateValues((prev) => ({ ...prev, name: text }))}
-                                placeholder="Name"
-                                placeholderTextColor="#9CA3AF"
-                                className="px-4 py-3 text-[17px] text-text-light dark:text-text-dark"
-                            />
+                <StaggerEntranceItem index={0} columns={1} totalItems={3} staggerType="linear" baseDelayMs={20} delayFactorMs={50} className="w-full">
+                    <View className="border-t border-hairline-light dark:border-hairline-dark">
+                        <TextInput
+                            value={values.name}
+                            onChangeText={(text) => updateValues((prev) => ({ ...prev, name: text }))}
+                            placeholder="Name"
+                            placeholderTextColor={mutedColor}
+                            accessibilityLabel="Name"
+                            className="min-h-14 px-1 py-3 text-[19px] text-text-light dark:text-text-dark"
+                        />
+                    </View>
+                    <View className="border-t border-hairline-light dark:border-hairline-dark">
+                        <TextInput
+                            value={values.tagline}
+                            onChangeText={(text) => updateValues((prev) => ({ ...prev, tagline: text }))}
+                            placeholder="Tagline"
+                            placeholderTextColor={mutedColor}
+                            accessibilityLabel="Tagline"
+                            className="min-h-14 px-1 py-3 text-[19px] text-text-light dark:text-text-dark"
+                        />
+                    </View>
+                    <Pressable
+                        onPress={() => setShowVoicePicker(true)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Voice"
+                        className="min-h-14 flex-row items-center justify-between border-t border-hairline-light px-1 py-3 dark:border-hairline-dark"
+                    >
+                        <Text className="text-[19px] text-text-light dark:text-text-dark">Voice</Text>
+                        <View className="flex-row items-center gap-1.5">
+                            <Text className="text-[17px] text-text-secondary-light dark:text-text-secondary-dark">
+                                {values.voice}
+                            </Text>
+                            <MaterialIcons name="chevron-right" size={22} color={mutedColor} />
                         </View>
-                        <View className="border-b border-divider-light dark:border-divider-dark">
-                            <TextInput
-                                value={values.tagline}
-                                onChangeText={(text) => updateValues((prev) => ({ ...prev, tagline: text }))}
-                                placeholder="Tagline"
-                                placeholderTextColor="#9CA3AF"
-                                className="px-4 py-3 text-[17px] text-text-light dark:text-text-dark"
-                            />
-                        </View>
-                        <Pressable
-                            onPress={() => setShowVoicePicker(true)}
-                            className="flex-row items-center justify-between px-4 py-3"
-                        >
-                            <View className="flex-row items-center gap-3">
-                                <MaterialIcons name="volume-up" size={20} color="#9CA3AF" />
-                                <Text className="text-[17px] text-text-light dark:text-text-dark">Voice</Text>
-                            </View>
-                            <View className="flex-row items-center gap-1">
-                                <Text className="text-[17px] text-text-secondary-light dark:text-text-secondary-dark">
-                                    {values.voice}
-                                </Text>
-                                <MaterialIcons name="chevron-right" size={20} color="#9CA3AF" />
-                            </View>
-                        </Pressable>
-                    </StaggerEntranceItem>
-                </View>
+                    </Pressable>
+                </StaggerEntranceItem>
 
-                <View className="mb-6">
-                    <Text className="text-[13px] uppercase tracking-wide text-text-secondary-light dark:text-text-secondary-dark mb-2 pl-4">
+                <View className="mt-6">
+                    <Text className="mb-2 text-[19px] text-text-light dark:text-text-dark" style={SERIF}>
                         Personalization
                     </Text>
-                    <View className="bg-surface-light dark:bg-surface-dark rounded-xl p-4 shadow-soft h-48">
+                    <View className="h-48 rounded-card border border-hairline-light p-4 dark:border-hairline-dark">
                         <TextInput
                             value={values.prompt}
                             onChangeText={(text) => updateValues((prev) => ({ ...prev, prompt: text }))}
-                            placeholder="Describe your desired personality and response style..."
-                            placeholderTextColor="#9CA3AF"
-                            className="text-[17px] text-text-light dark:text-text-dark h-full"
+                            placeholder="Describe your preferred tone..."
+                            placeholderTextColor={mutedColor}
+                            accessibilityLabel="Personalization"
+                            className="h-full text-[16px] text-text-light dark:text-text-dark"
                             multiline
                             maxLength={2000}
                         />
                         <View className="absolute bottom-4 right-4">
-                            <Text className="text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
+                            <Text className="text-[14px] text-text-secondary-light dark:text-text-secondary-dark">
                                 {values.prompt.length} / 2000
                             </Text>
                         </View>
                     </View>
                 </View>
 
-                <View className="mb-10">
-                    <Text className="text-[13px] uppercase tracking-wide text-text-secondary-light dark:text-text-secondary-dark mb-2 pl-4">
-                        More
-                    </Text>
-                    <View className="bg-surface-light dark:bg-surface-dark rounded-xl overflow-hidden shadow-soft">
-                        <Pressable
-                            onPress={onAdvanced}
-                            className="flex-row items-center justify-between px-4 py-3"
-                        >
-                            <Text className="text-[17px] text-text-light dark:text-text-dark">Advanced</Text>
-                            <MaterialIcons name="chevron-right" size={20} color="#9CA3AF" />
-                        </Pressable>
-                    </View>
+                <View className="mb-10 mt-6">
+                    <Pressable
+                        onPress={onAdvanced}
+                        accessibilityRole="button"
+                        accessibilityLabel="Advanced"
+                        className="min-h-14 flex-row items-center justify-between border-t border-hairline-light px-1 py-3 dark:border-hairline-dark"
+                    >
+                        <Text className="text-[19px] text-text-light dark:text-text-dark">Advanced</Text>
+                        <MaterialIcons name="chevron-right" size={22} color={mutedColor} />
+                    </Pressable>
                 </View>
             </View>
 

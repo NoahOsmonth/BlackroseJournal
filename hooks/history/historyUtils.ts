@@ -206,6 +206,43 @@ export function filterHistorySections(
         .filter((section) => section.items.length > 0);
 }
 
+/** Free-text search across entry title, excerpt, and mood. */
+export function filterHistorySectionsByQuery(
+    sections: readonly HistorySection[],
+    query: string
+): HistorySection[] {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return [...sections];
+    return sections
+        .map((section) => ({
+            ...section,
+            items: section.items.filter((item) =>
+                `${item.title} ${item.summary} ${item.mood ?? ''}`
+                    .toLowerCase()
+                    .includes(needle)
+            ),
+        }))
+        .filter((section) => section.items.length > 0);
+}
+
+/**
+ * Archive week meta line — "This week · Jan 18–24" per black-rose-archive.png.
+ * The trailing day collapses to a bare number only when the week stays inside
+ * one month; a month-crossing week keeps both month names.
+ */
+export function formatWeekMeta(summary: WeeklyHistorySummary): string | null {
+    const parts = summary.label.split(' - ');
+    if (parts.length !== 2) return null;
+    const [startLabel, endLabel] = parts;
+    const [startMonth, startDay] = startLabel.split(' ');
+    const [endMonth, endDay] = endLabel.split(' ');
+    if (!startDay || !endDay) return null;
+    const range = startMonth === endMonth
+        ? `${startLabel}\u2013${endDay}`
+        : `${startLabel}\u2013${endLabel}`;
+    return `This week \u00b7 ${range}`;
+}
+
 function getWeekBounds(date: Date): { start: Date; end: Date } {
     const start = new Date(date);
     start.setHours(0, 0, 0, 0);

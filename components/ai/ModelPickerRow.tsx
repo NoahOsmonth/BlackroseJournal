@@ -1,11 +1,11 @@
 import React from 'react';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { Pressable, Text, View } from 'react-native';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { formatContextWindow } from '@/services/ai/modelContext';
 import type { ChatModelOption } from '@/features/chat/modelPicker.types';
 import { formatPickerModelName, isFreeModelId } from '@/utils/ai/modelDisplay';
+import { BLACKROSE_PALETTE } from '@/constants/theme';
 import { FreeModelBadge } from './FreeModelBadge';
 
 type ModelPickerRowProps = {
@@ -14,11 +14,11 @@ type ModelPickerRowProps = {
     readonly onPress: () => void;
 };
 
+/** Hairline row: serif name, quiet metadata, a word marker when active. */
 export function ModelPickerRow({ model, selected, onPress }: ModelPickerRowProps) {
     const isDark = useColorScheme() === 'dark';
-    const radioColor = selected
-        ? (isDark ? '#F9FAFB' : '#111827')
-        : (isDark ? '#9CA3AF' : '#6B7280');
+    const ink = isDark ? BLACKROSE_PALETTE.dark.text : BLACKROSE_PALETTE.light.text;
+    const quietInk = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
     const free = isFreeModelId(model.id);
     const displayName = model.name ?? formatPickerModelName(model.id);
     const unavailable = model.availability === 'unavailable';
@@ -30,40 +30,40 @@ export function ModelPickerRow({ model, selected, onPress }: ModelPickerRowProps
             accessibilityRole="radio"
             accessibilityState={{ selected, disabled: unavailable }}
             accessibilityLabel={`Select ${displayName}`}
-            className={`flex-row items-start gap-3 rounded-xl border px-3 py-3 active:opacity-80 ${
-                unavailable ? 'opacity-50 ' : ''
-            }${
-                selected
-                    ? 'border-primary bg-primary/10 dark:bg-primary/20'
-                    : 'border-divider-light dark:border-divider-dark bg-transparent'
+            className={`min-h-14 flex-row items-center gap-3 border-b border-hairline-light px-1 py-3.5 active:opacity-80 dark:border-hairline-dark ${
+                unavailable ? 'opacity-50' : ''
             }`}
         >
-            <Ionicons
-                name={selected ? 'radio-button-on' : 'radio-button-off'}
-                size={18}
-                color={radioColor}
-            />
-            <View className="flex-1 min-w-0 gap-1">
+            <View className="min-w-0 flex-1 gap-1">
                 <View className="flex-row items-center gap-2">
                     <Text
                         numberOfLines={1}
-                        className="flex-1 text-base font-semibold text-text-light dark:text-text-dark"
+                        className="flex-1 text-[19px] text-text-light dark:text-text-dark"
+                        style={{ fontFamily: 'PlayfairDisplayRegular' }}
                     >
                         {displayName}
                     </Text>
                     {free ? <FreeModelBadge compact /> : null}
-                    <Text className="text-xs text-subtext-light dark:text-subtext-dark shrink-0">
+                    <Text className="shrink-0 text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
                         {formatContextWindow(model.contextWindow)}
                     </Text>
                 </View>
                 <Text
                     numberOfLines={1}
                     ellipsizeMode="middle"
-                    className="text-xs text-subtext-light dark:text-subtext-dark"
+                    className="text-[13px] text-text-secondary-light dark:text-text-secondary-dark"
                 >
                     {model.publicId ?? model.id}
                 </Text>
             </View>
+
+            {selected ? (
+                <Text className="text-[15px]" style={{ color: ink }}>
+                    Active
+                </Text>
+            ) : (
+                <View className="h-2 w-2 rounded-full" style={{ backgroundColor: quietInk, opacity: 0.35 }} />
+            )}
         </Pressable>
     );
 }

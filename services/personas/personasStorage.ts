@@ -36,12 +36,14 @@ registerAccountTeardown(() => {
     mutationQueue = Promise.resolve();
 });
 
+// Display name is the product name (Blackrose). The id stays stable so any
+// persona already persisted under it keeps resolving.
 const DEFAULT_PERSONA = {
     id: DEFAULT_PERSONA_ID,
-    name: 'Rosebud',
+    name: 'Blackrose',
     tagline: 'Balanced and thoughtful',
     voice: 'Onyx',
-    prompt: 'Respond as Rosebud, a balanced and thoughtful journaling companion.',
+    prompt: 'Respond as Blackrose, a balanced and thoughtful journaling companion.',
     model: 'nvidia/nemotron-3-ultra-550b-a55b',
     imagination: 25,
     avatarKey: 'persona-default',

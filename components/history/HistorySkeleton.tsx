@@ -10,11 +10,11 @@ function DaySkeleton() {
                 <Skeleton className="h-8 w-10" />
                 <Skeleton className="mb-1 h-3 w-14" />
             </View>
-            <View className="overflow-hidden rounded-2xl border border-divider-light dark:border-divider-dark bg-surface-light dark:bg-surface-dark px-4 py-3.5 gap-3">
+            <View className="overflow-hidden rounded-card border border-hairline-light dark:border-hairline-dark bg-surface-light dark:bg-surface-dark px-4 py-3.5 gap-3">
                 <Skeleton className="h-3 w-20" />
                 <Skeleton className="h-4 w-48" />
                 <Skeleton className="h-3 w-full" />
-                <View className="my-1 h-px bg-divider-light dark:bg-divider-dark" />
+                <View className="my-1 h-px bg-hairline-light dark:bg-hairline-dark" />
                 <Skeleton className="h-3 w-16" />
                 <Skeleton className="h-4 w-36" />
             </View>

@@ -146,13 +146,14 @@ describe('colorDerivation', () => {
 });
 
 describe('color theme presets', () => {
-    it('exposes 8 built-in palettes plus a custom slot', () => {
-        expect(COLOR_THEME_PRESETS).toHaveLength(8);
+    it('leads with Blackrose and keeps the legacy palettes non-default', () => {
+        expect(COLOR_THEME_PRESETS).toHaveLength(9);
         const ids = COLOR_THEME_PRESETS.map((p) => p.presetId);
         expect(ids).toEqual([
-            'rosebud', 'ocean', 'forest', 'plum',
+            'blackrose', 'rosebud', 'ocean', 'forest', 'plum',
             'sunset', 'lavender', 'mint', 'mocha',
         ]);
+        expect(DEFAULT_COLOR_THEME.presetId).toBe('blackrose');
     });
 
     it('every preset has valid 6-digit hex colors for every slot', () => {

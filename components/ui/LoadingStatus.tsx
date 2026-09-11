@@ -32,11 +32,11 @@ export function LoadingStatus({
             exiting={reduceMotion ? undefined : FadeOutUp.duration(140)}
             accessibilityRole="progressbar"
             accessibilityLabel={label}
-            className={`flex-row items-center gap-3 ${compact ? '' : 'rounded-2xl bg-primary/10 dark:bg-primary/20 px-4 py-3'} ${className}`}
+            className={`flex-row items-center gap-3 ${compact ? '' : 'rounded-card border border-hairline-light bg-surface-light px-4 py-3 dark:border-hairline-dark dark:bg-surface-dark'} ${className}`}
         >
-            <LoadingBar size="sm" tone="primary" accessibilityLabel={`${label} animation`} />
+            <LoadingBar size="sm" tone="muted" accessibilityLabel={`${label} animation`} />
             <View className="min-w-0 flex-1 gap-0.5">
-                <Text className="text-sm font-semibold text-text-light dark:text-text-dark">
+                <Text className="text-[15px] text-text-light dark:text-text-dark">
                     {label}
                 </Text>
                 {detail ? (

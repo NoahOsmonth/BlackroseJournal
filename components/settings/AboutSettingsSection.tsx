@@ -1,7 +1,8 @@
 import React from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Pressable, Text, View } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
+import { BLACKROSE_PALETTE } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { SettingsSection } from './SettingsSection';
 
@@ -11,35 +12,31 @@ interface AboutSettingsSectionProps {
     readonly embedded?: boolean;
 }
 
+const HAIRLINE = 'border-hairline-light dark:border-hairline-dark';
+
 interface AboutRowProps {
     readonly label: string;
-    readonly iconName: React.ComponentProps<typeof Ionicons>['name'];
     readonly showBorder?: boolean;
     readonly onPress: () => void;
 }
 
-function AboutRow({ label, iconName, showBorder = true, onPress }: AboutRowProps) {
-    const colorScheme = useColorScheme();
-    const iconColor = colorScheme === 'dark' ? '#F9FAFB' : '#111827';
+/** One quiet about row — label left, chevron right, hairline between. */
+function AboutRow({ label, showBorder = true, onPress }: AboutRowProps) {
+    const isDark = useColorScheme() === 'dark';
+    const chevronColor = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
 
     return (
-        <TouchableOpacity
+        <Pressable
             onPress={onPress}
-            className={`flex-row items-center justify-between py-3 ${
-                showBorder ? 'border-b border-divider-light dark:border-divider-dark mb-2' : ''
-            }`}
             accessibilityRole="button"
+            accessibilityLabel={label}
+            className={`min-h-12 flex-row items-center justify-between py-3 ${
+                showBorder ? `border-b ${HAIRLINE}` : ''
+            }`}
         >
-            <View className="flex-row items-center gap-3">
-                <View className="bg-background-light dark:bg-secondary-dark p-2 rounded-lg">
-                    <Ionicons name={iconName} size={20} color={iconColor} />
-                </View>
-                <Text className="text-text-light dark:text-text-dark font-medium text-base">
-                    {label}
-                </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={iconColor} />
-        </TouchableOpacity>
+            <Text className="text-[16px] text-text-light dark:text-text-dark">{label}</Text>
+            <MaterialIcons name="chevron-right" size={20} color={chevronColor} />
+        </Pressable>
     );
 }
 
@@ -50,13 +47,10 @@ export function AboutSettingsSection({
 }: AboutSettingsSectionProps) {
     return (
         <SettingsSection title="About" embedded={embedded}>
-            <AboutRow label="About" iconName="information-circle-outline" onPress={onAboutPress} />
-            <AboutRow
-                label="Privacy Policy"
-                iconName="shield-checkmark-outline"
-                showBorder={false}
-                onPress={onPrivacyPress}
-            />
+            <View>
+                <AboutRow label="About Blackrose" onPress={onAboutPress} />
+                <AboutRow label="Privacy Policy" showBorder={false} onPress={onPrivacyPress} />
+            </View>
         </SettingsSection>
     );
 }

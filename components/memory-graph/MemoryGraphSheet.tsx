@@ -2,7 +2,7 @@ import { MEMORY_LAYER_LABELS } from '@/components/memory/memoryDisplay';
 import { LoadingBar } from '@/components/ui/LoadingBar';
 import { SkeletonText } from '@/components/ui/SkeletonText';
 import { navAwareBottomPadding } from '@/constants/spacing';
-import { Colors, MemoryLayerColors } from '@/constants/theme';
+import { BLACKROSE_PALETTE, memoryLayerShades } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { LocalMemorySource } from '@/services/memory/localMemory.types';
 import type {
@@ -16,10 +16,17 @@ import {
     Pressable,
     ScrollView,
     Text,
+    useWindowDimensions,
     View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MemoryGraphSourceCard } from './MemoryGraphSourceCard';
+
+const SERIF = 'PlayfairDisplayRegular';
+const SECONDARY_TEXT = 'text-text-secondary-light dark:text-text-secondary-dark';
+const HAIRLINE = 'border-hairline-light dark:border-hairline-dark';
+const SECTION = `mt-5 border-t pt-4 ${HAIRLINE}`;
+const CHIP = `rounded-control border px-2.5 py-1 text-[13px] text-text-light ${HAIRLINE} dark:text-text-dark`;
 
 function sourceLabel(source: LocalMemorySource): string {
     switch (source) {
@@ -42,6 +49,14 @@ function formatRelativeDate(iso: string): string {
     return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+function SectionHeading({ children }: { children: string }) {
+    return (
+        <Text className="text-[19px] text-text-light dark:text-text-dark" style={{ fontFamily: SERIF }}>
+            {children}
+        </Text>
+    );
+}
+
 interface SheetProps {
     atom: MemoryGraphAtom;
     localInsight: string | null;
@@ -58,6 +73,11 @@ interface SheetProps {
     onSelectRelated?: (id: string) => void;
 }
 
+/**
+ * Node sheet for a selected memory. Matches black-rose-graph-node-sheet.png:
+ * a bone rule runs the sheet's full height, the title and section headings are
+ * the serif moments, and every chip / row / action is an outline on hairlines.
+ */
 export function MemoryGraphSheet({
     atom,
     localInsight,
@@ -76,8 +96,13 @@ export function MemoryGraphSheet({
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
     const insets = useSafeAreaInsets();
-    const iconColor = isDark ? Colors.dark.text : Colors.light.text;
-    const layerColor = MemoryLayerColors[atom.layer];
+    const { height: windowHeight } = useWindowDimensions();
+    // Percentage max-height is unreliable on web, so the cap is resolved to px:
+    // the sheet must never grow past its share of the screen and shove its own
+    // title off the top. The body scrolls inside the cap instead.
+    const sheetMaxHeight = Math.round(windowHeight * 0.62);
+    const scheme = isDark ? 'dark' : 'light';
+    const palette = isDark ? BLACKROSE_PALETTE.dark : BLACKROSE_PALETTE.light;
     const displayedRemote = useMemo(
         () => (remoteInsight ? truncateToWordCount(remoteInsight, 50) : null),
         [remoteInsight]
@@ -87,205 +112,188 @@ export function MemoryGraphSheet({
     return (
         <View
             pointerEvents="box-none"
-            className="absolute left-0 right-0 max-h-[62%] items-center px-3"
+            className="absolute left-0 right-0 items-center px-3"
             style={{ bottom: navAwareBottomPadding(insets.bottom) }}
         >
             <View
-                className="w-full max-w-xl overflow-hidden rounded-[28px] border
-                border-divider-light dark:border-divider-dark
-                bg-surface-light dark:bg-surface-dark"
+                className={`w-full max-w-xl overflow-hidden rounded-sheet border bg-surface-light dark:bg-surface-dark ${HAIRLINE}`}
                 style={{
-                    flexShrink: 1,
-                    shadowColor: layerColor,
+                    maxHeight: sheetMaxHeight,
+                    shadowColor: palette.bg,
                     shadowOffset: { width: 0, height: 12 },
-                    shadowOpacity: isDark ? 0.28 : 0.16,
+                    shadowOpacity: isDark ? 0.55 : 0.14,
                     shadowRadius: 28,
                     elevation: 16,
                 }}
             >
-                {/* Aurora accent rail */}
-                <View
-                    className="h-1 w-full"
-                    style={{
-                        backgroundColor: layerColor,
-                        opacity: isDark ? 0.85 : 0.75,
-                    }}
-                />
-
-                <View className="px-4 pb-2 pt-3">
-                    <View className="mb-3 h-1 w-10 self-center rounded-full bg-divider-light dark:bg-divider-dark" />
-                    <View className="mb-3 flex-row items-start justify-between gap-3">
-                        <View className="min-w-0 flex-1">
-                            <Text
-                                className="text-xl font-bold leading-7 text-text-light dark:text-text-dark"
-                                numberOfLines={2}
-                                style={{ fontFamily: 'PlayfairDisplayBold' }}
-                            >
-                                {atom.title}
-                            </Text>
-                            <View className="mt-2.5 flex-row flex-wrap items-center gap-2">
-                                <View
-                                    className="flex-row items-center gap-1.5 rounded-full px-2.5 py-1"
-                                    style={{ backgroundColor: `${layerColor}${isDark ? '33' : '40'}` }}
-                                >
-                                    <View
-                                        className="h-1.5 w-1.5 rounded-full"
-                                        style={{ backgroundColor: layerColor }}
-                                    />
-                                    <Text
-                                        className="text-[11px] font-semibold text-text-light dark:text-white"
-                                    >
-                                        {MEMORY_LAYER_LABELS[atom.layer]}
-                                    </Text>
-                                </View>
-                                <Text
-                                    className="rounded-full bg-background-light px-2.5 py-1
-                                    text-[11px] font-medium text-text-secondary-light
-                                    dark:bg-background-dark dark:text-text-secondary-dark"
-                                >
-                                    {sourceLabel(atom.source)}
-                                </Text>
-                                {dateLabel ? (
-                                    <Text className="text-[11px] text-text-secondary-light dark:text-text-secondary-dark">
-                                        {dateLabel}
-                                    </Text>
-                                ) : null}
-                            </View>
-                        </View>
-                        <Pressable
-                            accessibilityLabel="Close memory detail"
-                            accessibilityRole="button"
-                            className="h-10 w-10 items-center justify-center rounded-2xl
-                            bg-background-light dark:bg-background-dark"
-                            onPress={onClose}
-                        >
-                            <MaterialIcons name="close" size={18} color={iconColor} />
-                        </Pressable>
-                    </View>
+                <View className="items-center pb-1 pt-3">
+                    <View className="h-1 w-10 rounded-full bg-hairline-light dark:bg-hairline-dark" />
                 </View>
 
-                <ScrollView
-                    className="px-4"
-                    showsVerticalScrollIndicator={false}
-                    contentContainerStyle={{ paddingBottom: 8 }}
-                >
-                    <Text className="text-[15px] leading-6 text-text-secondary-light dark:text-text-secondary-dark">
-                        {atom.content}
-                    </Text>
+                <View className="min-h-0 flex-1 flex-row">
+                    <View className="ml-5 w-px self-stretch bg-bone-light dark:bg-bone-dark" />
 
-                    {atom.tags.length > 0 && (
-                        <View className="mt-3.5 flex-row flex-wrap gap-2">
-                            {atom.tags.slice(0, 8).map((tag) => (
+                    <View className="min-h-0 min-w-0 flex-1">
+                        <View className="flex-row items-start gap-3 pl-4 pr-1 pt-2">
+                            <View className="min-w-0 flex-1 gap-3">
                                 <Text
-                                    key={tag}
-                                    className="rounded-xl border border-divider-light px-2.5 py-1.5
-                                    text-xs text-text-secondary-light
-                                    dark:border-divider-dark dark:text-text-secondary-dark"
+                                    className="text-[28px] leading-9 text-text-light dark:text-text-dark"
+                                    numberOfLines={2}
+                                    style={{ fontFamily: SERIF }}
                                 >
-                                    {tag}
+                                    {atom.title}
                                 </Text>
-                            ))}
+                                <View className="flex-row flex-wrap items-center gap-2">
+                                    <Text className={CHIP}>{MEMORY_LAYER_LABELS[atom.layer]}</Text>
+                                    <Text className={CHIP}>{sourceLabel(atom.source)}</Text>
+                                    {dateLabel ? (
+                                        <Text className={`text-[13px] ${SECONDARY_TEXT}`}>
+                                            {dateLabel}
+                                        </Text>
+                                    ) : null}
+                                </View>
+                            </View>
+                            <Pressable
+                                accessibilityLabel="Close memory detail"
+                                accessibilityRole="button"
+                                hitSlop={8}
+                                className="h-10 w-10 items-center justify-center"
+                                onPress={onClose}
+                            >
+                                <MaterialIcons name="close" size={20} color={palette.text2} />
+                            </Pressable>
                         </View>
-                    )}
 
-                    {(isGlanceLoading || localInsight) ? (
-                        <View
-                            className="mt-4 rounded-2xl border border-divider-light p-3.5
-                            dark:border-divider-dark dark:bg-background-dark"
-                            style={{ backgroundColor: isDark ? undefined : `${layerColor}12` }}
+                        <ScrollView
+                            showsVerticalScrollIndicator={false}
+                            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 20 }}
                         >
                             <Text
-                                className="text-[11px] font-bold uppercase tracking-wider"
-                                style={{ color: layerColor }}
+                                className="mt-3 text-[16px] leading-7 text-text-light dark:text-text-dark"
+                                style={{ fontFamily: SERIF }}
                             >
-                                At a glance
+                                {atom.content}
                             </Text>
-                            {isGlanceLoading && !localInsight ? (
-                                <SkeletonText
-                                    lines={2}
-                                    lineClassName="h-4"
-                                    className="mt-3 gap-2"
-                                    accessibilityLabel="Writing insight"
-                                />
-                            ) : (
-                                <Text className="mt-2 text-sm leading-5 text-text-light dark:text-text-dark">
-                                    {localInsight}
-                                </Text>
+
+                            {atom.tags.length > 0 && (
+                                <View className="mt-4 flex-row flex-wrap gap-2">
+                                    {atom.tags.slice(0, 4).map((tag) => (
+                                        <Text key={tag} className={CHIP}>
+                                            {tag}
+                                        </Text>
+                                    ))}
+                                </View>
                             )}
-                        </View>
-                    ) : null}
 
-                    <MemoryGraphSourceCard
-                        preview={sourcePreview}
-                        isLoading={isSourceLoading}
-                        missing={sourceMissing}
-                        onOpen={onOpenSource}
-                    />
+                            {isGlanceLoading || localInsight ? (
+                                <View className={SECTION}>
+                                    <SectionHeading>At a glance</SectionHeading>
+                                    {isGlanceLoading && !localInsight ? (
+                                        <SkeletonText
+                                            lines={2}
+                                            lineClassName="h-4"
+                                            className="mt-3 gap-2"
+                                            accessibilityLabel="Writing insight"
+                                        />
+                                    ) : (
+                                        <Text className={`mt-2 text-[15px] leading-6 ${SECONDARY_TEXT}`}>
+                                            {localInsight}
+                                        </Text>
+                                    )}
+                                </View>
+                            ) : null}
 
-                    {relatedAtoms.length > 0 ? (
-                        <View className="mt-4 gap-2">
-                            <Text className="text-[11px] font-bold uppercase tracking-wider
-                            text-text-secondary-light dark:text-text-secondary-dark">
-                                Linked stars
-                            </Text>
-                            {relatedAtoms.map((related) => (
-                                <Pressable
-                                    key={related.id}
-                                    accessibilityLabel={`Open related memory ${related.title}`}
-                                    accessibilityRole="button"
-                                    className="flex-row items-center gap-2.5 rounded-2xl border
-                                    border-divider-light px-3 py-2.5
-                                    dark:border-divider-dark dark:bg-background-dark"
-                                    onPress={() => onSelectRelated?.(related.id)}
-                                >
-                                    <View
-                                        className="h-2.5 w-2.5 rounded-full"
-                                        style={{ backgroundColor: MemoryLayerColors[related.layer] }}
-                                    />
-                                    <Text
-                                        className="min-w-0 flex-1 text-sm font-medium
-                                        text-text-light dark:text-text-dark"
-                                        numberOfLines={1}
-                                    >
-                                        {related.title}
+                            <MemoryGraphSourceCard
+                                preview={sourcePreview}
+                                isLoading={isSourceLoading}
+                                missing={sourceMissing}
+                                onOpen={onOpenSource}
+                            />
+
+                            {relatedAtoms.length > 0 ? (
+                                <View className={SECTION}>
+                                    <SectionHeading>Linked stars</SectionHeading>
+                                    <View className={`mt-3 overflow-hidden rounded-card border ${HAIRLINE}`}>
+                                        {relatedAtoms.map((related, index) => (
+                                            <Pressable
+                                                key={related.id}
+                                                accessibilityLabel={`Open related memory ${related.title}`}
+                                                accessibilityRole="button"
+                                                className={
+                                                    index > 0
+                                                        ? `flex-row items-center gap-3 border-t px-4 py-3.5 ${HAIRLINE}`
+                                                        : 'flex-row items-center gap-3 px-4 py-3.5'
+                                                }
+                                                onPress={() => onSelectRelated?.(related.id)}
+                                            >
+                                                <View
+                                                    className={`h-4 w-4 items-center justify-center rounded-full border ${HAIRLINE}`}
+                                                >
+                                                    <View
+                                                        className="h-2 w-2 rounded-full"
+                                                        style={{
+                                                            backgroundColor: memoryLayerShades(
+                                                                related.layer,
+                                                                scheme
+                                                            ).deep,
+                                                        }}
+                                                    />
+                                                </View>
+                                                <Text
+                                                    className="min-w-0 flex-1 text-[15px] text-text-light dark:text-text-dark"
+                                                    numberOfLines={1}
+                                                    style={{ fontFamily: SERIF }}
+                                                >
+                                                    {related.title}
+                                                </Text>
+                                                <MaterialIcons
+                                                    name="chevron-right"
+                                                    size={20}
+                                                    color={palette.text2}
+                                                />
+                                            </Pressable>
+                                        ))}
+                                    </View>
+                                </View>
+                            ) : null}
+
+                            {displayedRemote ? (
+                                <View className={SECTION}>
+                                    <SectionHeading>Deeper read</SectionHeading>
+                                    <Text className={`mt-2 text-[15px] leading-6 ${SECONDARY_TEXT}`}>
+                                        {displayedRemote}
                                     </Text>
-                                    <Text className="text-[11px] text-text-secondary-light dark:text-text-secondary-dark">
-                                        {MEMORY_LAYER_LABELS[related.layer]}
-                                    </Text>
-                                </Pressable>
-                            ))}
-                        </View>
-                    ) : null}
+                                </View>
+                            ) : null}
 
-                    {displayedRemote ? (
-                        <View className="mt-4 rounded-2xl bg-background-light p-3.5 dark:bg-background-dark">
-                            <Text className="text-[11px] font-bold uppercase tracking-wider
-                            text-primary dark:text-primary-dark">
-                                Deeper read
-                            </Text>
-                            <Text className="mt-2 text-sm leading-5 text-text-light dark:text-text-dark">
-                                {displayedRemote}
-                            </Text>
-                        </View>
-                    ) : null}
-
-                    <Pressable
-                        accessibilityLabel="Deepen with AI"
-                        accessibilityRole="button"
-                        className="mb-3 mt-4 min-h-12 items-center justify-center rounded-2xl px-4"
-                        style={{ backgroundColor: layerColor }}
-                        disabled={isDeepening}
-                        onPress={onDeepen}
-                    >
-                        {isDeepening ? (
-                            <LoadingBar size="sm" accessibilityLabel="Deepening with AI" />
-                        ) : (
-                            <Text className="text-sm font-bold text-text-light">
-                                Deepen with AI
-                            </Text>
-                        )}
-                    </Pressable>
-                </ScrollView>
+                            <Pressable
+                                accessibilityLabel="Deepen with AI"
+                                accessibilityRole="button"
+                                className={`mt-5 min-h-12 flex-row items-center justify-center gap-2 rounded-control border px-4 ${HAIRLINE}`}
+                                disabled={isDeepening}
+                                onPress={onDeepen}
+                            >
+                                {isDeepening ? (
+                                    <LoadingBar size="sm" accessibilityLabel="Deepening with AI" />
+                                ) : (
+                                    <>
+                                        <MaterialIcons
+                                            name="auto-awesome"
+                                            size={18}
+                                            color={palette.accent}
+                                        />
+                                        <Text
+                                            className="text-[15px] text-text-light dark:text-text-dark"
+                                            style={{ fontFamily: SERIF }}
+                                        >
+                                            Deepen with AI
+                                        </Text>
+                                    </>
+                                )}
+                            </Pressable>
+                        </ScrollView>
+                    </View>
+                </View>
             </View>
         </View>
     );

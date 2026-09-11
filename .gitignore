@@ -57,6 +57,7 @@ app-example
 /playwright/.cache/
 /playwright/.auth/
 .playwright-mcp/
+.playwright-cli/
 
 # stray local QA screenshots (do not commit)
 /*.png
@@ -96,3 +97,15 @@ probes/artifacts/
 # OpenRouter model-list cache (fetched, never commit)
 .or_models.json
 live-run*.log
+
+# PI / GSD agent framework install (installer-managed checksum manifest — regenerate, don't commit)
+/.pi/gsd-core/
+/.pi/gsd-hooks/
+/.pi/scripts/
+/.pi/extensions/
+/.pi/gsd-file-manifest.json
+/.pi/gsd-install-state.json
+/.pi/.gsd-profile
+
+# Playwright probe output (logs + screenshots, never commit)
+/output/

@@ -32,11 +32,11 @@ function classNameFor(node: ReactTestInstance): string {
 }
 
 describe('IntentionChatHeader', () => {
-    it('matches the reference Rosebud selector treatment and model control', () => {
+    it('renders the Blackrose sitting header with a quiet model control', () => {
         const onOpenModelPicker = jest.fn();
         const { getByLabelText, getByTestId, getByText } = render(
             <IntentionChatHeader
-                personaName="Rosebud"
+                personaName="Blackrose"
                 onOpenPersona={jest.fn()}
                 onOpenDrafts={jest.fn()}
                 onClose={jest.fn()}
@@ -44,18 +44,33 @@ describe('IntentionChatHeader', () => {
             />
         );
 
-        expect(getByText('Rosebud')).toBeTruthy();
+        expect(getByText('Blackrose')).toBeTruthy();
         expect(getByText(/262k/i)).toBeTruthy();
         expect(getByText('Free')).toBeTruthy();
         expect(getByLabelText('Choose persona')).toBeTruthy();
-        expect(classNameFor(getByLabelText('Choose persona'))).toContain(
-            'bg-gray-100 dark:bg-card-dark'
-        );
-        expect(classNameFor(getByTestId('intention-chat-persona-badge'))).toContain(
-            'bg-persona-rose'
-        );
+        // Persona chrome is a text line with a rose mark, not a filled pill.
+        expect(classNameFor(getByLabelText('Choose persona'))).toContain('flex-1');
+        expect(getByTestId('intention-chat-persona-badge')).toBeTruthy();
+        expect(getByText('Drafts')).toBeTruthy();
 
         fireEvent.press(getByLabelText(/Model:/i));
         expect(onOpenModelPicker).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the model control on Blackrose hairlines instead of a gray capsule', () => {
+        const { getByLabelText } = render(
+            <IntentionChatHeader
+                personaName="Blackrose"
+                onOpenPersona={jest.fn()}
+                onOpenDrafts={jest.fn()}
+                onClose={jest.fn()}
+                onOpenModelPicker={jest.fn()}
+            />
+        );
+
+        const model = classNameFor(getByLabelText(/Model:/i));
+        expect(model).toContain('border-hairline-light');
+        expect(model).toContain('dark:border-hairline-dark');
+        expect(model).not.toContain('bg-gray-100');
     });
 });

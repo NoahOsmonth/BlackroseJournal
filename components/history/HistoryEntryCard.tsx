@@ -1,13 +1,8 @@
-import React, { ComponentProps } from 'react';
+import React from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Haptics from 'expo-haptics';
 
 import { HistoryItem } from '@/hooks/history/historyUtils';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
-type MaterialIconName = ComponentProps<typeof MaterialIcons>['name'];
-type MetaTone = 'morning' | 'evening' | 'intention' | 'journal';
 
 interface HistoryEntryCardProps {
     item: HistoryItem;
@@ -26,54 +21,22 @@ function formatTime(timestamp: number): string {
 
 function resolveLabel(item: HistoryItem): string {
     if (item.type === 'checkin') {
-        if (item.checkInType === 'evening') return 'Evening';
-        if (item.checkInType === 'morning') return 'Morning';
-        return 'Intention';
+        if (item.checkInType === 'evening') return 'Evening reflection';
+        if (item.checkInType === 'morning') return 'Morning note';
+        return 'Intention setting';
     }
     return 'Journal';
 }
 
-function resolveTone(item: HistoryItem): MetaTone {
-    if (item.type === 'checkin') {
-        if (item.checkInType === 'evening') return 'evening';
-        if (item.checkInType === 'morning') return 'morning';
-        return 'intention';
-    }
-    return 'journal';
-}
-
-function resolveIcon(tone: MetaTone): MaterialIconName | null {
-    if (tone === 'evening') return 'nights-stay';
-    if (tone === 'morning') return 'wb-sunny';
-    if (tone === 'intention') return 'flag';
-    return null;
-}
-
-function resolveMetaColor(tone: MetaTone, isDark: boolean): string {
-    const palette = {
-        morning: isDark ? '#FFB340' : '#B45309',
-        evening: isDark ? '#F9A8D4' : '#BE185D',
-        intention: isDark ? '#5EEAD4' : '#0F766E',
-        journal: isDark ? '#9CA3AF' : '#6B7280',
-    };
-    return palette[tone];
-}
-
-function resolveMetaTextClass(tone: MetaTone): string {
-    if (tone === 'morning') return 'text-primary dark:text-primary-dark';
-    if (tone === 'evening') return 'text-persona-rose';
-    if (tone === 'intention') return 'text-persona-teal';
-    return SECONDARY_TEXT_CLASS;
-}
-
+/**
+ * Archive entry card — surface card, serif title, two-line excerpt, then a
+ * full-bleed hairline over the mood row. The concept puts no accent-tinted
+ * chrome on the card: type does the work, and the mood is the only trailing
+ * detail.
+ */
 export function HistoryEntryCard({ item, onPress, isLast = false }: HistoryEntryCardProps) {
-    const isDark = useColorScheme() === 'dark';
     const label = resolveLabel(item);
-    const tone = resolveTone(item);
-    const icon = resolveIcon(tone);
     const moodLabel = item.mood?.trim() || null;
-    const metaColor = resolveMetaColor(tone, isDark);
-    const mutedIconColor = isDark ? '#9CA3AF' : '#6B7280';
 
     const handlePress = () => {
         if (Platform.OS !== 'web') {
@@ -90,27 +53,21 @@ export function HistoryEntryCard({ item, onPress, isLast = false }: HistoryEntry
             style={({ pressed }) => [
                 { transform: [{ scale: pressed ? 0.985 : 1 }] },
             ]}
-            className={`px-4 py-3.5 ${
-                isLast ? '' : 'border-b border-divider-light dark:border-divider-dark'
+            className={`overflow-hidden rounded-card border border-hairline-light bg-surface-light py-5 dark:border-hairline-dark dark:bg-surface-dark ${
+                isLast ? '' : 'mb-6'
             }`}
         >
-            <View className="gap-1.5">
+            <View className="gap-3 px-6">
                 <View className="flex-row items-center justify-between">
-                    <View className="flex-row items-center gap-1.5">
-                        {icon ? (
-                            <MaterialIcons name={icon} size={13} color={metaColor} />
-                        ) : null}
-                        <Text className={`text-[12px] font-medium ${resolveMetaTextClass(tone)}`}>
-                            {label}
-                        </Text>
-                    </View>
-                    <Text className={`text-[12px] font-medium ${SECONDARY_TEXT_CLASS}`}>
+                    <Text className={`text-[14px] ${SECONDARY_TEXT_CLASS}`}>{label}</Text>
+                    <Text className={`text-[14px] ${SECONDARY_TEXT_CLASS}`}>
                         {formatTime(item.createdAt)}
                     </Text>
                 </View>
 
                 <Text
-                    className="text-[16px] font-semibold leading-snug tracking-tight text-text-light dark:text-text-dark"
+                    className="text-[22px] leading-snug text-text-light dark:text-text-dark"
+                    style={{ fontFamily: 'PlayfairDisplayRegular' }}
                     numberOfLines={2}
                 >
                     {item.title}
@@ -118,22 +75,19 @@ export function HistoryEntryCard({ item, onPress, isLast = false }: HistoryEntry
 
                 {item.summary ? (
                     <Text
-                        className={`text-sm leading-relaxed ${SECONDARY_TEXT_CLASS}`}
+                        className={`text-[15px] leading-[1.45] ${SECONDARY_TEXT_CLASS}`}
                         numberOfLines={2}
                     >
                         {item.summary}
                     </Text>
                 ) : null}
-
-                {moodLabel ? (
-                    <View className="mt-0.5 flex-row items-center gap-1 self-start">
-                        <MaterialIcons name="sentiment-satisfied" size={13} color={mutedIconColor} />
-                        <Text className={`text-xs font-medium ${SECONDARY_TEXT_CLASS}`}>
-                            {moodLabel}
-                        </Text>
-                    </View>
-                ) : null}
             </View>
+
+            {moodLabel ? (
+                <View className="mt-4 border-t border-hairline-light px-6 pt-4 dark:border-hairline-dark">
+                    <Text className={`text-[14px] ${SECONDARY_TEXT_CLASS}`}>{moodLabel}</Text>
+                </View>
+            ) : null}
         </Pressable>
     );
 }

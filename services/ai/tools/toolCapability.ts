@@ -40,13 +40,28 @@ function normalizeModelId(modelId: string | undefined | null): string {
 /**
  * Models known to emit reliable structured tool_calls (OpenAI-compatible).
  * Heuristic list — unknown free models fall through to hybrid.
+ *
+ * `deepseek-v4` is verified live on the OmniRoute `merge/` route: native
+ * tool_calls with ids, a correct `role: tool` round-trip, and native
+ * `response_format: json_object` (all three probed 2026-09-11).
  */
 const STRUCTURED_RE =
-    /\b(gpt-4|gpt-4o|gpt-5|o1|o3|o4|claude|gemini|command-r|deepseek-chat|deepseek-v3|qwen3|qwen2\.5|qwq|kimi-k2|llama-4|mistral-large|mistral-medium)\b/i;
+    /\b(gpt-4|gpt-4o|gpt-5|gpt-5\.\d|o1|o3|o4|claude|gemini|command-r|deepseek-chat|deepseek-v3|deepseek-v4|qwen3|qwen2\.5|qwq|kimi-k2|llama-4|mistral-large|mistral-medium)\b/i;
 
-/** Models that frequently dump tool syntax as text even when tools are accepted. */
+/**
+ * Free / dump-prone routes. These are families that write tool calls as TEXT
+ * even when the tools API accepts the request, so they need the repair layer.
+ * Matched against the whole id (prefixes and `:free` tag included).
+ */
 const HYBRID_RE =
-    /\b(hy3|nemotron|hermes|tool[-_]?use|:free|free\/)\b/i;
+    /\b(hy3|nemotron|hermes|tool[-_]?use|:free|free\/|dots-|dots\/|laguna|nex-n|glm-5\.3-flash|minimax|kimi-k2\.5-thinking)\b/i;
+
+/**
+ * Model families that dump tool syntax as text even without a `:free` tag.
+ * Kept separate from STRUCTURED_RE so a strong name on a weak route (a
+ * compress-named model that still dumps) does not outrank the route signal.
+ */
+const DUMP_PRONE_RE = /\b(glm-5\.3-flash|dots-|dots\/|laguna|nex-n)\b/i;
 
 /** Models that should skip the tools API entirely (known non-support or pure chat). */
 const INJECT_ONLY_RE =
@@ -82,13 +97,21 @@ export function resolveToolCapability(modelId: string | undefined | null): ToolC
         return injectOnlyCapability();
     }
 
-    // Explicit free / dump-prone models → hybrid even if name matches something else.
-    if (id.includes(':free') || HYBRID_RE.test(id)) {
+    // Order matters: capability is per-MODEL, not per-price-tag. OmniRoute
+    // serves strong models on free routes (auto/claude-opus:free), and those
+    // still return native structured tool_calls — the `:free` tag alone must
+    // not demote them to hybrid. Only genuinely dump-prone families do.
+    if (DUMP_PRONE_RE.test(id)) {
         return hybridCapability();
     }
 
     if (STRUCTURED_RE.test(id)) {
         return structuredCapability();
+    }
+
+    // Remaining free / dump-prone routes → hybrid even if the name is unknown.
+    if (id.includes(':free') || HYBRID_RE.test(id)) {
+        return hybridCapability();
     }
 
     // Unknown paid / custom → hybrid (tools on + text safety net).

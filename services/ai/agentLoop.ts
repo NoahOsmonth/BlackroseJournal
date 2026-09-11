@@ -1,15 +1,20 @@
 /**
- * Client-side agent loop with local history tools.
- * Runs non-streaming completion rounds; callers stream the final text to the UI.
+ * Client-side agent loop with local history tools — Pi turn semantics.
+ *
+ * A **turn** is one LLM call plus zero-or-more tool executions. The loop only
+ * finishes on a turn that has no tool calls and no unfinished-promise language,
+ * so free models that say "let me dig more" actually dig more instead of
+ * shipping a status line as the reply.
  *
  * Pipeline (2026-style):
  *   1. structured tool_calls from the provider
  *   2. local schema validate + repair + dedupe
  *   3. text pseudo-code parse (degraded free-model path)
  *   4. execute on device, feed results, loop
+ *   5. promise keep-alive (max 2 extra turns) before accepting a final answer
  *
- * PR8c hardening:
- *   - AGENT_TURN_TOKEN_BUDGET cumulative across rounds
+ * PR8c hardening (kept):
+ *   - AGENT_TURN_TOKEN_BUDGET cumulative across turns
  *   - repeated identical tool-call → note + final no-tools pass
  *   - max-round exhaustion never ships loop narration
  */
@@ -38,47 +43,68 @@ import {
     toolCallDedupeKey,
     type ToolCallOrigin,
 } from './tools/validateToolCalls';
-import type { AgentMessage, ToolCall, ToolResult } from './tools/types';
+import type { AgentMessage, ToolCall, ToolDefinition, ToolResult } from './tools/types';
 import type { Message } from './chatTypes';
-import type { ToolDefinition } from './tools/types';
+import type {
+    AgentActivityListener,
+    AgentStopReason,
+} from './agentEvents';
+import {
+    looksLikeUnfinishedPromise,
+    PROMISE_CONTINUATION_MAX,
+    PROMISE_CONTINUE_NOTE,
+    PROMISE_STOP_NOTE,
+} from './agentPromise';
+import {
+    resolveFinishReason,
+    resolveStopMapping,
+    TOOLUSE_NO_CALLS_NOTE,
+    TRUNCATED_TOOL_NOTE,
+    type AgentProviderStopReason,
+} from './agentStopReason';
+import {
+    activityEmitter,
+    emitAssistantText,
+    emitToolCallEnds,
+    emitToolCallErrors,
+    emitToolCallStarts,
+} from './agentEmit';
 import { estimateTokensFromChars, extractUsageFromCompletion } from './promptBudget';
 
 /** Per-turn sequence for idempotency run ids (module-local; resets on reload). */
 let agentTurnSeq = 0;
 
 /**
- * Max non-streaming tool rounds per agent turn. 6 rounds so multi-step
- * questions (search → day → conversation) can complete; the cumulative token
- * budget and the wall-clock timeout still bound runaway loops.
+ * Max non-streaming tool turns per agent turn. 6 turns so multi-step questions
+ * (search → day → conversation) can complete; the cumulative token budget and
+ * the wall-clock timeout still bound runaway loops.
  */
 export const MAX_AGENT_TOOL_ROUNDS = 6;
 /**
- * Hard cap for non-streaming tool rounds. Settings often allow 32k max_tokens;
+ * Hard cap for non-streaming tool turns. Settings often allow 32k max_tokens;
  * free reasoning models will spend that budget on chain-of-thought and the UI
- * sits on a typing indicator until the entire round finishes.
+ * sits on a typing indicator until the entire turn finishes.
  */
 export const AGENT_ROUND_MAX_TOKENS = 1_536;
 
 /**
- * Whole-turn wall-clock deadline for the agent loop (Task 9). When exceeded at
- * the top of a round, tool rounds abort and a final no-tools pass runs.
- * Raised to 45s: more rounds on slower free models need more wall-clock; the
- * deadline still cuts tool rounds and ships a final no-tools answer.
+ * Whole-turn wall-clock deadline for the agent loop. When exceeded at the top
+ * of a turn, tool turns abort and a final no-tools pass runs. 45s: more turns
+ * on slower free models need more wall-clock; the deadline still cuts tool
+ * turns and ships a final no-tools answer.
  */
 export const AGENT_TURN_TIMEOUT_MS = 45_000;
 
 /**
- * PR8c: cumulative prompt-token budget across all tool rounds of one agent turn.
+ * PR8c: cumulative prompt-token budget across all tool turns of one agent turn.
  * Real usage.prompt_tokens when available; chars/4 estimator otherwise.
- * Tools-schema + framing often add ~900 real tokens/round outside the system string.
- * Raised to 24k so multi-step rounds aren't starved on the long freeform prompt
- * path; still cumulative across rounds.
+ * Tools-schema + framing often add ~900 real tokens/turn outside the system string.
  */
 export const AGENT_TURN_TOKEN_BUDGET = 24_000;
 
 /**
- * User-visible fallback when tool rounds exhaust and the final no-tools pass
- * fails or returns empty. Must never be loop narration.
+ * User-visible fallback when tool turns exhaust and the final no-tools pass
+ * fails, returns empty, or returns another status line. Never loop narration.
  */
 export const AGENT_EXHAUSTION_FALLBACK =
     'I looked through what is on this device, but I am having trouble putting the answer into words. Try asking once more, or rephrase slightly.';
@@ -94,10 +120,12 @@ export const DUPLICATE_TOOL_CALL_NOTE =
  * Injected at most once per turn when a tool batch comes back thin (errors,
  * empty, or explicit no-match), giving the model one explicit chance to retry
  * with different terms, a broader date range, or a different tool before the
- * round cap cuts it off.
+ * turn cap cuts it off.
  */
 export const THIN_RESULT_RETRY_NOTE =
     'System note: the last tool call(s) returned no useful results. If you believe relevant information exists, try again with different terms, a broader date range, or a different tool. Otherwise answer from what you already have. Never invent results.';
+
+export { PROMISE_CONTINUATION_MAX, PROMISE_CONTINUE_NOTE } from './agentPromise';
 
 export class ToolsUnsupportedError extends Error {
     constructor(message: string) {
@@ -129,14 +157,23 @@ export interface AgentLoopResult {
     toolsSkippedInvalid: number;
     toolsSkippedDuplicate: number;
     capabilityMode: ToolCapability['mode'];
-    /** Provider usage from the last completion round (when present). */
+    /** Provider usage from the last completion turn (when present). */
     usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | null;
     /** Cumulative prompt tokens billed to the turn budget (real or est). */
     cumulativePromptTokens?: number;
     /** Why the loop stopped early, if applicable. */
-    stopReason?: 'complete' | 'max_rounds' | 'token_budget' | 'duplicate_call' | 'timeout' | 'skipped';
-    /** Wall-clock timing for rounds and tool batches (Task 8). */
+    stopReason?: AgentStopReason;
+    /** Wall-clock timing for turns and tool batches (Task 8). */
     timings?: AgentLoopTimings;
+    /**
+     * Status lines the model wrote between tool turns (not the final answer).
+     * Kept for tests/telemetry — the UI consumes the same text via events.
+     */
+    intermediateTexts?: { round: number; text: string }[];
+    /** How many keep-alive nudges the promise detector spent this turn. */
+    promiseContinuations?: number;
+    /** Raw provider finish_reason for the last turn (Pi: stop ≠ tool_use ≠ length). */
+    providerStopReason?: AgentProviderStopReason;
 }
 
 interface AgentLoopOptions {
@@ -151,6 +188,8 @@ interface AgentLoopOptions {
     turnTokenBudget?: number;
     /** Override whole-turn wall-clock deadline (tests). Defaults to AGENT_TURN_TIMEOUT_MS. */
     turnTimeoutMs?: number;
+    /** Optional live activity listener for the visible tool timeline (UI). */
+    onActivity?: AgentActivityListener;
 }
 
 /**
@@ -327,7 +366,7 @@ function agentRoundMaxTokens(settings: GenerationSettings): number {
     return Math.min(settings.maxTokens, AGENT_ROUND_MAX_TOKENS);
 }
 
-/** Estimate prompt tokens for a round when the provider omits usage (chars/4). */
+/** Estimate prompt tokens for a turn when the provider omits usage (chars/4). */
 export function estimateAgentRoundPromptTokens(
     agentMessages: readonly AgentMessage[],
     sendTools: boolean,
@@ -372,9 +411,8 @@ function logRoundTokenBudget(options: {
     cumulative: number;
     budget: number;
 }): void {
-    // eslint-disable-next-line no-console
     console.log(
-        `[agent-loop] round=${options.round} tokens=${options.tokens} source=${options.source} `
+        `[agent-loop] turn=${options.round} tokens=${options.tokens} source=${options.source} `
         + `cumulative=${options.cumulative} budget=${options.budget}`
     );
 }
@@ -464,7 +502,10 @@ function baseResultFields(options: {
     capabilityMode: ToolCapability['mode'];
     usage: AgentLoopResult['usage'];
     cumulativePromptTokens: number;
-    stopReason: NonNullable<AgentLoopResult['stopReason']>;
+    stopReason: AgentStopReason;
+    intermediateTexts: { round: number; text: string }[];
+    promiseContinuations: number;
+    providerStopReason: AgentProviderStopReason;
 }): Omit<AgentLoopResult, 'content' | 'reasoning'> {
     return {
         usedTools: options.usedTools,
@@ -477,12 +518,16 @@ function baseResultFields(options: {
         usage: options.usage,
         cumulativePromptTokens: options.cumulativePromptTokens,
         stopReason: options.stopReason,
+        intermediateTexts: options.intermediateTexts,
+        promiseContinuations: options.promiseContinuations,
+        providerStopReason: options.providerStopReason,
     };
 }
 
 /**
- * Final no-tools pass after tool rounds stop (budget / duplicate / max rounds).
- * Never returns loop narration: empty/failed → AGENT_EXHAUSTION_FALLBACK.
+ * Final no-tools pass after tool turns stop (budget / duplicate / max turns /
+ * promise exhaustion). Never returns loop narration and never returns a
+ * "one sec" status line: empty, failed, or promise-shaped → the fallback.
  */
 async function runFinalNoToolsPass(
     agentMessages: AgentMessage[],
@@ -498,44 +543,37 @@ async function runFinalNoToolsPass(
         capabilityMode: ToolCapability['mode'];
         lastUsage: AgentLoopResult['usage'];
         cumulativePromptTokens: number;
-        stopReason: NonNullable<AgentLoopResult['stopReason']>;
+        stopReason: AgentStopReason;
         timings: AgentLoopTimings;
+        intermediateTexts: { round: number; text: string }[];
+        promiseContinuations: number;
+        providerStopReason: AgentProviderStopReason;
     }
 ): Promise<AgentLoopResult> {
+    const fallback = (reasoning: string, usage: AgentLoopResult['usage']): AgentLoopResult => ({
+        content: AGENT_EXHAUSTION_FALLBACK,
+        reasoning,
+        timings: meta.timings,
+        ...baseResultFields({ ...meta, usage }),
+    });
+
     try {
         const final = await completeWithoutTools(agentMessages, settings, model);
         const safe = finalizeUserFacingContent(final.content, final.reasoning);
-        if (!safe.trim()) {
-            return {
-                content: AGENT_EXHAUSTION_FALLBACK,
-                reasoning: final.reasoning,
-                timings: meta.timings,
-                ...baseResultFields({
-                    ...meta,
-                    usage: final.usage ?? meta.lastUsage,
-                }),
-            };
+        const usage = final.usage ?? meta.lastUsage;
+        // A status line is never a final answer, even from the tools-disabled pass.
+        if (!safe.trim() || looksLikeUnfinishedPromise(safe)) {
+            return fallback(final.reasoning, usage);
         }
         return {
             content: safe,
             reasoning: final.reasoning,
             timings: meta.timings,
-            ...baseResultFields({
-                ...meta,
-                usage: final.usage ?? meta.lastUsage,
-            }),
+            ...baseResultFields({ ...meta, usage }),
         };
     } catch (error) {
         console.warn('Agent final no-tools pass failed:', error);
-        return {
-            content: AGENT_EXHAUSTION_FALLBACK,
-            reasoning: '',
-            timings: meta.timings,
-            ...baseResultFields({
-                ...meta,
-                usage: meta.lastUsage,
-            }),
-        };
+        return fallback('', meta.lastUsage);
     }
 }
 
@@ -547,7 +585,7 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
     const turnBudget = options.turnTokenBudget ?? AGENT_TURN_TOKEN_BUDGET;
     const turnTimeoutMs = options.turnTimeoutMs ?? AGENT_TURN_TIMEOUT_MS;
 
-    // Task 8: wall-clock timing for the whole turn, per round, and per tool batch.
+    // Task 8: wall-clock timing for the whole turn, per turn, and per tool batch.
     const turnStartedAt = Date.now();
     const roundMs: number[] = [];
     const toolBatchMs: number[] = [];
@@ -562,6 +600,7 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
     const executedKeys = new Set<string>();
     // Idempotency scope for this turn: identical calls share one execution.
     const runId = `agent_${Date.now().toString(36)}_${(agentTurnSeq += 1)}`;
+    const emitActivity = activityEmitter(options.onActivity, runId);
     // Per-turn shortlist: send only the specs this turn plausibly needs.
     const shortlist = selectToolShortlist(latestUserText(options.messages));
     const shortlisted = HISTORY_TOOL_DEFINITIONS.filter((def) =>
@@ -583,15 +622,47 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
     let sendTools = capability.sendToolsInApi;
     let lastUsage: AgentLoopResult['usage'] = null;
     let cumulativePromptTokens = 0;
-    let stopReason: NonNullable<AgentLoopResult['stopReason']> = 'complete';
+    let stopReason: AgentStopReason = 'complete';
     // Structured|text|mixed ratio for this turn (text-dump demotion tuning).
     let structuredCallCount = 0;
     let textCallCount = 0;
-    // One-shot thin-result retry nudge: at most one per turn; the round cap bounds the rest.
+    // One-shot thin-result retry nudge: at most one per turn; the turn cap bounds the rest.
     let retryNudged = false;
+    // Pi keep-alive: turns continued purely because the model promised to keep looking.
+    let promiseContinuations = 0;
+    // Truncated tool calls: at most one re-issue nudge per turn.
+    let truncationNudged = false;
+    // Tool-use claims with nothing parsed: at most one nudge per turn.
+    let toolUseNoCallsNudged = false;
+    let providerStopReason: AgentProviderStopReason = 'unknown';
+    /** Status lines the model wrote on turns that were not the final answer. */
+    const intermediateTexts: { round: number; text: string }[] = [];
 
-    for (let round = 0; round < maxRounds; round += 1) {
-        // Cross-round budget: do not start another model+tools round if already over.
+    /** Record + publish a non-final assistant line (working status for the UI). */
+    const captureIntermediateText = (round: number, text: string | null | undefined) => {
+        const trimmed = (text ?? '').trim();
+        if (!trimmed) return;
+        emitAssistantText(round, trimmed, emitActivity);
+        intermediateTexts.push({ round, text: trimmed });
+    };
+
+    let agentEndEmitted = false;
+    const emitAgentEnd = (reason?: AgentStopReason) => {
+        if (agentEndEmitted) return;
+        agentEndEmitted = true;
+        emitActivity({
+            type: 'agent_end',
+            usedTools,
+            rounds,
+            ...(reason ? { stopReason: reason } : {}),
+        });
+    };
+
+    emitActivity({ type: 'agent_start', runId });
+
+    try {
+        for (let round = 0; round < maxRounds; round += 1) {
+        // Cross-turn budget: do not start another model+tools turn if already over.
         if (round > 0 && cumulativePromptTokens >= turnBudget) {
             stopReason = 'token_budget';
             logToolTelemetry('agent_token_budget', {
@@ -602,7 +673,7 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
             break;
         }
 
-        // Whole-turn wall-clock deadline: abort tool rounds; the final no-tools
+        // Whole-turn wall-clock deadline: abort tool turns; the final no-tools
         // pass below still ships an answer.
         if (Date.now() - turnStartedAt > turnTimeoutMs) {
             stopReason = 'timeout';
@@ -615,6 +686,7 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
         }
 
         rounds = round + 1;
+        emitActivity({ type: 'turn_start', round: rounds });
         const roundStart = Date.now();
         let data: unknown;
         try {
@@ -645,6 +717,7 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
 
         const structuredCalls = extractToolCalls(data);
         const { content, reasoning } = extractAssistantContent(data);
+        providerStopReason = resolveFinishReason(data);
 
         const textParsed = capability.parseTextToolDumps
             ? parseTextToolCalls(content, `text_r${round}`)
@@ -678,6 +751,41 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
         const cleanedAssistant =
             stripToolCallSyntax(content) || textParsed.cleanedContent || null;
 
+        // Pi: a truncated tool call is not executable — its arguments are cut
+        // mid-JSON, so validation drops it and its results would be garbage.
+        // Decide on the RAW candidate count: repair is expected to reject these.
+        const stopMapping = resolveStopMapping(providerStopReason, candidateCount);
+        if (stopMapping === 'truncated_tools') {
+            const truncated = [
+                ...structuredCalls.map((call) => ({ ...call, origin: 'structured' as const })),
+                ...textParsed.toolCalls.map((call) => ({ ...call, origin: 'text' as const })),
+            ];
+            emitToolCallErrors(truncated, rounds, 'arguments truncated — re-issue', emitActivity);
+            logToolTelemetry('agent_length_truncate', {
+                model,
+                rounds,
+                providerStopReason,
+                callCount: truncated.length,
+            });
+            if (!truncationNudged && round < maxRounds - 1) {
+                truncationNudged = true;
+                // No assistant tool_calls here: an unanswered tool_call in the
+                // transcript makes OpenAI-shaped gateways reject the next turn.
+                agentMessages.push({
+                    role: 'assistant',
+                    content: cleanedAssistant || '(truncated tool call)',
+                });
+                agentMessages.push({ role: 'user', content: TRUNCATED_TOOL_NOTE });
+                emitActivity({ type: 'follow_up_injected', reason: 'truncated_tools' });
+                captureIntermediateText(rounds, cleanedAssistant);
+                emitActivity({ type: 'turn_end', round: rounds, hasToolCalls: false });
+                continue;
+            }
+            emitActivity({ type: 'turn_end', round: rounds, hasToolCalls: false });
+            stopReason = 'error';
+            break;
+        }
+
         if (toolCalls.length === 0) {
             // Pure duplicate of an already-executed call (Kimi loop shape): do not re-run;
             // inject note and finish with a no-tools answer pass.
@@ -690,33 +798,138 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
                     role: 'user',
                     content: DUPLICATE_TOOL_CALL_NOTE,
                 });
+                captureIntermediateText(rounds, cleanedAssistant);
                 stopReason = 'duplicate_call';
                 logToolTelemetry('agent_duplicate_call', {
                     model,
                     rounds,
                     skippedDuplicate: prepared.skippedDuplicate,
                 });
+                emitActivity({ type: 'turn_end', round: rounds, hasToolCalls: false });
                 break;
             }
 
+            // Free-model nudge: a dump-shaped turn with nothing parsed means the
+            // tools API did not take (weak models ignore it and write the call as
+            // prose). Tier A models DO deliver their calls through that API, so a
+            // dump there is confusion, not a protocol gap — nudging would just buy
+            // another dump. Hand it to the forced final pass instead; either way
+            // the raw syntax never reaches the diary.
             if (textParsed.lookedLikeToolDump && round < maxRounds - 1) {
+                if (capability.mode === 'structured') {
+                    logToolTelemetry('agent_dump_no_nudge', {
+                        model,
+                        rounds,
+                        mode: capability.mode,
+                    });
+                    emitActivity({ type: 'turn_end', round: rounds, hasToolCalls: false });
+                    stopReason = 'skipped';
+                    break;
+                }
                 agentMessages.push({
                     role: 'assistant',
                     content: content || '(tool syntax)',
                 });
                 agentMessages.push({ role: 'user', content: TEXT_TOOL_NUDGE });
+                emitActivity({ type: 'turn_end', round: rounds, hasToolCalls: false });
                 continue;
             }
 
-            // If we already used tools and this is the last allowed round, discard
-            // last-round narration and force a clean final pass (exhaustion UX).
-            if (usedTools && rounds >= maxRounds) {
-                // Do not push narration into the final answer path.
-                stopReason = 'max_rounds';
+            // Pi: the provider claimed tool use but nothing survived parsing.
+            // Do not finalize on that — nudge for a real call, or a real answer.
+            if (providerStopReason === 'tool_use') {
+                logToolTelemetry('agent_tooluse_no_calls', {
+                    model,
+                    rounds,
+                    candidates: candidateCount,
+                });
+                if (!toolUseNoCallsNudged && round < maxRounds - 1) {
+                    toolUseNoCallsNudged = true;
+                    agentMessages.push({
+                        role: 'assistant',
+                        content: cleanedAssistant || '(tool use indicated)',
+                    });
+                    agentMessages.push({ role: 'user', content: TOOLUSE_NO_CALLS_NOTE });
+                    emitActivity({ type: 'follow_up_injected', reason: 'tooluse_no_calls' });
+                    captureIntermediateText(rounds, cleanedAssistant);
+                    emitActivity({ type: 'turn_end', round: rounds, hasToolCalls: false });
+                    continue;
+                }
+                // Nudge spent and the provider still claims a tool call with
+                // nothing to run: force a tools-disabled pass, never ship "".
+                emitActivity({ type: 'turn_end', round: rounds, hasToolCalls: false });
+                stopReason = 'error';
                 break;
             }
 
             const safe = finalizeUserFacingContent(content, reasoning);
+            const promisedMore = looksLikeUnfinishedPromise(safe);
+            const budgetLeft = cumulativePromptTokens < turnBudget;
+            const timeLeft = Date.now() - turnStartedAt < turnTimeoutMs;
+
+            // Pi keep-alive: a status line is not an answer. Nudge and run another
+            // turn — capped so a model stuck on "one sec" cannot loop forever.
+            if (
+                promisedMore
+                && promiseContinuations < PROMISE_CONTINUATION_MAX
+                && round < maxRounds - 1
+                && budgetLeft
+                && timeLeft
+            ) {
+                promiseContinuations += 1;
+                captureIntermediateText(rounds, safe);
+                agentMessages.push({ role: 'assistant', content: safe });
+                agentMessages.push({ role: 'user', content: PROMISE_CONTINUE_NOTE });
+                emitActivity({ type: 'follow_up_injected', reason: 'promised_more' });
+                logToolTelemetry('agent_promise_continue', {
+                    model,
+                    rounds,
+                    promiseContinuations,
+                });
+                emitActivity({ type: 'turn_end', round: rounds, hasToolCalls: false });
+                continue;
+            }
+
+            // Still promising but out of continuations/rounds/budget: never ship the
+            // status line — force a "you are done looking" final pass instead.
+            if (promisedMore) {
+                captureIntermediateText(rounds, safe);
+                agentMessages.push({ role: 'assistant', content: safe });
+                agentMessages.push({ role: 'user', content: PROMISE_STOP_NOTE });
+                stopReason = 'promised_more_timeout';
+                logToolTelemetry('agent_promise_exhausted', {
+                    model,
+                    rounds,
+                    promiseContinuations,
+                });
+                emitActivity({ type: 'turn_end', round: rounds, hasToolCalls: false });
+                break;
+            }
+
+            // If we already used tools and this is the last allowed turn, discard
+            // last-turn narration and force a clean final pass (exhaustion UX).
+            if (usedTools && rounds >= maxRounds) {
+                captureIntermediateText(rounds, safe);
+                emitActivity({ type: 'turn_end', round: rounds, hasToolCalls: false });
+                stopReason = 'max_rounds';
+                break;
+            }
+
+            // Strict finality: an empty turn is not an answer. A model that
+            // returned nothing (or only unparseable tool syntax) hands off to the
+            // forced no-tools pass, which owns the exhaustion fallback — the user
+            // never gets a blank diary entry.
+            if (!safe.trim()) {
+                logToolTelemetry('agent_empty_final', {
+                    model,
+                    rounds,
+                    providerStopReason,
+                });
+                emitActivity({ type: 'turn_end', round: rounds, hasToolCalls: false });
+                stopReason = 'skipped';
+                break;
+            }
+
             const timings = {
                 turnMs: Date.now() - turnStartedAt,
                 roundMs,
@@ -737,7 +950,9 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
                 roundMs: roundMs[roundMs.length - 1],
                 toolBatchMs: toolBatchMs[toolBatchMs.length - 1] ?? 0,
                 turnMs: timings.turnMs,
+                promiseContinuations,
             });
+            emitActivity({ type: 'turn_end', round: rounds, hasToolCalls: false });
             return {
                 content: safe,
                 reasoning,
@@ -753,6 +968,9 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
                     usage: lastUsage,
                     cumulativePromptTokens,
                     stopReason: 'complete',
+                    intermediateTexts,
+                    promiseContinuations,
+                    providerStopReason,
                 }),
             };
         }
@@ -774,8 +992,12 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
                 role: 'assistant',
                 content: cleanedAssistant,
             });
+            // Pi order: the assistant's words for this turn land before its tools.
+            captureIntermediateText(rounds, cleanedAssistant);
+            const startedAtByCallId = emitToolCallStarts(toolCalls, rounds, emitActivity);
             const batchStart = Date.now();
             const results = await executeToolCalls(toolCalls, { runId });
+            emitToolCallEnds(toolCalls, results, startedAtByCallId, rounds, emitActivity);
             for (const key of markExecutedKeys(toolCalls, results)) {
                 executedKeys.add(key);
             }
@@ -788,6 +1010,7 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
             if (!retryNudged && results.length > 0 && results.every(isThinToolResult)) {
                 agentMessages.push({ role: 'user', content: THIN_RESULT_RETRY_NOTE });
                 retryNudged = true;
+                emitActivity({ type: 'follow_up_injected', reason: 'thin_result' });
             }
         } else {
             agentMessages.push({
@@ -799,8 +1022,11 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
                     function: { name: call.name, arguments: call.arguments },
                 })),
             });
+            captureIntermediateText(rounds, cleanedAssistant);
+            const startedAtByCallId = emitToolCallStarts(toolCalls, rounds, emitActivity);
             const batchStart = Date.now();
             const results = await executeToolCalls(toolCalls, { runId });
+            emitToolCallEnds(toolCalls, results, startedAtByCallId, rounds, emitActivity);
             for (const key of markExecutedKeys(toolCalls, results)) {
                 executedKeys.add(key);
             }
@@ -817,10 +1043,13 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
             if (!retryNudged && results.length > 0 && results.every(isThinToolResult)) {
                 agentMessages.push({ role: 'user', content: THIN_RESULT_RETRY_NOTE });
                 retryNudged = true;
+                emitActivity({ type: 'follow_up_injected', reason: 'thin_result' });
             }
         }
 
-        // After executing tools, if budget is exhausted, stop further tool rounds.
+        emitActivity({ type: 'turn_end', round: rounds, hasToolCalls: true });
+
+        // After executing tools, if budget is exhausted, stop further tool turns.
         if (cumulativePromptTokens >= turnBudget) {
             stopReason = 'token_budget';
             logToolTelemetry('agent_token_budget', {
@@ -830,45 +1059,53 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
             });
             break;
         }
+        }
+
+        if (stopReason === 'complete' && rounds >= maxRounds) {
+            stopReason = 'max_rounds';
+        }
+
+        const timings = {
+            turnMs: Date.now() - turnStartedAt,
+            roundMs,
+            toolBatchMs,
+            toolsExecuted,
+        };
+
+        logToolTelemetry('agent_max_rounds', {
+            model,
+            mode: capability.mode,
+            rounds,
+            toolCallSource,
+            structuredCalls: structuredCallCount,
+            textCalls: textCallCount,
+            toolsRepaired,
+            stopReason,
+            providerStopReason,
+            promiseContinuations,
+            roundMs: roundMs[roundMs.length - 1],
+            toolBatchMs: toolBatchMs[toolBatchMs.length - 1] ?? 0,
+            turnMs: timings.turnMs,
+        });
+
+        // Discard any last-turn loop narration; only the final no-tools pass may ship.
+        return runFinalNoToolsPass(agentMessages, settings, model, {
+            usedTools,
+            rounds,
+            toolCallSource,
+            toolsRepaired,
+            toolsSkippedInvalid,
+            toolsSkippedDuplicate,
+            capabilityMode: capability.mode,
+            lastUsage,
+            cumulativePromptTokens,
+            stopReason,
+            timings,
+            intermediateTexts,
+            promiseContinuations,
+            providerStopReason,
+        });
+    } finally {
+        emitAgentEnd(stopReason);
     }
-
-    if (stopReason === 'complete' && rounds >= maxRounds) {
-        stopReason = 'max_rounds';
-    }
-
-    const timings = {
-        turnMs: Date.now() - turnStartedAt,
-        roundMs,
-        toolBatchMs,
-        toolsExecuted,
-    };
-
-    logToolTelemetry('agent_max_rounds', {
-        model,
-        mode: capability.mode,
-        rounds,
-        toolCallSource,
-        structuredCalls: structuredCallCount,
-        textCalls: textCallCount,
-        toolsRepaired,
-        stopReason,
-        roundMs: roundMs[roundMs.length - 1],
-        toolBatchMs: toolBatchMs[toolBatchMs.length - 1] ?? 0,
-        turnMs: timings.turnMs,
-    });
-
-    // Discard any last-round loop narration; only the final no-tools pass may ship.
-    return runFinalNoToolsPass(agentMessages, settings, model, {
-        usedTools,
-        rounds,
-        toolCallSource,
-        toolsRepaired,
-        toolsSkippedInvalid,
-        toolsSkippedDuplicate,
-        capabilityMode: capability.mode,
-        lastUsage,
-        cumulativePromptTokens,
-        stopReason,
-        timings,
-    });
 }

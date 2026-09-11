@@ -5,6 +5,8 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Persona } from '@/services/personas/personasStorage.types';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
+const SERIF = { fontFamily: 'PlayfairDisplayRegular' };
+
 interface PersonaSettingsSheetProps {
     visible: boolean;
     persona: Persona | null;
@@ -40,7 +42,7 @@ export function PersonaSettingsSheet({
                         <View className="w-10 h-1 bg-divider-light dark:bg-divider-dark rounded-full" />
                     </View>
                     <View className="items-center mb-5">
-                        <Text className="text-[17px] font-semibold text-text-light dark:text-text-dark">
+                        <Text className="text-[26px] leading-[34px] text-text-light dark:text-text-dark" style={SERIF}>
                             Persona settings
                         </Text>
                         <Text className="text-xs text-text-secondary-light dark:text-text-secondary-dark mt-1">
@@ -50,7 +52,7 @@ export function PersonaSettingsSheet({
                     <View className="gap-2">
                         <Pressable
                             onPress={() => onEdit(persona)}
-                            className="flex-row items-center gap-3 px-4 py-3 rounded-xl border border-divider-light dark:border-divider-dark"
+                            className="min-h-14 flex-row items-center gap-3 rounded-control border border-hairline-light px-4 py-3.5 dark:border-hairline-dark"
                             accessibilityLabel="Edit persona"
                         >
                             <MaterialIcons
@@ -62,7 +64,7 @@ export function PersonaSettingsSheet({
                         </Pressable>
                         <Pressable
                             onPress={() => onAdvanced(persona)}
-                            className="flex-row items-center gap-3 px-4 py-3 rounded-xl border border-divider-light dark:border-divider-dark"
+                            className="min-h-14 flex-row items-center gap-3 rounded-control border border-hairline-light px-4 py-3.5 dark:border-hairline-dark"
                             accessibilityLabel="Advanced settings"
                         >
                             <MaterialIcons
@@ -74,7 +76,7 @@ export function PersonaSettingsSheet({
                         </Pressable>
                         <Pressable
                             onPress={() => onDelete(persona)}
-                            className="flex-row items-center gap-3 px-4 py-3 rounded-xl border border-divider-light dark:border-divider-dark"
+                            className="min-h-14 flex-row items-center gap-3 rounded-control border border-hairline-light px-4 py-3.5 dark:border-hairline-dark"
                             accessibilityLabel="Delete persona"
                         >
                             <MaterialIcons name="delete-outline" size={20} color={iconDangerColor} />

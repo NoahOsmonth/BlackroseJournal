@@ -9,6 +9,11 @@ interface HistorySectionProps {
     onPressItem: (item: HistoryItem) => void;
 }
 
+/**
+ * A day group in Archive: serif day heading ("Today · January 23"), then the
+ * day's entry cards as separate surfaces. There is no wrapping card container —
+ * the concept shows each entry as its own panel on the void.
+ */
 export function HistorySection({ section, onPressItem }: HistorySectionProps) {
     const dayLabel = section.relativeLabel === 'today'
         ? 'Today'
@@ -16,23 +21,19 @@ export function HistorySection({ section, onPressItem }: HistorySectionProps) {
             ? 'Yesterday'
             : section.weekdayShort;
 
-    return (
-        <View className="gap-3">
-            <View className="flex-row items-end gap-2.5 px-0.5">
-                <Text
-                    className="text-[28px] leading-none font-bold text-text-light dark:text-text-dark"
-                    style={{ fontFamily: 'PlayfairDisplayBold' }}
-                >
-                    {section.dayNumber}
-                </Text>
-                <View className="pb-0.5">
-                    <Text className="text-sm font-semibold text-text-light dark:text-text-dark">
-                        {dayLabel}
-                    </Text>
-                </View>
-            </View>
+    const heading = `${dayLabel} · ${section.monthLabel} ${section.dayNumber}`;
 
-            <View className="overflow-hidden rounded-2xl border border-divider-light dark:border-divider-dark bg-surface-light dark:bg-surface-dark">
+    return (
+        <View className="gap-4">
+            <Text
+                className="text-[16px] text-text-light dark:text-text-dark"
+                style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                accessibilityRole="header"
+            >
+                {heading}
+            </Text>
+
+            <View>
                 {section.items.map((item, index) => (
                     <HistoryEntryCard
                         key={item.id}

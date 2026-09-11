@@ -1,6 +1,9 @@
 import React from 'react';
-import { Platform, Pressable, Text, View } from 'react-native';
-import * as Haptics from 'expo-haptics';
+import { Text, View } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { BLACKROSE_PALETTE } from '@/constants/theme';
 
 const UNLOCK_AT = 5;
 
@@ -8,35 +11,16 @@ interface InsightsWeekLetterProps {
     isUnlocked: boolean;
     entriesCount: number;
     weeklySummary?: string;
-    onWritePress: () => void;
-}
-
-function ProgressMarks({ filled, total }: { filled: number; total: number }) {
-    return (
-        <View className="flex-row items-center gap-2" accessibilityLabel={`${filled} of ${total} entries`}>
-            {Array.from({ length: total }, (_, index) => {
-                const done = index < filled;
-                return (
-                    <View
-                        key={index}
-                        className={`h-1.5 flex-1 rounded-full ${
-                            done
-                                ? 'bg-primary dark:bg-primary-dark'
-                                : 'bg-divider-light dark:bg-divider-dark'
-                        }`}
-                    />
-                );
-            })}
-        </View>
-    );
+    /** Kept for call-site compatibility; the locked card carries no link. */
+    onWritePress?: () => void;
 }
 
 export function InsightsWeekLetter({
     isUnlocked,
     entriesCount,
     weeklySummary,
-    onWritePress,
 }: InsightsWeekLetterProps) {
+    const isDark = useColorScheme() === 'dark';
     const remaining = Math.max(0, UNLOCK_AT - entriesCount);
     const summary = weeklySummary?.trim() ?? '';
     const hasLetter = isUnlocked
@@ -46,10 +30,10 @@ export function InsightsWeekLetter({
     if (hasLetter) {
         return (
             <View
-                className="rounded-2xl border border-divider-light dark:border-divider-dark bg-surface-light dark:bg-surface-dark px-5 py-5"
+                className="rounded-card border border-hairline-light dark:border-hairline-dark bg-surface-light dark:bg-surface-dark px-5 py-5"
                 accessibilityLabel="This week's letter"
             >
-                <Text className="text-xs font-semibold text-text-secondary-light dark:text-text-secondary-dark">
+                <Text className="text-[12px] uppercase tracking-[1.5px] text-text-secondary-light dark:text-text-secondary-dark">
                     This week&apos;s letter
                 </Text>
                 <Text
@@ -62,50 +46,46 @@ export function InsightsWeekLetter({
         );
     }
 
-    const handleWrite = () => {
-        if (Platform.OS !== 'web') {
-            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        }
-        onWritePress();
-    };
-
     return (
         <View
-            className="rounded-2xl border border-divider-light dark:border-divider-dark bg-surface-light dark:bg-surface-dark px-5 py-6"
+            className="rounded-card border border-hairline-light dark:border-hairline-dark bg-surface-light dark:bg-surface-dark px-5 py-6"
             accessibilityLabel={`This week's letter locked. ${entriesCount} of ${UNLOCK_AT} entries.`}
         >
             <Text
-                className="text-xl font-bold text-text-light dark:text-text-dark"
-                style={{ fontFamily: 'PlayfairDisplayBold' }}
+                className="text-[18px] text-text-light dark:text-text-dark"
+                style={{ fontFamily: 'PlayfairDisplayRegular' }}
             >
-                This week&apos;s letter
-            </Text>
-            <Text className="mt-2 text-sm leading-relaxed text-text-secondary-light dark:text-text-secondary-dark">
-                A private summary of themes, moods, and people once you&apos;ve written enough this week.
+                Weekly report
             </Text>
 
-            <View className="mt-5">
-                <ProgressMarks filled={Math.min(entriesCount, UNLOCK_AT)} total={UNLOCK_AT} />
-                <Text className="mt-3 text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark">
-                    {entriesCount >= UNLOCK_AT
-                        ? 'Letter is ready when analysis finishes.'
-                        : `${entriesCount} of ${UNLOCK_AT} · write ${remaining} more`}
-                </Text>
+            {/* Lock + honest headline: the unlock is entry-count based, so the
+                card never promises a weekday it cannot guarantee. */}
+            <View className="mt-4 flex-row items-start gap-3">
+                <MaterialIcons
+                    name="lock-outline"
+                    size={28}
+                    color={isDark ? BLACKROSE_PALETTE.dark.accent : BLACKROSE_PALETTE.light.accent}
+                />
+                <View className="flex-1">
+                    <Text className="text-[16px] text-text-light dark:text-text-dark">
+                        {entriesCount >= UNLOCK_AT
+                            ? 'Unlocking'
+                            : `Unlocks with ${remaining} more ${remaining === 1 ? 'entry' : 'entries'}`}
+                    </Text>
+                    <Text className="mt-1 text-[14px] leading-relaxed text-text-secondary-light dark:text-text-secondary-dark">
+                        Get a weekly in-depth analysis of your themes, patterns, and more.
+                    </Text>
+                </View>
             </View>
 
-            {entriesCount < UNLOCK_AT ? (
-                <Pressable
-                    onPress={handleWrite}
-                    className="mt-5 self-start rounded-full bg-primary px-4 py-2.5 dark:bg-primary-dark"
-                    accessibilityRole="button"
-                    accessibilityLabel="Write an entry"
-                    style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }]}
-                >
-                    <Text className="text-sm font-bold text-white dark:text-gray-900">
-                        Write an entry
-                    </Text>
-                </Pressable>
-            ) : null}
+            {/* Concept keeps one quiet line here — no progress marks, no link. */}
+            <View className="mt-5 border-t border-hairline-light dark:border-hairline-dark pt-4">
+                <Text className="text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
+                    {entriesCount >= UNLOCK_AT
+                        ? 'Analysis in progress'
+                        : `Requires ${remaining} more ${remaining === 1 ? 'entry' : 'entries'}`}
+                </Text>
+            </View>
         </View>
     );
 }

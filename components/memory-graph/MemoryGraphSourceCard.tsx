@@ -4,9 +4,13 @@ import { Pressable, Text, View } from 'react-native';
 
 import { Skeleton } from '@/components/ui/Skeleton';
 import { SkeletonText } from '@/components/ui/SkeletonText';
-import { Colors } from '@/constants/theme';
+import { BLACKROSE_PALETTE } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { MemorySourcePreview } from '@/services/memory/memoryGraph.types';
+
+const HAIRLINE = 'border-hairline-light dark:border-hairline-dark';
+const SECTION = `mt-5 border-t pt-4 ${HAIRLINE}`;
+const SECONDARY_TEXT = 'text-text-secondary-light dark:text-text-secondary-dark';
 
 interface SourceCardProps {
     preview: MemorySourcePreview | null;
@@ -15,39 +19,49 @@ interface SourceCardProps {
     onOpen: () => void;
 }
 
+function SourceHeading() {
+    return (
+        <Text className="text-[19px] text-text-light dark:text-text-dark" style={{ fontFamily: 'PlayfairDisplayRegular' }}>
+            Source
+        </Text>
+    );
+}
+
+/**
+ * Provenance block: the journal entry or check-in a memory came from. One
+ * bordered row on hairlines — no filled panel, no emoji glyph.
+ */
 export function MemoryGraphSourceCard({
     preview,
     isLoading,
     missing,
     onOpen,
 }: SourceCardProps) {
-    const colorScheme = useColorScheme();
-    const iconColor = colorScheme === 'dark' ? Colors.dark.icon : Colors.light.icon;
-    const accentColor = Colors.light.tint;
+    const isDark = useColorScheme() === 'dark';
+    const palette = isDark ? BLACKROSE_PALETTE.dark : BLACKROSE_PALETTE.light;
 
     if (isLoading) {
         return (
-            <View
-                className="mt-4 gap-3 rounded-2xl border border-divider-light bg-background-light p-3 dark:border-divider-dark dark:bg-background-dark"
-                accessibilityLabel="Loading source"
-            >
-                <Skeleton className="h-3 w-16" accessibilityLabel="Loading source label" />
-                <SkeletonText lines={2} lineClassName="h-4" accessibilityLabel="Loading source title" />
-                <Skeleton className="h-3 w-32" accessibilityLabel="Loading source metadata" />
-                <SkeletonText lines={2} lineClassName="h-3" accessibilityLabel="Loading source snippet" />
+            <View className={SECTION} accessibilityLabel="Loading source">
+                <SourceHeading />
+                <View className={`mt-3 gap-3 rounded-card border px-4 py-3.5 ${HAIRLINE}`}>
+                    <Skeleton className="h-3 w-16" accessibilityLabel="Loading source label" />
+                    <SkeletonText lines={2} lineClassName="h-4" accessibilityLabel="Loading source title" />
+                    <Skeleton className="h-3 w-32" accessibilityLabel="Loading source metadata" />
+                </View>
             </View>
         );
     }
 
     if (missing) {
         return (
-            <View className="mt-4 rounded-2xl border border-divider-light dark:border-divider-dark bg-background-light dark:bg-background-dark p-3">
-                <Text className="text-xs font-bold uppercase tracking-wide text-text-secondary-light dark:text-text-secondary-dark">
-                    Source
-                </Text>
-                <Text className="mt-2 text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                    Source no longer available.
-                </Text>
+            <View className={SECTION}>
+                <SourceHeading />
+                <View className={`mt-3 rounded-card border px-4 py-3.5 ${HAIRLINE}`}>
+                    <Text className={`text-[15px] ${SECONDARY_TEXT}`}>
+                        Source no longer available.
+                    </Text>
+                </View>
             </View>
         );
     }
@@ -65,67 +79,45 @@ export function MemoryGraphSourceCard({
     ].filter(Boolean);
 
     return (
-        <Pressable
-            accessibilityLabel="Open conversation"
-            accessibilityRole="button"
-            className="mt-4 overflow-hidden rounded-2xl border border-divider-light dark:border-divider-dark bg-background-light dark:bg-background-dark"
-            onPress={onOpen}
-        >
-            <View className="gap-2 p-3">
-                <Text className="text-xs font-bold uppercase tracking-wide text-text-secondary-light dark:text-text-secondary-dark">
-                    Source
-                </Text>
-                <View className="flex-row items-start gap-2">
-                    {preview.emoji ? (
-                        <Text className="text-xl text-text-light dark:text-text-dark">
-                            {preview.emoji}
+        <View className={SECTION}>
+            <SourceHeading />
+            <Pressable
+                accessibilityLabel="Open conversation"
+                accessibilityRole="button"
+                className={`mt-3 flex-row items-start gap-3 rounded-card border px-4 py-3.5 ${HAIRLINE}`}
+                onPress={onOpen}
+            >
+                <MaterialIcons
+                    name={preview.kind === 'journal_entry' ? 'menu-book' : 'flag'}
+                    size={20}
+                    color={palette.text2}
+                />
+                <View className="min-w-0 flex-1 gap-1">
+                    <Text
+                        className="text-[15px] text-text-light dark:text-text-dark"
+                        numberOfLines={2}
+                    >
+                        {preview.title}
+                    </Text>
+                    <Text className={`text-[13px] ${SECONDARY_TEXT}`} numberOfLines={1}>
+                        {metaParts.join(' · ')}
+                    </Text>
+                    {preview.intentionTitle ? (
+                        <Text className={`text-[13px] ${SECONDARY_TEXT}`} numberOfLines={1}>
+                            Intention: {preview.intentionTitle}
                         </Text>
-                    ) : (
-                        <MaterialIcons
-                            name={preview.kind === 'journal_entry' ? 'menu-book' : 'flag'}
-                            size={20}
-                            color={iconColor}
-                        />
-                    )}
-                    <View className="min-w-0 flex-1 gap-1">
+                    ) : null}
+                    {preview.snippet ? (
                         <Text
-                            className="text-sm font-semibold text-text-light dark:text-text-dark"
+                            className={`mt-1 text-[13px] leading-5 ${SECONDARY_TEXT}`}
                             numberOfLines={2}
                         >
-                            {preview.title}
+                            “{preview.snippet}”
                         </Text>
-                        <Text
-                            className="text-xs text-text-secondary-light dark:text-text-secondary-dark"
-                            numberOfLines={1}
-                        >
-                            {metaParts.join(' · ')}
-                        </Text>
-                        {preview.intentionTitle ? (
-                            <Text
-                                className="text-xs text-text-secondary-light dark:text-text-secondary-dark"
-                                numberOfLines={1}
-                            >
-                                Intention: {preview.intentionTitle}
-                            </Text>
-                        ) : null}
-                        {preview.snippet ? (
-                            <Text
-                                className="mt-1 text-sm leading-5 text-text-secondary-light dark:text-text-secondary-dark"
-                                numberOfLines={2}
-                            >
-                                “{preview.snippet}”
-                            </Text>
-                        ) : null}
-                    </View>
-                    <MaterialIcons name="chevron-right" size={20} color={iconColor} />
+                    ) : null}
                 </View>
-                <View className="flex-row items-center gap-1 pt-1">
-                    <Text className="text-sm font-semibold text-primary dark:text-primary">
-                        Open conversation
-                    </Text>
-                    <MaterialIcons name="arrow-forward" size={16} color={accentColor} />
-                </View>
-            </View>
-        </Pressable>
+                <MaterialIcons name="chevron-right" size={20} color={palette.text2} />
+            </Pressable>
+        </View>
     );
 }

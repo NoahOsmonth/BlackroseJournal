@@ -38,7 +38,7 @@ const atom: MemoryGraphAtom = {
 };
 
 describe('MemoryGraph components', () => {
-    it('renders layer filters and toggles a memory layer', () => {
+    it('renders the three concept layer pills and toggles a memory layer', () => {
         const onToggle = jest.fn();
 
         render(
@@ -48,13 +48,15 @@ describe('MemoryGraph components', () => {
             />
         );
 
-        fireEvent.press(screen.getByLabelText('Toggle About me memories'));
+        fireEvent.press(screen.getByLabelText('Toggle Profile memories'));
 
-        expect(screen.getByText('Episodes')).toBeTruthy();
+        expect(screen.getByText('Episodic')).toBeTruthy();
+        expect(screen.getByText('Semantic')).toBeTruthy();
+        expect(screen.getByText('Profile')).toBeTruthy();
         expect(onToggle).toHaveBeenCalledWith('profile');
     });
 
-    it('keeps layer filters tall enough for Android text rendering', () => {
+    it('keeps the concept filter cluster fixed, undotted, and legible', () => {
         render(
             <MemoryGraphFilters
                 activeLayers={new Set(['episodic', 'profile'])}
@@ -62,13 +64,26 @@ describe('MemoryGraph components', () => {
             />
         );
 
-        expect(screen.getByTestId('memory-layer-filters').props.contentContainerStyle)
-            .toMatchObject({ minHeight: 64, paddingVertical: 12 });
-        expect(screen.getByTestId('memory-layer-filter-episodic').props.className)
-            .toContain('min-h-10');
-        expect(screen.getByText('Episodes').props.style).toMatchObject({ lineHeight: 16 });
-        expect(screen.getByText('Themes').props.numberOfLines).toBe(1);
-        expect(screen.getByText('About me').props.numberOfLines).toBe(1);
+        const cluster = screen.getByTestId('memory-layer-filters');
+        // The concept shows three chips only — no horizontal scroller.
+        expect(cluster.props.contentContainerStyle).toBeUndefined();
+        expect(cluster.props.className).toContain('min-h-14');
+        expect(screen.queryByText('Working')).toBeNull();
+        expect(screen.queryByText('Notes')).toBeNull();
+
+        const activePill = screen.getByTestId('memory-layer-filter-episodic').props.className;
+        expect(activePill).toContain('border-bone-light');
+        expect(activePill).toContain('dark:border-bone-dark');
+        expect(activePill).not.toContain('border-hairline-light');
+
+        const idlePill = screen.getByTestId('memory-layer-filter-semantic').props.className;
+        expect(idlePill).toContain('border-hairline-light');
+        expect(idlePill).toContain('dark:border-hairline-dark');
+
+        expect(screen.getByText('Episodic').props.style).toMatchObject({ lineHeight: 16 });
+        ['Episodic', 'Semantic', 'Profile'].forEach((label) => {
+            expect(screen.getByText(label).props.numberOfLines).toBe(1);
+        });
     });
 
     it('renders selected atom with local insight, source open, and deepen action', () => {

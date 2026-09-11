@@ -1,8 +1,8 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { BLACKROSE_PALETTE } from '@/constants/theme';
 import { FooterActions } from '@/components/FooterActions';
 
 interface IntentionChatFooterProps {
@@ -29,14 +29,14 @@ export function IntentionChatFooter({
     savingLabel,
 }: IntentionChatFooterProps) {
     const isDark = useColorScheme() === 'dark';
-    const mutedIconColor = isDark ? Colors.dark.tabIconDefault : Colors.light.tabIconDefault;
-    const activeIconColor = isDark ? Colors.dark.primary : Colors.light.primary;
+    const mutedIconColor = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
+    const activeIconColor = isDark ? BLACKROSE_PALETTE.dark.accent : BLACKROSE_PALETTE.light.accent;
 
     return (
         <View className="bg-background-light dark:bg-background-dark">
             <View className="flex-row items-center justify-between px-5 pb-3">
                 <Text className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
-                    Note: Rosebud can make mistakes
+                    Blackrose can make mistakes.
                 </Text>
                 <Pressable accessibilityLabel="Toggle volume" onPress={onToggleMuted} hitSlop={8}>
                     <MaterialIcons

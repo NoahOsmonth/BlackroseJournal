@@ -35,16 +35,16 @@ import { EntryFinishCelebration } from '../../components/celebrations/EntryFinis
 
 describe('SuccessOverlay', () => {
     it('is hidden when not visible', () => {
-        render(<SuccessOverlay visible={false} message="Entry saved ✨" />);
-        expect(screen.queryByLabelText('Entry saved ✨')).toBeNull();
+        render(<SuccessOverlay visible={false} message="Entry saved" />);
+        expect(screen.queryByLabelText('Entry saved')).toBeNull();
     });
 
     it('renders icon, message and fires onDismiss on backdrop tap', () => {
         const onDismiss = jest.fn();
-        render(<SuccessOverlay visible message="Entry saved ✨" onDismiss={onDismiss} />);
+        render(<SuccessOverlay visible message="Entry saved" onDismiss={onDismiss} />);
 
-        expect(screen.getByText('Entry saved ✨')).toBeTruthy();
-        expect(screen.getByLabelText('Entry saved ✨')).toBeTruthy();
+        expect(screen.getByText('Entry saved')).toBeTruthy();
+        expect(screen.getByLabelText('Entry saved')).toBeTruthy();
 
         fireEvent(screen.getByLabelText('Dismiss'), 'press');
         expect(onDismiss).toHaveBeenCalled();
@@ -79,6 +79,6 @@ describe('EntryFinishCelebration', () => {
 
     it('announces the saved message accessibly', () => {
         render(<EntryFinishCelebration onDismiss={jest.fn()} />);
-        expect(screen.getByLabelText('Entry saved ✨')).toBeTruthy();
+        expect(screen.getByLabelText('Entry saved')).toBeTruthy();
     });
 });

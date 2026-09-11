@@ -97,7 +97,7 @@ function applyLiveEnv(): string {
     process.env.EXPO_PUBLIC_NANO_GPT_MODEL =
         process.env.EXPO_PUBLIC_NANO_GPT_MODEL
         ?? fileEnv.EXPO_PUBLIC_NANO_GPT_MODEL
-        ?? 'cl/dots-studio/dots-3-note-preview:free';
+        ?? 'merge/deepseek/deepseek-v4-flash-0731';
     process.env.EXPO_PUBLIC_NANO_GPT_FLASH_MODEL = process.env.EXPO_PUBLIC_NANO_GPT_MODEL;
     return process.env.EXPO_PUBLIC_NANO_GPT_MODEL;
 }

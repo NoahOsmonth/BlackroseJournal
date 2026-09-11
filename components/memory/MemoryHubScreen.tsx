@@ -4,7 +4,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
     Alert,
     Pressable,
-    ScrollView,
     Text,
     TextInput,
     View,
@@ -17,6 +16,7 @@ import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { RevealItem } from '@/components/ui/RevealItem';
 import { useScrollReveal } from '@/components/ui/useScrollReveal';
 import { StaggerEntranceItem } from '@/components/ui/StaggerEntrance';
+import { BLACKROSE_PALETTE } from '@/constants/theme';
 import { navAwareBottomPadding } from '@/constants/spacing';
 import { useLocalMemories } from '@/hooks/memory/useLocalMemories';
 import { useTabNavigation, type TabRoute } from '@/hooks/navigation/useTabNavigation';
@@ -29,8 +29,6 @@ import { MemoryNotesPanel } from './MemoryNotesPanel';
 import { MemoryPortrait } from './MemoryPortrait';
 import {
     filterMemoryAtoms,
-    MEMORY_LAYER_LABELS,
-    MEMORY_LAYER_ORDER,
     memoryAtomRoute,
     topMemoryThemes,
     type MemoryLayerFilter,
@@ -38,12 +36,6 @@ import {
 
 /** How many atom rows to show before requiring “Show more”. */
 export const MEMORY_ATOMS_PAGE_SIZE = 8;
-
-const INPUT_CLASS = [
-    'rounded-xl border border-divider-light dark:border-divider-dark',
-    'bg-surface-light dark:bg-surface-dark px-3 py-3',
-    'text-text-light dark:text-text-dark',
-].join(' ');
 
 export function MemoryHubScreen() {
     const router = useRouter();
@@ -55,12 +47,10 @@ export function MemoryHubScreen() {
     const [activeLayer, setActiveLayer] = useState<MemoryLayerFilter>('all');
     const [query, setQuery] = useState('');
     const [noteText, setNoteText] = useState('');
-    const [notesOpen, setNotesOpen] = useState(false);
     const [visibleCount, setVisibleCount] = useState(MEMORY_ATOMS_PAGE_SIZE);
     const [menuOpen, setMenuOpen] = useState(false);
 
-    const iconMuted = isDark ? '#9CA3AF' : '#6B7280';
-    const placeholderColor = isDark ? '#9CA3AF' : '#6B7280';
+    const inkMuted = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
     const sourceThemes = useMemo(() => topMemoryThemes(memory.atoms, 4), [memory.atoms]);
     const filteredAtoms = useMemo(
         () => filterMemoryAtoms(memory.atoms, activeLayer, query),
@@ -159,23 +149,26 @@ export function MemoryHubScreen() {
     return (
         <ScreenContainer edges="top" className="relative">
             <Animated.ScrollView
-                className="flex-1 px-4 pt-6"
-                contentContainerStyle={{ paddingBottom: navAwareBottomPadding(insets.bottom) }}
+                className="flex-1 pt-6"
+                contentContainerStyle={{
+                    paddingHorizontal: 20,
+                    paddingBottom: navAwareBottomPadding(insets.bottom),
+                }}
                 showsVerticalScrollIndicator={false}
                 onScroll={onScroll}
                 scrollEventThrottle={16}
             >
                 <RevealItem scrollY={scrollY}>
-                    <View className="mb-6 flex-row items-start justify-between gap-4">
+                    <View className="mb-6 flex-row items-start justify-between gap-4 border-b border-hairline-light pb-5 dark:border-hairline-dark">
                         <View className="flex-1">
                             <Text
-                                className="text-3xl font-bold text-text-light dark:text-text-dark"
-                                style={{ fontFamily: 'PlayfairDisplayBold' }}
+                                className="text-[34px] leading-10 text-text-light dark:text-text-dark"
+                                style={{ fontFamily: 'PlayfairDisplayRegular' }}
                             >
                                 Memory
                             </Text>
                             <Text className="mt-1 text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                                What Rosebud holds for you
+                                What Blackrose holds for you
                             </Text>
                         </View>
                         <View className="items-end">
@@ -184,23 +177,23 @@ export function MemoryHubScreen() {
                                 accessibilityRole="button"
                                 accessibilityLabel="Memory options"
                                 hitSlop={8}
-                                className="h-9 w-9 items-center justify-center rounded-full"
+                                className="h-9 w-9 items-center justify-center"
                             >
-                                <MaterialIcons name="more-horiz" size={22} color={iconMuted} />
+                                <MaterialIcons name="more-horiz" size={22} color={inkMuted} />
                             </Pressable>
                             {menuOpen ? (
                                 <Pressable
                                     onPress={clearAll}
                                     disabled={memory.isLoading || memory.atoms.length === 0}
                                     className={[
-                                        'mt-1 rounded-xl border border-divider-light dark:border-divider-dark',
-                                        'bg-surface-light dark:bg-surface-dark px-3 py-2',
+                                        'mt-1 rounded-control border border-hairline-light px-3 py-2 dark:border-hairline-dark',
+                                        'bg-surface-light dark:bg-surface-dark',
                                         memory.isLoading || memory.atoms.length === 0 ? 'opacity-50' : '',
                                     ].join(' ')}
                                     accessibilityRole="button"
                                     accessibilityLabel="Clear local memory"
                                 >
-                                    <Text className="text-xs font-semibold text-red-600 dark:text-red-400">
+                                    <Text className="text-xs text-danger-light dark:text-danger-dark">
                                         Clear all
                                     </Text>
                                 </Pressable>
@@ -218,70 +211,32 @@ export function MemoryHubScreen() {
                         <RevealItem scrollY={scrollY}>
                             <MemoryPortrait
                                 atoms={memory.atoms}
-                                onOpenGraph={handleOpenGraph}
                                 onThemePress={(tag) => setQuery(tag)}
                             />
                         </RevealItem>
 
                         <RevealItem scrollY={scrollY}>
-                            <View className="gap-3">
-                                <Pressable
-                                    onPress={() => setNotesOpen((open) => !open)}
-                                    className="flex-row items-center justify-between px-0.5"
-                                    accessibilityRole="button"
-                                    accessibilityState={{ expanded: notesOpen }}
-                                    accessibilityLabel="Notes"
-                                >
-                                    <Text className="text-sm font-semibold text-text-light dark:text-text-dark">
-                                        Notes
-                                    </Text>
-                                    <MaterialIcons
-                                        name={notesOpen ? 'expand-less' : 'expand-more'}
-                                        size={22}
-                                        color={iconMuted}
-                                    />
-                                </Pressable>
-                                {notesOpen ? (
-                                    <MemoryNotesPanel
-                                        noteText={noteText}
-                                        generatedNote={memory.generatedNote}
-                                        sourceThemes={sourceThemes}
-                                        isBusy={false}
-                                        onNoteTextChange={setNoteText}
-                                        onSaveNote={saveNote}
-                                        onSaveGeneratedNote={saveGeneratedNote}
-                                        onRefreshGeneratedNote={memory.refreshGeneratedNote}
-                                    />
-                                ) : null}
-                            </View>
-                        </RevealItem>
-
-                        <RevealItem scrollY={scrollY}>
-                            <View className="gap-3">
-                                <View className="flex-row items-center justify-between px-0.5">
-                                    <Text className="text-sm font-semibold text-text-light dark:text-text-dark">
-                                        Memories
-                                    </Text>
-                                    <Text className="text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark">
-                                        {filteredAtoms.length}
-                                    </Text>
-                                </View>
-                                <TextInput
-                                    value={query}
-                                    onChangeText={setQuery}
-                                    placeholder="Search memories"
-                                    placeholderTextColor={placeholderColor}
-                                    className={INPUT_CLASS}
-                                    accessibilityLabel="Search local memory"
-                                />
+                            <View className="gap-4">
                                 <LayerFilters
                                     activeLayer={activeLayer}
                                     atoms={memory.atoms}
                                     onLayerPress={setActiveLayer}
                                 />
 
+                                <View className="flex-row items-center gap-2 rounded-control border border-hairline-light px-4 dark:border-hairline-dark">
+                                    <MaterialIcons name="search" size={18} color={inkMuted} />
+                                    <TextInput
+                                        value={query}
+                                        onChangeText={setQuery}
+                                        placeholder="Search memories"
+                                        placeholderTextColor={inkMuted}
+                                        className="flex-1 py-3 text-sm text-text-light dark:text-text-dark"
+                                        accessibilityLabel="Search local memory"
+                                    />
+                                </View>
+
                                 {filteredAtoms.length > 0 ? (
-                                    <View className="overflow-hidden rounded-2xl border border-divider-light dark:border-divider-dark bg-surface-light dark:bg-surface-dark">
+                                    <View className="gap-3">
                                         {visibleAtoms.map((atom, index) => (
                                             <StaggerEntranceItem
                                                 key={atom.id}
@@ -295,7 +250,6 @@ export function MemoryHubScreen() {
                                             >
                                                 <MemoryAtomCard
                                                     atom={atom}
-                                                    isLast={index === visibleAtoms.length - 1 && remaining === 0}
                                                     onDelete={deleteAtom}
                                                     onTagPress={(tag) => setQuery(tag)}
                                                     onOpen={handleOpenAtom}
@@ -305,11 +259,12 @@ export function MemoryHubScreen() {
                                         {remaining > 0 ? (
                                             <Pressable
                                                 onPress={() => setVisibleCount((count) => count + MEMORY_ATOMS_PAGE_SIZE)}
-                                                className="h-12 items-center justify-center border-t border-divider-light dark:border-divider-dark"
+                                                className="h-12 items-center justify-center rounded-control border border-hairline-light dark:border-hairline-dark"
                                                 accessibilityRole="button"
                                                 accessibilityLabel={`Show ${remaining} more memories`}
+                                                style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
                                             >
-                                                <Text className="text-sm font-semibold text-text-light dark:text-text-dark">
+                                                <Text className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
                                                     Show more · {remaining} left
                                                 </Text>
                                             </Pressable>
@@ -320,6 +275,42 @@ export function MemoryHubScreen() {
                                         No matching memories. Adjust search or layer filter.
                                     </Text>
                                 )}
+
+                                <Pressable
+                                    onPress={handleOpenGraph}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Explore memory graph"
+                                    hitSlop={6}
+                                    style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+                                >
+                                    <Text
+                                        className="text-[17px] text-text-light underline dark:text-text-dark"
+                                        style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                                    >
+                                        Open graph
+                                    </Text>
+                                </Pressable>
+                            </View>
+                        </RevealItem>
+
+                        <RevealItem scrollY={scrollY}>
+                            <View className="gap-4">
+                                <Text
+                                    className="text-[19px] text-text-light dark:text-text-dark"
+                                    style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                                >
+                                    Notes
+                                </Text>
+                                <MemoryNotesPanel
+                                    noteText={noteText}
+                                    generatedNote={memory.generatedNote}
+                                    sourceThemes={sourceThemes}
+                                    isBusy={false}
+                                    onNoteTextChange={setNoteText}
+                                    onSaveNote={saveNote}
+                                    onSaveGeneratedNote={saveGeneratedNote}
+                                    onRefreshGeneratedNote={memory.refreshGeneratedNote}
+                                />
                             </View>
                         </RevealItem>
                     </View>
@@ -341,46 +332,62 @@ interface LayerFiltersProps {
     onLayerPress: (layer: MemoryLayerFilter) => void;
 }
 
+/** Concept labels: All · Episodic · Semantic · Profile — four equal segments
+ *  that always fit the gutter, so nothing clips mid-word. */
+const HUB_LAYER_ORDER: MemoryLayerFilter[] = ['all', 'episodic', 'semantic', 'profile'];
+
+const HUB_LAYER_LABELS: Record<MemoryLayerFilter, string> = {
+    all: 'All',
+    episodic: 'Episodic',
+    semantic: 'Semantic',
+    profile: 'Profile',
+    working: 'Working',
+    procedural: 'Procedural',
+    note: 'Notes',
+};
+
 function LayerFilters({ activeLayer, atoms, onLayerPress }: LayerFiltersProps) {
-    const layers = MEMORY_LAYER_ORDER.filter((layer) => (
-        atoms.some((atom) => atom.layer === layer)
-    ));
-    const options: MemoryLayerFilter[] = ['all', ...layers];
+    const present = new Set(atoms.map((atom) => atom.layer));
+    // Always keep the concept's four slots; drop a layer only when it has no
+    // atoms at all so the control never shows an empty bucket.
+    const options = HUB_LAYER_ORDER.filter(
+        (layer) => layer === 'all' || layer === 'profile' || present.has(layer)
+    );
 
     return (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View className="flex-row gap-2 py-1">
-                {options.map((layer) => {
-                    const active = activeLayer === layer;
-                    const label = layer === 'all' ? 'All' : MEMORY_LAYER_LABELS[layer];
-                    return (
-                        <Pressable
-                            key={layer}
-                            onPress={() => onLayerPress(layer)}
+        <View className="h-11 flex-row items-stretch overflow-hidden rounded-control border border-hairline-light dark:border-hairline-dark">
+            {options.map((layer, index) => {
+                const active = activeLayer === layer;
+                const label = HUB_LAYER_LABELS[layer];
+                return (
+                    <Pressable
+                        key={layer}
+                        onPress={() => onLayerPress(layer)}
+                        className={[
+                            'flex-1 items-center justify-center px-2',
+                            index > 0 ? 'border-l border-hairline-light dark:border-hairline-dark' : '',
+                            active ? 'bg-surface-2-light dark:bg-surface-2-dark' : '',
+                        ].join(' ')}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: active }}
+                        accessibilityLabel={`Show ${label} memories`}
+                    >
+                        <Text
+                            numberOfLines={1}
                             className={[
-                                'h-9 justify-center rounded-full border px-4',
+                                'text-[14px]',
                                 active
-                                    ? 'border-primary bg-primary dark:border-primary-dark dark:bg-primary-dark'
-                                    : 'border-divider-light bg-surface-light dark:border-divider-dark dark:bg-surface-dark',
-                            ].join(' ')}
-                            accessibilityRole="button"
-                            accessibilityState={{ selected: active }}
-                            accessibilityLabel={`Show ${label} memories`}
-                        >
-                            <Text className={[
-                                'text-xs font-bold',
-                                active
-                                    ? 'text-white dark:text-gray-900'
+                                    ? 'text-text-light dark:text-text-dark'
                                     : 'text-text-secondary-light dark:text-text-secondary-dark',
                             ].join(' ')}
-                            >
-                                {label}
-                            </Text>
-                        </Pressable>
-                    );
-                })}
-            </View>
-        </ScrollView>
+                            style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                        >
+                            {label}
+                        </Text>
+                    </Pressable>
+                );
+            })}
+        </View>
     );
 }
 

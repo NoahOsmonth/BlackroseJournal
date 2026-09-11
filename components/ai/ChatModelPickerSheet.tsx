@@ -41,9 +41,11 @@ type ListItem =
     | { type: 'section'; title: string }
     | { type: 'model'; model: ChatModelOption };
 
+const SERIF = { fontFamily: 'PlayfairDisplayRegular' };
+
 function ModelRowSkeleton({ index }: { index: number }) {
     return (
-        <View className="gap-2 rounded-2xl border border-divider-light bg-background-light p-4 dark:border-divider-dark dark:bg-background-dark">
+        <View className="gap-2 rounded-card border border-hairline-light bg-surface-light p-4 dark:border-hairline-dark dark:bg-surface-dark">
             <Skeleton className="h-4 w-32" accessibilityLabel={`Loading model name ${index}`} />
             <Skeleton className="h-3 w-48" accessibilityLabel={`Loading model description ${index}`} />
         </View>
@@ -115,13 +117,14 @@ export function ChatModelPickerSheet({
                 <Pressable className="flex-1" onPress={onClose} accessibilityLabel="Dismiss model picker" />
                 <View
                     style={{ maxHeight }}
-                    className="bg-surface-light dark:bg-surface-dark rounded-t-3xl border-t border-divider-light dark:border-divider-dark"
+                    className="rounded-t-sheet border-t border-hairline-light bg-surface-light dark:border-hairline-dark dark:bg-surface-dark"
                 >
                     <View className="px-4 pt-4 gap-3">
                         <View className="items-center">
-                            <View className="w-10 h-1 rounded-full bg-divider-light dark:bg-divider-dark" />
+                            <View className="h-1 w-10 rounded-full bg-hairline-light dark:bg-hairline-dark" />
                         </View>
-                        <Text className="text-lg font-semibold text-text-light dark:text-text-dark text-center">
+                        <Text className="text-center text-[24px] leading-[32px] text-text-light dark:text-text-dark"
+                            style={SERIF}>
                             Choose model
                         </Text>
                         <View className="flex-row items-center justify-center gap-2">
@@ -132,7 +135,7 @@ export function ChatModelPickerSheet({
                                 {hostLabel}
                             </Text>
                             {mode === 'managed' ? null : freeOnly ? <FreeOnlyPill /> : (
-                                <Text className="text-[10px] font-semibold uppercase text-amber-700 dark:text-amber-300">
+                                <Text className="text-[10px] uppercase tracking-[1.2px] text-text-secondary-light dark:text-text-secondary-dark">
                                     Includes paid
                                 </Text>
                             )}
@@ -146,7 +149,7 @@ export function ChatModelPickerSheet({
                                 placeholderTextColor={placeholderColor}
                                 autoCapitalize="none"
                                 autoCorrect={false}
-                                className="flex-1 rounded-xl border border-divider-light dark:border-divider-dark bg-background-light dark:bg-background-dark px-3 py-3 text-text-light dark:text-text-dark"
+                                className="min-h-12 flex-1 rounded-control border border-hairline-light bg-surface-light px-4 py-3 text-[16px] text-text-light dark:border-hairline-dark dark:bg-surface-dark dark:text-text-dark"
                                 accessibilityLabel="Search models"
                             />
                             {onRefresh ? (
@@ -154,7 +157,7 @@ export function ChatModelPickerSheet({
                                     onPress={onRefresh}
                                     disabled={isFetching || !hasApiKey}
                                     accessibilityLabel="Refresh models"
-                                    className={`w-12 h-12 items-center justify-center rounded-xl border border-divider-light dark:border-divider-dark ${
+                                    className={`h-12 w-12 items-center justify-center rounded-control border border-hairline-light dark:border-hairline-dark ${
                                         isFetching || !hasApiKey ? 'opacity-50' : ''
                                     }`}
                                 >
@@ -168,10 +171,10 @@ export function ChatModelPickerSheet({
                         </View>
 
                         {error ? (
-                            <Text className="text-sm text-red-600 dark:text-red-400">{error}</Text>
+                            <Text className="text-[14px] text-danger-light dark:text-danger-dark">{error}</Text>
                         ) : null}
                         {selectedManagedModelMissing ? (
-                            <Text className="text-sm text-amber-700 dark:text-amber-300 text-center">
+                            <Text className="text-center text-[14px] text-text-secondary-light dark:text-text-secondary-dark">
                                 Your selected managed model is no longer available. Choose another model to continue.
                             </Text>
                         ) : null}
@@ -179,20 +182,23 @@ export function ChatModelPickerSheet({
 
                     {mode === 'byok' && !hasApiKey ? (
                         <View className="px-4 py-8 items-center gap-3">
-                            <Ionicons name="key-outline" size={28} color={iconColor} />
-                            <Text className="text-base font-semibold text-text-light dark:text-text-dark text-center">
+                            <Ionicons name="key-outline" size={26} color={iconColor} />
+                            <Text
+                                className="text-center text-[21px] leading-[29px] text-text-light dark:text-text-dark"
+                                style={SERIF}
+                            >
                                 Add an API key
                             </Text>
-                            <Text className="text-sm text-subtext-light dark:text-subtext-dark text-center">
+                            <Text className="text-center text-[15px] leading-[23px] text-text-secondary-light dark:text-text-secondary-dark">
                                 Set your OpenRouter (or custom) key in Settings to load free models.
                             </Text>
                             {onOpenSettings ? (
                                 <Pressable
                                     onPress={onOpenSettings}
-                                    className="mt-2 rounded-xl bg-primary px-4 py-3"
+                                    className="mt-2 min-h-12 items-center justify-center rounded-control border border-bone-light px-5 dark:border-bone-dark"
                                     accessibilityRole="button"
                                 >
-                                    <Text className="font-bold text-white">
+                                    <Text className="text-[16px] text-text-light dark:text-text-dark">
                                         Open AI settings
                                     </Text>
                                 </Pressable>
@@ -207,10 +213,13 @@ export function ChatModelPickerSheet({
                     ) : models.length === 0 ? (
                         <View className="px-4 py-8 items-center gap-3">
                             <Ionicons name="cloud-download-outline" size={28} color={iconColor} />
-                            <Text className="text-base font-semibold text-text-light dark:text-text-dark text-center">
+                            <Text
+                                className="text-center text-[21px] leading-[29px] text-text-light dark:text-text-dark"
+                                style={SERIF}
+                            >
                                 No models loaded
                             </Text>
-                            <Text className="text-sm text-subtext-light dark:text-subtext-dark text-center">
+                            <Text className="text-center text-[15px] leading-[23px] text-text-secondary-light dark:text-text-secondary-dark">
                                 {freeOnly
                                     ? 'Fetch free models to choose one. Only ids with :free are shown.'
                                     : 'Fetch models from your provider to choose one.'}
@@ -221,16 +230,16 @@ export function ChatModelPickerSheet({
                                     disabled={isFetching}
                                     accessibilityRole="button"
                                     accessibilityLabel="Fetch free models"
-                                    className="mt-2 rounded-xl bg-primary px-4 py-3"
+                                    className="mt-2 min-h-12 items-center justify-center rounded-control border border-bone-light px-5 dark:border-bone-dark"
                                 >
-                                    <Text className="font-bold text-white">
+                                    <Text className="text-[16px] text-text-light dark:text-text-dark">
                                         {isFetching ? 'Fetching…' : 'Fetch free models'}
                                     </Text>
                                 </Pressable>
                             ) : null}
                             {onOpenSettings ? (
                                 <Pressable onPress={onOpenSettings}>
-                                    <Text className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">
+                                    <Text className="text-[15px] text-text-secondary-light underline dark:text-text-secondary-dark">
                                         Open AI settings
                                     </Text>
                                 </Pressable>
@@ -238,11 +247,11 @@ export function ChatModelPickerSheet({
                         </View>
                     ) : filtered.length === 0 ? (
                         <View className="px-4 py-8 items-center gap-2">
-                            <Text className="text-sm text-subtext-light dark:text-subtext-dark text-center">
+                            <Text className="text-center text-[15px] text-text-secondary-light dark:text-text-secondary-dark">
                                 {`No models match “${query.trim()}”.`}
                             </Text>
                             <Pressable onPress={() => setQuery('')}>
-                                <Text className="text-sm font-medium text-primary dark:text-primary">
+                                <Text className="text-[15px] text-text-light underline dark:text-text-dark">
                                     Clear search
                                 </Text>
                             </Pressable>
@@ -290,11 +299,11 @@ export function ChatModelPickerSheet({
 
                     <Pressable
                         onPress={onClose}
-                        className="py-3 items-center border-t border-divider-light dark:border-divider-dark"
+                        className="min-h-12 items-center justify-center border-t border-hairline-light dark:border-hairline-dark"
                         style={{ paddingBottom: Math.max(insets.bottom, 12) }}
                         accessibilityLabel="Close model picker"
                     >
-                        <Text className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">
+                        <Text className="text-[16px] text-text-light dark:text-text-dark">
                             Close
                         </Text>
                     </Pressable>

@@ -3,6 +3,7 @@ import {
     GenerationSettings,
     sanitizeGenerationSettings,
 } from './generationSettings';
+import type { AgentActivityListener, AgentToolCallSnapshot } from './agentEvents';
 
 export interface Message {
     id: string;
@@ -16,6 +17,8 @@ export interface Message {
     temporalProvenance?: 'captured' | 'legacy_unknown';
     /** Source-owner revision populated when the message is persisted for MIRROR. */
     revision?: number;
+    /** Tool timeline from the agent turn that produced this assistant reply. */
+    toolActivity?: AgentToolCallSnapshot[];
 }
 
 export interface StreamingCallback {
@@ -39,6 +42,8 @@ export interface StreamChatOptions {
      * Defaults to auto: enabled when the latest user message looks temporal/historical.
      */
     enableHistoryTools?: boolean | 'auto';
+    /** Live agent activity listener (tool timeline). Fire-and-forget from the service. */
+    onAgentActivity?: AgentActivityListener;
 }
 
 export interface ChatUsage {

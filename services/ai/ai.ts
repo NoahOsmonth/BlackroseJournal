@@ -57,6 +57,12 @@ export {
     ErrorCallback, Message, StreamChatOptions, StreamingCallback
 } from './chatTypes';
 export type { ChatAccumulator } from './chatTypes';
+export type {
+    AgentActivityEvent,
+    AgentActivityListener,
+    AgentToolCallSnapshot,
+    AgentToolStatus,
+} from './agentEvents';
 export type { HistoryToolsBranch } from './promptBudget';
 export { useChat } from './useChat';
 export { resolveHistoryToolsBranch, shouldEnableHistoryTools } from './agenticGate';
@@ -196,6 +202,9 @@ export async function streamChat(
                         model: DEFAULT_DIRECT_MODEL,
                         capability,
                         turnTokenBudget: resolveAgentTurnTokenBudget(contextWindow, AGENT_TURN_TOKEN_BUDGET),
+                        ...(resolved.onAgentActivity
+                            ? { onActivity: resolved.onAgentActivity }
+                            : {}),
                     });
                     lastUsage = agentResult.usage ?? null;
                     logPromptBudget(attachRealUsage(preLedger, lastUsage));

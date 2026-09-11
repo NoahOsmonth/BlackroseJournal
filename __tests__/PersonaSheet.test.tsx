@@ -82,26 +82,33 @@ describe('PersonaSheet', () => {
         );
 
         expect(UNSAFE_getByType(Modal).props.animationType).toBe('none');
-        expect(getByText('Choose persona')).toBeTruthy();
+        expect(getByText('Choose voice')).toBeTruthy();
         expect(getByText('Rosebud')).toBeTruthy();
         expect(getByText('Balanced and thoughtful')).toBeTruthy();
-        expect(getByText('Active')).toBeTruthy();
+        expect(getByText('✓ Active')).toBeTruthy();
 
         expect(classNameFor(getByTestId('persona-sheet-overlay'))).toContain('fixed inset-0');
+        // Concept sheet: hairline plate, 28px sheet radius, hairline drag handle.
         expect(classNameFor(getByTestId('persona-sheet-panel'))).toContain(
-            'bg-surface-light dark:bg-surface-dark rounded-t-3xl'
+            'rounded-t-sheet border-t border-hairline-light'
         );
         expect(classNameFor(getByTestId('persona-sheet-panel'))).toContain('pb-5');
         expect(classNameFor(getByTestId('persona-sheet-handle'))).toContain(
-            'w-10 h-1 bg-gray-300 dark:bg-gray-600'
+            'h-1 w-10 rounded-full bg-hairline-light dark:bg-hairline-dark'
         );
         expect(getByTestId('persona-sheet-cards').props.contentContainerStyle).toMatchObject({
             paddingTop: 16,
         });
         expect(classNameFor(getByTestId('persona-card'))).toContain(
-            'w-[82vw] max-w-[340px] bg-surface-light dark:bg-card-dark'
+            'w-[82vw] max-w-[340px]'
         );
-        expect(classNameFor(getByTestId('persona-avatar-shell'))).toContain('bg-persona-rose');
+        expect(classNameFor(getByTestId('persona-card'))).toContain('border-hairline-light');
+        expect(classNameFor(getByTestId('persona-card'))).toContain('dark:border-hairline-dark');
+        // The default avatar is the line rose in a hairline medallion, not a pink disc.
+        expect(classNameFor(getByTestId('persona-avatar-shell'))).toContain('border-hairline-light');
+        expect(classNameFor(getByTestId('persona-avatar-shell'))).toContain(
+            'dark:border-hairline-dark'
+        );
     });
 });
 
@@ -109,20 +116,21 @@ describe('NewPersonaCard', () => {
     it('matches the swiped reference dimensions and light/dark text treatment', () => {
         const { getByText, getByTestId } = render(<NewPersonaCard onCreate={jest.fn()} />);
 
-        expect(getByText('New persona')).toBeTruthy();
+        expect(getByText('New voice')).toBeTruthy();
         expect(getByText('Build your dream team')).toBeTruthy();
         expect(getByText('Create')).toBeTruthy();
 
         expect(classNameFor(getByTestId('new-persona-card'))).toContain(
             'w-[80vw] max-w-sm'
         );
-        expect(classNameFor(getByTestId('new-persona-card'))).toContain(
-            'border-gray-300 dark:border-gray-700'
-        );
+        expect(classNameFor(getByTestId('new-persona-card'))).toContain('border-hairline-light');
+        expect(classNameFor(getByTestId('new-persona-card'))).toContain('dark:border-hairline-dark');
         expect(classNameFor(getByTestId('new-persona-card'))).toContain('h-[380px]');
-        expect(classNameFor(getByTestId('new-persona-avatar'))).toContain('bg-persona-teal');
-        expect(classNameFor(getByTestId('new-persona-create'))).toContain(
-            'bg-gray-900 dark:bg-white'
-        );
+        expect(classNameFor(getByTestId('new-persona-avatar'))).toContain('bg-surface-2-light');
+        expect(classNameFor(getByTestId('new-persona-avatar'))).toContain('dark:bg-surface-2-dark');
+        // Concept sheet: both actions are outlined; only the active voice is emphasised.
+        expect(classNameFor(getByTestId('new-persona-create'))).toContain('border-bone-light');
+        expect(classNameFor(getByTestId('new-persona-create'))).toContain('dark:border-bone-dark');
+        expect(classNameFor(getByTestId('new-persona-create'))).not.toContain('bg-bone-light');
     });
 });

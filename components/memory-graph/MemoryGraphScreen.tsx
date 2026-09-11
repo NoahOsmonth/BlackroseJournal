@@ -11,10 +11,13 @@ import { useMemoryGraph } from '@/hooks/memory/useMemoryGraph';
 import { useMemorySourcePreview } from '@/hooks/memory/useMemorySourcePreview';
 import { useTabNavigation } from '@/hooks/navigation/useTabNavigation';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { BLACKROSE_PALETTE } from '@/constants/theme';
 import type { MemoryLayer } from '@/services/memory/memoryGraph.types';
 import { MemoryGraphFilters } from './MemoryGraphFilters';
 import { MemoryGraphHeader } from './MemoryGraphHeader';
+import { MemoryGraphRangeRail } from './MemoryGraphRangeRail';
 import { MemoryGraphSheet } from './MemoryGraphSheet';
+import { MemoryGraphStats } from './MemoryGraphStats';
 import { MemoryGraphWebView } from './MemoryGraphWebView';
 
 interface MemoryGraphScreenProps {
@@ -36,8 +39,8 @@ export function MemoryGraphScreen({
     const isDark = colorScheme === 'dark';
     const graph = useMemoryGraph({ initialLayer, initialQuery });
     const source = useMemorySourcePreview(graph.selectedAtom);
-    // Match constellation engine page backgrounds (light sky / deep night)
-    const stageBackground = isDark ? '#06080F' : '#EEF1F8';
+    // Match the constellation engine page background (Blackrose void / paper).
+    const stageBackground = isDark ? BLACKROSE_PALETTE.dark.bg : BLACKROSE_PALETTE.light.bg;
 
     const handleTabPress = (tab: 'today' | 'explore' | 'entries' | 'settings' | 'insights') => {
         if (tab !== 'explore') goToTab(tab);
@@ -62,6 +65,7 @@ export function MemoryGraphScreen({
                     onBack={onBack}
                 />
                 <MemoryGraphFilters activeLayers={graph.activeLayers} onToggle={graph.toggleLayer} />
+                <MemoryGraphRangeRail value={graph.rangeIndex} onChange={graph.setRangeIndex} />
                 <FinishBackgroundBanner />
             </View>
 
@@ -87,12 +91,20 @@ export function MemoryGraphScreen({
                     <View className="absolute inset-0 items-center justify-center px-8">
                         <EmptyState
                             icon="hub"
-                            title="Your constellation is empty"
-                            message="Finish journal entries and intention check-ins, and Rosebud will light up moments, themes, and patterns."
+                            title="No threads yet"
+                            message="Finish journal entries and intention check-ins, and Blackrose will light up moments, themes, and patterns."
                         />
                     </View>
                 ) : null}
             </View>
+
+            {graph.atoms.length > 0 ? (
+                <MemoryGraphStats
+                    memories={graph.atoms.length}
+                    links={graph.connections.length}
+                    themes={graph.atoms.filter((atom) => atom.layer === 'semantic').length}
+                />
+            ) : null}
 
             {graph.selectedAtom ? (
                 <MemoryGraphSheet

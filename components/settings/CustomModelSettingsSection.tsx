@@ -7,6 +7,7 @@ import { FreeOnlyPill } from '@/components/ai/FreeModelBadge';
 import { LoadingBar } from '@/components/ui/LoadingBar';
 import { AnimatedSwitch } from '@/components/ui/AnimatedSwitch';
 import type { UseCustomAiModelsReturn } from '@/hooks/settings/useCustomAiModels';
+import { BLACKROSE_PALETTE } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { DEFAULT_AI_BASE_URL, filterFreeModels, formatPickerModelName, hostLabelFromBaseUrl } from '@/utils/ai/modelDisplay';
 import { SettingsSection } from './SettingsSection';
@@ -18,11 +19,11 @@ type CustomModelSettingsSectionProps = UseCustomAiModelsReturn & {
 };
 
 const INPUT_CLASS = [
-    'rounded-xl border border-divider-light dark:border-divider-dark',
-    'bg-background-light dark:bg-background-dark px-3 py-3',
+    'rounded-control border border-hairline-light dark:border-hairline-dark',
+    'bg-surface-light dark:bg-surface-dark px-3.5 py-3',
     'text-text-light dark:text-text-dark',
 ].join(' ');
-const SECONDARY_TEXT = 'text-subtext-light dark:text-subtext-dark';
+const SECONDARY_TEXT = 'text-text-secondary-light dark:text-text-secondary-dark';
 
 function ActionButton({
     label,
@@ -38,14 +39,14 @@ function ActionButton({
     readonly onPress: () => void;
 }) {
     const isDark = useColorScheme() === 'dark';
-    const iconColor = isDark ? '#F9FAFB' : '#111827';
+    const iconColor = isDark ? BLACKROSE_PALETTE.dark.text : BLACKROSE_PALETTE.light.text;
     const inactive = disabled || busy;
 
     return (
         <TouchableOpacity
             onPress={onPress}
             disabled={inactive}
-            className={`flex-1 flex-row items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 ${
+            className={`min-h-12 flex-1 flex-row items-center justify-center gap-2 rounded-control border border-hairline-light px-4 dark:border-hairline-dark ${
                 inactive ? 'opacity-50' : ''
             }`}
             accessibilityRole="button"
@@ -56,7 +57,7 @@ function ActionButton({
             ) : (
                 <>
                     <Ionicons name={icon} size={18} color={iconColor} />
-                    <Text className="font-bold text-text-light dark:text-text-light">
+                    <Text className="text-[15px] text-text-light dark:text-text-dark">
                         {label}
                     </Text>
                 </>
@@ -89,8 +90,8 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
     const [manualModelId, setManualModelId] = useState('');
     const [isAddingManual, setIsAddingManual] = useState(false);
     const isDark = useColorScheme() === 'dark';
-    const placeholderColor = isDark ? '#9CA3AF' : '#6B7280';
-    const chevronColor = isDark ? '#F9FAFB' : '#111827';
+    const placeholderColor = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
+    const chevronColor = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
 
     const models = settings.freeOnly ? filterFreeModels(settings.models) : settings.models;
     const selected = models.find((model) => model.id === settings.selectedModelId)
@@ -106,7 +107,7 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
         if (!value) {
             Alert.alert(
                 'Show paid models?',
-                'Paid models can incur OpenRouter charges. Blackrose defaults to free models only.',
+                'Paid models can incur provider charges. Blackrose defaults to free models only.',
                 [
                     { text: 'Keep free', style: 'cancel' },
                     {
@@ -137,8 +138,8 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
         <SettingsSection title="AI Model" embedded={embedded}>
             <View className="flex-row items-center justify-between mb-4">
                 <View className="flex-1 pr-4">
-                    <Text className="text-base font-semibold text-text-light dark:text-text-dark">
-                        Use OpenRouter / custom provider
+                    <Text className="text-[16px] text-text-light dark:text-text-dark">
+                        Use a custom AI provider
                     </Text>
                     <Text className={`text-xs mt-1 ${SECONDARY_TEXT}`}>
                         Free models by default. Optional custom base URL and API key.
@@ -154,18 +155,19 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
 
             <TouchableOpacity
                 onPress={() => setPickerOpen(true)}
-                className="mb-4 rounded-xl border border-divider-light dark:border-divider-dark px-3 py-3"
+                className="mb-4 rounded-control border border-hairline-light px-4 py-3.5 dark:border-hairline-dark"
                 accessibilityRole="button"
                 accessibilityLabel="Change active model"
             >
                 <View className="flex-row items-center justify-between gap-2">
                     <View className="flex-1 min-w-0 gap-1">
-                        <Text className="text-sm font-medium text-text-light dark:text-text-dark">
+                        <Text className="text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
                             Active model
                         </Text>
                         <Text
                             numberOfLines={1}
-                            className="text-base font-semibold text-text-light dark:text-text-dark"
+                            className="text-[17px] text-text-light dark:text-text-dark"
+                            style={{ fontFamily: 'PlayfairDisplayRegular' }}
                         >
                             {selectedLabel}
                         </Text>
@@ -178,13 +180,13 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                 </View>
             </TouchableOpacity>
 
-            <Text className="text-sm font-medium text-text-light dark:text-text-dark mb-2">
+            <Text className="mb-2 text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
                 API key
             </Text>
             <TextInput
                 value={draft.apiKey}
                 onChangeText={setApiKey}
-                placeholder="sk-or-v1-..."
+                placeholder="Provider API key"
                 placeholderTextColor={placeholderColor}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -195,7 +197,7 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
 
             <View className="flex-row items-center justify-between mb-4">
                 <View className="flex-1 pr-4">
-                    <Text className="text-base font-semibold text-text-light dark:text-text-dark">
+                    <Text className="text-[16px] text-text-light dark:text-text-dark">
                         Free models only
                     </Text>
                     <Text className={`text-xs mt-1 ${SECONDARY_TEXT}`}>
@@ -256,7 +258,7 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                 accessibilityRole="button"
                 accessibilityLabel="Advanced AI provider settings"
             >
-                <Text className="text-sm font-semibold text-text-light dark:text-text-dark">
+                <Text className="text-[15px] text-text-light dark:text-text-dark">
                     Advanced
                 </Text>
                 <Ionicons
@@ -269,7 +271,7 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
             {advancedOpen ? (
                 <View className="gap-3 mb-2">
                     <View>
-                        <Text className="text-sm font-medium text-text-light dark:text-text-dark mb-2">
+                        <Text className="mb-2 text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
                             Base URL
                         </Text>
                         <TextInput
@@ -284,7 +286,7 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                         />
                     </View>
                     <View>
-                        <Text className="text-sm font-medium text-text-light dark:text-text-dark mb-2">
+                        <Text className="mb-2 text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
                             Fallback context tokens
                         </Text>
                         <TextInput
@@ -298,7 +300,7 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                         />
                     </View>
                     <View>
-                        <Text className="text-sm font-medium text-text-light dark:text-text-dark mb-2">
+                        <Text className="mb-2 text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
                             Add model manually
                         </Text>
                         <Text className={`text-xs mt-1 mb-2 ${SECONDARY_TEXT}`}>
@@ -320,7 +322,7 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                             <TouchableOpacity
                                 onPress={handleAddManualModel}
                                 disabled={isAddingManual || !manualModelId.trim()}
-                                className={`items-center justify-center rounded-xl bg-primary px-4 ${
+                                className={`min-h-12 items-center justify-center rounded-control border border-hairline-light px-4 dark:border-hairline-dark ${
                                     isAddingManual || !manualModelId.trim() ? 'opacity-50' : ''
                                 }`}
                                 accessibilityRole="button"
@@ -329,7 +331,7 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                                 {isAddingManual ? (
                                     <LoadingBar size="sm" accessibilityLabel="Adding model" />
                                 ) : (
-                                    <Text className="font-bold text-white">Add</Text>
+                                    <Text className="text-[15px] text-text-light dark:text-text-dark">Add</Text>
                                 )}
                             </TouchableOpacity>
                         </View>

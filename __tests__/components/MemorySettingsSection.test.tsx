@@ -9,7 +9,7 @@ jest.mock('../../hooks/use-color-scheme', () => ({
 }));
 
 jest.mock('@expo/vector-icons', () => ({
-    Ionicons: ({ name }: { name: string }) => {
+    MaterialIcons: ({ name }: { name: string }) => {
         const React = jest.requireActual('react');
         const { Text } = jest.requireActual('react-native');
         return <Text>{name}</Text>;
@@ -46,7 +46,7 @@ describe('MemorySettingsSection', () => {
 
         expect(screen.getByText('Recent journal pattern: the user wants calmer evenings.'))
             .toBeTruthy();
-        expect(screen.getByText('Open Memory')).toBeTruthy();
+        expect(screen.getByText('Open memory hub')).toBeTruthy();
         expect(onOpenMemoryHub).toHaveBeenCalledTimes(1);
     });
 });

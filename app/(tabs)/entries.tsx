@@ -1,28 +1,26 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FinishBackgroundBanner } from '@/components/entries/FinishBackgroundBanner';
 import { HistoryEmpty } from '@/components/history/HistoryEmpty';
-import { HistoryFilterBar } from '@/components/history/HistoryFilterBar';
 import { HistoryMonthBreak } from '@/components/history/HistoryMonthBreak';
 import { HistorySection } from '@/components/history/HistorySection';
 import { HistorySkeleton } from '@/components/history/HistorySkeleton';
-import { HistoryWeekRhythm } from '@/components/history/HistoryWeekRhythm';
 import { BottomNav, ResumeSessionBanner } from '@/components/journal';
 import { AppHeader } from '@/components/navigation';
 import { RevealItem } from '@/components/ui/RevealItem';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { StaggerEntranceItem } from '@/components/ui/StaggerEntrance';
 import { useScrollReveal } from '@/components/ui/useScrollReveal';
-import { navAwareBottomPadding } from '@/constants/spacing';
+import { BLACKROSE_PALETTE } from '@/constants/theme';
+import { navAwareBottomPadding, SCREEN_PADDING_X } from '@/constants/spacing';
 import {
-    filterHistorySections,
-    formatMonthYear,
-    HistoryFilter,
+    filterHistorySectionsByQuery,
+    formatWeekMeta,
     HistoryItem,
     HistorySection as HistorySectionModel,
 } from '@/hooks/history/historyUtils';
@@ -30,6 +28,7 @@ import { useHistoryFeed } from '@/hooks/history/useHistoryFeed';
 import { useIntentionCheckIns } from '@/hooks/intentions/useIntentionCheckIns';
 import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
 import { useTabNavigation } from '@/hooks/navigation/useTabNavigation';
+import { useColorScheme } from '@/hooks/theme/use-color-scheme';
 import {
     getMostRecentActiveSession,
     type ChatSession,
@@ -80,6 +79,10 @@ function buildFeedRows(sections: HistorySectionModel[]): FeedRow[] {
 export default function EntriesScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const isDark = useColorScheme() === 'dark';
+    const placeholderColor = isDark
+        ? BLACKROSE_PALETTE.dark.text2
+        : BLACKROSE_PALETTE.light.text2;
     const { scrollY, onScroll } = useScrollReveal();
     const { sections, weeklySummary, isLoading } = useHistoryFeed();
     const { drafts, refresh: refreshEntries } = useJournalEntries();
@@ -87,9 +90,10 @@ export default function EntriesScreen() {
     const { goToTab } = useTabNavigation();
 
     const draftCount = drafts.length + checkInDrafts.length;
-    const monthLabel = formatMonthYear(new Date());
+    const weekLabel = formatWeekMeta(weeklySummary);
 
-    const [filter, setFilter] = useState<HistoryFilter>('all');
+    const [searchOpen, setSearchOpen] = useState(false);
+    const [query, setQuery] = useState('');
     const [activeSession, setActiveSession] = useState<ChatSession | null>(null);
     const [dismissedId, setDismissedId] = useState<string | null>(null);
 
@@ -111,8 +115,8 @@ export default function EntriesScreen() {
         && activeSession.conversationId !== dismissedId;
 
     const filteredSections = useMemo(
-        () => filterHistorySections(sections, filter),
-        [sections, filter]
+        () => filterHistorySectionsByQuery(sections, query),
+        [sections, query]
     );
 
     const feedRows = useMemo(
@@ -151,22 +155,43 @@ export default function EntriesScreen() {
     }, [router]);
 
     const hasAnyItems = sections.length > 0;
+    const isSearching = query.trim().length > 0;
     const isEmpty = !isLoading && filteredSections.length === 0;
 
     return (
         <ScreenContainer edges="top">
             <AppHeader
                 variant="history"
-                monthLabel={monthLabel}
+                weekLabel={weekLabel}
                 draftCount={draftCount}
                 onDraftsPress={() => router.push('/drafts')}
+                onSearchPress={() => setSearchOpen((open) => !open)}
             />
+
+            {searchOpen ? (
+                <View className="px-6 pt-3">
+                    <View className="rounded-control border border-hairline-light px-4 py-2.5 dark:border-hairline-dark">
+                        <TextInput
+                            value={query}
+                            onChangeText={setQuery}
+                            placeholder="Search entries…"
+                            placeholderTextColor={placeholderColor}
+                            className="text-[15px] text-text-light dark:text-text-dark"
+                            accessibilityLabel="Search entries"
+                            autoFocus
+                        />
+                    </View>
+                </View>
+            ) : null}
 
             <FinishBackgroundBanner />
 
             <Animated.ScrollView
-                className="flex-1 px-4"
-                contentContainerStyle={{ paddingBottom: navAwareBottomPadding(insets.bottom) }}
+                className="flex-1"
+                contentContainerStyle={{
+                    paddingHorizontal: SCREEN_PADDING_X,
+                    paddingBottom: navAwareBottomPadding(insets.bottom),
+                }}
                 showsVerticalScrollIndicator={false}
                 onScroll={onScroll}
                 scrollEventThrottle={16}
@@ -183,30 +208,16 @@ export default function EntriesScreen() {
                     </RevealItem>
                 ) : null}
 
-                <RevealItem scrollY={scrollY}>
-                    <View className="mt-1 mb-4">
-                        <HistoryWeekRhythm summary={weeklySummary} />
-                    </View>
-                </RevealItem>
-
-                {hasAnyItems ? (
-                    <RevealItem scrollY={scrollY}>
-                        <View className="mb-5">
-                            <HistoryFilterBar value={filter} onChange={setFilter} />
-                        </View>
-                    </RevealItem>
-                ) : null}
-
                 {isLoading && !hasAnyItems ? (
                     <HistorySkeleton />
                 ) : isEmpty ? (
                     <HistoryEmpty
-                        filter={filter}
                         hasAnyItems={hasAnyItems}
+                        isSearching={isSearching}
                         onWritePress={() => router.push('/chat')}
                     />
                 ) : (
-                    <View className="gap-6">
+                    <View className="gap-6 pt-4">
                         {feedRows.map((row, index) => {
                             const content = row.kind === 'month' ? (
                                 <HistoryMonthBreak label={row.label} />

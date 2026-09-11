@@ -7,18 +7,18 @@ describe('HistoryEmpty', () => {
     it('shows write CTA for a fully empty ledger', () => {
         const onWrite = jest.fn();
         render(
-            <HistoryEmpty filter="all" hasAnyItems={false} onWritePress={onWrite} />
+            <HistoryEmpty hasAnyItems={false} isSearching={false} onWritePress={onWrite} />
         );
         expect(screen.getByText('Nothing written yet')).toBeTruthy();
         fireEvent.press(screen.getByLabelText('Write an entry'));
         expect(onWrite).toHaveBeenCalled();
     });
 
-    it('shows ritual-specific copy without CTA when filtering empty rituals', () => {
+    it('explains an empty search and hides the write CTA', () => {
         render(
-            <HistoryEmpty filter="ritual" hasAnyItems onWritePress={jest.fn()} />
+            <HistoryEmpty hasAnyItems isSearching onWritePress={jest.fn()} />
         );
-        expect(screen.getByText('No rituals yet')).toBeTruthy();
+        expect(screen.getByText('Nothing found')).toBeTruthy();
         expect(screen.queryByLabelText('Write an entry')).toBeNull();
     });
 });

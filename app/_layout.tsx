@@ -13,6 +13,9 @@ import 'react-native-reanimated';
 // Import NativeWind CSS
 import '../global.css';
 
+// Register className interop for Reanimated's components.
+import '@/components/theme/nativewindAnimated';
+
 import { AppErrorBoundary } from '@/components/system/AppErrorBoundary';
 import { LegacyDataOwnershipGate } from '@/components/auth/LegacyDataOwnershipGate';
 import { SupabaseStatusBanner } from '@/components/system/SupabaseStatusBanner';

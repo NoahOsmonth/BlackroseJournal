@@ -10,6 +10,7 @@ import { Pressable, Text, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { BLACKROSE_PALETTE } from '@/constants/theme';
 
 interface ResumeSessionBannerProps {
     title: string;
@@ -18,27 +19,31 @@ interface ResumeSessionBannerProps {
 }
 
 export function ResumeSessionBanner({ title, onResume, onDismiss }: ResumeSessionBannerProps) {
-    const colorScheme = useColorScheme();
-    const dismissColor = colorScheme === 'dark' ? '#9CA3AF' : '#6B7280';
+    const isDark = useColorScheme() === 'dark';
+    const dismissColor = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
 
     return (
-        <View className="flex-row items-center gap-3 rounded-2xl border border-divider-light dark:border-divider-dark bg-surface-light dark:bg-surface-dark px-4 py-3 mb-4">
+        <View className="mb-4 flex-row items-center gap-3 rounded-card border border-hairline-light bg-surface-light px-4 py-3 dark:border-hairline-dark dark:bg-surface-dark">
             <Pressable
                 onPress={onResume}
                 accessibilityRole="button"
                 accessibilityLabel="Resume your last conversation"
-                className="flex-1 flex-row items-center gap-3 active:opacity-80"
+                className="min-w-0 flex-1 flex-row items-center gap-3 active:opacity-80"
             >
-                <View className="h-9 w-9 items-center justify-center rounded-full bg-primary/15">
-                    <MaterialIcons name="history" size={20} color="#FF9F0A" />
+                <View className="h-9 w-9 items-center justify-center rounded-full border border-hairline-light dark:border-hairline-dark">
+                    <MaterialIcons
+                        name="history"
+                        size={18}
+                        color={isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2}
+                    />
                 </View>
 
-                <View className="flex-1">
-                    <Text className="text-[13px] font-semibold text-text-light dark:text-text-dark">
+                <View className="min-w-0 flex-1">
+                    <Text className="text-[15px] text-text-light dark:text-text-dark">
                         Resume your last conversation
                     </Text>
                     <Text
-                        className="text-[12px] text-text-secondary-light dark:text-text-secondary-dark"
+                        className="text-[13px] text-text-secondary-light dark:text-text-secondary-dark"
                         numberOfLines={1}
                     >
                         {title}
@@ -51,9 +56,9 @@ export function ResumeSessionBanner({ title, onResume, onDismiss }: ResumeSessio
                 accessibilityRole="button"
                 accessibilityLabel="Dismiss resume banner"
                 hitSlop={8}
-                className="p-1"
+                className="min-h-11 min-w-11 items-center justify-center"
             >
-                <MaterialIcons name="close" size={18} color={dismissColor} />
+                <MaterialIcons name="close" size={20} color={dismissColor} />
             </Pressable>
         </View>
     );

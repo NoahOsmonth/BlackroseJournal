@@ -11,32 +11,33 @@ const nuancedEmotions = [
 ];
 
 describe('EmotionalLandscapeChart', () => {
-    it('renders top emotion tags with nuanced, non-generic labels', () => {
+    it('names the two strongest emotions under the rail', () => {
         render(<EmotionalLandscapeChart data={nuancedEmotions} />);
 
+        // Concept shows exactly two end labels beneath a hairline rail.
         expect(screen.getByText('grieving')).toBeTruthy();
         expect(screen.getByText('hopeful')).toBeTruthy();
-        expect(screen.getByText('overwhelmed')).toBeTruthy();
+        expect(screen.queryByText('overwhelmed')).toBeNull();
+        expect(screen.queryByText('content')).toBeNull();
     });
 
-    it('renders emojis that semantically match each emotion', () => {
+    it('places one dot per emotion on the rail, positioned by score', () => {
         render(<EmotionalLandscapeChart data={nuancedEmotions} />);
 
-        expect(screen.getByText('💔')).toBeTruthy();
-        expect(screen.getByText('🌅')).toBeTruthy();
-        expect(screen.getByText('😰')).toBeTruthy();
-        expect(screen.getByText('😌')).toBeTruthy();
+        expect(screen.getByLabelText('grieving 9 of 10')).toBeTruthy();
+        expect(screen.getByLabelText('hopeful 6 of 10')).toBeTruthy();
     });
 
-    it('uses scores in the 1-10 range to size bars', () => {
+    it('renders no emoji — the rail is typographic', () => {
         render(<EmotionalLandscapeChart data={nuancedEmotions} />);
 
-        expect(nuancedEmotions.every((e) => e.score >= 1 && e.score <= 10)).toBe(true);
+        expect(screen.queryByText('💔')).toBeNull();
+        expect(screen.queryByText('😰')).toBeNull();
     });
 
-    it('shows an empty state when no emotions are provided', () => {
+    it('shows the empty state when no emotions are provided', () => {
         render(<EmotionalLandscapeChart data={[]} />);
 
-        expect(screen.getByText('No emotional data yet')).toBeTruthy();
+        expect(screen.getByText('Not enough data')).toBeTruthy();
     });
 });

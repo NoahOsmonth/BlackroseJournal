@@ -1,13 +1,18 @@
 /**
- * Floating island dock — elevated capsule nav with accent write CTA.
- * Not a full-bleed tab bar: sits inset from edges above the home area.
+ * Blackrose dock — flat hairline bar with four text tabs and a compact write
+ * control. Not an island capsule, not a giant center FAB (plan §2/§4).
  *
  * Layout note: equal-width slots use inline `flex: 1` (not NativeWind className).
  * AnimatedPressable often drops className flex, which piles every tab on the left.
+ *
+ * Tab ids stay `today | explore | entries | insights | settings` so routes and
+ * deep links are untouched; only the labels change (Today · Threads · Insights ·
+ * Archive). Settings lives in the header gear, not the dock.
  */
 
 import { useColorScheme } from '@/hooks/theme/use-color-scheme';
 import { useThemeSettings } from '@/hooks/theme/useThemeSettings';
+import { BLACKROSE_PALETTE } from '@/constants/theme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Haptics from 'expo-haptics';
 import React, { useCallback, useState } from 'react';
@@ -42,10 +47,10 @@ interface TabConfig {
 
 /** Canonical tab list (settings lives in headers; dock shows four + write). */
 export const tabConfig: TabConfig[] = [
-    { name: 'today', icon: 'wb-sunny', iconId: 'sun', label: 'Today' },
-    { name: 'explore', icon: 'show-chart', iconId: 'graph', label: 'Memory' },
-    { name: 'insights', icon: 'lightbulb', iconId: 'lightbulb', label: 'Insights' },
-    { name: 'entries', icon: 'menu-book', iconId: 'book-open', label: 'History' },
+    { name: 'today', icon: 'calendar-today', iconId: 'sun', label: 'Today' },
+    { name: 'explore', icon: 'notes', iconId: 'graph', label: 'Threads' },
+    { name: 'insights', icon: 'graphic-eq', iconId: 'lightbulb', label: 'Insights' },
+    { name: 'entries', icon: 'inventory-2', iconId: 'book-open', label: 'Archive' },
     { name: 'settings', icon: 'settings', iconId: 'gear', label: 'Settings' },
 ];
 
@@ -59,12 +64,6 @@ const DOCK_TABS: TabConfig[] = [
 const SPRING = { damping: 18, stiffness: 320, mass: 0.7 };
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
-/** Append 2-digit hex alpha when `hex` is #RRGGBB; otherwise return as-is. */
-function withAlpha(hex: string, alpha: string): string {
-    if (/^#[0-9A-Fa-f]{6}$/.test(hex)) return `${hex}${alpha}`;
-    return hex;
-}
 
 function hapticLight() {
     if (Platform.OS === 'web') return;
@@ -81,17 +80,19 @@ function hapticHeavy() {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 }
 
+/**
+ * A dock tab is a label, not an icon: the concept reads as a text row with the
+ * active item in full ink. The glyph is decorative and stays subordinate.
+ */
 function DockTab({
     tab,
     isActive,
     accent,
-    inactiveColor,
     onPress,
 }: {
     tab: TabConfig;
     isActive: boolean;
     accent: string;
-    inactiveColor: string;
     onPress: () => void;
 }) {
     const scale = useSharedValue(1);
@@ -109,7 +110,7 @@ function DockTab({
                     onPress();
                 }}
                 onPressIn={() => {
-                    scale.value = withSpring(0.9, SPRING);
+                    scale.value = withSpring(0.94, SPRING);
                 }}
                 onPressOut={() => {
                     scale.value = withSpring(1, SPRING);
@@ -124,27 +125,22 @@ function DockTab({
                     style={{
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: 2,
-                        borderRadius: 16,
-                        paddingHorizontal: 10,
+                        gap: 3,
                         paddingVertical: 6,
-                        borderCurve: 'continuous',
-                        ...(isActive
-                            ? { backgroundColor: withAlpha(accent, '1A') }
-                            : null),
                     }}
                 >
                     <MaterialIcons
                         name={tab.icon}
-                        size={22}
-                        color={isActive ? accent : inactiveColor}
+                        size={18}
+                        color={accent}
+                        style={{ opacity: isActive ? 1 : 0.45 }}
                     />
                     <Text
-                        className={`text-[10px] tracking-wide ${
+                        className={
                             isActive
-                                ? 'font-bold text-text-light dark:text-white'
-                                : 'font-medium text-text-secondary-light dark:text-text-secondary-dark'
-                        }`}
+                                ? 'text-[11px] tracking-wide text-text-light dark:text-text-dark'
+                                : 'text-[11px] tracking-wide text-text-secondary-light dark:text-text-secondary-dark'
+                        }
                         numberOfLines={1}
                     >
                         {tab.label}
@@ -155,18 +151,20 @@ function DockTab({
     );
 }
 
+/**
+ * Compact write control: a solid bone square with a dark pencil, matching the
+ * dock in black-rose-archive.png. Deliberately not a giant floating circle —
+ * write is one affordance among the tabs, not a brand button.
+ */
 function WriteButton({
-    accent,
-    ringColor,
     onPress,
 }: {
-    accent: string;
-    ringColor: string;
     onPress?: () => void;
 }) {
     const scale = useSharedValue(1);
     const [radialVisible, setRadialVisible] = useState(false);
     const router = useRouter();
+    const isDark = useColorScheme() === 'dark';
 
     const animStyle = useAnimatedStyle(() => ({
         transform: [{ scale: scale.value }],
@@ -193,40 +191,35 @@ function WriteButton({
         setRadialVisible(false);
     };
 
+    // Concept dock: solid bone square with the pencil knocked out in the
+    // surface colour (dark pencil on light fill in both schemes).
+    const fillColor = isDark ? BLACKROSE_PALETTE.dark.accent : BLACKROSE_PALETTE.light.accent;
+    const pencilColor = isDark ? BLACKROSE_PALETTE.dark.surface : BLACKROSE_PALETTE.light.surface;
+
     return (
         <GestureDetector gesture={longPressGesture}>
-            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <View style={{ alignItems: 'center', justifyContent: 'center', paddingLeft: 4 }}>
                 <AnimatedPressable
                     onPress={() => {
                         hapticMedium();
                         onPress?.();
                     }}
                     onPressIn={() => {
-                        scale.value = withSpring(0.92, SPRING);
+                        scale.value = withSpring(0.94, SPRING);
                     }}
                     onPressOut={() => {
                         scale.value = withSpring(1, SPRING);
                     }}
                     accessibilityLabel="Write new entry"
                     accessibilityRole="button"
-                    style={[
-                        animStyle,
-                        {
-                            width: 56,
-                            height: 56,
-                            marginTop: -10,
-                            borderRadius: 28,
-                            backgroundColor: accent,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            borderCurve: 'continuous',
-                            borderWidth: 3,
-                            borderColor: ringColor,
-                            boxShadow: `0 10px 28px ${withAlpha(accent, '59')}`,
-                        },
-                    ]}
+                    style={[animStyle]}
                 >
-                    <MaterialIcons name="edit" size={24} color="#FFFFFF" />
+                    <View
+                        className="w-11 h-11 rounded-control items-center justify-center"
+                        style={{ backgroundColor: fillColor }}
+                    >
+                        <MaterialIcons name="edit" size={20} color={pencilColor} />
+                    </View>
                 </AnimatedPressable>
                 <RadialMenu
                     isVisible={radialVisible}
@@ -246,16 +239,6 @@ export function BottomNav({ activeTab, onTabPress, onFabPress }: BottomNavProps)
     const accent = isDark
         ? colorTheme.colors.accentDark
         : colorTheme.colors.accentLight;
-    const inactiveColor = isDark ? '#6B7280' : '#9CA3AF';
-    // Ring matches the dock surface so the write button feels "cut through" the pill.
-    const writeRing = isDark ? '#1C1C1E' : '#FFFFFF';
-
-    const dockShadow = isDark
-        ? '0 12px 40px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.08)'
-        : '0 10px 36px rgba(15,23,42,0.12), 0 0 0 1px rgba(15,23,42,0.06)';
-
-    const left = DOCK_TABS.slice(0, 2);
-    const right = DOCK_TABS.slice(2, 4);
 
     const handleTab = useCallback(
         (name: TabName) => {
@@ -267,6 +250,7 @@ export function BottomNav({ activeTab, onTabPress, onFabPress }: BottomNavProps)
     return (
         <View
             pointerEvents="box-none"
+            className="bg-surface-light/95 dark:bg-background-dark/95 border-t border-hairline-light dark:border-hairline-dark"
             style={{
                 position: 'absolute',
                 bottom: 0,
@@ -274,50 +258,23 @@ export function BottomNav({ activeTab, onTabPress, onFabPress }: BottomNavProps)
                 right: 0,
                 zIndex: 30,
                 paddingHorizontal: 16,
-                paddingBottom: Math.max(insets.bottom, 10) + 8,
+                paddingBottom: Math.max(insets.bottom, 8),
+                paddingTop: 6,
+                flexDirection: 'row',
+                alignItems: 'center',
             }}
         >
-            <View
-                className="bg-surface-light/95 dark:bg-surface-dark/95"
-                style={{
-                    width: '100%',
-                    height: 68,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    borderRadius: 34,
-                    borderCurve: 'continuous',
-                    paddingHorizontal: 4,
-                    boxShadow: dockShadow,
-                }}
-            >
-                {left.map((tab) => (
-                    <DockTab
-                        key={tab.name}
-                        tab={tab}
-                        isActive={activeTab === tab.name}
-                        accent={accent}
-                        inactiveColor={inactiveColor}
-                        onPress={() => handleTab(tab.name)}
-                    />
-                ))}
-
-                <WriteButton
+            {DOCK_TABS.map((tab) => (
+                <DockTab
+                    key={tab.name}
+                    tab={tab}
+                    isActive={activeTab === tab.name}
                     accent={accent}
-                    ringColor={writeRing}
-                    onPress={onFabPress}
+                    onPress={() => handleTab(tab.name)}
                 />
+            ))}
 
-                {right.map((tab) => (
-                    <DockTab
-                        key={tab.name}
-                        tab={tab}
-                        isActive={activeTab === tab.name}
-                        accent={accent}
-                        inactiveColor={inactiveColor}
-                        onPress={() => handleTab(tab.name)}
-                    />
-                ))}
-            </View>
+            <WriteButton onPress={onFabPress} />
         </View>
     );
 }

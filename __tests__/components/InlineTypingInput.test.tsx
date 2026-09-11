@@ -44,7 +44,7 @@ describe('InlineTypingInput', () => {
 
         render(<InlineTypingInput onSubmit={onSubmit} />);
 
-        const input = screen.getByPlaceholderText('Type your thoughts...');
+        const input = screen.getByPlaceholderText("Write what's true…");
         fireEvent.changeText(input, '  hello journal  ');
         fireEvent(input, 'submitEditing');
 
@@ -60,7 +60,7 @@ describe('InlineTypingInput', () => {
 
         render(<InlineTypingInput onSubmit={onSubmit} />);
 
-        const input = screen.getByPlaceholderText('Type your thoughts...');
+        const input = screen.getByPlaceholderText("Write what's true…");
         fireEvent.changeText(input, '   ');
         fireEvent(input, 'submitEditing');
 
@@ -72,7 +72,7 @@ describe('InlineTypingInput', () => {
 
         render(<InlineTypingInput onSubmit={onSubmit} disabled />);
 
-        const input = screen.getByPlaceholderText('Type your thoughts...');
+        const input = screen.getByPlaceholderText("Write what's true…");
         fireEvent.changeText(input, 'hello');
         fireEvent(input, 'submitEditing');
 

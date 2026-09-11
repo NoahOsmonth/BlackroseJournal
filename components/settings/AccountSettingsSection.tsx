@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, TouchableOpacity } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
 import { SettingsSection } from './SettingsSection';
 
@@ -14,6 +14,18 @@ interface AccountSettingsSectionProps {
     readonly embedded?: boolean;
 }
 
+const PRIMARY_ACTION = [
+    'mt-4 min-h-12 items-center justify-center rounded-control',
+    'border border-hairline-light dark:border-hairline-dark',
+].join(' ');
+const SECONDARY_ACTION = [
+    'mt-3 min-h-12 items-center justify-center rounded-control',
+    'border border-hairline-light dark:border-hairline-dark',
+].join(' ');
+const ACTION_LABEL = 'text-[15px] text-text-light dark:text-text-dark';
+const BODY = 'text-[15px] leading-6 text-text-secondary-light dark:text-text-secondary-dark';
+
+/** Account body: quiet prose, outline actions on the shared hairline tokens. */
 export function AccountSettingsSection({
     email,
     isAuthLoading,
@@ -27,54 +39,65 @@ export function AccountSettingsSection({
     if (email) {
         return (
             <SettingsSection title="Account" embedded={embedded}>
-                <Text className="text-text-light dark:text-text-dark font-medium text-base">
+                <Text className="text-[16px] text-text-light dark:text-text-dark">
                     Signed in as {email}
                 </Text>
-                <Text className="text-sm text-subtext-light dark:text-subtext-dark mt-2">
+                <Text className={`mt-2 ${BODY}`}>
                     Sessions stay active until you sign out.
                 </Text>
-                <TouchableOpacity
+                <Pressable
                     onPress={onSignOut}
                     disabled={isSigningOut}
-                    className={`mt-4 rounded-xl py-3 ${isSigningOut ? 'bg-primary/70' : 'bg-primary'}`}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: isSigningOut }}
+                    className={`${PRIMARY_ACTION} ${isSigningOut ? 'opacity-60' : ''}`}
                 >
-                    <Text className="text-white font-semibold text-center">
-                        {isSigningOut ? 'Signing out...' : 'Sign out'}
+                    <Text className={ACTION_LABEL} style={{ fontFamily: 'PlayfairDisplayRegular' }}>
+                        {isSigningOut ? 'Signing out…' : 'Sign out'}
                     </Text>
-                </TouchableOpacity>
+                </Pressable>
             </SettingsSection>
         );
     }
 
     return (
         <SettingsSection title="Account" embedded={embedded}>
-            <Text className="text-text-light dark:text-text-dark font-medium text-base">
+            <Text className="text-[16px] text-text-light dark:text-text-dark">
                 Sign in to your account
             </Text>
-            <Text className="text-sm text-subtext-light dark:text-subtext-dark mt-2">
+            <Text className={`mt-2 ${BODY}`}>
                 {isAuthLoading
-                    ? 'Checking session...'
+                    ? 'Checking session…'
                     : 'Core journal data stays local unless remote data sync is explicitly enabled.'}
             </Text>
 
-            <TouchableOpacity onPress={onSignIn} className="mt-4 rounded-xl py-3 bg-primary">
-                <Text className="text-white font-semibold text-center">Sign in</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-                onPress={onCreateAccount}
-                className="mt-3 rounded-xl py-3 border border-divider-light dark:border-divider-dark"
+            <Pressable
+                onPress={onSignIn}
+                accessibilityRole="button"
+                className={PRIMARY_ACTION}
             >
-                <Text className="text-text-light dark:text-text-dark font-semibold text-center">
+                <Text className={ACTION_LABEL} style={{ fontFamily: 'PlayfairDisplayRegular' }}>
+                    Sign in
+                </Text>
+            </Pressable>
+
+            <Pressable
+                onPress={onCreateAccount}
+                accessibilityRole="button"
+                className={SECONDARY_ACTION}
+            >
+                <Text className={ACTION_LABEL} style={{ fontFamily: 'PlayfairDisplayRegular' }}>
                     Create account
                 </Text>
-            </TouchableOpacity>
+            </Pressable>
 
-            <TouchableOpacity onPress={onForgotPassword} className="mt-3">
-                <Text className="text-sm text-primary font-semibold text-center">
-                    Forgot password?
-                </Text>
-            </TouchableOpacity>
+            <View className="mt-4 items-center">
+                <Pressable onPress={onForgotPassword} accessibilityRole="button" hitSlop={6}>
+                    <Text className="text-[15px] text-text-light underline dark:text-text-dark">
+                        Forgot password?
+                    </Text>
+                </Pressable>
+            </View>
         </SettingsSection>
     );
 }

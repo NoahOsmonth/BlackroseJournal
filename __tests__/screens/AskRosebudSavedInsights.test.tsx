@@ -58,12 +58,14 @@ describe('AskRosebud saved insights link', () => {
         mockPush.mockClear();
     });
 
-    it('links to saved insights from the Ask Rosebud screen', () => {
+    it('links to saved insights from the Ask screen', () => {
         render(<AskRosebudScreen />);
 
-        fireEvent.press(screen.getByLabelText('Open saved insights'));
+        const savedInsights = screen.getByLabelText('Open saved insights');
+        expect(savedInsights).toBeTruthy();
 
-        expect(screen.getByText('Saved insights')).toBeTruthy();
+        fireEvent.press(savedInsights);
+
         expect(mockPush).toHaveBeenCalledWith('/saved-insights');
     });
 });

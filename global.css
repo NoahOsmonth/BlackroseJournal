@@ -2,25 +2,43 @@
 @tailwind components;
 @tailwind utilities;
 
+/**
+ * Blackrose runtime color variables.
+ *
+ * These seed the `colorVar(...)` tokens in tailwind.config.js before
+ * `AppColorThemeProvider` mounts, so the first paint is already Blackrose
+ * instead of the pre-rewrite orange/blue palette. Every later value comes from
+ * the user's Color Studio theme (default: Blackrose bone).
+ *
+ * Historical naming: the unsuffixed `--color-*` properties hold the LIGHT-mode
+ * values; the `-dark` properties hold the DARK-mode values.
+ */
 @layer base {
   :root {
-    --color-primary: 255 159 10;
-    --color-primary-dark: 255 179 64;
-    --color-text-light: 17 24 39;
-    --color-text-dark: 249 250 251;
-    --color-text-main-light: 17 24 39;
-    --color-text-main-dark: 249 250 251;
-    --color-text-primary-light: 17 24 39;
-    --color-text-primary-dark: 249 250 251;
-    --color-text-secondary-light: 107 114 128;
-    --color-text-secondary-dark: 156 163 175;
-    --color-subtext-light: 107 114 128;
-    --color-subtext-dark: 156 163 175;
-    --color-user-text: 124 45 18;
-    --color-user-text-dark: 253 186 116;
-    --color-accent-blue: 59 130 246;
-    --color-ai-text: 56 189 248;
-    --color-background-light: 242 242 247;
-    --color-background-dark: 10 10 10;
+    /* Accent (bone) */
+    --color-primary: 92 86 76;
+    --color-primary-dark: 201 194 182;
+
+    /* Ink */
+    --color-text-light: 28 25 23;
+    --color-text-dark: 237 232 224;
+    --color-text-main-light: 28 25 23;
+    --color-text-main-dark: 237 232 224;
+    --color-text-primary-light: 28 25 23;
+    --color-text-primary-dark: 237 232 224;
+    --color-text-secondary-light: 107 101 96;
+    --color-text-secondary-dark: 138 133 128;
+    --color-subtext-light: 107 101 96;
+    --color-subtext-dark: 138 133 128;
+
+    /* Chat: user slip ink + companion (bone) voice — no assistant blue */
+    --color-user-text: 28 25 23;
+    --color-user-text-dark: 237 232 224;
+    --color-accent-blue: 92 86 76;
+    --color-ai-text: 201 194 182;
+
+    /* Void / paper */
+    --color-background-light: 244 241 235;
+    --color-background-dark: 12 12 14;
   }
 }

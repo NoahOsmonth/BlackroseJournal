@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, Image, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
+import { BLACKROSE_PALETTE } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getIntentionAreaConfig } from '@/constants/intentions';
 import { getLocalDateKey } from '@/utils/date';
@@ -13,8 +14,9 @@ import { useNavBack } from '@/hooks/navigation/useNavBack';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingStatus } from '@/components/ui/LoadingStatus';
 import { StaggerEntranceItem } from '@/components/ui/StaggerEntrance';
+import { WreathMark } from '@/components/intentions/WreathMark';
 
-const heroImage = require('@/assets/intentions/intention-hero.png');
+const SERIF = { fontFamily: 'PlayfairDisplayRegular' };
 
 export default function IntentionDetailScreen() {
     const router = useRouter();
@@ -24,8 +26,10 @@ export default function IntentionDetailScreen() {
 
     const { intention, latestCheckIn, isLoading } = useIntentionDetail(intentionId);
     const { archive, remove } = useIntentions();
-    const colorScheme = useColorScheme();
-    const iconColor = colorScheme === 'dark' ? '#F9FAFB' : '#111827';
+    const isDark = useColorScheme() === 'dark';
+    const inkColor = isDark ? BLACKROSE_PALETTE.dark.text : BLACKROSE_PALETTE.light.text;
+    const mutedColor = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
+    const accentColor = isDark ? BLACKROSE_PALETTE.dark.accent : BLACKROSE_PALETTE.light.accent;
     const [moreVisible, setMoreVisible] = useState(false);
 
     const areaConfig = useMemo(
@@ -38,7 +42,7 @@ export default function IntentionDetailScreen() {
         const date = new Date(latestCheckIn.createdAt);
         const isToday = getLocalDateKey(date) === getLocalDateKey(new Date());
         const formatted = date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
-        return isToday ? `Today ${formatted}` : formatted;
+        return isToday ? `Today · ${formatted}` : formatted;
     }, [latestCheckIn]);
 
     const handleBack = () => {
@@ -106,52 +110,69 @@ export default function IntentionDetailScreen() {
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
             <View className="flex-1 max-w-md mx-auto w-full">
-                <View className="flex-row items-center justify-between px-4 pt-6 pb-4">
-                    <Pressable onPress={handleBack} className="p-2" accessibilityLabel="Back">
-                        <MaterialIcons name="arrow-back" size={24} color={iconColor} />
-                    </Pressable>
-                    <Text className="text-lg font-bold text-text-light dark:text-text-dark">Intention</Text>
+                <View className="min-h-[56px] flex-row items-center justify-between px-4 py-2">
                     <Pressable
-                        className="p-2"
+                        onPress={handleBack}
+                        className="h-11 w-11 items-center justify-center"
+                        accessibilityRole="button"
+                        accessibilityLabel="Back"
+                    >
+                        <MaterialIcons name="arrow-back" size={26} color={inkColor} />
+                    </Pressable>
+                    <Text
+                        className="flex-1 text-center text-[28px] text-text-light dark:text-text-dark"
+                        style={SERIF}
+                    >
+                        Intention
+                    </Text>
+                    <Pressable
+                        className="h-11 w-11 items-center justify-center"
+                        accessibilityRole="button"
                         accessibilityLabel="More options"
                         onPress={() => setMoreVisible(true)}
                     >
-                        <MaterialIcons name="more-horiz" size={24} color={iconColor} />
+                        <MaterialIcons name="more-vert" size={24} color={inkColor} />
                     </Pressable>
                 </View>
 
-                <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
-                    <View className="bg-surface-light dark:bg-surface-dark rounded-3xl overflow-hidden shadow-soft border border-gray-100 dark:border-divider-dark">
-                        <View className="h-56 bg-gray-200 dark:bg-secondary-dark relative items-center justify-center">
-                            <Image source={heroImage} style={{ width: 96, height: 96 }} />
-                            <View className="absolute bottom-4 right-4 bg-black/70 px-4 py-1.5 rounded-full">
-                                <Text className="text-xs font-medium text-white">
-                                    {areaConfig?.label ?? 'Intention'}
-                                </Text>
-                            </View>
-                        </View>
-                        <View className="p-6">
-                            <Text className="text-xl font-bold mb-3 text-text-light dark:text-text-dark">
-                                {intention.title}
+                <ScrollView
+                    className="flex-1 px-5"
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={{ paddingBottom: 24 }}
+                >
+                    <View className="rounded-card border border-hairline-light bg-surface-light p-6 dark:border-hairline-dark dark:bg-surface-dark">
+                        <WreathMark size={64} color={accentColor} />
+
+                        <View className="mt-5 self-start rounded-full bg-surface-2-light px-3.5 py-1.5 dark:bg-surface-2-dark">
+                            <Text className="text-[14px] text-text-light dark:text-text-dark">
+                                {areaConfig?.label ?? 'Intention'}
                             </Text>
-                            <Text className="text-sm text-text-secondary-light dark:text-text-secondary-dark leading-relaxed mb-4">
-                                {intention.description}
-                            </Text>
-                            <View className="flex-row justify-end">
-                                <Text className="text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark">
-                                    {intention.description.length} / 280
-                                </Text>
-                            </View>
                         </View>
+
+                        <Text
+                            className="mt-4 text-[30px] leading-[38px] text-text-light dark:text-text-dark"
+                            style={SERIF}
+                        >
+                            {intention.title}
+                        </Text>
+
+                        <Text className="mt-4 text-[16px] leading-[26px] text-text-light dark:text-text-dark">
+                            {intention.description}
+                        </Text>
+
+                        <Text className="mt-5 text-[14px] text-text-secondary-light dark:text-text-secondary-dark">
+                            {intention.description.length} / 280
+                        </Text>
                     </View>
 
                     {latestCheckIn && (
                         <View className="mt-8">
-                            <View className="items-center mb-3">
-                                <Text className="text-sm font-semibold text-text-secondary-light dark:text-text-secondary-dark">
-                                    {checkInDateLabel}
-                                </Text>
-                            </View>
+                            <Text
+                                className="mb-3 text-[19px] text-text-secondary-light dark:text-text-secondary-dark"
+                                style={SERIF}
+                            >
+                                {checkInDateLabel}
+                            </Text>
                             <StaggerEntranceItem
                                 index={0}
                                 columns={1}
@@ -161,50 +182,54 @@ export default function IntentionDetailScreen() {
                                 delayFactorMs={40}
                                 className="w-full"
                             >
-                                <View className="bg-surface-light dark:bg-surface-dark rounded-3xl p-5 border border-gray-100 dark:border-divider-dark">
-                                    <View className="flex-row items-center justify-between text-xs text-text-secondary-light dark:text-text-secondary-dark mb-3">
-                                        <View className="flex-row items-center gap-2">
-                                            <MaterialIcons name="edit" size={16} color="#9CA3AF" />
-                                            <Text className="text-text-secondary-light dark:text-text-secondary-dark">Intention Setting</Text>
+                                <View className="rounded-card border border-hairline-light bg-surface-light p-5 dark:border-hairline-dark dark:bg-surface-dark">
+                                    <View className="flex-row items-center gap-4">
+                                        <View className="h-16 w-16 items-center justify-center rounded-full border border-hairline-light dark:border-hairline-dark">
+                                            <MaterialIcons name="menu-book" size={26} color={accentColor} />
                                         </View>
-                                        <Text className="text-text-secondary-light dark:text-text-secondary-dark">
-                                            {new Date(latestCheckIn.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                                        </Text>
+                                        <View className="min-w-0 flex-1">
+                                            <Text className="text-[11px] uppercase tracking-[1.5px] text-text-secondary-light dark:text-text-secondary-dark">
+                                                Intention setting
+                                            </Text>
+                                            <Text
+                                                className="mt-1.5 text-[20px] leading-[27px] text-text-light dark:text-text-dark"
+                                                style={SERIF}
+                                            >
+                                                {latestCheckIn.title}
+                                            </Text>
+                                        </View>
+                                        <MaterialIcons name="chevron-right" size={22} color={mutedColor} />
                                     </View>
-                                    <View className="flex-row items-start gap-3 mb-2">
-                                        <MaterialIcons name="adjust" size={20} color="#EF4444" />
-                                        <Text className="font-semibold text-text-light dark:text-text-dark text-sm leading-tight">
-                                            {latestCheckIn.title}
-                                        </Text>
-                                    </View>
-                                    <Text className="text-sm text-text-secondary-light dark:text-text-secondary-dark leading-snug mb-4">
+
+                                    <Text className="mt-4 text-[15px] leading-[24px] text-text-secondary-light dark:text-text-secondary-dark">
                                         {latestCheckIn.summary}
                                     </Text>
-                                    <View className="flex-row items-center gap-1.5 text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark">
-                                        <MaterialIcons name="search" size={16} color="#9CA3AF" />
-                                        <Text className="text-text-secondary-light dark:text-text-secondary-dark">{latestCheckIn.mood ?? 'Reflective'}</Text>
-                                    </View>
                                 </View>
                             </StaggerEntranceItem>
                         </View>
                     )}
                 </ScrollView>
 
-                <View className="px-4 pb-8 pt-8">
+                <View className="border-t border-hairline-light px-5 pb-8 pt-5 dark:border-hairline-dark">
                     <Pressable
                         onPress={handleResume}
-                        className="w-full h-14 bg-text-light dark:bg-gray-200 rounded-2xl flex-row items-center justify-center gap-2"
+                        accessibilityRole="button"
                         accessibilityLabel="Resume check-in"
+                        className="h-14 w-full flex-row items-center justify-center rounded-control border border-bone-light active:opacity-80 dark:border-bone-dark"
                     >
-                        <MaterialIcons name="edit" size={20} color="#FFFFFF" />
-                        <Text className="font-bold text-white dark:text-black">Resume check-in</Text>
+                        <Text
+                            className="text-[19px] text-text-light dark:text-text-dark"
+                            style={SERIF}
+                        >
+                            Resume check-in
+                        </Text>
                     </Pressable>
                 </View>
 
                 {moreVisible && (
-                    <View className="absolute inset-0 bg-black/40 justify-end">
-                        <View className="bg-surface-light dark:bg-surface-dark rounded-t-3xl p-6">
-                            <Text className="text-sm font-semibold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide mb-4">
+                    <View className="absolute inset-0 justify-end bg-black/40">
+                        <View className="mx-3 mb-3 overflow-hidden rounded-sheet border border-hairline-light bg-surface-light p-6 dark:border-hairline-dark dark:bg-surface-dark">
+                            <Text className="mb-3 text-[11px] uppercase tracking-[1.5px] text-text-secondary-light dark:text-text-secondary-dark">
                                 Intention options
                             </Text>
                             <Pressable
@@ -217,10 +242,10 @@ export default function IntentionDetailScreen() {
                                         });
                                     }
                                 }}
-                                className="py-3"
+                                className="min-h-12 justify-center border-t border-hairline-light dark:border-hairline-dark"
                             >
-                                <Text className="text-base text-text-light dark:text-text-dark">
-                                    Refine with Rosebud
+                                <Text className="text-[16px] text-text-light dark:text-text-dark">
+                                    Refine with Blackrose
                                 </Text>
                             </Pressable>
                             <Pressable
@@ -233,20 +258,29 @@ export default function IntentionDetailScreen() {
                                         });
                                     }
                                 }}
-                                className="py-3"
+                                className="min-h-12 justify-center border-t border-hairline-light dark:border-hairline-dark"
                             >
-                                <Text className="text-base text-text-light dark:text-text-dark">
+                                <Text className="text-[16px] text-text-light dark:text-text-dark">
                                     Advanced direct edit
                                 </Text>
                             </Pressable>
-                            <Pressable onPress={handleArchive} className="py-3">
-                                <Text className="text-base text-text-light dark:text-text-dark">Archive</Text>
+                            <Pressable
+                                onPress={handleArchive}
+                                className="min-h-12 justify-center border-t border-hairline-light dark:border-hairline-dark"
+                            >
+                                <Text className="text-[16px] text-text-light dark:text-text-dark">Archive</Text>
                             </Pressable>
-                            <Pressable onPress={handleDelete} className="py-3">
-                                <Text className="text-base text-red-500 dark:text-red-400">Delete</Text>
+                            <Pressable
+                                onPress={handleDelete}
+                                className="min-h-12 justify-center border-t border-hairline-light dark:border-hairline-dark"
+                            >
+                                <Text className="text-[16px] text-danger-light dark:text-danger-dark">Delete</Text>
                             </Pressable>
-                            <Pressable onPress={() => setMoreVisible(false)} className="py-3">
-                                <Text className="text-base text-text-secondary-light dark:text-text-secondary-dark">
+                            <Pressable
+                                onPress={() => setMoreVisible(false)}
+                                className="min-h-12 justify-center border-t border-hairline-light dark:border-hairline-dark"
+                            >
+                                <Text className="text-[16px] text-text-secondary-light dark:text-text-secondary-dark">
                                     Cancel
                                 </Text>
                             </Pressable>

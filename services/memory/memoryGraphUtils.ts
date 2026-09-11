@@ -83,6 +83,15 @@ export function filterAtomsByLayer(
     return atoms.filter((atom) => activeLayers.has(atom.layer));
 }
 
+export function filterAtomsByTimeWindow(
+    atoms: MemoryGraphAtom[],
+    rangeDays: number | null,
+    now = Date.now()
+): MemoryGraphAtom[] {
+    if (rangeDays === null) return atoms;
+    return filterAtomsByTime(atoms, rangeDays, now);
+}
+
 export function truncateToWordCount(text: string, maxWords: number): string {
     const trimmed = text.trim();
     const words = trimmed.split(/\s+/).filter(Boolean);

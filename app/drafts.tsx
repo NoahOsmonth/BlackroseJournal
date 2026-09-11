@@ -5,14 +5,14 @@ import { useFocusEffect } from '@react-navigation/native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 
+import { BLACKROSE_PALETTE } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
 import { useIntentionCheckIns } from '@/hooks/intentions/useIntentionCheckIns';
+import { DraftCard } from '@/components/drafts/DraftCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingStatus } from '@/components/ui/LoadingStatus';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { SkeletonText } from '@/components/ui/SkeletonText';
-import { AnimatedRemove } from '@/components/ui/AnimatedRemove';
 import {
     loadSessions,
     removeSession,
@@ -27,11 +27,22 @@ interface DraftItem {
     source: 'journal' | 'checkin';
 }
 
-function formatDraftTime(timestamp: number): string {
+/** "Today, 5:17 pm" — the concept's relative stamp, never a raw date. */
+function formatDraftTime(timestamp: number, now = new Date()): string {
     const date = new Date(timestamp);
-    return `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${
-        date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-    }`;
+    const time = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+        .toLowerCase();
+    const startOfDay = (value: Date) => new Date(
+        value.getFullYear(),
+        value.getMonth(),
+        value.getDate()
+    ).getTime();
+    const dayDelta = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000);
+
+    if (dayDelta === 0) return `Today, ${time}`;
+    if (dayDelta === 1) return `Yesterday, ${time}`;
+    const day = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `${day}, ${time}`;
 }
 
 function sessionTitle(session: ChatSession): string {
@@ -49,8 +60,8 @@ function isIntentionSession(session: ChatSession): boolean {
 
 export default function DraftsScreen() {
     const router = useRouter();
-    const colorScheme = useColorScheme();
-    const iconColor = colorScheme === 'dark' ? '#F9FAFB' : '#111827';
+    const isDark = useColorScheme() === 'dark';
+    const ink = isDark ? BLACKROSE_PALETTE.dark.text : BLACKROSE_PALETTE.light.text;
     const { drafts, isLoading: entriesLoading, remove } = useJournalEntries();
     const { drafts: checkInDrafts, isLoading: checkInsLoading, remove: removeCheckIn } = useIntentionCheckIns();
     const [sortMode, setSortMode] = useState<'recent' | 'title'>('recent');
@@ -81,7 +92,7 @@ export default function DraftsScreen() {
         const journalItems = drafts.map((entry) => ({
             id: entry.id,
             title: entry.title,
-            label: 'Rosebud',
+            label: 'Journal',
             updatedAt: entry.updatedAt,
             source: 'journal' as const,
         }));
@@ -89,7 +100,7 @@ export default function DraftsScreen() {
         const checkInItems = checkInDrafts.map((checkIn) => ({
             id: checkIn.id,
             title: checkIn.summary,
-            label: 'Rosebud / Intention Check-in',
+            label: 'Intention check-in',
             updatedAt: checkIn.updatedAt,
             source: 'checkin' as const,
         }));
@@ -119,13 +130,12 @@ export default function DraftsScreen() {
         actualRemove();
     }, []);
 
-    const handleDelete = async (item: DraftItem) => {
-        if (item.source === 'journal') {
-            handleExited(item.id, () => remove(item.id));
-            return;
-        }
-        handleExited(item.id, () => removeCheckIn(item.id));
-    };
+    const handleDeleteSession = useCallback((session: ChatSession) => {
+        handleExited(session.conversationId, () => {
+            removeSession(session.conversationId);
+            setSessions((prev) => prev.filter((s) => s.conversationId !== session.conversationId));
+        });
+    }, [handleExited]);
 
     const handleResumeSession = (session: ChatSession) => {
         if (isIntentionSession(session)) {
@@ -138,77 +148,66 @@ export default function DraftsScreen() {
         router.push({ pathname: '/chat', params: { resume: session.conversationId } });
     };
 
-    const handleDeleteSession = async (session: ChatSession) => {
-        handleExited(session.conversationId, () => {
-            removeSession(session.conversationId);
-            setSessions((prev) => prev.filter((s) => s.conversationId !== session.conversationId));
-        });
-    };
+    const isLoading = entriesLoading || checkInsLoading || !sessionsLoaded;
+    const activeSessions = sessions.filter((session) => !removedCount[session.conversationId]);
+    const visibleItems = items.filter((item) => !removedCount[item.id]);
 
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
-            <View className="flex-1 max-w-md mx-auto w-full">
-                <View className="flex-row items-center justify-between px-4 py-3">
-                    <View className="flex-row items-center">
-                        <Pressable onPress={() => router.back()} className="p-2 -ml-2">
-                            <MaterialIcons name="arrow-back" size={28} color={iconColor} />
-                        </Pressable>
-                        <Text className="text-2xl font-bold ml-2 text-text-light dark:text-text-dark">Drafts</Text>
-                    </View>
+            <View className="w-full max-w-md flex-1 self-center">
+                <View className="flex-row items-center justify-between px-6 py-4">
                     <Pressable
-                        className="p-2 -mr-2"
-                        accessibilityLabel="Sort drafts"
-                        onPress={() => setSortMode((prev) => (prev === 'recent' ? 'title' : 'recent'))}
+                        onPress={() => router.back()}
+                        className="h-10 w-10 items-center justify-center"
+                        accessibilityLabel="Back"
+                        accessibilityRole="button"
+                        hitSlop={8}
                     >
-                        <MaterialIcons name="sort" size={24} color="#6B7280" />
+                        <MaterialIcons name="chevron-left" size={26} color={ink} />
+                    </Pressable>
+                    <Text
+                        className="text-[22px] text-text-light dark:text-text-dark"
+                        style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                    >
+                        Drafts
+                    </Text>
+                    <Pressable
+                        onPress={() => setSortMode((prev) => (prev === 'recent' ? 'title' : 'recent'))}
+                        className="h-10 min-w-10 items-center justify-center"
+                        accessibilityLabel="Sort drafts"
+                        accessibilityRole="button"
+                        hitSlop={8}
+                    >
+                        <Text className="text-[15px] text-text-light underline dark:text-text-dark">
+                            {sortMode === 'recent' ? 'Recent' : 'Title'}
+                        </Text>
                     </Pressable>
                 </View>
 
-                {entriesLoading || checkInsLoading || !sessionsLoaded ? (
-                                <ScrollView className="flex-1 px-4 pt-2 pb-6" showsVerticalScrollIndicator={false}>
-                                    <LoadingStatus label="Loading drafts" detail="Gathering your works in progress." compact />
-                                    {/* Active sessions skeleton */}
-                                    <View className="mb-6">
-                                        <Skeleton className="h-3 w-20 mb-3" accessibilityLabel="Loading active header" />
-                                        <View className="gap-3">
-                                            {[1, 2, 3].map((index) => (
-                                                <View key={index} className="bg-surface-light dark:bg-card-dark rounded-xl shadow-soft border border-gray-100 dark:border-divider-dark overflow-hidden">
-                                                    <View className="p-4 pb-3">
-                                                        <Skeleton className="h-3 w-16 mb-2" accessibilityLabel={`Loading autosaved label ${index}`} />
-                                                        <Skeleton className="h-4 w-3/4" accessibilityLabel={`Loading session title ${index}`} />
-                                                    </View>
-                                                    <View className="h-px bg-divider-light dark:bg-divider-dark mx-4" />
-                                                    <View className="px-4 py-3 flex-row items-center justify-between">
-                                                        <Skeleton className="h-3 w-32" accessibilityLabel={`Loading session time ${index}`} />
-                                                        <Skeleton className="h-5 w-5 rounded" accessibilityLabel={`Loading delete button ${index}`} />
-                                                    </View>
-                                                </View>
-                                            ))}
-                                        </View>
-                                    </View>
-                                    {/* Saved drafts skeleton */}
-                                    <View className="gap-4">
-                                        <Skeleton className="h-3 w-28 mb-3" accessibilityLabel="Loading saved drafts header" />
-                                        {[1, 2, 3].map((index) => (
-                                            <View key={index} className="bg-surface-light dark:bg-card-dark rounded-xl shadow-soft border border-gray-100 dark:border-divider-dark overflow-hidden">
-                                                <View className="p-4 pb-5">
-                                                    <Skeleton className="h-3 w-20 mb-2" accessibilityLabel={`Loading draft label ${index}`} />
-                                                    <Skeleton className="h-5 w-5/6" accessibilityLabel={`Loading draft title ${index}`} />
-                                                </View>
-                                                <View className="h-px bg-divider-light dark:bg-divider-dark mx-4" />
-                                                <View className="px-4 py-3 flex-row items-center justify-between">
-                                                    <Skeleton className="h-3 w-32" accessibilityLabel={`Loading draft time ${index}`} />
-                                                    <View className="flex-row items-center gap-6">
-                                                        <Skeleton className="h-5 w-5 rounded" accessibilityLabel={`Loading delete ${index}`} />
-                                                        <Skeleton className="h-5 w-16 rounded" accessibilityLabel={`Loading restore ${index}`} />
-                                                    </View>
-                                                </View>
-                                            </View>
-                                        ))}
-                                    </View>
-                                </ScrollView>
-                            ) : sessions.length === 0 && items.length === 0 ? (
-                    <View className="flex-1 px-6 items-center justify-center">
+                <View className="h-px w-full bg-hairline-light dark:bg-hairline-dark" />
+
+                {isLoading ? (
+                    <ScrollView className="flex-1 px-6 pt-6" showsVerticalScrollIndicator={false}>
+                        <LoadingStatus
+                            label="Loading drafts"
+                            detail="Gathering your works in progress."
+                            compact
+                        />
+                        <View className="mt-6 gap-4">
+                            {[1, 2, 3].map((index) => (
+                                <View
+                                    key={index}
+                                    className="gap-3 rounded-card border border-hairline-light bg-surface-light p-6 dark:border-hairline-dark dark:bg-surface-dark"
+                                >
+                                    <Skeleton className="h-3 w-20" accessibilityLabel={`Loading draft label ${index}`} />
+                                    <Skeleton className="h-5 w-5/6" accessibilityLabel={`Loading draft title ${index}`} />
+                                    <Skeleton className="h-3 w-32" accessibilityLabel={`Loading draft time ${index}`} />
+                                </View>
+                            ))}
+                        </View>
+                    </ScrollView>
+                ) : activeSessions.length === 0 && visibleItems.length === 0 ? (
+                    <View className="flex-1 items-center justify-center px-6">
                         <EmptyState
                             icon="edit-note"
                             title="No drafts yet"
@@ -216,122 +215,41 @@ export default function DraftsScreen() {
                         />
                     </View>
                 ) : (
-                <ScrollView className="flex-1 px-4 pt-2 pb-6" showsVerticalScrollIndicator={false}>
-                    {sessions.length > 0 && (
-                        <View className="mb-6">
-                            <Text className="text-[12px] font-semibold tracking-wider text-text-secondary-light dark:text-text-secondary-dark uppercase mb-3">
-                                Active
-                            </Text>
-                            <View className="gap-3">
-                                {sessions
-                                    .filter((session) => !removedCount[session.conversationId])
-                                    .map((session) => (
-                                        <AnimatedRemove
-                                            key={session.conversationId}
-                                            removing={removingId === session.conversationId}
-                                            onExited={() =>
-                                                handleExited(session.conversationId, () => {
-                                                    removeSession(session.conversationId);
-                                                    setSessions((prev) =>
-                                                        prev.filter((s) => s.conversationId !== session.conversationId)
-                                                    );
-                                                })
-                                            }
-                                        >
-                                            <Pressable
-                                                onPress={() => handleResumeSession(session)}
-                                                accessibilityLabel="Resume session"
-                                                className="bg-surface-light dark:bg-card-dark rounded-xl shadow-soft border border-gray-100 dark:border-divider-dark overflow-hidden active:opacity-80"
-                                            >
-                                                <View className="p-4 pb-3">
-                                                    <Text className="text-[11px] font-semibold tracking-wider text-primary uppercase mb-2">
-                                                        Autosaved
-                                                    </Text>
-                                                    <Text
-                                                        className="text-[16px] leading-snug font-medium text-text-light dark:text-text-dark"
-                                                        numberOfLines={2}
-                                                    >
-                                                        {sessionTitle(session)}
-                                                    </Text>
-                                                </View>
-                                                <View className="h-px bg-divider-light dark:bg-divider-dark mx-4" />
-                                                <View className="px-4 py-3 flex-row items-center justify-between">
-                                                    <Text className="text-[13px] text-text-secondary-light dark:text-text-secondary-dark font-medium">
-                                                        {formatDraftTime(session.updatedAt)}
-                                                    </Text>
-                                                    <Pressable
-                                                        onPress={() => handleRemoveItem(session.conversationId)}
-                                                        accessibilityLabel="Delete session"
-                                                        hitSlop={8}
-                                                    >
-                                                        <MaterialIcons name="delete" size={20} color="#9CA3AF" />
-                                                    </Pressable>
-                                                </View>
-                                            </Pressable>
-                                        </AnimatedRemove>
-                                    ))}
-                            </View>
-                        </View>
-                    )}
-
-                    {sessions.length > 0 && items.length > 0 && (
-                        <Text className="text-[12px] font-semibold tracking-wider text-text-secondary-light dark:text-text-secondary-dark uppercase mb-3">
-                            Saved drafts
-                        </Text>
-                    )}
-
-                    <View className="gap-4">
-                        {items
-                            .filter((item) => !removedCount[item.id])
-                            .map((item) => (
-                                <AnimatedRemove
-                                    key={item.id}
-                                    removing={removingId === item.id}
-                                    onExited={() =>
-                                        handleExited(item.id, () => {
-                                            if (item.source === 'journal') {
-                                                remove(item.id);
-                                            } else {
-                                                removeCheckIn(item.id);
-                                            }
-                                        })
-                                    }
-                                >
-                                    <View
-                                        className="bg-surface-light dark:bg-card-dark rounded-xl shadow-soft border border-gray-100 dark:border-divider-dark overflow-hidden"
-                                    >
-                                        <View className="p-4 pb-5">
-                                            <Text className="text-[11px] font-semibold tracking-wider text-text-secondary-light dark:text-text-secondary-dark uppercase mb-2">
-                                                {item.label}
-                                            </Text>
-                                            <Text
-                                                className="text-[17px] leading-snug font-medium text-text-light dark:text-text-dark"
-                                                numberOfLines={2}
-                                            >
-                                                {item.title}
-                                            </Text>
-                                        </View>
-                                        <View className="h-px bg-divider-light dark:bg-divider-dark mx-4" />
-                                        <View className="px-4 py-3 flex-row items-center justify-between">
-                                            <Text className="text-[13px] text-text-secondary-light dark:text-text-secondary-dark font-medium">
-                                                {formatDraftTime(item.updatedAt)}
-                                            </Text>
-                                            <View className="flex-row items-center gap-6">
-                                                <Pressable onPress={() => handleRemoveItem(item.id)} accessibilityLabel="Delete draft">
-                                                    <MaterialIcons name="delete" size={20} color="#9CA3AF" />
-                                                </Pressable>
-                                                <Pressable onPress={() => handleRestore(item)} accessibilityLabel="Restore draft">
-                                                    <Text className="text-[15px] font-bold text-text-light dark:text-text-dark">
-                                                        Restore
-                                                    </Text>
-                                                </Pressable>
-                                            </View>
-                                        </View>
-                                    </View>
-                                </AnimatedRemove>
+                    <ScrollView className="flex-1 px-6 pt-6 pb-8" showsVerticalScrollIndicator={false}>
+                        <View className="gap-4">
+                            {activeSessions.map((session) => (
+                                <DraftCard
+                                    key={session.conversationId}
+                                    label="Autosaved"
+                                    title={sessionTitle(session)}
+                                    timeLabel={formatDraftTime(session.updatedAt)}
+                                    removing={removingId === session.conversationId}
+                                    onPress={() => handleResumeSession(session)}
+                                    onDelete={() => handleRemoveItem(session.conversationId)}
+                                    onExited={() => handleDeleteSession(session)}
+                                />
                             ))}
-                    </View>
-                </ScrollView>
+
+                            {visibleItems.map((item) => (
+                                <DraftCard
+                                    key={item.id}
+                                    label={item.label}
+                                    title={item.title}
+                                    timeLabel={formatDraftTime(item.updatedAt)}
+                                    removing={removingId === item.id}
+                                    onDelete={() => handleRemoveItem(item.id)}
+                                    onRestore={() => handleRestore(item)}
+                                    onExited={() => handleExited(item.id, () => {
+                                        if (item.source === 'journal') {
+                                            remove(item.id);
+                                        } else {
+                                            removeCheckIn(item.id);
+                                        }
+                                    })}
+                                />
+                            ))}
+                        </View>
+                    </ScrollView>
                 )}
             </View>
         </SafeAreaView>

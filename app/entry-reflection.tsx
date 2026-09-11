@@ -1,14 +1,19 @@
 /**
  * Entry Reflection Screen
  * Shown immediately after finishing a journal entry.
+ *
+ * Presentation follows `black-rose-entry-reflection.png`: Close, a serif
+ * “Your entry is saved.” hero, a bordered Reflection card carrying the rose
+ * mark, the Helpful / Not quite pair, “Tell us more”, and one outline action.
  */
 
 import { EntryReflectionSkeleton } from '@/components/entries/EntryReflectionSkeleton';
 import { FinishBackgroundBanner } from '@/components/entries/FinishBackgroundBanner';
 import { FeedbackCommentModal } from '@/components/intentions/FeedbackCommentModal';
+import { RoseMark } from '@/components/ui/RoseMark';
+import { BLACKROSE_PALETTE } from '@/constants/theme';
 import { useFinishBackgroundStatus } from '@/hooks/journal/useFinishBackgroundStatus';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useThemeColor } from '@/hooks/use-theme-color';
 import { useEntryReflection } from '@/hooks/useEntryReflection';
 import type { AiFeedbackValue } from '@/services/feedback/feedbackStorage';
 import { saveAiFeedback } from '@/services/feedback/feedbackStorage';
@@ -18,6 +23,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+const SERIF = { fontFamily: 'PlayfairDisplayRegular' };
+
 type EntryReflectionParams = {
     entryId?: string;
 };
@@ -25,10 +32,10 @@ type EntryReflectionParams = {
 export default function EntryReflectionScreen() {
     const router = useRouter();
     const params = useLocalSearchParams<EntryReflectionParams>();
-    const colorScheme = useColorScheme();
-    const isDark = colorScheme === 'dark';
-    const primaryColor = useThemeColor({}, 'primary');
-    const inactiveFeedbackColor = isDark ? '#A1A1AA' : '#71717A';
+    const isDark = useColorScheme() === 'dark';
+    const inkColor = isDark ? BLACKROSE_PALETTE.dark.text : BLACKROSE_PALETTE.light.text;
+    const mutedColor = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
+    const accentColor = isDark ? BLACKROSE_PALETTE.dark.accent : BLACKROSE_PALETTE.light.accent;
     const [feedbackValue, setFeedbackValue] = useState<AiFeedbackValue | null>(null);
     const [pendingFeedback, setPendingFeedback] = useState<{
         value: AiFeedbackValue;
@@ -63,6 +70,10 @@ export default function EntryReflectionScreen() {
         router.push({ pathname: '/streak-haiku', params: { entryId } });
     };
 
+    const openFeedback = (value: AiFeedbackValue) => {
+        setPendingFeedback({ value, comment: '' });
+    };
+
     const handleSaveFeedback = async () => {
         if (!pendingFeedback || !data) return;
         await saveAiFeedback({
@@ -77,53 +88,49 @@ export default function EntryReflectionScreen() {
         setPendingFeedback(null);
     };
 
+    const canContinue = !isLoading && !error && Boolean(data);
+
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
             <View className="flex-1 max-w-md mx-auto w-full">
-                {/* Header */}
-                <View className="flex-row items-center justify-between px-4 py-4">
+                <View className="min-h-[56px] flex-row items-center justify-end px-5">
                     <Pressable
                         onPress={handleBack}
-                        className="p-2 -ml-2"
+                        className="min-h-11 justify-center"
+                        accessibilityRole="button"
                         accessibilityLabel="Back to entries"
                     >
-                        <MaterialIcons
-                            name="arrow-back"
-                            size={24}
-                            color={isDark ? '#E5E5E7' : '#1C1C1E'}
-                        />
+                        <Text className="text-[17px] text-text-light dark:text-text-dark">Close</Text>
                     </Pressable>
-
-                    <Text className="text-xl font-bold text-text-main-light dark:text-text-main-dark">
-                        Entry Reflection
-                    </Text>
-
-                    <View className="flex-row items-center">
-                        <Pressable
-                            onPress={() => { }}
-                            className="p-2"
-                            accessibilityLabel="Share reflection"
-                        >
-                            <MaterialIcons
-                                name="share"
-                                size={22}
-                                color={isDark ? '#E5E5E7' : '#1C1C1E'}
-                            />
-                        </Pressable>
-                    </View>
                 </View>
+
+                <View className="h-px bg-hairline-light dark:bg-hairline-dark" />
 
                 <FinishBackgroundBanner />
 
-                <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
+                <ScrollView
+                    className="flex-1 px-5"
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={{ paddingTop: 32, paddingBottom: 32 }}
+                >
+                    <Text
+                        className="text-[40px] leading-[48px] text-text-light dark:text-text-dark"
+                        style={SERIF}
+                    >
+                        Your entry is saved.
+                    </Text>
+                    <Text className="mt-3 text-[16px] leading-[24px] text-text-secondary-light dark:text-text-secondary-dark">
+                        A private reflection is ready.
+                    </Text>
+
                     {isLoading && <EntryReflectionSkeleton />}
 
                     {!isLoading && error && (
-                        <View className="p-4 rounded-xl bg-surface-light dark:bg-surface-dark">
-                            <Text className="text-text-main-light dark:text-text-main-dark font-semibold">
+                        <View className="mt-8 rounded-card border border-hairline-light bg-surface-light p-5 dark:border-hairline-dark dark:bg-surface-dark">
+                            <Text className="text-[16px] text-text-light dark:text-text-dark">
                                 Couldn’t load reflection
                             </Text>
-                            <Text className="mt-1 text-sm text-text-secondary-light dark:text-text-secondary-dark">
+                            <Text className="mt-1.5 text-[14px] text-text-secondary-light dark:text-text-secondary-dark">
                                 {error}
                             </Text>
                         </View>
@@ -131,114 +138,142 @@ export default function EntryReflectionScreen() {
 
                     {!isLoading && !error && data && (
                         <>
-                            {/* Reflection card */}
-                            <View className="p-5 rounded-2xl bg-surface-light dark:bg-surface-dark shadow-card">
-                                <Text className="text-base leading-6 text-text-main-light dark:text-text-main-dark">
+                            <View className="mt-8 rounded-card border border-hairline-light bg-surface-light p-5 dark:border-hairline-dark dark:bg-surface-dark">
+                                <View className="flex-row items-center gap-3">
+                                    <RoseMark size={26} color={accentColor} strokeWidth={1.3} variant="sprig" />
+                                    <Text
+                                        className="text-[22px] text-text-light dark:text-text-dark"
+                                        style={SERIF}
+                                    >
+                                        Reflection
+                                    </Text>
+                                </View>
+
+                                <View className="mt-4 h-px bg-hairline-light dark:bg-hairline-dark" />
+
+                                <Text
+                                    className="mt-5 text-[20px] leading-[32px] text-text-light dark:text-text-dark"
+                                    style={SERIF}
+                                >
                                     {data.reflection}
                                 </Text>
-
-                                {/* Feedback */}
-                                <View className="flex-row items-center justify-between mt-4 pt-4 border-t border-divider-light dark:border-divider-dark">
-                                    <Text className="text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide">
-                                        Feedback
-                                    </Text>
-                                    <View className="flex-row items-center">
-                                        <Pressable
-                                            onPress={() => setPendingFeedback({
-                                                value: 'up',
-                                                comment: '',
-                                            })}
-                                            className="p-2"
-                                            accessibilityLabel="Thumbs up"
-                                        >
-                                            <MaterialIcons
-                                                name="thumb-up-off-alt"
-                                                size={20}
-                                                color={feedbackValue === 'up'
-                                                    ? primaryColor
-                                                    : inactiveFeedbackColor}
-                                            />
-                                        </Pressable>
-                                        <Pressable
-                                            onPress={() => setPendingFeedback({
-                                                value: 'down',
-                                                comment: '',
-                                            })}
-                                            className="p-2"
-                                            accessibilityLabel="Thumbs down"
-                                        >
-                                            <MaterialIcons
-                                                name="thumb-down-off-alt"
-                                                size={20}
-                                                color={feedbackValue === 'down'
-                                                    ? primaryColor
-                                                    : inactiveFeedbackColor}
-                                            />
-                                        </Pressable>
-                                    </View>
-                                </View>
                             </View>
 
-                            {/* Key insight */}
-                            <View className="mt-4">
-                                <Text className="text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide mb-3 ml-1">
-                                    Key Insight
-                                </Text>
-                                <View className="p-5 rounded-2xl bg-surface-light dark:bg-surface-dark">
-                                    <Text className="text-base leading-6 text-text-main-light dark:text-text-main-dark">
-                                        {data.keyInsight}
-                                    </Text>
-                                </View>
-                            </View>
-
-                            {/* Suggestions CTA */}
-                            <View className="mt-4">
+                            <View className="mt-6 flex-row overflow-hidden rounded-card border border-hairline-light dark:border-hairline-dark">
                                 <Pressable
-                                    onPress={handleOpenSuggestions}
-                                    className="flex-row items-center justify-between p-5 rounded-2xl bg-surface-light dark:bg-surface-dark"
-                                    accessibilityLabel="Open suggestions"
+                                    onPress={() => openFeedback('up')}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Thumbs up"
+                                    accessibilityState={{ selected: feedbackValue === 'up' }}
+                                    className="min-h-[64px] flex-1 flex-row items-center justify-center gap-2.5 active:opacity-70"
                                 >
-                                    <View>
-                                        <Text className="text-base font-bold text-text-main-light dark:text-text-main-dark">
-                                            Suggestions
-                                        </Text>
-                                        <Text className="mt-1 text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                                            Turn today’s reflection into a small habit.
-                                        </Text>
-                                    </View>
-                                    <View className="flex-row items-center">
-                                        <Text className="text-sm font-bold text-primary mr-2">
-                                            {data.suggestions.length}
-                                        </Text>
-                                        <MaterialIcons
-                                            name="chevron-right"
-                                            size={24}
-                                            color={isDark ? '#E5E5E7' : '#1C1C1E'}
-                                        />
-                                    </View>
+                                    <MaterialIcons
+                                        name="thumb-up-off-alt"
+                                        size={22}
+                                        color={feedbackValue === 'up' ? accentColor : mutedColor}
+                                    />
+                                    <Text className="text-[17px] text-text-light dark:text-text-dark">
+                                        Helpful
+                                    </Text>
+                                </Pressable>
+
+                                <View className="w-px bg-hairline-light dark:bg-hairline-dark" />
+
+                                <Pressable
+                                    onPress={() => openFeedback('down')}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Thumbs down"
+                                    accessibilityState={{ selected: feedbackValue === 'down' }}
+                                    className="min-h-[64px] flex-1 flex-row items-center justify-center gap-2.5 active:opacity-70"
+                                >
+                                    <MaterialIcons
+                                        name="thumb-down-off-alt"
+                                        size={22}
+                                        color={feedbackValue === 'down' ? accentColor : mutedColor}
+                                    />
+                                    <Text className="text-[17px] text-text-light dark:text-text-dark">
+                                        Not quite
+                                    </Text>
                                 </Pressable>
                             </View>
+
+                            <Pressable
+                                onPress={() => openFeedback(feedbackValue ?? 'up')}
+                                accessibilityRole="button"
+                                accessibilityLabel="Tell us more"
+                                className="mt-4 min-h-11 flex-row items-center justify-center gap-2 active:opacity-70"
+                            >
+                                <MaterialIcons name="chat-bubble-outline" size={20} color={mutedColor} />
+                                <Text className="text-[16px] text-text-secondary-light dark:text-text-secondary-dark">
+                                    Tell us more
+                                </Text>
+                            </Pressable>
+
+                            {data.keyInsight ? (
+                                <View className="mt-8 gap-3">
+                                    <Text className="text-[11px] uppercase tracking-[1.5px] text-text-secondary-light dark:text-text-secondary-dark">
+                                        Key insight
+                                    </Text>
+                                    <View className="rounded-card border border-hairline-light bg-surface-light p-5 dark:border-hairline-dark dark:bg-surface-dark">
+                                        <Text className="text-[16px] leading-[25px] text-text-light dark:text-text-dark">
+                                            {data.keyInsight}
+                                        </Text>
+                                    </View>
+                                </View>
+                            ) : null}
+
+                            <Pressable
+                                onPress={handleOpenSuggestions}
+                                accessibilityRole="button"
+                                accessibilityLabel="Open suggestions"
+                                className="mt-8 min-h-[64px] flex-row items-center justify-between border-t border-hairline-light px-1 dark:border-hairline-dark"
+                            >
+                                <View className="min-w-0 flex-1">
+                                    <Text className="text-[17px] text-text-light dark:text-text-dark">
+                                        Suggestions
+                                    </Text>
+                                    <Text className="mt-1 text-[14px] text-text-secondary-light dark:text-text-secondary-dark">
+                                        Turn today’s reflection into a small habit.
+                                    </Text>
+                                </View>
+                                <View className="flex-row items-center gap-1.5">
+                                    <Text className="text-[15px] text-text-secondary-light dark:text-text-secondary-dark">
+                                        {data.suggestions.length}
+                                    </Text>
+                                    <MaterialIcons name="chevron-right" size={22} color={mutedColor} />
+                                </View>
+                            </Pressable>
                         </>
                     )}
-
-                    <View className="h-28" />
                 </ScrollView>
 
-                {/* Sticky continue */}
-                <View className="px-4 pb-6 pt-3 border-t border-divider-light dark:border-divider-dark bg-background-light dark:bg-background-dark">
+                <View className="border-t border-hairline-light px-5 pb-6 pt-5 dark:border-hairline-dark">
                     <Pressable
                         onPress={handleContinue}
-                        disabled={isLoading || !!error || !data}
+                        disabled={!canContinue}
+                        accessibilityRole="button"
                         accessibilityLabel="Continue"
-                        className={`py-4 rounded-2xl items-center justify-center ${isLoading || !!error || !data ? 'bg-slate-200 dark:bg-slate-800' : 'bg-primary'
-                            }`}
+                        accessibilityState={{ disabled: !canContinue }}
+                        className={`min-h-[56px] flex-row items-center justify-center gap-3 rounded-control border ${
+                            canContinue
+                                ? 'border-bone-light dark:border-bone-dark'
+                                : 'border-hairline-light dark:border-hairline-dark'
+                        }`}
                     >
-                        <Text className={`text-[15px] font-bold ${isLoading || !!error || !data ? 'text-text-secondary-light dark:text-text-secondary-dark' : 'text-white'
-                            }`}>
+                        <MaterialIcons name="menu-book" size={22} color={canContinue ? inkColor : mutedColor} />
+                        <Text
+                            className={`text-[19px] ${
+                                canContinue
+                                    ? 'text-text-light dark:text-text-dark'
+                                    : 'text-text-secondary-light dark:text-text-secondary-dark'
+                            }`}
+                            style={SERIF}
+                        >
                             Continue
                         </Text>
                     </Pressable>
                 </View>
+
                 <FeedbackCommentModal
                     visible={pendingFeedback !== null}
                     value={pendingFeedback?.value ?? 'up'}

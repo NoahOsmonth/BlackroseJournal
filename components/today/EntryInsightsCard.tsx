@@ -1,7 +1,9 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useThemeColor } from '@/hooks/theme/use-theme-color';
+
+import { BLACKROSE_PALETTE } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 interface EntryInsightsCardProps {
     question: string;
@@ -11,6 +13,11 @@ interface EntryInsightsCardProps {
     onPress?: () => void;
 }
 
+/**
+ * The day's question, set as the one serif moment on an otherwise quiet surface.
+ * Actions are outline-free glyphs in the muted ink so they never compete with
+ * the sentence.
+ */
 export function EntryInsightsCard({
     question,
     onRefresh,
@@ -18,14 +25,15 @@ export function EntryInsightsCard({
     onMore,
     onPress,
 }: EntryInsightsCardProps) {
-    const iconColor = useThemeColor({}, 'icon');
+    const isDark = useColorScheme() === 'dark';
+    const iconColor = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
 
     return (
         <View className="gap-3">
-            <Text className="text-[13px] font-semibold text-text-secondary-light dark:text-text-secondary-dark text-center">
+            <Text className="text-center text-[12px] uppercase tracking-[1.5px] text-text-secondary-light dark:text-text-secondary-dark">
                 Based on your entries
             </Text>
-            <View className="bg-surface-light dark:bg-surface-dark rounded-[20px] p-5 shadow-soft border border-gray-100 dark:border-white/5 gap-4">
+            <View className="gap-5 rounded-card border border-hairline-light bg-surface-light p-5 dark:border-hairline-dark dark:bg-surface-dark">
                 <Pressable
                     onPress={onPress}
                     disabled={!onPress}
@@ -34,34 +42,40 @@ export function EntryInsightsCard({
                     className="active:opacity-80"
                 >
                     <Text
-                        className="text-[16px] leading-relaxed text-center font-medium text-text-light dark:text-text-dark"
+                        className="text-center text-[19px] leading-8 text-text-light dark:text-text-dark"
                         numberOfLines={6}
+                        style={{ fontFamily: 'PlayfairDisplayRegular' }}
                     >
                         {question}
                     </Text>
                 </Pressable>
 
-                <View className="flex-row items-center justify-center gap-8">
+                <View className="h-px w-full bg-hairline-light dark:bg-hairline-dark" />
+
+                <View className="flex-row items-center justify-center gap-10">
                     <Pressable
                         onPress={(e) => { e.stopPropagation(); onRefresh(); }}
                         hitSlop={8}
+                        accessibilityRole="button"
                         accessibilityLabel="Refresh insight"
                     >
-                        <MaterialIcons name="sync" size={24} color={iconColor} />
+                        <MaterialIcons name="sync" size={20} color={iconColor} />
                     </Pressable>
                     <Pressable
                         onPress={(e) => { e.stopPropagation(); onBookmark(); }}
                         hitSlop={8}
+                        accessibilityRole="button"
                         accessibilityLabel="Save insight"
                     >
-                        <MaterialIcons name="bookmark" size={24} color={iconColor} />
+                        <MaterialIcons name="bookmark-border" size={20} color={iconColor} />
                     </Pressable>
                     <Pressable
                         onPress={(e) => { e.stopPropagation(); onMore(); }}
                         hitSlop={8}
+                        accessibilityRole="button"
                         accessibilityLabel="More options"
                     >
-                        <MaterialIcons name="more-horiz" size={24} color={iconColor} />
+                        <MaterialIcons name="more-horiz" size={20} color={iconColor} />
                     </Pressable>
                 </View>
             </View>

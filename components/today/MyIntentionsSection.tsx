@@ -1,22 +1,21 @@
+/**
+ * MyIntentionsSection — intentions as text rows separated by hairlines.
+ *
+ * The old grid of emoji tiles is gone, and so is the "+ Add" chip in the
+ * section label: the concept lists intentions as plain prose rows with one
+ * quiet add row at the end.
+ */
+
 import React from 'react';
-import { Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+
 import { Intention } from '@/services/intentions/intentionsStorage.types';
-import { IntentionCard } from '@/components/intentions/IntentionCard';
-import { AddIntentionCard } from '@/components/intentions/AddIntentionCard';
+import { SectionLabel } from '@/components/ui/SectionLabel';
 
 interface MyIntentionsSectionProps {
     intentions: Intention[];
     onAdd: () => void;
     onSelect: (intention: Intention) => void;
-}
-
-/** Half-width cell with horizontal padding so 50%+50% never overflows with gap. */
-function GridCell({ children }: { children: React.ReactNode }) {
-    return (
-        <View style={{ width: '50%', paddingHorizontal: 6, marginBottom: 12 }}>
-            {children}
-        </View>
-    );
 }
 
 export function MyIntentionsSection({
@@ -25,29 +24,57 @@ export function MyIntentionsSection({
     onSelect,
 }: MyIntentionsSectionProps) {
     const cards = intentions.slice(0, 3);
-    const hasIntentions = cards.length > 0;
 
     return (
-        <View className="gap-3">
-            <Text className="text-[13px] font-semibold text-text-secondary-light dark:text-text-secondary-dark ml-1">
-                My intentions
-            </Text>
-            {hasIntentions ? (
-                <View className="flex-row flex-wrap" style={{ marginHorizontal: -6 }}>
-                    {cards.map((intention) => (
-                        <GridCell key={intention.id}>
-                            <IntentionCard
-                                intention={intention}
+        <View className="gap-2">
+            <SectionLabel>Intentions</SectionLabel>
+
+            {cards.length > 0 ? (
+                <View>
+                    {cards.map((intention, index) => (
+                        <View key={intention.id}>
+                            <Pressable
                                 onPress={() => onSelect(intention)}
-                            />
-                        </GridCell>
+                                className="py-4"
+                                accessibilityLabel={`Open intention ${intention.title}`}
+                                accessibilityRole="button"
+                            >
+                                <Text
+                                    className="text-[16px] text-text-light dark:text-text-dark"
+                                    numberOfLines={2}
+                                >
+                                    {intention.title}
+                                </Text>
+                            </Pressable>
+                            {index < cards.length - 1 ? (
+                                <View className="h-px bg-hairline-light dark:bg-hairline-dark" />
+                            ) : null}
+                        </View>
                     ))}
-                    <GridCell>
-                        <AddIntentionCard onPress={onAdd} />
-                    </GridCell>
+
+                    <View className="h-px bg-hairline-light dark:bg-hairline-dark" />
+                    <Pressable
+                        onPress={onAdd}
+                        accessibilityLabel="Add intention"
+                        accessibilityRole="button"
+                        className="py-4"
+                    >
+                        <Text className="text-[16px] text-text-secondary-light dark:text-text-secondary-dark">
+                            Add intention
+                        </Text>
+                    </Pressable>
                 </View>
             ) : (
-                <AddIntentionCard onPress={onAdd} variant="full" />
+                <Pressable
+                    onPress={onAdd}
+                    accessibilityLabel="Add intention"
+                    accessibilityRole="button"
+                    className="py-4"
+                >
+                    <Text className="text-[16px] text-text-secondary-light dark:text-text-secondary-dark">
+                        Set an intention
+                    </Text>
+                </Pressable>
             )}
         </View>
     );

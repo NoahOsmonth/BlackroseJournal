@@ -211,26 +211,29 @@ View-model types must not reuse a stored type's name (e.g. `MemoryGraphAtom` is 
 - `services/memory/` — localMemory atoms + day digests + graph helpers; `services/memory/hindsight/` is the Hindsight client (retain/recall/reflect, soft-fail).
 - `backend/` — Node AI proxy (optional local agent). AI provider config lives in `backend/src/config/ai/`. **`NANO_GPT_*` env names are legacy.** Production chat remains **device-direct** (`directTransport.ts`); the backend is not part of the chat path.
 - `example-design/` — HTML/CSS reference prototypes. Not deployed. Copy patterns out; never modify.
+- `example-design/concepts/generated/` — **Blackrose design-source PNGs** (quiet literary system). Read these before any UI work; do not treat old Rosebud HTML as the target look.
+- `example-design/concepts/UI_MAP.md` + `docs/plans/blackrose-design-rewrite.md` — screen inventory and rewrite plan.
 - `assets/` — embedded HTML engines, fonts, images. `notes/` — dev docs. `supabase/` — migrations + email templates. `scripts/` — build/CI tooling (includes `generate-rosebud-prompt.mjs`).
 
 ### Prototype Files Validation Strategy
 
-`example-design/` is the single source of truth for visual reference. Production code never imports from it. When porting a pattern:
+**Blackrose is the active visual target.** Generated concept images in `example-design/concepts/generated/` are the source of truth for look and layout. Production code never imports `example-design/`. When changing any UI:
 
-1. Read the prototype in `example-design/`, identify the design tokens (colors, spacing, typography) used.
-2. If a token is missing in `tailwind.config.js` or `constants/theme.ts`, add it there first — never inline a raw hex / `space-y-*` / hardcoded pixel value in `app/` or `components/`.
-3. Port the markup into React Native + NativeWind. Do not copy the HTML/CSS literally; map Tailwind classes 1:1 and confirm the dark-variant side.
-4. For high-frequency rendering layers (e.g. `assets/memory-graph/engine.html`), the runtime engine lives under `assets/`, **not** in `example-design/`. The prototype in `example-design/` is a design reference only.
-5. If you change a prototype, you do not change production code in the same diff. The port is a separate, reviewable change.
+1. **Open the concept image first** (`Read` / view the PNG under `example-design/concepts/generated/` for that screen). Use `UI_MAP.md` concept ↔ production mapping if unsure which file. Do not port from memory or from the old Rosebud HTML alone.
+2. **Optional HTML reference:** `example-design/updated/**` and `example-design/*.html` are historical Rosebud layouts — useful only for “what the old product did,” never as the rewrite target. New HTML prototypes belong under `example-design/blackrose/**` (read-only to production).
+3. Identify tokens (colors, spacing, typography) from the concept + this plan. If a token is missing in `tailwind.config.js` or `constants/theme.ts`, add it there first — never inline a raw hex / `space-y-*` / hardcoded pixel value in `app/` or `components/`.
+4. Port into React Native + NativeWind. Map structure 1:1 from the concept; always confirm the **light and dark** scheme (rule 1).
+5. For high-frequency rendering layers (e.g. `assets/memory-graph/engine.html`), the runtime engine lives under `assets/`, **not** in `example-design/`. Push theme via `SET_THEME`.
+6. Changing a prototype/concept is not a production change. Port is a separate, reviewable diff.
 
-Validation: a change is not "done" until the produced screen has been light/dark mode QA'd and the `npm run check:design`, `npx tsc --noEmit`, `npm run lint`, and `npm test` gates are all green.
+Validation: a change is not "done" until the produced screen has been light/dark mode QA'd **against the concept image** and the `npm run check:design`, `npx tsc --noEmit`, `npm run lint`, and `npm test` gates are all green.
 
 ## What NOT to touch
 
 - Lockfiles (`package-lock.json`, etc.).
 - `supabase/migrations/` — new migration file only; never edit an applied one.
 - `node_modules/`, `dist/`, `.expo/`, build outputs; anything `// DO NOT EDIT` or `@generated` (regenerate from source instead).
-- `example-design/`.
+- `example-design/**` for writes (old HTML prototypes, `concepts/generated/*.png`). **Read** concepts freely; do not edit or delete them. New HTML refs → `example-design/blackrose/**` only when explicitly prototyping.
 
 ## Concrete commands
 
@@ -265,8 +268,8 @@ Project root `.env` (gitignored):
 ```
 EXPO_PUBLIC_NANO_GPT_API_KEY=...          # OmniRoute data-plane key
 EXPO_PUBLIC_NANO_GPT_API_BASE_URL=http://100.107.7.52:20128/v1
-EXPO_PUBLIC_NANO_GPT_MODEL=cl/dots-studio/dots-3-note-preview:free
-EXPO_PUBLIC_NANO_GPT_FLASH_MODEL=cl/dots-studio/dots-3-note-preview:free
+EXPO_PUBLIC_NANO_GPT_MODEL=merge/deepseek/deepseek-v4-flash-0731
+EXPO_PUBLIC_NANO_GPT_FLASH_MODEL=merge/deepseek/deepseek-v4-flash-0731
 ```
 Names are legacy (`NANO_GPT_*`); the local OmniRoute gateway is the only supported provider (OpenRouter removed 2026-09-10). Prefer free models with **≥32k** context when using the long freeform prompt.
 

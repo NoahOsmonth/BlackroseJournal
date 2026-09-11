@@ -16,8 +16,8 @@ A React Native/Expo chat journal application with AI integration.
 
    - `EXPO_PUBLIC_NANO_GPT_API_KEY` (required for direct on-phone AI calls; use an OmniRoute data-plane key)
    - `EXPO_PUBLIC_NANO_GPT_API_BASE_URL` (defaults to the local OmniRoute gateway `http://100.107.7.52:20128/v1`)
-   - `EXPO_PUBLIC_NANO_GPT_MODEL` (defaults to `cl/dots-studio/dots-3-note-preview:free`)
-   - `EXPO_PUBLIC_NANO_GPT_FLASH_MODEL` (defaults to `cl/dots-studio/dots-3-note-preview:free`)
+   - `EXPO_PUBLIC_NANO_GPT_MODEL` (defaults to `merge/deepseek/deepseek-v4-flash-0731`)
+   - `EXPO_PUBLIC_NANO_GPT_FLASH_MODEL` (defaults to `merge/deepseek/deepseek-v4-flash-0731`)
 
    The app no longer requires Railway, SimpleMem, or a backend agent for chat.
    The key is bundled into local device builds, so keep `.env` uncommitted and

@@ -46,7 +46,7 @@ export function InsightMoreOptionsModal({
                     style={{ paddingBottom: insets.bottom + 24 }}
                     onTouchEnd={(e) => e.stopPropagation()}
                 >
-                    <Text className="text-sm font-semibold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide mb-4">
+                    <Text className="mb-4 text-[12px] uppercase tracking-[1.5px] text-text-secondary-light dark:text-text-secondary-dark">
                         More options
                     </Text>
                     <View className="gap-1">

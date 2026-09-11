@@ -16,10 +16,15 @@ import {
 } from 'react-native-confetti-reanimated';
 
 import { SuccessOverlay } from './SuccessOverlay';
+import { BLACKROSE_PALETTE } from '@/constants/theme';
 
-const PRIMARY = '#FF9F0A';
-const PRIMARY_DARK = '#FFB340';
-const CONFETTI_COLORS = [PRIMARY, PRIMARY_DARK, '#FFFFFF'];
+/** Quiet bone burst — the celebration stays inside the Blackrose palette. */
+const CONFETTI_COLORS = [
+    BLACKROSE_PALETTE.dark.accent,
+    BLACKROSE_PALETTE.dark.accentStrong,
+    BLACKROSE_PALETTE.light.accent,
+    BLACKROSE_PALETTE.dark.text2,
+];
 
 interface EntryFinishCelebrationProps {
     /** Called when the celebration auto-dismisses (3s) or the overlay is tapped. */
@@ -67,14 +72,14 @@ export function EntryFinishCelebration({ onDismiss }: EntryFinishCelebrationProp
         transform: [{ scale: iconScale.value }],
     }));
 
-    const accent = isDark ? PRIMARY_DARK : PRIMARY;
+    const accent = isDark ? BLACKROSE_PALETTE.dark.accent : BLACKROSE_PALETTE.light.accent;
 
     return (
         <View className="absolute inset-0">
             <SuccessOverlay
                 visible
                 icon="check-circle"
-                message="Entry saved ✨"
+                message="Entry saved"
                 onDismiss={onDismiss}
             />
 
@@ -87,9 +92,9 @@ export function EntryFinishCelebration({ onDismiss }: EntryFinishCelebrationProp
                     <MaterialIcons name="check-circle" size={76} color={accent} />
                     <Text
                         style={[{ textAlign: 'center' }]}
-                        className="font-bold text-2xl text-text-light dark:text-white"
+                        className="font-serif text-2xl text-text-light dark:text-text-dark"
                     >
-                        Entry saved ✨
+                        Entry saved
                     </Text>
                 </Animated.View>
             </View>

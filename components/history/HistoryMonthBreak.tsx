@@ -13,12 +13,11 @@ export function HistoryMonthBreak({ label }: HistoryMonthBreakProps) {
             accessibilityLabel={label}
         >
             <Text
-                className="text-sm font-semibold tracking-wide text-text-secondary-light dark:text-text-secondary-dark"
-                style={{ fontFamily: 'PlayfairDisplayBold' }}
+                className="text-[13px] uppercase tracking-[1.5px] text-text-secondary-light dark:text-text-secondary-dark"
             >
                 {label}
             </Text>
-            <View className="h-px flex-1 bg-divider-light dark:bg-divider-dark" />
+            <View className="h-px flex-1 bg-hairline-light dark:bg-hairline-dark" />
         </View>
     );
 }

@@ -80,7 +80,7 @@ export default function GeneratePersonaScreen() {
                         <Pressable onPress={goBack} className="p-2 -ml-2" accessibilityLabel="Back">
                             <MaterialIcons name="arrow-back" size={24} color={iconColor} />
                         </Pressable>
-                        <Text className="text-lg font-semibold text-text-light dark:text-text-dark">
+                        <Text className="text-[26px] leading-[34px] text-text-light dark:text-text-dark" style={{ fontFamily: 'PlayfairDisplayRegular' }}>
                             Generate persona
                         </Text>
                         <View className="w-10" />

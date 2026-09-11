@@ -9,6 +9,7 @@ interface VoicePickerModalProps {
     onClose: () => void;
 }
 
+/** Sheet of voices as serif hairline rows — no cards, no orange selection. */
 export function VoicePickerModal({
     visible,
     options,
@@ -18,38 +19,49 @@ export function VoicePickerModal({
 }: VoicePickerModalProps) {
     return (
         <Modal visible={visible} animationType="slide" transparent>
-            <View className="flex-1 bg-black/60 justify-end">
+            <View className="flex-1 justify-end bg-black/60">
                 <Pressable className="flex-1" onPress={onClose} />
-                <View className="bg-surface-light dark:bg-surface-dark rounded-t-3xl px-6 pt-4 pb-8">
-                    <View className="items-center mb-4">
-                        <View className="w-10 h-1 bg-divider-light dark:bg-divider-dark rounded-full" />
+                <View className="rounded-t-sheet border-t border-hairline-light bg-surface-light px-6 pb-8 pt-4 dark:border-hairline-dark dark:bg-surface-dark">
+                    <View className="items-center pb-4">
+                        <View className="h-1 w-10 rounded-full bg-hairline-light dark:bg-hairline-dark" />
                     </View>
-                    <Text className="text-[17px] font-semibold text-text-light dark:text-text-dark mb-4 text-center">
+                    <Text
+                        className="mb-4 text-center text-[22px] text-text-light dark:text-text-dark"
+                        style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                    >
                         Choose voice
                     </Text>
-                    <View className="gap-2">
+                    <View>
                         {options.map((voice) => {
                             const isActive = voice === selected;
                             return (
                                 <Pressable
                                     key={voice}
                                     onPress={() => onSelect(voice)}
-                                    className={`px-4 py-3 rounded-xl border ${
-                                        isActive ? 'border-primary' : 'border-divider-light dark:border-divider-dark'
-                                    }`}
+                                    accessibilityRole="button"
                                     accessibilityLabel={`Select ${voice}`}
+                                    accessibilityState={{ selected: isActive }}
+                                    className="min-h-14 flex-row items-center justify-between border-t border-hairline-light px-1 py-3 dark:border-hairline-dark"
                                 >
-                                    <Text className="text-base text-text-light dark:text-text-dark">{voice}</Text>
+                                    <Text className="text-[19px] text-text-light dark:text-text-dark">
+                                        {voice}
+                                    </Text>
+                                    {isActive ? (
+                                        <Text className="text-[15px] text-text-secondary-light dark:text-text-secondary-dark">
+                                            Active
+                                        </Text>
+                                    ) : null}
                                 </Pressable>
                             );
                         })}
                     </View>
                     <Pressable
                         onPress={onClose}
-                        className="mt-6 py-3 items-center"
+                        className="mt-6 min-h-11 items-center justify-center"
+                        accessibilityRole="button"
                         accessibilityLabel="Close voice picker"
                     >
-                        <Text className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">
+                        <Text className="text-[15px] text-text-secondary-light dark:text-text-secondary-dark">
                             Close
                         </Text>
                     </Pressable>

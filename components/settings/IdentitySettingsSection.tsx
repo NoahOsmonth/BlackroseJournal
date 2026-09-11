@@ -4,7 +4,7 @@
  */
 
 import React, { useCallback } from 'react';
-import { Alert, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Pressable, Text, View } from 'react-native';
 
 import type { IdentityScalarField } from '@/services/memory/identityProfile.types';
 import type {
@@ -13,8 +13,10 @@ import type {
 } from '@/services/memory/identityProfileView';
 import { SettingsSection } from './SettingsSection';
 
-const SECONDARY = 'text-subtext-light dark:text-subtext-dark';
+const SECONDARY = 'text-text-secondary-light dark:text-text-secondary-dark';
 const BODY = 'text-text-light dark:text-text-dark';
+const HAIRLINE = 'border-hairline-light dark:border-hairline-dark';
+const ACTION = `min-h-11 flex-1 items-center justify-center rounded-control border ${HAIRLINE}`;
 
 export interface IdentitySettingsSectionProps {
     readonly scalarRows: readonly IdentityScalarRow[];
@@ -36,13 +38,13 @@ function webConfirm(message: string): boolean | null {
 function ConfirmedFieldRow({ row }: { readonly row: IdentityScalarRow }) {
     return (
         <View
-            className="mb-3 rounded-xl border border-divider-light dark:border-divider-dark bg-background-light dark:bg-secondary-dark px-3 py-3"
+            className={`border-b py-3.5 ${HAIRLINE}`}
             testID={`identity-confirmed-${row.key}`}
         >
-            <Text className={`text-xs font-bold uppercase ${SECONDARY}`}>
+            <Text className={`text-[12px] uppercase tracking-[1.5px] ${SECONDARY}`}>
                 {row.label}
             </Text>
-            <Text className={`mt-1 text-base font-medium ${BODY}`}>
+            <Text className={`mt-1 text-[16px] ${BODY}`}>
                 {row.field.value}
             </Text>
         </View>
@@ -52,13 +54,13 @@ function ConfirmedFieldRow({ row }: { readonly row: IdentityScalarRow }) {
 function CollectionRow({ row }: { readonly row: IdentityCollectionRow }) {
     return (
         <View
-            className="mb-2 rounded-xl border border-divider-light dark:border-divider-dark px-3 py-2"
+            className={`border-b py-3.5 ${HAIRLINE}`}
             testID={`identity-collection-${row.id}`}
         >
-            <Text className={`text-xs font-bold uppercase ${SECONDARY}`}>
+            <Text className={`text-[12px] uppercase tracking-[1.5px] ${SECONDARY}`}>
                 {row.label}
             </Text>
-            <Text className={`mt-0.5 text-sm ${BODY}`}>
+            <Text className={`mt-1 text-[16px] ${BODY}`}>
                 {row.value}
             </Text>
         </View>
@@ -79,11 +81,11 @@ function PendingCandidateCard({
     const proposed = row.field.pendingCandidate ?? '';
     return (
         <View
-            className="mb-3 rounded-xl border-2 border-primary/40 bg-surface-light dark:bg-surface-dark px-3 py-3"
+            className="mb-4 rounded-card border border-bone-light px-4 py-4 dark:border-bone-dark"
             testID={`identity-pending-${row.key}`}
             accessibilityLabel={`Pending change for ${row.label}`}
         >
-            <Text className={`text-xs font-bold uppercase text-primary`}>
+            <Text className="text-[12px] uppercase tracking-[1.5px] text-text-secondary-light dark:text-text-secondary-dark">
                 Pending · {row.label}
             </Text>
             <View className="mt-2 gap-1">
@@ -98,35 +100,35 @@ function PendingCandidateCard({
                 <Text className={`text-sm ${SECONDARY}`}>
                     Proposed
                 </Text>
-                <Text className={`text-base font-semibold ${BODY}`} testID={`identity-proposed-${row.key}`}>
+                <Text
+                    className={`text-[16px] ${BODY}`}
+                    testID={`identity-proposed-${row.key}`}
+                    style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                >
                     {proposed}
                 </Text>
             </View>
             <View className="mt-3 flex-row gap-3">
-                <TouchableOpacity
+                <Pressable
                     onPress={onConfirm}
                     disabled={disabled}
-                    className={`flex-1 items-center rounded-xl bg-primary px-3 py-2.5 ${disabled ? 'opacity-50' : ''}`}
+                    className={`${ACTION} ${disabled ? 'opacity-50' : ''}`}
                     accessibilityRole="button"
                     accessibilityLabel={`Confirm ${row.label} change to ${proposed}`}
                     testID={`identity-confirm-${row.key}`}
                 >
-                    <Text className="font-bold text-text-light dark:text-text-light">
-                        Confirm
-                    </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
+                    <Text className={`text-[15px] ${BODY}`}>Confirm</Text>
+                </Pressable>
+                <Pressable
                     onPress={onDismiss}
                     disabled={disabled}
-                    className={`flex-1 items-center rounded-xl border border-divider-light dark:border-divider-dark px-3 py-2.5 ${disabled ? 'opacity-50' : ''}`}
+                    className={`${ACTION} ${disabled ? 'opacity-50' : ''}`}
                     accessibilityRole="button"
                     accessibilityLabel={`Dismiss proposed ${row.label} change`}
                     testID={`identity-dismiss-${row.key}`}
                 >
-                    <Text className={`font-bold ${BODY}`}>
-                        Dismiss
-                    </Text>
-                </TouchableOpacity>
+                    <Text className={`text-[15px] ${BODY}`}>Dismiss</Text>
+                </Pressable>
             </View>
         </View>
     );
@@ -202,7 +204,7 @@ export function IdentitySettingsSection({
 
             {pendingRows.length > 0 ? (
                 <View className="mb-4" testID="identity-pending-list">
-                    <Text className={`mb-2 text-xs font-bold uppercase ${SECONDARY}`}>
+                    <Text className={`mb-2 text-[12px] uppercase tracking-[1.5px] ${SECONDARY}`}>
                         Needs your decision
                     </Text>
                     {pendingRows.map((row) => (
@@ -225,7 +227,7 @@ export function IdentitySettingsSection({
 
             {confirmedOnly.length > 0 || collectionRows.length > 0 ? (
                 <View testID="identity-confirmed-list">
-                    <Text className={`mb-2 text-xs font-bold uppercase ${SECONDARY}`}>
+                    <Text className={`mb-2 text-[12px] uppercase tracking-[1.5px] ${SECONDARY}`}>
                         Confirmed on this device
                     </Text>
                     {confirmedOnly.map((row) => (

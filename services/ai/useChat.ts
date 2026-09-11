@@ -15,9 +15,14 @@ import {
     Message,
     StreamingCallback,
 } from './chatTypes';
+import type { AgentActivityListener } from './agentEvents';
 import { createTemporalMessage } from './messageTemporalMetadata';
 
 export { buildDailyCheckInSystemPrompt };
+
+export interface SendMessageExtras {
+    onAgentActivity?: AgentActivityListener;
+}
 
 function appendAssistantMessage(
     messagesRef: React.MutableRefObject<Message[]>,
@@ -63,7 +68,8 @@ export function useChat() {
             content: string,
             onChunk: StreamingCallback,
             onComplete: CompleteCallback,
-            onError: ErrorCallback
+            onError: ErrorCallback,
+            extras?: SendMessageExtras
         ) => {
             const userMessage: Message = createTemporalMessage({
                 id: Date.now().toString(),
@@ -81,6 +87,9 @@ export function useChat() {
                     systemPrompt: basePrompt,
                     conversationId: conversationIdRef.current,
                     generation: generationRef.current,
+                    ...(extras?.onAgentActivity
+                        ? { onAgentActivity: extras.onAgentActivity }
+                        : {}),
                 }
             );
         },

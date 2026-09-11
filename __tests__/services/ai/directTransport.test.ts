@@ -362,6 +362,8 @@ describe('directTransport — self-heal retries + model cascade', () => {
         jest.restoreAllMocks();
     });
 
+    // 504 is congestion: two ~1s/~4s sleeps precede the third attempt, so this
+    // runs past Jest's 5s default.
     it('retries 504 three times on the same model before giving up', async () => {
         fetchMock.mockResolvedValue(
             new Response(JSON.stringify({ error: 'gateway timeout' }), { status: 504 })
@@ -379,7 +381,7 @@ describe('directTransport — self-heal retries + model cascade', () => {
             const body = JSON.parse(String((call[1] as RequestInit).body)) as { model: string };
             expect(body.model).toBe('dead/missing-7b:free');
         }
-    });
+    }, 30_000);
 
     it('cascades to a higher-parameter free model when the primary is missing', async () => {
         fetchMock

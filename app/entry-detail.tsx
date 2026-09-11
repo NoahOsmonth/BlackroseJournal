@@ -88,7 +88,11 @@ export default function EntryDetailScreen() {
                     <Pressable onPress={goBack} className="p-2 -ml-2">
                         <MaterialIcons name="arrow-back" size={24} color={iconColor} />
                     </Pressable>
-                    <Text className="text-lg font-semibold text-text-light dark:text-text-dark" numberOfLines={1}>
+                    <Text
+                        className="text-[26px] leading-[34px] text-text-light dark:text-text-dark"
+                        style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                        numberOfLines={1}
+                    >
                         {title}
                     </Text>
                     <View className="w-10" />

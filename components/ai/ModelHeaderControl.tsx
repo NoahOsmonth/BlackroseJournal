@@ -43,7 +43,7 @@ export function ModelHeaderControl({ onPress, disabled = false }: ModelHeaderCon
                     ? `Model: ${label}. Tap to change.`
                     : `Model: ${label}`
             }
-            className={`mt-2 self-start max-w-full flex-row items-center gap-1.5 rounded-full border border-divider-light dark:border-divider-dark bg-gray-100 dark:bg-card-dark pl-2 pr-2.5 py-1.5 active:opacity-80 ${
+            className={`mt-2 self-start max-w-full flex-row items-center gap-1.5 rounded-control border border-hairline-light dark:border-hairline-dark bg-surface-light dark:bg-surface-dark pl-2 pr-2.5 py-1.5 active:opacity-80 ${
                 disabled ? 'opacity-50' : ''
             }`}
         >

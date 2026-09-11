@@ -35,7 +35,6 @@ export default function InsightsScreen() {
     const { emojiStyle } = useThemeSettings();
 
     const isUnlocked = weeklyStats.entriesCount >= INSIGHTS_UNLOCK_AT;
-    const activeDays = weeklyStats.dailyWords.filter((count) => count > 0).length;
 
     const handleTabPress = (tab: 'today' | 'explore' | 'entries' | 'settings' | 'insights') => {
         if (tab !== 'insights') {
@@ -79,29 +78,28 @@ export default function InsightsScreen() {
                         </RevealItem>
 
                         <RevealItem scrollY={scrollY}>
-                            {isUnlocked ? (
-                                isLoading ? (
-                                    <InsightsSkeleton />
-                                ) : (
-                                    <View className="gap-4">
-                                        <View className="rounded-2xl border border-divider-light dark:border-divider-dark bg-surface-light dark:bg-surface-dark px-5 py-5">
-                                            <Text className="mb-3 text-xs font-semibold text-text-secondary-light dark:text-text-secondary-dark">
-                                                Moods
-                                            </Text>
-                                            <EmotionalLandscapeChart
-                                                data={insights?.emotionalLandscape || []}
-                                                emojiStyle={emojiStyle}
-                                            />
-                                        </View>
-                                        <KeyThemes themes={insights?.keyThemes || []} />
-                                        <CastOfCharacters characters={insights?.castOfCharacters || []} />
-                                    </View>
-                                )
+                            {isUnlocked && isLoading ? (
+                                <InsightsSkeleton />
                             ) : (
-                                <Text className="px-1 text-sm leading-relaxed text-text-secondary-light dark:text-text-secondary-dark">
-                                    Moods, themes, and people unlock with this week&apos;s letter
-                                    {activeDays > 0 ? ` · ${activeDays} active ${activeDays === 1 ? 'day' : 'days'} so far` : ''}.
-                                </Text>
+                                /* The concept keeps all three cards on screen even
+                                   while the letter is locked — they simply carry
+                                   "Not enough data" instead of disappearing. */
+                                <View className="gap-4">
+                                    <View className="rounded-card border border-hairline-light dark:border-hairline-dark bg-surface-light dark:bg-surface-dark px-5 py-5">
+                                        <Text
+                                            className="mb-3 text-[19px] text-text-light dark:text-text-dark"
+                                            style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                                        >
+                                            Mood
+                                        </Text>
+                                        <EmotionalLandscapeChart
+                                            data={insights?.emotionalLandscape || []}
+                                            emojiStyle={emojiStyle}
+                                        />
+                                    </View>
+                                    <KeyThemes themes={insights?.keyThemes || []} />
+                                    <CastOfCharacters characters={insights?.castOfCharacters || []} />
+                                </View>
                             )}
                         </RevealItem>
 

@@ -57,9 +57,9 @@ describe('IntentionChatMessage', () => {
         expect(getByText(DEFAULT_INTENTION_OPENING_PROMPT)).toBeTruthy();
         expect(queryByText(INTENTION_START_TRIGGER_TEXT)).toBeNull();
         expect(getByTestId('intention-chat-message-text').props.className).toContain(
-            'max-w-[320px]'
+            'text-text-light dark:text-text-dark'
         );
-        expect(getByTestId('intention-chat-message-text').props.style.color).toBe('#89ABCD');
+        expect(getByTestId('intention-chat-message-text').props.style.color).toBe('#9CA3AF');
     });
 
     it('renders user intention messages with warm user text colors', () => {
@@ -84,5 +84,8 @@ describe('IntentionChatMessage', () => {
             'text-user-text dark:text-user-text-dark'
         );
         expect(getByTestId('intention-chat-message-text').props.style.color).toBe('#DDEEFF');
+        expect(getByTestId('intention-chat-message-text').props.className).toContain(
+            'text-[17px]'
+        );
     });
 });

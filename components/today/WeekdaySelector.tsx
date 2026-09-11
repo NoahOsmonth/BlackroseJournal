@@ -4,7 +4,6 @@
  */
 
 import { DayInfo } from '@/hooks/today/useSelectedDay';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 
@@ -32,7 +31,7 @@ export function WeekdaySelector({
     completedDayIndices,
 }: WeekdaySelectorProps) {
     return (
-        <View className="flex-row justify-between items-start py-2 border-b border-divider-light dark:border-divider-dark">
+        <View className="flex-row justify-between items-start">
             {weekDays.map((day) => {
                 const isSelected = day.dayIndex === selectedDayIndex;
                 const isCompleted = completedDayIndices.includes(day.dayIndex);
@@ -44,38 +43,38 @@ export function WeekdaySelector({
                         accessibilityLabel={`Select ${DAY_NAMES[day.dayIndex]}`}
                         accessibilityRole="button"
                         accessibilityState={{ selected: isSelected }}
-                        className="flex-1 items-center gap-1 py-1"
+                        className="flex-1 items-center gap-2 py-1"
                     >
                         <Text
-                            className={`text-[10px] uppercase font-medium ${
+                            className={`text-[11px] uppercase tracking-[1.3px] ${
                                 isSelected
-                                    ? 'text-text-light dark:text-text-dark font-bold'
+                                    ? 'text-text-light dark:text-text-dark'
                                     : 'text-text-secondary-light dark:text-text-secondary-dark'
                             }`}
                         >
                             {day.label}
                         </Text>
 
-                        {isSelected ? (
-                            <View className="items-center gap-1">
-                                <View className="w-8 h-8 rounded-full bg-primary/15 dark:bg-primary/25 items-center justify-center">
-                                    <Text className="text-sm font-bold text-text-light dark:text-text-dark">
-                                        {day.dayNumber}
-                                    </Text>
-                                </View>
-                                <View className="w-1 h-1 rounded-full bg-primary" />
-                            </View>
-                        ) : isCompleted ? (
-                            <View className="w-8 h-8 rounded-full bg-accent-green/10 items-center justify-center">
-                                <MaterialIcons name="check" size={16} color="#32D74B" />
-                            </View>
-                        ) : (
-                            <View className="w-8 h-8 items-center justify-center">
-                                <Text className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">
-                                    {day.dayNumber}
-                                </Text>
-                            </View>
-                        )}
+                        <Text
+                            className={`text-[15px] ${
+                                isSelected
+                                    ? 'text-text-light dark:text-text-dark'
+                                    : 'text-text-secondary-light dark:text-text-secondary-dark'
+                            }`}
+                        >
+                            {day.dayNumber}
+                        </Text>
+
+                        {/* One thin mark: selected day, or a completed tick. No pills. */}
+                        <View
+                            className={`h-0.5 w-4 rounded-full ${
+                                isSelected
+                                    ? 'bg-bone-light dark:bg-bone-dark'
+                                    : isCompleted
+                                        ? 'bg-ok-light dark:bg-ok-dark'
+                                        : 'bg-transparent'
+                            }`}
+                        />
                     </Pressable>
                 );
             })}

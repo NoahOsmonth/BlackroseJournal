@@ -1,21 +1,26 @@
 /**
- * Suggestions Screen
- * Shows HABIT suggestions for an entry and allows adding them to Happiness Recipe.
+ * Suggestions — the reflection's habit ideas as hairline rows. Each row is one
+ * idea with an outlined verb on the right; no type chip, no brand fill.
  */
 
-import { SuggestionsSkeleton } from '@/components/entries/SuggestionsSkeleton';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useEntryReflection } from '@/hooks/useEntryReflection';
-import { useHappinessRecipe } from '@/hooks/useHappinessRecipe';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { SuggestionsSkeleton } from '@/components/entries/SuggestionsSkeleton';
+import { BLACKROSE_PALETTE } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useEntryReflection } from '@/hooks/useEntryReflection';
+import { useHappinessRecipe } from '@/hooks/useHappinessRecipe';
+
 type SuggestionsParams = {
     entryId?: string;
 };
+
+const SERIF = { fontFamily: 'PlayfairDisplayRegular' };
+const HAIRLINE = 'border-hairline-light dark:border-hairline-dark';
 
 function normalize(text: string): string {
     return text.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -23,8 +28,7 @@ function normalize(text: string): string {
 
 export default function SuggestionsScreen() {
     const router = useRouter();
-    const colorScheme = useColorScheme();
-    const isDark = colorScheme === 'dark';
+    const isDark = useColorScheme() === 'dark';
     const params = useLocalSearchParams<SuggestionsParams>();
 
     const entryId = useMemo(() => {
@@ -46,6 +50,8 @@ export default function SuggestionsScreen() {
 
     const suggestions = data?.suggestions ?? [];
 
+    const ink = isDark ? BLACKROSE_PALETTE.dark.text : BLACKROSE_PALETTE.light.text;
+
     const handleAdd = async (text: string) => {
         if (!text.trim()) return;
         if (existingHabits.has(normalize(text))) return;
@@ -60,83 +66,88 @@ export default function SuggestionsScreen() {
 
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
-            <View className="flex-1 max-w-md mx-auto w-full">
-                {/* Header */}
-                <View className="flex-row items-center justify-between px-4 py-4">
-                    <Pressable onPress={() => router.back()} className="p-2 -ml-2" accessibilityLabel="Back">
-                        <MaterialIcons
-                            name="arrow-back"
-                            size={24}
-                            color={isDark ? '#E5E5E7' : '#1C1C1E'}
-                        />
+            <View className="mx-auto w-full max-w-md flex-1">
+                <View className="flex-row items-center justify-between px-5 py-4">
+                    <Pressable
+                        onPress={() => router.back()}
+                        className="-ml-2 min-h-11 min-w-11 items-center justify-center"
+                        accessibilityLabel="Back"
+                    >
+                        <MaterialIcons name="arrow-back" size={26} color={ink} />
                     </Pressable>
-                    <Text className="text-xl font-bold text-text-main-light dark:text-text-main-dark">
+                    <Text
+                        className="text-[26px] leading-[34px] text-text-light dark:text-text-dark"
+                        style={SERIF}
+                    >
                         Suggestions
                     </Text>
-                    <View className="w-10" />
+                    <View className="min-h-11 min-w-11" />
                 </View>
 
-                <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
+                <ScrollView className="flex-1 px-5" showsVerticalScrollIndicator={false}>
                     {isLoading && <SuggestionsSkeleton />}
 
                     {!isLoading && error && (
-                        <View className="p-4 rounded-xl bg-surface-light dark:bg-surface-dark">
-                            <Text className="text-text-main-light dark:text-text-main-dark font-semibold">
+                        <View className={`rounded-card border ${HAIRLINE} bg-surface-light p-5 dark:bg-surface-dark`}>
+                            <Text
+                                className="text-[21px] leading-[29px] text-text-light dark:text-text-dark"
+                                style={SERIF}
+                            >
                                 Couldn’t load suggestions
                             </Text>
-                            <Text className="mt-1 text-sm text-text-secondary-light dark:text-text-secondary-dark">
+                            <Text className="mt-2 text-[15px] leading-[23px] text-text-secondary-light dark:text-text-secondary-dark">
                                 {error}
                             </Text>
                         </View>
                     )}
 
                     {!isLoading && !error && suggestions.length === 0 && (
-                        <View className="p-4 rounded-xl bg-surface-light dark:bg-surface-dark">
-                            <Text className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
+                        <View className={`rounded-card border ${HAIRLINE} bg-surface-light p-5 dark:bg-surface-dark`}>
+                            <Text className="text-[15px] leading-[23px] text-text-secondary-light dark:text-text-secondary-dark">
                                 No suggestions yet.
                             </Text>
                         </View>
                     )}
 
                     {!isLoading && !error && suggestions.length > 0 && (
-                        <View className="gap-y-3">
+                        <View className="gap-3">
                             {suggestions.map((s, idx) => {
                                 const alreadyAdded = existingHabits.has(normalize(s.text));
                                 const isAdding = addingText === s.text;
+                                const disabled = alreadyAdded || isAdding;
 
                                 return (
                                     <View
                                         key={`${idx}-${s.text}`}
-                                        className="p-5 rounded-2xl bg-surface-light dark:bg-surface-dark"
+                                        className={`rounded-card border ${HAIRLINE} bg-surface-light p-5 dark:bg-surface-dark`}
                                     >
-                                        <View className="flex-row items-center justify-between">
-                                            <View className="flex-row items-center">
-                                                <View className="px-2 py-1 rounded-lg bg-primary/10">
-                                                    <Text className="text-[11px] font-bold text-primary">HABIT</Text>
-                                                </View>
-                                            </View>
-
-                                            <Pressable
-                                                onPress={() => handleAdd(s.text)}
-                                                disabled={alreadyAdded || isAdding}
-                                                accessibilityLabel={`Add habit: ${s.text}`}
-                                                className={`px-4 py-2 rounded-xl ${alreadyAdded
-                                                    ? 'bg-slate-200 dark:bg-slate-800'
-                                                    : 'bg-primary'
-                                                    }`}
-                                            >
-                                                <Text className={`text-sm font-bold ${alreadyAdded
-                                                    ? 'text-text-secondary-light dark:text-text-secondary-dark'
-                                                    : 'text-white'
-                                                    }`}>
-                                                    {alreadyAdded ? 'Added' : isAdding ? 'Adding…' : 'Add to list'}
-                                                </Text>
-                                            </Pressable>
-                                        </View>
-
-                                        <Text className="mt-3 text-base leading-6 text-text-main-light dark:text-text-main-dark">
+                                        <Text
+                                            className="text-[19px] leading-[28px] text-text-light dark:text-text-dark"
+                                            style={SERIF}
+                                        >
                                             {s.text}
                                         </Text>
+
+                                        <Pressable
+                                            onPress={() => handleAdd(s.text)}
+                                            disabled={disabled}
+                                            accessibilityLabel={`Add habit: ${s.text}`}
+                                            className={`mt-4 min-h-12 self-start items-center justify-center rounded-control border px-5 ${
+                                                disabled
+                                                    ? HAIRLINE
+                                                    : 'border-bone-light dark:border-bone-dark'
+                                            }`}
+                                        >
+                                            <Text
+                                                className={
+                                                    disabled
+                                                        ? 'text-[15px] text-text-secondary-light dark:text-text-secondary-dark'
+                                                        : 'text-[16px] text-text-light dark:text-text-dark'
+                                                }
+                                            >
+                                                {alreadyAdded ? 'Added' : isAdding ? 'Adding…' : 'Add to list'}
+                                            </Text>
+                                        </Pressable>
                                     </View>
                                 );
                             })}

@@ -9,8 +9,9 @@ import {
 
 describe('spacing constants', () => {
     it('exposes a stable spacing scale', () => {
-        expect(SCREEN_PADDING_X).toBe(20);
-        expect(HISTORY_PADDING_X).toBe(16);
+        // Concept gutters are 64/1024 of frame width ≈ 24pt on a 390pt phone.
+        expect(SCREEN_PADDING_X).toBe(24);
+        expect(HISTORY_PADDING_X).toBe(24);
         // The timeline spine must share the exact gutter so they never drift apart.
         expect(TIMELINE_INDENT).toBe(HISTORY_PADDING_X);
     });

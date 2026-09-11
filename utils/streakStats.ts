@@ -60,8 +60,7 @@ export function buildCalendarDays(
     dayKeys: Set<string>,
     year: number,
     month: number
-): CalendarDay[] {
-    const firstDay = new Date(year, month, 1);
+): CalendarDay[] {    const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const startPadding = firstDay.getDay();
 
@@ -80,4 +79,17 @@ export function buildCalendarDays(
     }
 
     return days;
+}
+
+/** Consecutive completed days ending on `todayKey` (inclusive). */
+export function habitCurrentStreak(
+    completionKeys: readonly string[],
+    todayKey: string
+): number {
+    return calculateStreakStats(completionKeys, dateKeyToLocalDate(todayKey)).currentStreak;
+}
+
+function dateKeyToLocalDate(dateKey: string): Date {
+    const [year, month, day] = dateKey.split('-').map(Number);
+    return new Date(year, (month ?? 1) - 1, day ?? 1, 12, 0, 0);
 }

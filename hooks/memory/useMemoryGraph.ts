@@ -5,12 +5,14 @@ import { relatedGraphAtoms } from '@/services/memory/localMemorySynthesis';
 import {
     computeConnections,
     filterAtomsByLayer,
+    filterAtomsByTimeWindow,
 } from '@/services/memory/memoryGraphUtils';
 import type { LocalMemoryAtom as StoredMemoryAtom } from '@/services/memory/localMemory.types';
 import type {
     MemoryGraphAtom,
     MemoryLayer,
 } from '@/services/memory/memoryGraph.types';
+import { MEMORY_RANGE_DEFAULT_INDEX, memoryRangeStopAt } from '@/utils/memoryRange';
 
 /** Working memory is chat-ephemeral; hide it from the graph by default. */
 const DEFAULT_LAYERS: MemoryLayer[] = [
@@ -76,6 +78,7 @@ export function useMemoryGraph(options: UseMemoryGraphOptions = {}) {
     );
     const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState(options.initialQuery ?? '');
+    const [rangeIndex, setRangeIndex] = useState(MEMORY_RANGE_DEFAULT_INDEX);
     const [glanceInsight, setGlanceInsight] = useState<string | null>(null);
     const [remoteInsight, setRemoteInsight] = useState<string | null>(null);
     const [isGlanceLoading, setIsGlanceLoading] = useState(false);
@@ -97,9 +100,10 @@ export function useMemoryGraph(options: UseMemoryGraphOptions = {}) {
 
     const atoms = useMemo(() => {
         const graphAtoms = storedAtoms.map(toGraphAtom);
-        return filterAtomsByLayer(graphAtoms, activeLayers)
+        const windowed = filterAtomsByTimeWindow(graphAtoms, memoryRangeStopAt(rangeIndex).days);
+        return filterAtomsByLayer(windowed, activeLayers)
             .filter((atom) => matchesQuery(atom, searchQuery));
-    }, [activeLayers, searchQuery, storedAtoms]);
+    }, [activeLayers, rangeIndex, searchQuery, storedAtoms]);
 
     const connections = useMemo(() => computeConnections(atoms), [atoms]);
 
@@ -196,6 +200,8 @@ export function useMemoryGraph(options: UseMemoryGraphOptions = {}) {
         closeSelectedAtom,
         searchQuery,
         setSearchQuery,
+        rangeIndex,
+        setRangeIndex,
         isLoading,
         isGlanceLoading,
         isSynthesizing,

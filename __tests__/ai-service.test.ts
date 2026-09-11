@@ -386,6 +386,8 @@ describe('ai service fallback parsing', () => {
         expect(err.message).toMatch(/401/);
     });
 
+    // 429 is congestion: the transport sleeps ~1s then ~4s before giving up, so
+    // this runs past Jest's 5s default.
     it('surfaces a friendly error when NanoGPT returns 429', async () => {
         fetchMock.mockResolvedValue(
             new Response('{"error":{"message":"rate limited"}}', {
@@ -397,5 +399,5 @@ describe('ai service fallback parsing', () => {
         await expect(completeChat(messages, 'system prompt'))
             .rejects
             .toThrow(/429/);
-    });
+    }, 30_000);
 });

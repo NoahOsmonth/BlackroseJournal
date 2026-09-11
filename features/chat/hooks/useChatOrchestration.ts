@@ -34,7 +34,9 @@ import {
 import { scheduleIdentityExtractionFromTurn } from '../../../services/memory/identityExtraction';
 import { useGenerationSettings } from '../../../hooks/settings/useGenerationSettings';
 import type { ChatFlow, ChatFlowContext } from '../flows/types';
-import { StreamingMessage } from '../types';
+import { applyAgentActivity, applyAgentStatusLines } from '../agentActivity';
+import type { AgentActivityEvent, AgentToolCallSnapshot } from '../../../services/ai/agentEvents';
+import { AgentStatusLine, StreamingMessage } from '../types';
 
 const PERSIST_DEBOUNCE_MS = 600;
 
@@ -150,6 +152,14 @@ export function useChatOrchestration({
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [lastUserMessage, setLastUserMessage] = useState<Message | null>(null);
     const shouldAutoScrollRef = useRef(true);
+    /** Mirrors streaming tool cards so onComplete can fold them onto the committed message. */
+    const streamingToolActivityRef = useRef<AgentToolCallSnapshot[]>([]);
+    /**
+     * Working status lines are deliberately ephemeral: they live only on the
+     * streaming message and are dropped on commit, so the transcript keeps the
+     * reply plus tool chip and nothing else.
+     */
+    const streamingStatusLinesRef = useRef<AgentStatusLine[]>([]);
     const {
         sendMessage,
         clearMessages,
@@ -297,15 +307,54 @@ export function useChatOrchestration({
 
     const beginStreaming = useCallback(() => {
         const tempStreamingId = 'streaming-' + Date.now();
+        streamingToolActivityRef.current = [];
+        streamingStatusLinesRef.current = [];
         setStreamingMessage({
             id: tempStreamingId,
             role: 'assistant',
             content: '',
             reasoning: '',
             isStreaming: true,
+            toolActivity: [],
+            statusLines: [],
         });
         setIsLoading(true);
         return tempStreamingId;
+    }, []);
+
+    const handleAgentActivity = useCallback((event: AgentActivityEvent) => {
+        // Update the refs synchronously so commitAssistantMessage always sees the
+        // latest cards even if React batches the streaming setState.
+        const nextToolActivity = applyAgentActivity(streamingToolActivityRef.current, event) ?? [];
+        const nextStatusLines = applyAgentStatusLines(streamingStatusLinesRef.current, event);
+        streamingToolActivityRef.current = nextToolActivity;
+        streamingStatusLinesRef.current = nextStatusLines ?? [];
+        setStreamingMessage((prev) => {
+            if (!prev) return prev;
+            return {
+                ...prev,
+                toolActivity: nextToolActivity,
+                statusLines: nextStatusLines,
+            };
+        });
+    }, []);
+
+    const commitAssistantMessage = useCallback((
+        id: string,
+        fullContent: string,
+        fullReasoning: string
+    ): Message => {
+        const toolActivity = streamingToolActivityRef.current;
+        streamingToolActivityRef.current = [];
+        // Status lines are working UI only — the final reply supersedes them.
+        streamingStatusLinesRef.current = [];
+        return createTemporalMessage({
+            id,
+            role: 'assistant',
+            content: fullContent,
+            reasoning: fullReasoning,
+            ...(toolActivity.length > 0 ? { toolActivity } : {}),
+        });
     }, []);
 
     const clearError = useCallback(() => {
@@ -314,6 +363,8 @@ export function useChatOrchestration({
 
     const handleAiError = useCallback((error: Error) => {
         console.error('AI Error:', error);
+        streamingToolActivityRef.current = [];
+        streamingStatusLinesRef.current = [];
         setErrorMessage(getFriendlyErrorMessage(error));
         setStreamingMessage(null);
         setIsLoading(false);
@@ -486,24 +537,20 @@ export function useChatOrchestration({
                 (fullContent, fullReasoning) => {
                     setMessages(prev => [
                         ...prev,
-                        createTemporalMessage({
-                            id: tempStreamingId,
-                            role: 'assistant',
-                            content: fullContent,
-                            reasoning: fullReasoning,
-                        }),
+                        commitAssistantMessage(tempStreamingId, fullContent, fullReasoning),
                     ]);
                     setStreamingMessage(null);
                     setIsLoading(false);
                     scrollToBottom();
                     focusInput();
                 },
-                handleAiError
+                handleAiError,
+                { onAgentActivity: handleAgentActivity }
             );
         } catch (error) {
             handleAiError(error instanceof Error ? error : new Error('Unknown error'));
         }
-    }, [sendMessage, scrollToBottom, focusInput, beginStreaming, clearError, handleAiError]);
+    }, [sendMessage, scrollToBottom, focusInput, beginStreaming, clearError, handleAiError, handleAgentActivity, commitAssistantMessage]);
 
     const retryLastMessage = useCallback(async () => {
         if (!lastUserMessage || isLoading) {
@@ -529,28 +576,26 @@ export function useChatOrchestration({
                 (fullContent, fullReasoning) => {
                     setMessages(prev => [
                         ...prev,
-                        createTemporalMessage({
-                            id: tempStreamingId,
-                            role: 'assistant',
-                            content: fullContent,
-                            reasoning: fullReasoning,
-                        }),
+                        commitAssistantMessage(tempStreamingId, fullContent, fullReasoning),
                     ]);
                     setStreamingMessage(null);
                     setIsLoading(false);
                     scrollToBottom();
                     focusInput();
                 },
-                handleAiError
+                handleAiError,
+                { onAgentActivity: handleAgentActivity }
             );
         } catch (error) {
             handleAiError(error instanceof Error ? error : new Error('Unknown error'));
         }
-    }, [beginStreaming, clearError, focusInput, handleAiError, isLoading, lastUserMessage, messages, scrollToBottom, sendMessage, setChatMessages]);
+    }, [beginStreaming, clearError, focusInput, handleAiError, isLoading, lastUserMessage, messages, scrollToBottom, sendMessage, setChatMessages, handleAgentActivity, commitAssistantMessage]);
 
     const handleNewChat = useCallback(() => {
         hasInitialized.current = false;
         clearMessages();
+        streamingToolActivityRef.current = [];
+        streamingStatusLinesRef.current = [];
         setMessages([]);
         setStreamingMessage(null);
         setIsLoading(false);

@@ -48,15 +48,18 @@ function ActiveLegacyDataOwnershipGate({
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark">
             <View className="flex-1 justify-center px-6">
-                <View className="rounded-2xl bg-surface-light p-6 dark:bg-surface-dark">
-                    <Text className="text-2xl font-serif font-bold text-text-light dark:text-text-dark">
+                <View className="rounded-card border border-hairline-light bg-surface-light p-6 dark:border-hairline-dark dark:bg-surface-dark">
+                    <Text
+                        className="text-[30px] leading-[38px] text-text-light dark:text-text-dark"
+                        style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                    >
                         Keep your journal with this account?
                     </Text>
-                    <Text className="mt-3 text-sm leading-6 text-subtext-light dark:text-subtext-dark">
+                    <Text className="mt-3 text-[15px] leading-[24px] text-text-secondary-light dark:text-text-secondary-dark">
                         We found journal data from before account sign-in. Confirm it belongs to you before we place it in this account&apos;s private local storage.
                     </Text>
                     {migration.error ? (
-                        <Text className="mt-3 text-sm text-text-light dark:text-text-dark">
+                        <Text className="mt-3 text-[15px] leading-[23px] text-text-light dark:text-text-dark">
                             {migration.error}
                         </Text>
                     ) : null}
@@ -65,19 +68,22 @@ function ActiveLegacyDataOwnershipGate({
                             accessibilityRole="button"
                             disabled={migration.isMigrating}
                             onPress={() => { void migration.confirmOwnership(); }}
-                            className="rounded-xl bg-primary py-3"
+                            className="min-h-[52px] items-center justify-center rounded-control border border-bone-light dark:border-bone-dark"
                         >
-                            <Text className="text-center font-semibold text-white dark:text-white">
-                                {migration.isMigrating ? 'Moving journal...' : 'Yes, this data is mine'}
+                            <Text
+                                className="text-center text-[17px] text-text-light dark:text-text-dark"
+                                style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                            >
+                                {migration.isMigrating ? 'Moving journal…' : 'Yes, this data is mine'}
                             </Text>
                         </Pressable>
                         <Pressable
                             accessibilityRole="button"
                             disabled={migration.isMigrating}
                             onPress={migration.continueWithoutLegacyData}
-                            className="rounded-xl border border-divider-light py-3 dark:border-divider-dark"
+                            className="min-h-12 items-center justify-center rounded-control border border-hairline-light dark:border-hairline-dark"
                         >
-                            <Text className="text-center font-semibold text-text-light dark:text-text-dark">
+                            <Text className="text-center text-[16px] text-text-secondary-light dark:text-text-secondary-dark">
                                 Continue with an empty account
                             </Text>
                         </Pressable>

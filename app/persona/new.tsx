@@ -4,6 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 
+import { BLACKROSE_PALETTE } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { PersonaForm, PersonaFormValues } from '@/components/personas/PersonaForm';
 import { PersonaFormSkeleton } from '@/components/personas/PersonaFormSkeleton';
 import { usePersonas } from '@/hooks/personas/usePersonas';
@@ -26,6 +28,7 @@ const defaultValues: PersonaFormValues = {
 export default function NewPersonaScreen() {
     const router = useRouter();
     const { create } = usePersonas();
+    const isDark = useColorScheme() === 'dark';
     const [values, setValues] = useState<PersonaFormValues>(defaultValues);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -68,21 +71,28 @@ export default function NewPersonaScreen() {
 
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
-            <View className="px-4 pt-3">
+            <View className="px-5 pt-3">
                 <Pressable
                     onPress={() => router.push('/persona/generate')}
-                    className="flex-row items-center justify-center gap-2 py-3 rounded-2xl border border-primary"
+                    accessibilityRole="button"
                     accessibilityLabel="Generate persona with AI"
+                    className="min-h-12 flex-row items-center justify-center gap-2 rounded-control border border-hairline-light dark:border-hairline-dark"
                 >
-                    <MaterialIcons name="auto-awesome" size={18} color="#FF9F0A" />
-                    <Text className="text-[15px] font-semibold text-primary">Generate with AI</Text>
+                    <MaterialIcons
+                        name="auto-awesome"
+                        size={18}
+                        color={isDark ? BLACKROSE_PALETTE.dark.accent : BLACKROSE_PALETTE.light.accent}
+                    />
+                    <Text className="text-[16px] text-text-light dark:text-text-dark">
+                        Generate with AI
+                    </Text>
                 </Pressable>
             </View>
             {isLoading ? (
                 <PersonaFormSkeleton />
             ) : (
                 <PersonaForm
-                    title="New persona"
+                    title="New voice"
                     submitLabel="Create"
                     initialValues={values}
                     onChange={setValues}

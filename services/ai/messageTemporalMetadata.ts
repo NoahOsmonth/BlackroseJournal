@@ -1,4 +1,5 @@
 import type { Message } from './chatTypes';
+import type { AgentToolCallSnapshot } from './agentEvents';
 
 export interface TemporalMessageMetadata {
     timestamp: number;
@@ -12,6 +13,7 @@ export interface CreateTemporalMessageInput {
     role: Message['role'];
     content: string;
     reasoning?: string;
+    toolActivity?: AgentToolCallSnapshot[];
 }
 
 function resolvedTimeZone(): string | null {

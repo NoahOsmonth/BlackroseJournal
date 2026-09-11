@@ -234,7 +234,86 @@ describe('useChatOrchestration — tool-only long-term recall', () => {
             await sendDone;
         });
 
-        expect(getSendMessage()).toHaveBeenCalledWith(expect.any(String), expect.any(Function), expect.any(Function), expect.any(Function));
+        expect(getSendMessage()).toHaveBeenCalledWith(
+            expect.any(String),
+            expect.any(Function),
+            expect.any(Function),
+            expect.any(Function),
+            expect.objectContaining({ onAgentActivity: expect.any(Function) })
+        );
+    });
+
+    it('folds tool activity onto the committed assistant message', async () => {
+        let exposed: HookResult | null = null;
+
+        function Harness() {
+            const scrollViewRef = useRef<ScrollView | null>(null);
+            const inputRef = useRef<InlineTypingInputRef | null>(null);
+            const recallHarness = useChatOrchestration({
+                scrollViewRef,
+                inputRef,
+                flow: FLOWS.freeform,
+                flowContext: {},
+            });
+            useEffect(() => {
+                exposed = recallHarness;
+            });
+            return null;
+        }
+
+        render(<Harness />);
+
+        const useChatMock = useChat as jest.Mock;
+        const sendMessage = jest.fn(
+            async (
+                _content: string,
+                onChunk: (chunk: string) => void,
+                onComplete: (full: string, reasoning: string) => void,
+                _onError: (error: Error) => void,
+                extras?: { onAgentActivity?: (event: unknown) => void }
+            ) => {
+                extras?.onAgentActivity?.({ type: 'agent_start', runId: 'run_1' });
+                extras?.onAgentActivity?.({
+                    type: 'tool_call_start',
+                    call: {
+                        toolCallId: 'c1',
+                        name: 'get_day',
+                        label: 'Reading a day',
+                        argsPreview: 'yesterday',
+                        status: 'running',
+                        round: 1,
+                    },
+                });
+                extras?.onAgentActivity?.({
+                    type: 'tool_call_end',
+                    call: {
+                        toolCallId: 'c1',
+                        name: 'get_day',
+                        label: 'Reading a day',
+                        argsPreview: 'yesterday',
+                        status: 'ok',
+                        durationMs: 12,
+                        resultPreview: 'summary: Sleep',
+                        round: 1,
+                    },
+                });
+                onChunk('You talked about sleep.');
+                onComplete('You talked about sleep.', '');
+            }
+        );
+        useChatMock.mock.results.at(-1)?.value.sendMessage.mockImplementation(sendMessage);
+
+        await act(async () => {
+            await exposed!.handleSendMessage('what about yesterday?');
+        });
+
+        const assistant = exposed!.messages.find((m) => m.role === 'assistant');
+        expect(assistant?.toolActivity).toHaveLength(1);
+        expect(assistant?.toolActivity?.[0]).toMatchObject({
+            toolCallId: 'c1',
+            label: 'Reading a day',
+            status: 'ok',
+        });
     });
 
     it('drops the resolveRecallContext option from the orchestration API', () => {

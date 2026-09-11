@@ -144,14 +144,14 @@ describe('ExploreScreen memory hub', () => {
         expect(screen.getByText('Memory')).toBeTruthy();
         expect(screen.getAllByText('Recent journal pattern: quieter evenings help.').length)
             .toBeGreaterThan(0);
-        expect(screen.getByText('Memories')).toBeTruthy();
+        expect(screen.getByLabelText('Show All memories')).toBeTruthy();
         expect(mockPush).toHaveBeenCalledWith('/memory-graph');
     });
 
     it('saves notes, filters atoms, and deletes an atom', async () => {
         render(<ExploreScreen />);
 
-        fireEvent.press(screen.getByLabelText('Notes'));
+        // The concept keeps the note field visible — no disclosure to open.
         fireEvent.changeText(screen.getByLabelText('Memory note'), 'Keep Sundays quiet.');
         fireEvent.press(screen.getByLabelText('Save memory note'));
         fireEvent.press(screen.getByLabelText('Save generated memory note'));
@@ -177,7 +177,6 @@ describe('ExploreScreen memory hub', () => {
         };
 
         render(<ExploreScreen />);
-        fireEvent.press(screen.getByLabelText('Notes'));
 
         expect(screen.getByText(/No stable pattern yet/)).toBeTruthy();
     });

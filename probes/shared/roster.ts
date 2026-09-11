@@ -17,16 +17,16 @@ export const ROSTER_VERBATIM = {
     ],
     envKeys: {
         EXPO_PUBLIC_NANO_GPT_API_KEY: '(from .env / process.env — never committed)',
-        EXPO_PUBLIC_NANO_GPT_API_BASE_URL: 'optional; default https://openrouter.ai/api/v1',
-        EXPO_PUBLIC_NANO_GPT_MODEL: 'optional; default dots-studio/dots-3-note-preview:free',
-        EXPO_PUBLIC_NANO_GPT_FLASH_MODEL: 'optional; default dots-studio/dots-3-note-preview:free',
+        EXPO_PUBLIC_NANO_GPT_API_BASE_URL: 'optional; default http://100.107.7.52:20128/v1',
+        EXPO_PUBLIC_NANO_GPT_MODEL: 'optional; default merge/deepseek/deepseek-v4-flash-0731',
+        EXPO_PUBLIC_NANO_GPT_FLASH_MODEL: 'optional; default merge/deepseek/deepseek-v4-flash-0731',
     },
     directConfigDefaults: {
-        DEFAULT_API_BASE_URL: 'https://openrouter.ai/api/v1',
-        DEFAULT_MODEL: 'dots-studio/dots-3-note-preview:free',
-        DEFAULT_FLASH_MODEL: 'dots-studio/dots-3-note-preview:free',
+        DEFAULT_API_BASE_URL: 'http://100.107.7.52:20128/v1',
+        DEFAULT_MODEL: 'merge/deepseek/deepseek-v4-flash-0731',
+        DEFAULT_FLASH_MODEL: 'merge/deepseek/deepseek-v4-flash-0731',
     },
-    preferredFreeModelId: 'dots-studio/dots-3-note-preview:free',
+    preferredFreeModelId: 'merge/deepseek/deepseek-v4-flash-0731',
     openrouterDefaultBaseUrl: 'https://openrouter.ai/api/v1',
     personaModels: [
         'nvidia/nemotron-3-ultra-550b-a55b',
@@ -43,13 +43,14 @@ export const ROSTER_VERBATIM = {
         'nvidia/nemotron-3-ultra-550b-a55b': 1_000_000,
         'nvidia/nemotron-3-ultra-550b-a55b:free': 1_000_000,
         'dots-studio/dots-3-note-preview:free': 512_000,
+        'cl/dots-studio/dots-3-note-preview:free': 128_000,
+        'merge/deepseek/deepseek-v4-flash-0731': 128_000,
         'moonshotai/kimi-k2.5:thinking': 128_000,
         'moonshotai/kimi-k2.5': 128_000,
     } as const,
     defaultFallbackContextWindow: 128_000,
     builtinFreeFallbackModels: [
-        'dots-studio/dots-3-note-preview:free',
-        'openrouter/free',
+        'cl/tencent/hy3:free',
         'nvidia/nemotron-3-ultra-550b-a55b:free',
     ] as const,
     backendDefaults: {
@@ -63,17 +64,17 @@ export const ROSTER_VERBATIM = {
     /** Models selected for live probes (must include flash). */
     probeSelection: {
         e1: [
-            'dots-studio/dots-3-note-preview:free',
+            'merge/deepseek/deepseek-v4-flash-0731',
             'nvidia/nemotron-3-ultra-550b-a55b:free',
             'openrouter/free',
         ],
         e2: [
-            'dots-studio/dots-3-note-preview:free',
+            'merge/deepseek/deepseek-v4-flash-0731',
             'nvidia/nemotron-3-ultra-550b-a55b:free',
             'openrouter/free',
             'moonshotai/kimi-k2.5',
         ],
-        flashRequired: 'dots-studio/dots-3-note-preview:free',
+        flashRequired: 'merge/deepseek/deepseek-v4-flash-0731',
     },
 } as const;
 

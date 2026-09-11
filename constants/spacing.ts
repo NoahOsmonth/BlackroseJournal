@@ -4,8 +4,8 @@
  * history timeline indent. Use these instead of magic numbers so a change in
  * one place propagates everywhere (prevents the timeline-spine drift bug).
  */
-export const SCREEN_PADDING_X = 20;          // px — standard horizontal gutter (ScreenContainer padded)
-export const HISTORY_PADDING_X = 16;         // px — entries timeline gutter / Today ScrollView (px-4)
+export const SCREEN_PADDING_X = 24;          // px — standard horizontal gutter (matches the concept's 24pt)
+export const HISTORY_PADDING_X = 24;         // px — entries timeline gutter / Today ScrollView
 export const TIMELINE_INDENT = HISTORY_PADDING_X; // spine must match the gutter
 // Floating dock: 8px float + 68px capsule + ~10px raised write button above the pill.
 export const BOTTOM_NAV_BASE_HEIGHT = 96;    // px — BottomNav content height excluding safe-area inset

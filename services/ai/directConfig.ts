@@ -9,8 +9,8 @@
  * Env vars (all read at call time, not at module load):
  *   EXPO_PUBLIC_NANO_GPT_API_KEY       (required; OmniRoute data-plane key, stored locally for device builds)
  *   EXPO_PUBLIC_NANO_GPT_API_BASE_URL  (optional; defaults to the OmniRoute gateway)
- *   EXPO_PUBLIC_NANO_GPT_MODEL         (optional; defaults to cl/dots-studio/dots-3-note-preview:free)
- *   EXPO_PUBLIC_NANO_GPT_FLASH_MODEL   (optional; defaults to cl/dots-studio/dots-3-note-preview:free)
+ *   EXPO_PUBLIC_NANO_GPT_MODEL         (optional; defaults to merge/deepseek/deepseek-v4-flash-0731)
+ *   EXPO_PUBLIC_NANO_GPT_FLASH_MODEL   (optional; defaults to merge/deepseek/deepseek-v4-flash-0731)
  */
 
 import { DEFAULT_AI_BASE_URL } from '@/utils/ai/modelDisplay';
@@ -30,8 +30,8 @@ export interface ResolvedDirectConfig extends DirectConfig {
 }
 
 const DEFAULT_API_BASE_URL = DEFAULT_AI_BASE_URL;
-const DEFAULT_MODEL = 'cl/dots-studio/dots-3-note-preview:free';
-const DEFAULT_FLASH_MODEL = 'cl/dots-studio/dots-3-note-preview:free';
+const DEFAULT_MODEL = 'merge/deepseek/deepseek-v4-flash-0731';
+const DEFAULT_FLASH_MODEL = 'merge/deepseek/deepseek-v4-flash-0731';
 const PLACEHOLDER_KEYS = new Set([
     'YOUR_NANO_GPT_API_KEY',
     'YOUR_OMNIROUTE_DATA_PLANE_KEY',

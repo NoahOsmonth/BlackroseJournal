@@ -3,8 +3,8 @@
  * No I/O — safe for UI and services.
  */
 
-/** Preferred free model id — the OmniRoute gateway connection prefix (`cl/`) of the dots model. */
-export const PREFERRED_FREE_MODEL_ID = 'cl/dots-studio/dots-3-note-preview:free';
+/** Preferred chat model id on the OmniRoute gateway (`merge/` route). */
+export const PREFERRED_FREE_MODEL_ID = 'merge/deepseek/deepseek-v4-flash-0731';
 /** Legacy OpenRouter base URL — removed from defaults; kept only as a historical export marker. */
 export const OPENROUTER_DEFAULT_BASE_URL = 'https://openrouter.ai/api/v1';
 /** Default AI provider base URL — the local OmniRoute gateway (OpenAI-compatible). */

@@ -1,18 +1,26 @@
 /**
- * Ask Rosebud Screen
- * AI-powered insights from journal entries with time range selection
+ * Ask — questions across the journal, answered from local entries.
+ *
+ * Presentation follows `black-rose-ask.png`: centered serif title, a single
+ * outline range pill, the rose mark over a serif invitation, outline suggestion
+ * rows, companion replies beside a diamond rail, and one composer bar.
+ *
+ * The answering path is unchanged: `useAskRosebud` → `services/ask-rosebud`.
  */
 
-import { TypingIndicator } from '@/components/ui/TypingIndicator';
+import { AskMessageRow, AskTypingRow } from '@/components/ask/AskMessageRow';
+import { RoseMark } from '@/components/ui/RoseMark';
+import { BLACKROSE_PALETTE } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAskRosebud } from '@/hooks/useAskRosebud';
 import { useJournalEntries } from '@/hooks/useJournalEntries';
-import { useThemeColor } from '@/hooks/use-theme-color';
 import { TimeRange, TIME_RANGE_LABELS } from '@/services/ask-rosebud/askRosebud';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
+    KeyboardAvoidingView,
+    Platform,
     Pressable,
     ScrollView,
     Text,
@@ -21,26 +29,34 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const SUGGESTED_QUESTIONS = [
-    'What patterns do you see in my mood?',
-    'What makes me happiest?',
-    'What are my main stressors?',
-    'How has my mindset changed over time?',
+const SERIF = { fontFamily: 'PlayfairDisplayRegular' };
+
+const SUGGESTIONS: readonly { readonly icon: string; readonly text: string }[] = [
+    { icon: 'waves', text: 'What patterns do you see in my mood?' },
+    { icon: 'wb-sunny', text: 'What makes me happiest?' },
+    { icon: 'thunderstorm', text: 'What are my main stressors?' },
+    { icon: 'trending-up', text: 'How has my mindset changed over time?' },
+];
+
+const RANGE_ORDER: readonly TimeRange[] = [
+    'all-entries',
+    'all-time',
+    'this-year',
+    'this-month',
+    'this-week',
 ];
 
 export default function AskRosebudScreen() {
     const router = useRouter();
-    const colorScheme = useColorScheme();
-    const isDark = colorScheme === 'dark';
-    const primaryColor = useThemeColor({}, 'primary');
-    const mutedColor = useThemeColor({}, 'icon');
+    const isDark = useColorScheme() === 'dark';
+    const iconColor = isDark ? BLACKROSE_PALETTE.dark.accent : BLACKROSE_PALETTE.light.accent;
+    const mutedColor = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
     const { completed } = useJournalEntries();
     const { messages, isLoading, errorMessage, sendQuestion } = useAskRosebud();
 
     const [timeRange, setTimeRange] = useState<TimeRange>('all-entries');
     const [inputText, setInputText] = useState('');
 
-    // Filter entries by time range
     const filteredEntries = useMemo(() => {
         const now = new Date();
         return completed.filter((entry) => {
@@ -73,148 +89,152 @@ export default function AskRosebudScreen() {
     }, [filteredEntries, isLoading, sendQuestion, timeRange]);
 
     const cycleTimeRange = () => {
-        const ranges: TimeRange[] = ['all-entries', 'all-time', 'this-year', 'this-month', 'this-week'];
-        const currentIndex = ranges.indexOf(timeRange);
-        setTimeRange(ranges[(currentIndex + 1) % ranges.length]);
+        const currentIndex = RANGE_ORDER.indexOf(timeRange);
+        setTimeRange(RANGE_ORDER[(currentIndex + 1) % RANGE_ORDER.length]);
     };
+
+    const canSend = Boolean(inputText.trim()) && !isLoading;
 
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
-            <View className="flex-1 max-w-md mx-auto w-full">
-                {/* Header */}
-                <View className="flex-row items-center justify-between px-4 py-4">
-                    <Pressable onPress={() => router.back()} className="p-2 -ml-2">
-                        <MaterialIcons
-                            name="arrow-back"
-                            size={24}
-                            color={isDark ? '#E5E5E7' : '#1C1C1E'}
-                        />
+            <View className="w-full max-w-md mx-auto flex-1">
+                <View className="min-h-[56px] flex-row items-center justify-between px-4 py-2">
+                    <Pressable
+                        onPress={() => router.back()}
+                        accessibilityRole="button"
+                        accessibilityLabel="Go back"
+                        className="h-11 w-11 items-center justify-center"
+                    >
+                        <MaterialIcons name="arrow-back" size={26} color={iconColor} />
                     </Pressable>
-                    <Text className="text-xl font-bold text-text-main-light dark:text-text-main-dark">
-                        Ask Rosebud
+                    <Text
+                        className="flex-1 text-center text-[28px] text-text-light dark:text-text-dark"
+                        style={SERIF}
+                    >
+                        Ask
                     </Text>
-                    <Pressable onPress={cycleTimeRange} className="p-2 -mr-2">
-                        <Text className="text-sm font-bold text-primary">
+                    <Pressable
+                        onPress={() => router.push('/saved-insights')}
+                        accessibilityRole="button"
+                        accessibilityLabel="Open saved insights"
+                        className="h-11 w-11 items-center justify-center"
+                    >
+                        <MaterialIcons name="bookmark-border" size={24} color={iconColor} />
+                    </Pressable>
+                </View>
+
+                <View className="items-center pb-3 pt-2">
+                    <Pressable
+                        onPress={cycleTimeRange}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Time range: ${TIME_RANGE_LABELS[timeRange]}`}
+                        className="min-h-11 flex-row items-center gap-2 rounded-full border border-hairline-light px-5 py-2.5 dark:border-hairline-dark"
+                    >
+                        <Text className="text-[15px] text-text-light dark:text-text-dark">
                             {TIME_RANGE_LABELS[timeRange]}
                         </Text>
+                        <MaterialIcons name="expand-more" size={18} color={mutedColor} />
                     </Pressable>
                 </View>
 
-                {/* Entry count indicator */}
-                <View className="px-4 mb-4">
-                    <View className="flex-row items-center justify-between gap-3">
-                        <Text className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                            Analyzing {filteredEntries.length} entries
-                        </Text>
-                        <Pressable
-                            onPress={() => router.push('/saved-insights')}
-                            accessibilityRole="button"
-                            accessibilityLabel="Open saved insights"
-                            className="rounded-full bg-surface-light px-3 py-2 dark:bg-surface-dark"
-                        >
-                            <Text className="text-xs font-bold text-primary">
-                                Saved insights
-                            </Text>
-                        </Pressable>
-                    </View>
-                </View>
+                <View className="h-px bg-hairline-light dark:bg-hairline-dark" />
 
-                <ScrollView
-                    className="flex-1 px-4"
-                    showsVerticalScrollIndicator={false}
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    className="flex-1"
                 >
-                    {/* Suggested questions (show when no messages) */}
-                    {messages.length === 0 && (
-                        <View className="mb-6">
-                            <Text className="text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide mb-3">
-                                Suggested Questions
-                            </Text>
-                            {SUGGESTED_QUESTIONS.map((q, i) => (
-                                <Pressable
-                                    key={i}
-                                    onPress={() => handleSendMessage(q)}
-                                    disabled={isLoading}
-                                    className={`p-4 mb-2 rounded-xl ${isDark ? 'bg-surface-dark' : 'bg-surface-light'
-                                        } ${isLoading ? 'opacity-50' : ''}`}
-                                >
-                                    <Text className="text-text-main-light dark:text-text-main-dark">
-                                        {q}
-                                    </Text>
-                                </Pressable>
-                            ))}
-                        </View>
-                    )}
-
-                    {errorMessage && (
-                        <View className="mb-4 rounded-xl border border-divider-light dark:border-divider-dark bg-yellow-300/20 dark:bg-yellow-300/10 p-3">
-                            <Text className="text-sm text-text-main-light dark:text-text-main-dark">
-                                {errorMessage}
-                            </Text>
-                        </View>
-                    )}
-
-                    {/* Messages */}
-                    {messages.map((msg) => (
-                        <View
-                            key={msg.id}
-                            className={`mb-4 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
-                        >
-                            <View
-                                className={`max-w-[85%] p-4 rounded-2xl ${msg.role === 'user'
-                                    ? 'bg-primary'
-                                    : isDark ? 'bg-surface-dark' : 'bg-surface-light'
-                                    }`}
-                            >
+                    <ScrollView
+                        className="flex-1 px-6"
+                        contentContainerStyle={{ paddingTop: 28, paddingBottom: 32 }}
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                    >
+                        {messages.length === 0 && (
+                            <View className="items-center">
+                                <RoseMark size={56} color={iconColor} strokeWidth={1.1} variant="sprig" />
                                 <Text
-                                    className={
-                                        msg.role === 'user'
-                                            ? 'text-white'
-                                            : 'text-text-main-light dark:text-text-main-dark'
-                                    }
+                                    className="mt-4 text-center text-[30px] leading-[38px] text-text-light dark:text-text-dark"
+                                    style={SERIF}
                                 >
-                                    {msg.content}
+                                    Ask anything across your entries.
+                                </Text>
+
+                                <View className="mt-7 w-full gap-3">
+                                    {SUGGESTIONS.map((suggestion) => (
+                                        <Pressable
+                                            key={suggestion.text}
+                                            onPress={() => void handleSendMessage(suggestion.text)}
+                                            disabled={isLoading}
+                                            accessibilityRole="button"
+                                            accessibilityLabel={suggestion.text}
+                                            className={`min-h-[64px] flex-row items-center gap-3.5 rounded-card border border-hairline-light px-5 py-3.5 dark:border-hairline-dark ${
+                                                isLoading ? 'opacity-50' : 'active:opacity-70'
+                                            }`}
+                                        >
+                                            <MaterialIcons
+                                                name={suggestion.icon as never}
+                                                size={22}
+                                                color={iconColor}
+                                            />
+                                            <Text className="flex-1 text-[16px] leading-[23px] text-text-light dark:text-text-dark">
+                                                {suggestion.text}
+                                            </Text>
+                                        </Pressable>
+                                    ))}
+                                </View>
+                            </View>
+                        )}
+
+                        {errorMessage && (
+                            <View className="mb-5 rounded-card border border-hairline-light bg-surface-light p-4 dark:border-hairline-dark dark:bg-surface-dark">
+                                <Text className="text-[14px] text-text-light dark:text-text-dark">
+                                    {errorMessage}
                                 </Text>
                             </View>
+                        )}
+
+                        <View className="gap-5">
+                            {messages.map((message) => (
+                                <AskMessageRow key={message.id} message={message} />
+                            ))}
+                            {isLoading && <AskTypingRow />}
                         </View>
-                    ))}
+                    </ScrollView>
 
-                    {/* Loading indicator */}
-                    {isLoading && (
-                        <View className="items-start mb-4">
-                            <View className={`p-4 rounded-2xl ${isDark ? 'bg-surface-dark' : 'bg-surface-light'}`}>
-                                <TypingIndicator colorClassName="text-primary" />
-                            </View>
-                        </View>
-                    )}
-
-                    <View className="h-20" />
-                </ScrollView>
-
-                {/* Input */}
-                <View className={`px-4 py-3 border-t ${isDark ? 'border-border-dark' : 'border-border-light'}`}>
-                    <View className={`flex-row items-center p-3 rounded-2xl ${isDark ? 'bg-surface-dark' : 'bg-surface-light'}`}>
-                        <TextInput
-                            value={inputText}
-                            onChangeText={setInputText}
-                            placeholder="Ask about your journal..."
-                            placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
-                            className={`flex-1 text-base ${isDark ? 'text-white' : 'text-black'}`}
-                            onSubmitEditing={() => handleSendMessage(inputText)}
-                            editable={!isLoading}
-                        />
-                        <Pressable
-                            onPress={() => handleSendMessage(inputText)}
-                            disabled={!inputText.trim() || isLoading}
-                            className="p-2"
-                        >
-                            <MaterialIcons
-                                name="send"
-                                size={24}
-                                color={inputText.trim() && !isLoading ? primaryColor : mutedColor}
+                    <View className="border-t border-hairline-light px-6 pb-4 pt-4 dark:border-hairline-dark">
+                        <View className="flex-row items-center gap-3">
+                            <TextInput
+                                value={inputText}
+                                onChangeText={setInputText}
+                                placeholder="Ask a question..."
+                                placeholderTextColor={mutedColor}
+                                accessibilityLabel="Ask a question"
+                                className="min-h-12 flex-1 rounded-control border border-hairline-light bg-surface-light px-4 text-[15px] text-text-light dark:border-hairline-dark dark:bg-surface-dark dark:text-text-dark"
+                                onSubmitEditing={() => void handleSendMessage(inputText)}
+                                editable={!isLoading}
+                                returnKeyType="send"
                             />
-                        </Pressable>
+                            <Pressable
+                                onPress={() => void handleSendMessage(inputText)}
+                                disabled={!canSend}
+                                accessibilityRole="button"
+                                accessibilityLabel="Send question"
+                                accessibilityState={{ disabled: !canSend }}
+                                className={`h-12 w-12 items-center justify-center rounded-full border ${
+                                    canSend
+                                        ? 'border-bone-light dark:border-bone-dark'
+                                        : 'border-hairline-light dark:border-hairline-dark'
+                                }`}
+                            >
+                                <MaterialIcons
+                                    name="send"
+                                    size={20}
+                                    color={canSend ? iconColor : mutedColor}
+                                />
+                            </Pressable>
+                        </View>
                     </View>
-                </View>
+                </KeyboardAvoidingView>
             </View>
         </SafeAreaView>
     );

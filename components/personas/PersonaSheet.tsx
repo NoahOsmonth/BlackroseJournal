@@ -4,8 +4,9 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Persona } from '@/services/personas/personasStorage.types';
 import { PersonaCard } from './PersonaCard';
 import { NewPersonaCard } from './NewPersonaCard';
+import { BLACKROSE_PALETTE } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Colors } from '@/constants/theme';
+import { RoseMark } from '@/components/ui/RoseMark';
 
 interface PersonaSheetProps {
     visible: boolean;
@@ -30,9 +31,8 @@ export function PersonaSheet({
     onGeneratePersona,
     onOpenSettings,
 }: PersonaSheetProps) {
-    const colorScheme = useColorScheme();
-    const isDark = colorScheme === 'dark';
-    const gridIconColor = isDark ? Colors.dark.tabIconDefault : Colors.light.icon;
+    const isDark = useColorScheme() === 'dark';
+    const accentColor = isDark ? BLACKROSE_PALETTE.dark.accent : BLACKROSE_PALETTE.light.accent;
     const overlayPositionClass = Platform.OS === 'web' ? 'fixed' : 'absolute';
     const modalAnimationType = Platform.OS === 'web' ? 'none' : 'slide';
     const settingsTarget = activePersona ?? personas[0];
@@ -53,26 +53,32 @@ export function PersonaSheet({
                 <Pressable className="flex-1" onPress={onClose} />
                 <View
                     testID="persona-sheet-panel"
-                    className="bg-surface-light dark:bg-surface-dark rounded-t-3xl border-t border-gray-200 dark:border-gray-800 pb-5"
+                    className="rounded-t-sheet border-t border-hairline-light bg-surface-light pb-5 dark:border-hairline-dark dark:bg-surface-dark"
                 >
-                    <View className="items-center pt-3 pb-1">
+                    <View className="items-center pb-1 pt-3">
                         <View
                             testID="persona-sheet-handle"
-                            className="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full"
+                            className="h-1 w-10 rounded-full bg-hairline-light dark:bg-hairline-dark"
                         />
                     </View>
                     <View className="flex-row items-center justify-between px-6 py-3">
-                        <View className="w-6" />
-                        <Text className="text-lg font-semibold text-text-light dark:text-text-dark">
-                            Choose persona
-                        </Text>
+                        <View className="w-11" />
+                        <View className="items-center gap-2">
+                            <RoseMark size={30} color={accentColor} strokeWidth={1.2} />
+                            <Text
+                                className="text-[22px] text-text-light dark:text-text-dark"
+                                style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                            >
+                                Choose voice
+                            </Text>
+                        </View>
                         <Pressable
                             onPress={handleOpenSettings}
                             disabled={!canOpenSettings}
                             accessibilityLabel="Manage personas"
-                            className={canOpenSettings ? '' : 'opacity-40'}
+                            className={`h-11 w-11 items-center justify-center ${canOpenSettings ? '' : 'opacity-40'}`}
                         >
-                            <MaterialIcons name="grid-view" size={20} color={gridIconColor} />
+                            <MaterialIcons name="grid-view" size={20} color={accentColor} />
                         </Pressable>
                     </View>
                     <ScrollView

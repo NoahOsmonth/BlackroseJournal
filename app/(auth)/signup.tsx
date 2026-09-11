@@ -8,10 +8,17 @@ import {
     TextLink,
     authHaptic,
 } from '@/components/auth/AuthPrimitives';
+import {
+    AuthBackLink,
+    AuthCard,
+    AuthHeading,
+    AuthWordmark,
+    RoseRuleDivider,
+} from '@/components/auth/AuthScaffold';
 import { useAuthSession } from '@/hooks/auth/useAuthSession';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SignupScreen() {
@@ -74,105 +81,95 @@ export default function SignupScreen() {
                 className="flex-1"
             >
                 <ScrollView
-                    contentContainerClassName="flex-grow justify-center"
+                    contentContainerClassName="flex-grow"
                     keyboardShouldPersistTaps="handled"
                     bounces={false}
                 >
-                    <View className="max-w-md mx-auto w-full px-6 py-8">
-                        <Pressable
-                            onPress={() => router.back()}
-                            accessibilityRole="button"
-                            accessibilityLabel="Go back"
-                            className="-ml-2 self-start"
-                        >
-                            {({ pressed }) => (
-                                <Text className={`text-sm text-primary font-semibold dark:text-primary px-2 py-2 ${pressed ? 'underline' : ''}`}>
-                                    ← Back
-                                </Text>
-                            )}
-                        </Pressable>
-
-                        <Text className="text-3xl font-serif font-bold text-text-light dark:text-text-dark mt-2">
-                            Create account
-                        </Text>
-                        <Text className="text-sm text-subtext-light dark:text-subtext-dark mt-2">
-                            Use an email and password to keep your journal synced and secure.
-                        </Text>
+                    <View className="w-full max-w-md mx-auto px-6 pt-2">
+                        <AuthBackLink onPress={() => router.back()} />
+                        <AuthHeading
+                            title="Create account"
+                            subtitle="Keep your journal synced and secure with an email and password."
+                        />
 
                         {isLoading ? (
-                        <AuthFormSkeleton fields={3} />
+                            <AuthFormSkeleton fields={3} />
                         ) : (
-                        <View className="bg-surface-light dark:bg-surface-dark rounded-2xl p-5 shadow-sm mt-6">
-                            <FieldLabel text="Email" />
-                            <AuthInput
-                                label="Email"
-                                value={email}
-                                onChangeText={setEmail}
-                                placeholder="you@email.com"
-                                keyboardType="email-address"
-                                autoCapitalize="none"
-                                autoCorrect={false}
-                                textContentType="emailAddress"
-                                returnKeyType="next"
-                                blurOnSubmit={false}
-                                onSubmitEditing={() => passwordInputRef.current?.focus()}
-                            />
-
-                            <View className="mt-4">
-                                <FieldLabel text="Password" />
+                            <AuthCard>
+                                <FieldLabel text="Email" />
                                 <AuthInput
-                                    ref={passwordInputRef}
-                                    label="Password"
-                                    value={password}
-                                    onChangeText={setPassword}
-                                    placeholder="At least 6 characters"
-                                    secureTextEntry
-                                    showVisibilityToggle
+                                    label="Email"
+                                    value={email}
+                                    onChangeText={setEmail}
+                                    placeholder="you@email.com"
+                                    keyboardType="email-address"
                                     autoCapitalize="none"
-                                    textContentType="newPassword"
+                                    autoCorrect={false}
+                                    textContentType="emailAddress"
                                     returnKeyType="next"
                                     blurOnSubmit={false}
-                                    onSubmitEditing={() => confirmInputRef.current?.focus()}
+                                    onSubmitEditing={() => passwordInputRef.current?.focus()}
                                 />
-                            </View>
 
-                            <View className="mt-4">
-                                <FieldLabel text="Confirm password" />
-                                <AuthInput
-                                    ref={confirmInputRef}
-                                    label="Confirm password"
-                                    value={confirmPassword}
-                                    onChangeText={setConfirmPassword}
-                                    placeholder="••••••••"
-                                    secureTextEntry
-                                    showVisibilityToggle
-                                    autoCapitalize="none"
-                                    textContentType="newPassword"
-                                    returnKeyType="go"
-                                    onSubmitEditing={() => void handleSignup()}
+                                <View className="mt-4">
+                                    <FieldLabel text="Password" />
+                                    <AuthInput
+                                        ref={passwordInputRef}
+                                        label="Password"
+                                        value={password}
+                                        onChangeText={setPassword}
+                                        placeholder="At least 6 characters"
+                                        secureTextEntry
+                                        showVisibilityToggle
+                                        autoCapitalize="none"
+                                        textContentType="newPassword"
+                                        returnKeyType="next"
+                                        blurOnSubmit={false}
+                                        onSubmitEditing={() => confirmInputRef.current?.focus()}
+                                    />
+                                </View>
+
+                                <View className="mt-4">
+                                    <FieldLabel text="Confirm password" />
+                                    <AuthInput
+                                        ref={confirmInputRef}
+                                        label="Confirm password"
+                                        value={confirmPassword}
+                                        onChangeText={setConfirmPassword}
+                                        placeholder="••••••••"
+                                        secureTextEntry
+                                        showVisibilityToggle
+                                        autoCapitalize="none"
+                                        textContentType="newPassword"
+                                        returnKeyType="go"
+                                        onSubmitEditing={() => void handleSignup()}
+                                    />
+                                </View>
+
+                                {status && <StatusBanner type={status.type} message={status.message} />}
+
+                                <PrimaryButton
+                                    label="Create account"
+                                    loadingLabel="Creating account…"
+                                    isLoading={isSubmitting}
+                                    onPress={() => void handleSignup()}
                                 />
-                            </View>
 
-                            {status && <StatusBanner type={status.type} message={status.message} />}
+                                <RoseRuleDivider />
 
-                            <PrimaryButton
-                                label="Create account"
-                                loadingLabel="Creating account..."
-                                isLoading={isSubmitting}
-                                onPress={() => void handleSignup()}
-                            />
-
-                            <View className="mt-4 flex-row justify-center items-center">
-                                <Text className="text-sm text-subtext-light dark:text-subtext-dark">
-                                    Already have an account?{' '}
-                                </Text>
-                                <TextLink
-                                    label="Sign in"
-                                    onPress={() => router.replace('/login')}
-                                />
-                            </View>
-                        </View>
+                                <View className="mt-4 flex-row items-center justify-center">
+                                    <Text className="text-[15px] text-text-secondary-light dark:text-text-secondary-dark">
+                                        Already have an account?{' '}
+                                    </Text>
+                                    <TextLink
+                                        label="Sign in"
+                                        onPress={() => router.replace('/login')}
+                                    />
+                                </View>
+                            </AuthCard>
                         )}
+
+                        <AuthWordmark />
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>

@@ -14,18 +14,21 @@ interface AuthFormSkeletonProps {
 /** Mirrors the auth form card (field labels + inputs, submit button, secondary action) found in the (auth) screens. */
 export function AuthFormSkeleton({ fields = 2, showForgotLink = false }: AuthFormSkeletonProps) {
     return (
-        <View className="bg-surface-light dark:bg-surface-dark rounded-2xl p-5 mt-6" accessibilityLabel="Loading authentication form">
+        <View
+            className="mt-8 rounded-card border border-hairline-light bg-surface-light p-5 pt-8 dark:border-hairline-dark dark:bg-surface-dark"
+            accessibilityLabel="Loading authentication form"
+        >
             <LoadingStatus label="Restoring your session" compact />
 
             {Array.from({ length: fields }, (_, index) => (
                 <View key={index} className={index > 0 ? 'mt-4' : undefined}>
                     <Skeleton className="h-3 w-14 mb-2" accessibilityLabel={`Loading field ${index + 1} label`} />
-                    <Skeleton className="h-12 w-full rounded-xl" accessibilityLabel={`Loading field ${index + 1} input`} />
+                    <Skeleton className="h-12 w-full rounded-control" accessibilityLabel={`Loading field ${index + 1} input`} />
                 </View>
             ))}
 
             <View className="mt-5">
-                <Skeleton className="h-12 w-full rounded-xl" accessibilityLabel="Loading primary button" />
+                <Skeleton className="h-12 w-full rounded-control" accessibilityLabel="Loading primary button" />
             </View>
 
             {showForgotLink ? (

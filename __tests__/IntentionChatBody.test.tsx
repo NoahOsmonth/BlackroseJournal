@@ -33,8 +33,8 @@ jest.mock('@/hooks/useThemeSettings', () => ({
 }));
 
 describe('IntentionChatBody', () => {
-    it('renders the flow label header and an input writing surface', () => {
-        const { getByPlaceholderText } = render(
+    it('renders the flow label header without owning the composer', () => {
+        const { getByText, queryByPlaceholderText } = render(
             <IntentionChatBody
                 scrollViewRef={createRef<ScrollView>()}
                 inputRef={createRef<InlineTypingInputRef>()}
@@ -54,7 +54,9 @@ describe('IntentionChatBody', () => {
             />
         );
 
-        expect(getByPlaceholderText('Write')).toBeTruthy();
+        expect(getByText(/Intention Setting/)).toBeTruthy();
+        // The composer is pinned below the transcript by the screen, not here.
+        expect(queryByPlaceholderText("Write what's true…")).toBeNull();
     });
 
     it('shows the Thinking indicator only when loading and no streaming message', () => {
@@ -78,7 +80,7 @@ describe('IntentionChatBody', () => {
             />
         );
 
-        expect(getByLabelText('Rosebud is thinking')).toBeTruthy();
+        expect(getByLabelText('Blackrose is thinking')).toBeTruthy();
 
         const inputRef = createRef<InlineTypingInputRef>();
         const { queryByLabelText: q } = render(
@@ -100,7 +102,7 @@ describe('IntentionChatBody', () => {
                 onThumb={jest.fn()}
             />
         );
-        expect(q('Rosebud is thinking')).toBeNull();
+        expect(q('Blackrose is thinking')).toBeNull();
     });
 
     it('renders streaming text with the customized AI chat color', () => {

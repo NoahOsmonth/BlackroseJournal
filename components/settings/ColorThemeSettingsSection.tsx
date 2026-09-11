@@ -40,7 +40,7 @@ const COLOR_ROWS: readonly ColorFieldPair[] = [
     { label: 'App font', lightSlot: 'appTextLight', darkSlot: 'appTextDark' },
     { label: 'Muted font', lightSlot: 'secondaryTextLight', darkSlot: 'secondaryTextDark' },
     { label: 'Chat — you', lightSlot: 'chatUserTextLight', darkSlot: 'chatUserTextDark' },
-    { label: 'Chat — Rosebud', lightSlot: 'chatAiTextLight', darkSlot: 'chatAiTextDark' },
+    { label: 'Chat — Blackrose', lightSlot: 'chatAiTextLight', darkSlot: 'chatAiTextDark' },
     { label: 'Background', lightSlot: 'appBackgroundLight', darkSlot: 'appBackgroundDark' },
 ];
 
@@ -109,14 +109,14 @@ export function ColorThemeSettingsSection({
                     className="flex-1 gap-1.5"
                 >
                     <Text
-                        className="text-[10px] font-bold uppercase tracking-wider text-text-secondary-light dark:text-text-secondary-dark text-center"
+                        className="text-center text-[10px] uppercase tracking-[1.5px] text-text-secondary-light dark:text-text-secondary-dark"
                         style={{ color: secondaryColor }}
                     >
                         {label}
                     </Text>
                     <View className="relative">
                         <View
-                            className="h-16 w-full rounded-xl border border-divider-light dark:border-divider-dark"
+                            className="h-16 w-full rounded-control border border-hairline-light dark:border-hairline-dark"
                             style={{ backgroundColor: hex }}
                         />
                         {inSync ? (
@@ -125,7 +125,7 @@ export function ColorThemeSettingsSection({
                                 className="absolute top-1.5 right-1.5 flex-row items-center gap-0.5 rounded-full bg-black/55 px-1.5 py-0.5"
                             >
                                 <MaterialIcons name="auto-awesome" size={9} color="#FFFFFF" />
-                                <Text className="text-[8px] font-bold text-white uppercase tracking-wider">
+                                <Text className="text-[9px] uppercase tracking-[1.2px] text-on-bone-light dark:text-on-bone-dark">
                                     auto
                                 </Text>
                             </View>
@@ -138,7 +138,7 @@ export function ColorThemeSettingsSection({
                         </View>
                     </View>
                     <Text
-                        className="text-[11px] font-mono font-semibold text-center text-text-secondary-light dark:text-text-secondary-dark"
+                        className="text-center font-mono text-[11px] text-text-secondary-light dark:text-text-secondary-dark"
                         numberOfLines={1}
                         style={{ color: secondaryColor }}
                     >
@@ -151,7 +151,7 @@ export function ColorThemeSettingsSection({
         return (
             <View key={row.label} className="gap-2">
                 <Text
-                    className="text-sm font-bold text-text-light dark:text-text-dark"
+                    className="text-[16px] text-text-light dark:text-text-dark"
                     style={{ color: textColor }}
                 >
                     {row.label}
@@ -179,10 +179,10 @@ export function ColorThemeSettingsSection({
                             accessibilityState={{ selected: isActive }}
                             accessibilityLabel={`Select ${preset.name} colors`}
                             className={[
-                                'min-w-[48%] flex-1 rounded-xl border p-2.5 gap-2',
+                                'min-w-[48%] flex-1 gap-2 rounded-control border p-2.5',
                                 isActive
-                                    ? 'border-primary bg-primary/10 dark:border-primary-dark dark:bg-primary-dark/10'
-                                    : 'border-divider-light dark:border-divider-dark',
+                                    ? 'border-bone-light dark:border-bone-dark'
+                                    : 'border-hairline-light dark:border-hairline-dark',
                             ].join(' ')}
                         >
                             <View className="flex-row gap-1">
@@ -204,7 +204,7 @@ export function ColorThemeSettingsSection({
                                 />
                             </View>
                             <Text
-                                className="text-xs font-bold text-text-light dark:text-text-dark text-center"
+                                className="text-center text-[15px] text-text-light dark:text-text-dark"
                                 style={{ color: textColor }}
                             >
                                 {preset.name}
@@ -216,11 +216,11 @@ export function ColorThemeSettingsSection({
 
             {/* Journal preview card — kept compact and self-contained */}
             <View
-                className="mt-4 rounded-xl border border-divider-light dark:border-divider-dark p-3 gap-2 bg-background-light dark:bg-background-dark"
+                className="mt-4 gap-2 rounded-card border border-hairline-light bg-surface-light p-3.5 dark:border-hairline-dark dark:bg-surface-dark"
             >
                 <View className="flex-row items-center justify-between">
                     <Text
-                        className="text-sm font-bold text-text-light dark:text-text-dark"
+                        className="text-[16px] text-text-light dark:text-text-dark"
                         style={{ color: textColor }}
                     >
                         Journal preview
@@ -242,16 +242,16 @@ export function ColorThemeSettingsSection({
                 </Text>
                 <View className="gap-1">
                     <Text
-                        className="text-[13px] font-bold"
+                        className="text-[13px]"
                         style={{ color: isDark ? colorTheme.colors.chatUserTextDark : colorTheme.colors.chatUserTextLight }}
                     >
                         I want the chat to feel like mine.
                     </Text>
                     <Text
-                        className="text-[13px] font-semibold"
+                        className="text-[13px]"
                         style={{ color: isDark ? colorTheme.colors.chatAiTextDark : colorTheme.colors.chatAiTextLight }}
                     >
-                        Rosebud can match that tone.
+                        Blackrose can match that tone.
                     </Text>
                 </View>
             </View>

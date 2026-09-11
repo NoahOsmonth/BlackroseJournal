@@ -157,7 +157,16 @@ export function useWeeklyInsights() {
         end.setDate(start.getDate() + 6);
 
         const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        return `${fmt(start)} - ${fmt(end)}`;
+        const startLabel = fmt(start);
+        const endLabel = fmt(end);
+        // Same month collapses to one name and an en-dash day ("Jan 18–24"),
+        // matching the Archive week meta line.
+        const [startMonth, startDay] = startLabel.split(' ');
+        const [endMonth, endDay] = endLabel.split(' ');
+        const range = startMonth === endMonth && startDay && endDay
+            ? `${startLabel}\u2013${endDay}`
+            : `${startLabel}\u2013${endLabel}`;
+        return `This week \u00b7 ${range}`;
     })();
 
     // Force refresh bypasses the cache

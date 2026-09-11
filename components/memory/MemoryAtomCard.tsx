@@ -3,7 +3,7 @@ import { Platform, Pressable, Text, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Haptics from 'expo-haptics';
 
-import { MemoryLayerColors } from '@/constants/theme';
+import { BLACKROSE_PALETTE, MemoryLayerColors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { LocalMemoryAtom } from '@/services/memory/localMemory.types';
 import {
@@ -17,6 +17,7 @@ interface MemoryAtomCardProps {
     onDelete: (atom: LocalMemoryAtom) => void;
     onTagPress: (tag: string) => void;
     onOpen?: (atom: LocalMemoryAtom) => void;
+    /** Retained for callers that render atoms as a single bordered list. */
     isLast?: boolean;
 }
 
@@ -25,10 +26,9 @@ export function MemoryAtomCard({
     onDelete,
     onTagPress,
     onOpen,
-    isLast = false,
 }: MemoryAtomCardProps) {
     const isDark = useColorScheme() === 'dark';
-    const dangerColor = isDark ? '#F87171' : '#DC2626';
+    const inkColor = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
     const layerColor = MemoryLayerColors[atom.layer];
     const tags = atom.tags.slice(0, 3);
     const route = memoryAtomRoute(atom);
@@ -49,65 +49,65 @@ export function MemoryAtomCard({
             disabled={!canOpen}
             accessibilityRole={canOpen ? 'button' : undefined}
             accessibilityLabel={canOpen ? `Open memory ${atom.title}` : atom.title}
-            className={`px-4 py-3.5 ${
-                isLast ? '' : 'border-b border-divider-light dark:border-divider-dark'
-            }`}
+            className="gap-2 rounded-card border border-hairline-light bg-surface-light px-4 py-4 dark:border-hairline-dark dark:bg-surface-dark"
             style={({ pressed }) => [
                 { opacity: pressed && canOpen ? 0.92 : 1 },
             ]}
         >
-            <View className="flex-row items-start gap-3">
+            <View className="flex-row items-start justify-between gap-3">
+                <Text
+                    className="min-w-0 flex-1 text-[19px] leading-7 text-text-light dark:text-text-dark"
+                    style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                    numberOfLines={2}
+                >
+                    {atom.title}
+                </Text>
+                <Pressable
+                    onPress={() => onDelete(atom)}
+                    className="h-8 w-8 items-center justify-center"
+                    accessibilityRole="button"
+                    accessibilityLabel={`Delete memory ${atom.title}`}
+                    hitSlop={6}
+                >
+                    <MaterialIcons name="more-vert" size={18} color={inkColor} />
+                </Pressable>
+            </View>
+
+            <Text
+                className="text-sm leading-5 text-text-secondary-light dark:text-text-secondary-dark"
+                numberOfLines={2}
+            >
+                {atom.content}
+            </Text>
+
+            <View className="mt-1 flex-row items-center gap-2">
                 <View
-                    className="mt-1.5 h-2 w-2 rounded-full"
+                    className="h-1.5 w-1.5 rounded-full"
                     style={{ backgroundColor: layerColor }}
                     accessibilityLabel={`${MEMORY_LAYER_LABELS[atom.layer]} memory marker`}
                 />
-                <View className="min-w-0 flex-1">
-                    <View className="flex-row items-center justify-between gap-2">
-                        <Text className="text-[12px] font-medium text-text-secondary-light dark:text-text-secondary-dark">
-                            {MEMORY_LAYER_LABELS[atom.layer]} · {relative}
-                        </Text>
-                        <Pressable
-                            onPress={() => onDelete(atom)}
-                            className="h-8 w-8 items-center justify-center rounded-full"
-                            accessibilityRole="button"
-                            accessibilityLabel={`Delete memory ${atom.title}`}
-                            hitSlop={6}
-                        >
-                            <MaterialIcons name="delete-outline" size={18} color={dangerColor} />
-                        </Pressable>
-                    </View>
-                    <Text
-                        className="mt-0.5 text-[15px] font-semibold text-text-light dark:text-text-dark"
-                        numberOfLines={2}
-                    >
-                        {atom.title}
-                    </Text>
-                    <Text
-                        className="mt-1 text-sm leading-5 text-text-secondary-light dark:text-text-secondary-dark"
-                        numberOfLines={2}
-                    >
-                        {atom.content}
-                    </Text>
-                    {tags.length > 0 ? (
-                        <View className="mt-2 flex-row flex-wrap gap-1.5">
-                            {tags.map((tag) => (
-                                <Pressable
-                                    key={tag}
-                                    onPress={() => onTagPress(tag)}
-                                    className="rounded-full bg-background-light dark:bg-background-dark px-2 py-0.5"
-                                    accessibilityRole="button"
-                                    accessibilityLabel={`Filter memory by ${tag}`}
-                                >
-                                    <Text className="text-[11px] font-medium text-text-secondary-light dark:text-text-secondary-dark">
-                                        #{tag}
-                                    </Text>
-                                </Pressable>
-                            ))}
-                        </View>
-                    ) : null}
-                </View>
+                <Text className="text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
+                    {MEMORY_LAYER_LABELS[atom.layer]} · {relative}
+                </Text>
             </View>
+
+            {tags.length > 0 ? (
+                <View className="flex-row flex-wrap gap-3">
+                    {tags.map((tag) => (
+                        <Pressable
+                            key={tag}
+                            onPress={() => onTagPress(tag)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Filter memory by ${tag}`}
+                            hitSlop={4}
+                        >
+                            <Text className="text-[11px] text-text-secondary-light dark:text-text-secondary-dark">
+                                #{tag}
+                            </Text>
+                        </Pressable>
+                    ))}
+                </View>
+            ) : null}
         </Pressable>
     );
 }

@@ -13,7 +13,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useThemeSettings } from '@/hooks/useThemeSettings';
 import type { Message } from '@/services/ai/ai';
 import type { StreamingMessage } from '@/features/chat';
-import { InlineTypingInput, InlineTypingInputRef } from '@/components/InlineTypingInput';
+import { AgentToolActivity } from '@/components/ai/AgentToolActivity';
+import { InlineTypingInputRef } from '@/components/InlineTypingInput';
 import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { IntentionChatMessage } from './IntentionChatMessage';
 
@@ -66,23 +67,27 @@ export function IntentionChatBody({
     return (
         <ScrollView
             ref={scrollViewRef}
-            className="flex-1 px-5 pt-4 pb-20"
+            className="flex-1 px-5 pt-4 pb-6"
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             onScroll={onScroll}
             scrollEventThrottle={80}
             onContentSizeChange={onContentSizeChange}
         >
-            <View className="flex-row items-center gap-2 mb-4">
-                <Text className="text-[10px] font-bold tracking-wider text-text-secondary-light dark:text-text-secondary-dark uppercase">
-                    {flowLabel} - {headerDate}
+            <View className="mb-5 flex-row items-center gap-2">
+                <Text className="text-[11px] uppercase tracking-[1.5px] text-text-secondary-light dark:text-text-secondary-dark">
+                    {flowLabel} · {headerDate}
                 </Text>
-                <Pressable onPress={onSettingsPress} accessibilityLabel="Open persona settings">
-                    <MaterialIcons name="settings" size={12} color={settingsIconColor} />
+                <Pressable
+                    onPress={onSettingsPress}
+                    accessibilityLabel="Open persona settings"
+                    hitSlop={8}
+                >
+                    <MaterialIcons name="settings" size={14} color={settingsIconColor} />
                 </Pressable>
             </View>
 
-            <View className="gap-4">
+            <View className="gap-5">
                 {messages.map((message) => (
                     <IntentionChatMessage
                         key={message.id}
@@ -95,34 +100,43 @@ export function IntentionChatBody({
                     />
                 ))}
 
+                {(!!streamingMessage?.toolActivity?.length
+                    || !!streamingMessage?.statusLines?.length) && (
+                    <AgentToolActivity
+                        toolActivity={streamingMessage.toolActivity ?? []}
+                        statusLines={streamingMessage.statusLines}
+                        compact={false}
+                    />
+                )}
+
                 {streamingMessage && streamingMessage.content.length > 0 && (
-                    <Text
-                        className="text-[17px] leading-relaxed text-accent-blue dark:text-ai-text"
-                        style={{ color: streamingTextColor }}
-                    >
-                        {streamingMessage.content}
-                    </Text>
+                    <View className="flex-row">
+                        <View className="mr-4 w-px self-stretch bg-bone-light dark:bg-bone-dark" />
+                        <View className="min-w-0 flex-1">
+                            <Text
+                                className="text-[17px] leading-relaxed text-text-light dark:text-text-dark"
+                                style={{ color: streamingTextColor }}
+                            >
+                                {streamingMessage.content}
+                            </Text>
+                        </View>
+                    </View>
                 )}
 
                 {/* The streaming placeholder is created with empty content before
                     the first token arrives, so gate on content rather than on the
-                    message's existence — otherwise this never shows. */}
-                {isLoading && !streamingMessage?.content && (
-                    <View className="py-1" accessibilityLabel="Rosebud is thinking">
-                        <TypingIndicator />
+                    message's existence — otherwise this never shows. Show the
+                    bare typing indicator only when no tool timeline is visible. */}
+                {isLoading
+                    && !streamingMessage?.content
+                    && !streamingMessage?.toolActivity?.length
+                    && !streamingMessage?.statusLines?.length && (
+                    <View accessibilityLabel="Blackrose is thinking">
+                        <TypingIndicator label="Thinking" />
                     </View>
                 )}
             </View>
 
-            <View className="mt-8 pb-6">
-                <InlineTypingInput
-                    ref={inputRef}
-                    onSubmit={onSubmitInput}
-                    onTextChange={onInputTextChange}
-                    disabled={isLoading}
-                    placeholder="Write"
-                />
-            </View>
         </ScrollView>
     );
 }

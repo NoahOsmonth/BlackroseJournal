@@ -239,9 +239,13 @@ describeMaybe('integration: Rosebud prompt + history live', () => {
         ].join('\n');
 
         const systemPrompt = buildFreeformSystemPrompt(recentDaysContext);
-        expect(systemPrompt.length).toBeGreaterThan(20_000);
+        // The dieted freeform prompt plus the woven clock/digests/tools policy
+        // must be well past a stub — the budget cap lives in
+        // `rosebudCompanionPrompt.test.ts` (COMPANION_PROMPT_BUDGET).
+        expect(systemPrompt.length).toBeGreaterThan(5_000);
         expect(systemPrompt).toContain('Rosebud');
         expect(systemPrompt).toContain(HISTORY_TOOLS_POLICY.slice(0, 40));
+        expect(systemPrompt).toContain(recentDaysContext);
 
         const messages: Message[] = [
             {

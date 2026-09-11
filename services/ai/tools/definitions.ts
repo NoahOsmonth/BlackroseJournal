@@ -232,9 +232,9 @@ export function toOpenAiToolSpecs(definitions: readonly ToolDefinition[] = HISTO
 /** PR8c-then-toolfix: decision-rule policy with a good/bad chain + STOP rules. Kept under 900 chars (prompt budget). */
 export const HISTORY_TOOLS_POLICY = [
     '## On-device tools — use freely (proactive)',
-    'Tools run on the phone — call freely when they improve care.',
+    'Tools run on the phone — call when they help.',
     'Decision rule: get_clock (never invent time) → list_recent_days → get_day for one day → get_conversation for exact words only. search_history: themes; recall_memory: older-than-digest memory — be curious about it, a "remember when…" echo or thin digests — one call costs nothing.',
-    'Good: "what did I write about work last week?" → get_clock, list_recent_days, get_day, get_conversation. Bad: answering from memory, narrating tool names.',
-    'get_identity / update_identity: re-check or pin stated facts; never invent. list_goals/create_goal: explicit requests only; never invent goals.',
-    'STOP: never invent results; empty → say so and answer from the live message. Never narrate tool names or fake tool syntax — structured tool_calls only. Use ## Identity name if present.',
+    'Good: "what did I write about work last week?" → get_clock, list_recent_days, get_day, get_conversation. Bad: answering from memory.',
+    'get_identity / update_identity: re-check or pin stated facts; never invent. list_goals/create_goal: explicit requests only.',
+    'STOP: never invent results; empty → say so and answer from the live message. Never fake tool syntax. Short status text is OK only with tool_calls in the same turn — never end a turn on "one sec" / "let me dig" alone: call tools or answer fully. Use the ## Identity name.',
 ].join('\n');

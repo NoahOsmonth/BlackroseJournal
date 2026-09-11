@@ -1,5 +1,582 @@
 # PROGRESS — Optimization + Bug Hunt (2026-09-02)
 
+## 2026-09-11 — Default model → `merge/deepseek/deepseek-v4-flash-0731`; design rewrite Phase 7a
+
+### Model switch (app default + live-test path)
+
+The chat default moved from `cl/dots-studio/dots-3-note-preview:free` (and the
+interim `.env` value `merge/zai/glm-5.3-flash`) to **`merge/deepseek/deepseek-v4-flash-0731`**.
+
+| Surface | Change |
+|---|---|
+| `.env` | `EXPO_PUBLIC_NANO_GPT_MODEL` / `_FLASH_MODEL` → the deepseek id |
+| `services/ai/directConfig.ts` | `DEFAULT_MODEL` / `DEFAULT_FLASH_MODEL` + doc comment |
+| `utils/ai/modelDisplay.ts` | `PREFERRED_FREE_MODEL_ID` |
+| `services/ai/customModels.ts` | `KNOWN_CONTEXT_WINDOWS` += `128_000` |
+| `probes/shared/{loadEnv,roster}.ts`, `scripts/e2e/pw-setup-flash.mjs`, `scripts/hindsight/*-probe.mjs` | probe/roster defaults |
+| 5 live integration tests | hard-coded fallback id |
+| `README.md`, `AGENTS.md`, `.env.example`, `backend/.env.example` | documented defaults |
+
+**Capability tier changed with the model.** `merge/deepseek/deepseek-v4-flash-0731`
+was probed live against the gateway (2026-09-11) and returns *native* structured
+`tool_calls` with ids, survives a correct `role: tool` round-trip, and accepts a
+native `response_format: json_object` (no 400/422). `STRUCTURED_RE` in
+`toolCapability.ts` therefore gained `deepseek-v4`, which routes the default to
+**structured** (no text-dump repair). `__tests__/services/ai/agentLoop.finality.test.ts`
+keeps a genuinely hybrid id (`cl/dots-studio/...`) for its dump-repair case, and
+`__tests__/integration/agentTierLive.test.ts` now pins tier B via an explicit
+`TIER_B_MODEL` instead of reading the app default (which is no longer weak).
+
+Live verification on the new model (all green):
+
+```
+toolCallingMultiTurnLive   4-turn probe PASS   (209 s; grounded + verbatim-quote turns)
+agentPromiseLive           3/3 PASS
+agentTierLive              2/2 PASS   (tier A structured · tier B hybrid via glm-5.3-flash)
+rosebudHistoryLive         5/5 PASS
+textToolDumpLeakLive       PASS
+full integration suite     9 suites / 23 tests PASS
+```
+
+`rosebudHistoryLive` also carried a stale `systemPrompt.length > 20_000`
+assertion from before the companion prompt was dieted to the 5 000-token budget
+(`COMPANION_PROMPT_BUDGET`); it now asserts the real invariant (prompt is
+past-stub *and* contains the woven clock/digest/tools-policy blocks).
+
+### Design rewrite — Phase 7a: last legacy chrome surfaces
+
+A repo-wide scan (`bg-primary` / `text-primary` / `border-divider` / `text-white`
+/ `rounded-2xl+` / `font-bold|semibold` / `#FF9F0A`…) found **35 of 179** UI files
+still on the old language after Phase 6c. All 35 are now ported; the scan reports
+**0 of 177**. Highlights:
+
+- `app/streak-view.tsx` + `app/streak-haiku.tsx` — flame icon and brand-filled CTA
+  replaced by the rewards concept's serif numeral, hairline-flanked "Longest · N",
+  and a bone-bead month grid.
+- `app/happiness-recipe.tsx`, `app/suggestions.tsx`, `app/checkin-detail.tsx`,
+  `app/saved-insights.tsx` — hairline rows/cards, serif headings, outlined verbs,
+  emoji row prefixes removed.
+- `components/ui/{EmptyState,LoadingStatus,LoadingBar}.tsx`,
+  `components/ai/{FreeModelBadge,ModelPickerRow,ChatModelPickerSheet}.tsx`,
+  `components/goals/GoalQuickAddModal.tsx`, `components/system/{AppErrorBoundary,SupabaseStatusBanner}.tsx`,
+  `components/auth/LegacyDataOwnershipGate.tsx`, `components/celebrations/SuccessOverlay.tsx`,
+  `components/journal/ResumeSessionBanner.tsx`, `components/intentions/{IntentionForm,FeedbackCommentModal,CheckInDetailSkeleton}.tsx`,
+  `components/entries/{EntryAnalysisPanel,EntryDetailSkeleton,SuggestionsSkeleton}.tsx`,
+  `components/settings/{SettingsSkeleton,ColorPickerModal,ColorThemeSettingsSection,GenerationSettingsSection}.tsx`,
+  `components/personas/PersonaSettingsSheet.tsx`, `components/today/{WeekdaySelector,InsightMoreOptionsModal}.tsx`.
+- User-facing copy: "Rosebud" → "Blackrose" in `FeedbackCommentModal`
+  ("Save what Blackrose should…") and `ColorPickerModal` slot labels
+  ("Chat — Blackrose · Light/Dark"). No user-facing "Rosebud" string remains in
+  `app/` or `components/` (the `ask-rosebud` route path and `useAskRosebud` hook
+  name are internal and deliberately unchanged).
+- Deleted two dead components with no call sites and no tests:
+  `components/intentions/IntentionCard.tsx`, `components/intentions/AddIntentionCard.tsx`.
+
+QA scaffolding cleaned: `scripts/e2e/*-tmp.cjs` (19 files), `output/{design-qa,concept-compare,cmp,audit-tmp}/`,
+18 stale root probe/expo logs, `.playwright-cli/` (now gitignored), and the extra
+Expo dev server on port 8082.
+
+**Gates after Phase 7a:** `npx tsc --noEmit` clean · `npm test` **263 suites /
+1364 tests passed, 0 failed** · `npm run check:design` **179 files, 0 errors, 3
+warnings, PASSED** · eslint on all 34 touched files clean · app-source lint errors
+**0** (the repo-wide 1622 errors are all pre-existing, in `.pi/`, `scripts/`, `backend/`).
+
+## 2026-09-10 — Plan v2: canonical Pi-class harness, per-model tiers, strict finality
+
+Plan: `docs/superpowers/plans/2026-09-10-pi-class-agent-harness-PLAN-V2.md`
+(inventory → gaps → tiers → live E2E). Supersedes the execution order of the
+earlier Pi-style loop plan, which stays as history.
+
+### Architecture note (what the harness is)
+
+One loop, one event protocol, for every model behind the single OpenAI-compatible
+OmniRoute endpoint. A **turn** = one LLM call plus zero-or-more on-device tool
+executions:
+
+```
+Screen (app/chat.tsx | app/intentions/chat.tsx)
+  → useChatOrchestration + ChatFlow
+  → streamChat (services/ai/ai.ts)
+       → runAgentTurnWithTools (services/ai/agentLoop.ts)
+            turn_start → LLM complete (tools schema per capability tier)
+              → structured tool_calls → else parseTextToolCalls (dump repair)
+              → resolveStopMapping(providerFinishReason, rawCandidateCount)
+                 finalize | execute_tools | truncated_tools | tooluse_no_calls
+                 | continue | abort
+              → emit assistant_text_* (voice) THEN tool_call_* (Pi order)
+              → executeToolCalls → results fed back → next turn
+            loop ends only on: no tools ∧ ¬looksLikeUnfinishedPromise(text)
+  → strict finality ⇒ forced no-tools pass owns the answer
+```
+
+Modules: `agentEvents.ts` (event union), `agentPromise.ts` (keep-alive),
+`agentStopReason.ts` (finish-reason table), `agentEmit.ts` (soft-fail emitters),
+`toolCapability.ts` (tiers), `toolUiMeta.ts` (labels/previews).
+UI: `features/chat/agentActivity.ts` (reducer) → `components/ai/AgentToolActivity.tsx`
+(one component, both chat surfaces).
+
+### Phase 0 inventory (do not rewrite green modules)
+
+All §3 artifacts present and green at baseline: `agentEvents` 65, `agentPromise` 63,
+`agentStopReason` 108, `agentEmit` 176, `agentLoop` 1077, `parseTextToolCalls` 499,
+`features/chat/agentActivity` 60, `AgentToolActivity.tsx` 226. Baseline gates:
+tsc exit 0 · **12 suites / 81 tests passed** · check:design PASSED.
+
+Gaps found (only these were implemented):
+
+| Gap | Plan ref |
+|---|---|
+| `AgentFollowUpReason` missing `truncated_tools` / `tooluse_no_calls` | §4.1 |
+| Truncation + toolUse-zero nudges silent on the event stream | §4.1/§6 |
+| Telemetry named `agent_truncated_tool_calls` (plan says `agent_length_truncate`) | §7 P3 |
+| Tier A (structured) still got the free-model dump nudge | §7 P3 |
+| `:free` tag outranked the model family ⇒ strong free routes mis-tagged hybrid | §4.3 |
+| An empty turn could pass the finality check (`!safe.trim()` unguarded) | §4.2 #9 |
+
+### Phase 1 + 3 changes (`agentLoop.ts`, `agentEvents.ts`, `toolCapability.ts`)
+
+1. **Follow-up reasons widened** to the canonical §4.1 set; truncation and
+   toolUse-zero nudges now emit `follow_up_injected` with their own reason.
+2. **Telemetry renamed** to `agent_length_truncate { callCount }` (plan name).
+3. **Tier A skips the dump nudge.** Weak models ignore the tools API and write the
+   call as prose, so a nudge buys a real call. A structured-tier model delivers
+   through that API, so a dump there is confusion — it goes to the forced final
+   pass instead (`agent_dump_no_nudge`). The dump still never reaches the diary.
+4. **Per-model tier routing (§4.3).** The `:free` substring used to be tested
+   BEFORE the model-family regex, so `auto/claude-opus:free` was demoted to hybrid
+   — "all free = weak", exactly what §0/§4.3 forbid. Order is now: inject-only →
+   dump-prone families → structured families → remaining free/unknown. A new
+   `DUMP_PRONE_RE` carries genuinely dump-prone families (`dots-`, `glm-5.3-flash`,
+   `laguna`, `nex-n`) so a strong-sounding name on a weak route stays hybrid.
+5. **Strict finality for empty turns.** `if (!safe.trim())` → `stopReason='skipped'`
+   → forced no-tools pass → `AGENT_EXHAUSTION_FALLBACK`. The user never gets a
+   blank reply (the tier-A no-nudge path made this reachable, so it is guarded now
+   rather than assumed).
+6. **Last-round narration is discarded, promises included.** The `!promisedMore`
+   guard was removed from the max-rounds branch and the promise branch moved above
+   it, so a final-round promise routes to `PROMISE_STOP_NOTE` + the forced pass
+   (matching the §6 table) instead of being saved as the answer.
+
+Routing verified against real gateway ids (unit + live): `auto/claude-opus:free` →
+structured, `auto/gemini:free` → structured, `cx/gpt-5.6-sol-high` → structured,
+`op-router/z-ai/glm-5.2:free` → hybrid, `cl/tencent/hy3:free` → hybrid,
+`merge/zai/glm-5.3-flash` → hybrid, `cl/dots-studio/dots-3-note-preview:free` → hybrid.
+
+### §6 decision table — every row covered
+
+| Condition | Implementation | Test |
+|---|---|---|
+| stop + 0 tools + real prose | finalize, `stopReason='complete'` | `agentLoop.promiseContinue` |
+| stop + 0 tools + short promise | `PROMISE_CONTINUE_NOTE`, cap 2 | `agentLoop.promiseContinue` (6) |
+| tool_calls + parsed > 0 | execute on-device, continue | `agentLoop` / `.activity` |
+| length + candidate calls | fail calls, `TRUNCATED_TOOL_NOTE`, cap 1 | `agentLoop.stopReason` / `.finality` |
+| tool_use + 0 parsed | `TOOLUSE_NO_CALLS_NOTE`, cap 1 | `agentLoop.stopReason` / `.finality` |
+| duplicate executed call | `DUPLICATE_TOOL_CALL_NOTE` → forced final | `agentLoop` |
+| all results thin | `THIN_RESULT_RETRY_NOTE`, cap 1 | `agentLoop.retry` |
+| budget / 45s / 6 rounds | forced no-tools pass | `agentLoop.timeouts` / `.timings` |
+
+### §4.5 UI rules
+
+Live = latest status line (italic) + expanded tool rows; committed = status lines
+dropped, tools collapse to “Used N tools · details”; status lines never persisted
+(they live in `StreamingMessage.statusLines`, released on commit). Verified in the
+real browser transcript below. One `AgentToolActivity` serves both surfaces
+(`components/ChatMessage.tsx` + `components/intentions/IntentionChatMessage.tsx`,
+`IntentionChatBody.tsx`) — acceptance §9.8.
+
+### Tests
+
+- New `__tests__/services/ai/agentLoop.finality.test.ts` (8): unparseable dump
+  never ships (tier A), hybrid still nudged, empty turn never ships, empty on last
+  round → exhaustion fallback, `follow_up_injected(truncated_tools)`,
+  `follow_up_injected(tooluse_no_calls)`, last-round narration stays intermediate,
+  toolUse-zero never executes tools.
+- New capability cases in `toolCapability.test.ts`: routing follows the model, not
+  the price tag (4 new assertions, 8 total).
+- **Sabotage-verified** (deliberate break → red → restore → green): disabling the
+  empty guard failed 2 tests; disabling the tier-A branch failed 1. Restored, 8/8 green.
+- Targeted suite: **14 suites / 97 tests passed** (agentLoop*, agentPromise,
+  agentStopReason, toolCapability, AgentToolActivity, agentActivity).
+- Gates: `npx tsc --noEmit` exit 0 · `npm run check:design` PASSED (4 pre-existing
+  warnings) · eslint clean on touched files (one pre-existing unused-disable
+  warning in `toolCapability.ts:157`, untouched by this diff).
+
+### Live E2E (OmniRoute, real gateway, cleared-storage harness)
+
+**Per-model tiers — `__tests__/integration/agentTierLive.test.ts` (2/2 PASSED).**
+Same URL, same run, two tiers:
+
+```
+[tier-live] base=http://100.107.7.52:20128/v1 tierA=antigravity/claude-sonnet-4-6 (structured) tierB=merge/zai/glm-5.3-flash (hybrid)
+[tier-live] model=antigravity/claude-sonnet-4-6 mode=structured rounds=4 usedTools=true
+  origins: list_recent_days:structured | get_conversation:structured
+  reply: So the most recent work entry — from yesterday — was titled *"Quiet doubt about the new role."* You wrote:
+[tier-live] model=merge/zai/glm-5.3-flash mode=hybrid rounds=2 usedTools=true
+√ routes a strong model to structured and gets native tool calls (15915 ms)
+√ keeps the weak default model on the hybrid tier in the same run (76303 ms)
+```
+
+Tier A produced **only** `structured` origins — no text-parser repair — while the
+weak default on the same gateway stayed hybrid. That is the §4.3 claim, measured.
+
+One honest note: the first tier-A run failed attempt 1 on my own over-tight
+`rounds <= 3` assertion (a legitimate turn took 4 rounds) and the retry ladder hid
+it. The assertion was corrected to `<= 6` and the re-run passed without the ladder.
+
+**Weak-model UI timeline — verbatim from the running app** (`localhost:8081/chat`,
+model chip `glm 5.3 flash · 128k`, tier B hybrid). Sampling `document.body` while
+the turn ran:
+
+```
+--- t=17670ms busy=false ---
+Searching your history | work | 51ms  ·  Searching your history | new role job | 51ms
+
+--- committed ---
+What have I written about work lately? Look it up in my entries rather than guessing.
+Used 2 tools · details
+I went back through what's on the device — the past few days of entries (Sept 8–10) —
+and honestly, work barely shows up. What's actually there: slow phone-free mornings
+with coffee, holding a boundary most of the day, and Tuesday's entry about the argument
+that kept looping, where you realized the anger was covering hurt.
+
+The only work-shaped thread I can find is your goal to "grow into the new role" — but
+you haven't journaled about it directly, at least not in what I have.
+
+So I'm curious — is the new role what's stirring? Or is there something about work that
+hasn't made it onto the page yet?
+```
+
+Second turn, showing the live card in flight and then the committed chip:
+
+```
+--- t=45467ms busy=false (in flight) ---
+Scanning recent days | 14 days | 1ms
+
+--- committed ---
+Our first conversation tho? What did we talk about way back at the start?
+Used 1 tool · details
+Went digging — the earliest thing I have on this device is from September 1st: an entry
+called "Sunday reset with the family." That's where our record starts. […] One honest
+caveat: that's the oldest entry I can see, so if we talked before that, it's not on this
+device anymore. I don't want to invent a memory we don't have.
+```
+
+Read against §4.5: status lines live only while working, tool cards remain as the
+compact chip after commit, the reply is prose, and no raw tool JSON appears anywhere.
+The harness served those turns from the final code — the web bundle contains the new
+`agent_dump_no_nudge` / `agent_length_truncate` / `agent_empty_final` / `DUMP_PRONE_RE`
+identifiers, so the capture is not stale.
+
+**Mandatory Phase 4 probes.** `agentPromiseLive.test.ts` **3/3 passed**,
+`toolCallingMultiTurnLive.test.ts` **1/1 passed** (4 turns, all `source=structured`),
+`agentTierLive.test.ts` 2/2. Verbatim from `agentPromiseLive`:
+
+```
+[promise-live] provider=http://100.107.7.52:20128/v1 model=merge/zai/glm-5.3-flash today=2026-09-10
+[promise-live] rounds=3 usedTools=true stop=complete providerStop=stop promiseContinuations=0
+[promise-live] rounds=3 usedTools=true stop=timeout providerStop=tool_use promiseContinuations=0
+[promise-live] rounds=4 usedTools=true stop=complete providerStop=stop promiseContinuations=1
+[promise-live] coached: leaked=true continuations=1 rounds=4
+Test Suites: 1 passed, 1 total
+Tests:       3 passed, 3 total
+```
+
+Verbatim from `toolCallingMultiTurnLive` (run on `teamo/glm-5.3` after the
+`merge/*` route congestion described below):
+
+```
+[multi-turn] provider=http://100.107.7.52:20128/v1 model=teamo/glm-5.3 today=2026-09-10
+[multi-turn] turn-1 rounds=3 source=structured stop=complete
+  calls: get_day({"date":"2026-09-09"}) | get_conversation({"id":"entry_1789041750543_126k9xcth","kind":"journal_entry"})
+  reply: Yesterday you wrote one entry, "Sleep debt and work pressure," and it had a pretty clear arc:
+[multi-turn] turn-2 rounds=3 source=structured stop=complete
+  reply: Here's what you literally said, word for word:
+[multi-turn] turn-3 rounds=2 source=structured stop=complete
+  calls: recall_memory({"limit":6,"query":"earliest journaling memories and recurring echoes about work) | list_recent_days({"days":14,"order":"oldest"})
+  reply: Honestly, the older reaches of my memory here are pretty thin — one thing echoes, and it's a lovely one: your grandmother's blue enamel teapot from the Lisbon trip.
+[multi-turn] turn-4 rounds=2 source=structured stop=complete
+  reply: I have to be honest with you here: I can't pull up your very first conversation right now. The earliest thing I can reach back to is a memory from November 2024 — […]
+Test Suites: 1 passed, 1 total
+Tests:       1 passed, 1 total
+```
+
+Every turn is `source=structured` with a grounded reply and no invented recall —
+turn 4 explicitly refuses to fabricate a first conversation, which is the
+anti-hallucination behaviour the suite exists to protect.
+
+**Gateway congestion, recorded honestly.** A combined run of both mandatory suites
+failed 2 of 4 tests with `[504] Request exceeded OmniRoute's local rate-limit
+execution expiration (legacy resilienceSettings.requestQueue.maxWaitMs=15000ms)` —
+12 occurrences in one log. That is gateway queueing, not loop logic: three
+back-to-back probe requests immediately after returned `http=200` in ~1.7 s, and
+re-running `agentPromiseLive.test.ts` alone passed 3/3 with no code change, as did
+`toolCallingMultiTurnLive.test.ts` on the `teamo/glm-5.3` route. The client-side
+congestion backoff (`CONGESTION_STATUSES = {429,503,504}` in `directTransport.ts`)
+is what the earlier "congestion runbook" note describes; when the window outlasts
+the ladder, the suite fails and must be re-run. `teamo/deepseek-v4-flash-free` was
+offered as an alternative but its free allowance was exhausted and its credential
+reported "All 1 connection(s) credits exhausted", so the working non-free
+`teamo/glm-5.3` route was used instead.
+
+**Full unit suite:** `npm test` → **257 suites / 1306 tests passed**, exit 0
+(11 integration suites skipped as gated). No regressions from this diff.
+
+**Acceptance criteria (§9), each with evidence**
+
+| # | Criterion | Evidence |
+|---|---|---|
+| 1 | Premature "One sec." finals fixed | `agentLoop.promiseContinue` (6) + `agentPromiseLive` coached probe `continuations=1` |
+| 2 | Status visible live, gone on commit, chip remains | UI transcript above (live "Scanning recent days" → committed "Used 1 tool · details") |
+| 3 | length-truncated tools never execute | `agentLoop.stopReason` + `agentLoop.finality` (`toolsMock` not called) |
+| 4 | toolUse + 0 parsed → continue, not final | `agentLoop.stopReason` + `.finality` (`follow_up_injected(tooluse_no_calls)`) |
+| 5 | Tier A path stays structured-first | `agentTierLive` (`origins: list_recent_days:structured \| get_conversation:structured`) |
+| 6 | tsc / targeted jest / check:design green | exit 0 · 14 suites 97 tests · PASSED |
+| 7 | PROGRESS architecture note + live evidence | this section |
+| 8 | Both chat surfaces share one UI component | `ChatMessage.tsx` + `IntentionChatMessage.tsx` both import `AgentToolActivity` |
+
+### Explicit non-goals (not implemented, per §2/§5)
+
+Steer queues, permission UI, judge LLM / Stop hooks, subagent hierarchies, status-line
+persistence, OpenRouter re-add, cloud memory platform. Phase 3's optional
+true-SSE final answer was not done — the final answer still uses
+`emitSimulatedStreaming`; tool-bearing rounds stay non-stream by design (§4.4).
+
+## 2026-09-10 — Pi-style agent loop: turns, promise-continue, intermediate voice
+
+Plan: `docs/superpowers/plans/2026-09-10-pi-style-agent-loop.md` (+ the handoff
+addendum merged into §7b while implementing).
+
+### Phase 0 — baseline (recorded before refactors)
+
+- `npx tsc --noEmit` → exit 0.
+- `npx jest --runInBand __tests__/services/ai/agentLoop __tests__/features/agentActivity.test.ts
+  __tests__/components/AgentToolActivity.test.tsx` → **8 suites / 39 tests passed**.
+- The visible-tool-calling harness (sibling plan) was already in the working tree
+  uncommitted; the Pi loop is built on top of it, nothing reverted.
+
+### Outcome
+
+The journal-chat agent path now follows Pi's turn/event architecture. A **turn**
+is one LLM call plus zero-or-more tool executions; the loop finishes only on a
+turn with no tool calls **and** no unfinished-promise language, so a free model
+that says "let me actually go dig. One sec." runs another turn instead of
+shipping the status line as the reply.
+
+| Layer | Change |
+|---|---|
+| Events | `agentEvents.ts`: `turn_start`/`turn_end` (was `round_*`), `assistant_text_start/delta/end`, `follow_up_injected`, `AgentStopReason`, `AgentToolCallOrigin` |
+| Promise | New `services/ai/agentPromise.ts` — pure `looksLikeUnfinishedPromise` (280-char cap + `looksLikeToolDump` guard), `PROMISE_CONTINUATION_MAX = 2`, continue/stop notes |
+| Stops | New `services/ai/agentStopReason.ts` — `normalizeStopReason` / `isStop` / `resolveStopMapping` / `resolveFinishReason`, truncation + tool-use-no-calls notes |
+| Emit | New `services/ai/agentEmit.ts` — tool snapshots (now with `origin`), `emitAssistantText`, `emitToolCallErrors`, soft-fail `activityEmitter` |
+| Loop | `agentLoop.ts`: turn loop, promise keep-alive, intermediate-text capture, truncation guard, tool-use-no-calls nudge, `providerStopReason` + `intermediateTexts` + `promiseContinuations` on the result |
+| Prompt | `HISTORY_TOOLS_POLICY`: "short status text is OK only with tool_calls in the same turn — never end a turn on 'one sec' / 'let me dig' alone" (897 chars, still under the 900 budget) |
+| State | `StreamingMessage.statusLines`; `applyAgentStatusLines` reducer (one line per turn, replaced not stacked) |
+| UI | `AgentToolActivity` renders the latest status line above the tool rows; live-only — dropped on commit so the transcript keeps just the reply + tool chip |
+
+Pi ordering is enforced: when a turn has both prose and tools, `assistant_text_*`
+fires **before** `tool_call_*`, and that text is never returned as the final
+answer for that turn (it lands in `intermediateTexts`).
+
+### Addendum work (merged handoff)
+
+- **Length truncation** (`finish_reason: "length"` + parsed calls): the calls are
+  **never executed**; they render as `status: error` rows ("arguments truncated —
+  re-issue"), the model gets a re-issue note, and the loop continues once. Second
+  truncation → `stopReason: 'error'` and the forced tools-disabled pass.
+  Test-found detail: validation discards a mid-JSON call, so the guard keys on the
+  **raw candidate count**; and the nudge carries **no** assistant `tool_calls`
+  block (an unanswered tool_call makes OpenAI-shaped gateways reject the next turn).
+- **Tool-use with zero parsed calls**: nudge once (`agent_tooluse_no_calls`
+  telemetry), then force a tools-disabled pass instead of finalizing on an empty
+  reply.
+- **Stop mapping**: `AgentLoopResult.providerStopReason`; `agent_max_rounds`
+  telemetry carries it. `stop` / `tool_use` / `length` no longer share one branch.
+- Deliberately **not** implemented (per handoff): judge LLM, Stop hooks, Pi steer
+  queues, per-turn SSE (Phase 3).
+
+### Tests (all green)
+
+- New: `agentPromise.test.ts` (9 — GLM status-line shape, real multi-paragraph
+  answers that merely say "I searched", "let me know"/"hold on to that thought"
+  non-matches, empty, tool dumps, length cap), `agentStopReason.test.ts` (13 — alias
+  families, `length`+calls → truncated, `tool_use`+0 → nudge, unknown ≠ stop,
+  finish-reason extraction across shapes), `agentLoop.promiseContinue.test.ts`
+  (6 — tools → promise → real answer, promise on turn 1, spam capped at 2 then
+  `promised_more_timeout`, promise from the forced pass → exhaustion fallback,
+  real answer needs no extra turn), `agentLoop.stopReason.test.ts` (4 — truncated
+  calls never execute and are re-issued, tool-use-no-calls never finalizes,
+  one-nudge cap, tools-turn text stays intermediate).
+- Updated: `agentLoop.activity.test.ts` (`turn_*` rename, text-before-tools order),
+  `agentActivity.test.ts` (status-line reducer), `AgentToolActivity.test.tsx`
+  (latest line, no line on the compact chip), `ChatMessage.test.tsx` (live line,
+  no double typing indicator), `historyTools.test.ts` policy still passes.
+- **Sabotage check on the a11y chip**: the compact chip label said "Used 1 tools"
+  — caught by the new test, fixed to proper pluralization.
+- Gates: full jest **256 suites / 1290 passed** (9 suites / 25 tests skipped as
+  integration-gated) · `npx tsc --noEmit` clean · `npm run check:design` 0 errors
+  (4 pre-existing warnings, app/chat.tsx 490 lines) · eslint on all touched files
+  0 errors, 0 warnings. `npm run lint` repo-wide still reports the pre-existing
+  `.pi/` tooling errors (untouched by this diff).
+- After the `<tool_name>` leak fix (see below): full jest **255 suites / 1293 passed**
+  (10 integration suites skipped), `parseTextToolCalls.test.ts` 19/19, all
+  `__tests__/services/ai` 53 suites / 391 tests green; services+components+features+hooks
+  120 suites / 637 tests green; tsc / lint / check:design unchanged. New live probe
+  `textToolDumpLeakLive.test.ts` 2/2 on the real gateway.
+- Two `directTransport.test.ts` failures (504-retry timing, BYOK lease) are
+  **pre-existing**: reproduced with this work stashed.
+
+### Live E2E (OmniRoute, cleared-storage harness) — PASSED 2026-09-10
+
+New `__tests__/integration/agentPromiseLive.test.ts`, real gateway
+(`http://100.107.7.52:20128/v1`, model `merge/zai/glm-5.3-flash` — the `.env`
+model, not an override), real freeform prompt weave, real tool
+validate/execute pipeline, only `hindsightRecall` stubbed. 3/3 passed.
+
+1. **"What did I write about work yesterday? Dig through my entries properly."**
+   → `rounds=3 usedTools=true stop=complete providerStop=stop`, calls
+   `get_day({"date":"2026-09-09"})` → `get_conversation({"kind":"journal_entry"})`,
+   no status lines, reply grounded in the seed (sleep / work / boss churn).
+2. **"Look back as far as you can and tell me the themes…"** → `rounds=2
+   usedTools=true stop=timeout providerStop=tool_use`, five tool calls across
+   `list_recent_days` / `recall_memory` / `search_history`; the stop reason came
+   from the mapped set, not a raw provider string.
+3. **Coached sabotage probe** — a system prompt forcing the exact leak shape
+   ("your FIRST message must be ONLY a short status line such as 'One sec — let me
+   dig through that'"). The model complied, and the loop recovered:
+
+   ```
+   rounds=4 usedTools=true stop=complete providerStop=stop promiseContinuations=1
+     calls: get_day({"date":"yesterday"}) | get_conversation({"kind":"journal_entry","id":"entry_1789032364334_dcnec1n9g"})
+     statusLines: turn=1 "One sec — let me dig through that." ; turn=3 "Found it — pulling up the full entry now."
+     followUps: promised_more
+   ```
+
+   Verbatim reply (the user-visible answer, **not** the status line):
+
+   > I dug back as far as the journal goes, and honestly — we're early here.
+   > There's one written day on this device, from yesterday, and nothing in
+   > longer-term memory. So the picture is more like a first brushstroke than a
+   > painting.
+   >
+   > But that brushstroke says a lot. The theme running through it is a loop:
+   > sleep debt wearing you down, work pressure piling on top, and the churn
+   > around your boss feeding the spiral. The interesting part isn't any single
+   > piece — it's that they're intertwined. Tired makes
+
+   Turn-1's status line was captured as intermediate voice and rendered in the UI
+   status slot; turn-3's line was also intermediate; the answer survived intact.
+
+### Real-UI run found + fixed a tool-dump leak (`<tool_name>` XML shape)
+
+Verifying the live status line in the actual browser (Playwriter, `localhost:8081/chat`,
+model `glm 5.3 flash`) surfaced a genuine user-visible bug: two tool cards rendered
+`ok`, but the **committed reply was raw tool syntax**:
+
+```
+<search_history>
+{
+  "query": "work",
+  "top_k": 10
+}
+</search_history>
+```
+
+Root cause in `services/ai/tools/parseTextToolCalls.ts`: the XML branch matched only
+wrapper tag names (`dots_function_call|tool_call|function_call|invoke|tool_request|tool|function`).
+glm 5.3 writes the **tool name as the tag**, so the dump was neither parsed (no
+execution, no cleaning) nor flagged by `looksLikeToolDump`; `stripToolCallSyntax`
+returned it verbatim and `ai.ts` committed it as the answer.
+
+Fix:
+
+- `WRAPPER_TAGS` / `XML_TAG_NAMES` constants; the XML alternation now includes every
+  registered tool name, and the close tag uses a backreference (`</\1>`) so
+  `<a>…</a>` cannot be closed by `</b>`.
+- Tag name is used as the tool name when the body carries no name.
+- New `extractOrphanToolTags`: unclosed `<tool_name>{json}` (stream cut off) is still
+  recognized — the JSON body is extracted and the tag stripped.
+- `looksLikeToolDump` gains a `tagHit` check so an unparsed tag dump is still flagged.
+- Leftover-cleanup pass strips `<tool_name …>` / `</tool_name>` scaffolding.
+
+Tests (`__tests__/services/ai/parseTextToolCalls.test.ts`): 6 new cases
+(tag-shape parse, multi-tag + prose preserved, strip-to-empty, orphan tag,
+`looksLikeToolDump`, prose false-positive guard). Red first — 5 failed / 13 passed
+before the fix — then **19/19 green**. `__tests__/services/ai` overall: 53 suites /
+391 tests green.
+
+New live probe `__tests__/integration/textToolDumpLeakLive.test.ts` (2 cases, real
+gateway, coached sabotage): **PASSED** in 264s. Verbatim harness output:
+
+```
+[leak-live] rounds=2 usedTools=true
+  calls: search_history({"query":"work","limit":6})
+  origins: search_history:text
+  reply: Here's what turned up: your most recent writing on work is from **September 9th**,
+         and it centers on one session titled **"Quiet doubt about the new role."** …
+
+[leak-live] coached: fromText=true origins=search_history:text
+[tools] agent_complete { toolCallSource: 'text', structuredCalls: 0, textCalls: 1 }
+```
+
+`origin: 'text'` + `structuredCalls: 0` is the proof that matters: the model wrote the
+call as text, and the parser turned it into a real executed call — not merely stripped it.
+
+Re-run in the real UI after the fix (same question that leaked): four tool cards
+(`search_history "work job role"` → `list_recent_days "10 days"` → two
+`get_conversation` rows) and a genuine prose answer citing "Quiet doubt about the new
+role" and the Friday small-wins intention — no tag syntax anywhere.
+
+### Honest gaps
+
+- Turns 1–2 of the live probe never naturally produced a promise-only turn, so the
+  promise path is proven live only by the coached probe (case 3). Real-traffic
+  promise rate is unmeasured — watch `agent_promise_continue` /
+  `agent_promise_exhausted` telemetry.
+- Phase 2's "live final streaming" (real SSE for the final answer) and Phase 3's
+  per-turn streaming were **not** done; the final answer still uses
+  `emitSimulatedStreaming`. The plan marks them optional after P1–P2.
+- No device/Playwright pass on the status-line UI this session; coverage is the
+  component + reducer tests above.
+
+## 2026-09-10 — Visible tool-calling harness (Cursor/Pi-style live activity)
+
+### Outcome
+
+Shipped a live agent activity timeline for journal freeform chat and intention chat
+without changing tool semantics, storage, or Hindsight. One optional
+`onAgentActivity` listener threads `agentLoop` → `streamChat` → `useChat` →
+`useChatOrchestration` → shared `AgentToolActivity` UI.
+
+| Layer | Change |
+|---|---|
+| Events | New `services/ai/agentEvents.ts` (`agent_start` / `round_*` / `tool_call_start/end` / `agent_end`) |
+| Copy | New `services/ai/tools/toolUiMeta.ts` — human labels, args previews (cap 120), result teasers (first line only) |
+| Emit | `runAgentTurnWithTools` wraps each prepared batch with start/end; soft-fail if the listener throws (`agent_activity_listener_error` telemetry) |
+| Wire | `StreamChatOptions.onAgentActivity`; freeform `sendMessage(..., { onAgentActivity })`; bootstrap openers stay tools-off |
+| State | `StreamingMessage.toolActivity`; reducer in `features/chat/agentActivity.ts` (upsert by `toolCallId`, keep cards until commit) |
+| UI | Shared `components/ai/AgentToolActivity.tsx` — running/ok/error/refused rows, expand teaser, compact “Used N tools · details” chip once prose streams; both schemes via `bg-surface-light/95 dark:bg-slate-800/80` |
+
+### Tests / gates
+
+- New: `__tests__/services/ai/agentLoop.activity.test.ts` (structured start/end ids, no-tools → agent_start/round_start/agent_end, timeout still ends cleanly, listener throw is soft-fail, refused status)
+- New: `__tests__/services/ai/toolUiMeta.test.ts`, `__tests__/components/AgentToolActivity.test.tsx`, `__tests__/features/agentActivity.test.ts`
+- Updated: `__tests__/hooks/useChatOrchestration.test.tsx` (5th arg with `onAgentActivity`)
+- Existing agentLoop control-flow suites still green
+- `npx tsc --noEmit` clean; targeted jest 11/11 suites; `npm run check:design` passed (warnings only: app/chat.tsx 496 lines)
+
+### Not done (honest gaps)
+
+- Manual OmniRoute golden path (“what did I write about work last week?”) not run in this session — needs a live gateway window; paste real timeline labels here when done.
+- Full `npm run lint` still reports pre-existing errors under `.pi/` (not in this diff); touched files lint clean.
+
+### Follow-up fixes (same day review)
+
+- **Tool cards no longer vanish after the reply starts.** Live stack stays expanded (`compact=false`) while streaming; on complete, cards fold onto `Message.toolActivity` and re-render as an expandable chip on the committed assistant message (journal + intention). Ref updated outside `setState` so commit never races the last `tool_call_end`.
+- **Journal chat no longer double-shows “thinking”.** `ChatMessage` skips its bare `TypingIndicator` when a tool stack is present (matches intention chat).
+- **Status icon colors use theme tokens.** `ToolStatusColors` in `constants/theme.ts` + `tool-*` tokens in `tailwind.config.js`; no more ad-hoc hex in the component.
+- **`get_conversation` result teaser is title/length only** — never transcript prose.
+- Tests: `ChatMessage` live/finished tool cases, orchestration commit fold, AgentToolActivity expanded-while-live. 36 related tests green; `tsc` + `check:design` clean.
+
 ## 2026-09-10 — Tool-calling accuracy: FULL GREEN 4-turn live probe (turn-4 first-conversation anti-hallucination verified)
 
 ### Outcome

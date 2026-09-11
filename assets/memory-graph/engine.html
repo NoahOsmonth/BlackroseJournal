@@ -9,7 +9,7 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: #06080F;
+      background: #0C0C0E;
       overscroll-behavior: none;
       font-family: -apple-system, BlinkMacSystemFont, "Plus Jakarta Sans", "Segoe UI", sans-serif;
       -webkit-user-select: none;
@@ -18,7 +18,7 @@
     }
 
     body.theme-light {
-      background: #EEF1F8;
+      background: #F4F1EB;
     }
 
     canvas {
@@ -42,11 +42,11 @@
       width: 44px;
       height: 44px;
       border-radius: 16px;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      background: rgba(12, 16, 28, 0.55);
+      border: 1px solid rgba(237, 232, 224, 0.14);
+      background: rgba(21, 21, 24, 0.62);
       -webkit-backdrop-filter: blur(16px) saturate(140%);
       backdrop-filter: blur(16px) saturate(140%);
-      color: rgba(248, 250, 252, 0.92);
+      color: rgba(237, 232, 224, 0.92);
       font-size: 20px;
       line-height: 1;
       display: flex;
@@ -60,18 +60,18 @@
 
     .controls button:active {
       transform: scale(0.92);
-      background: rgba(24, 32, 52, 0.72);
+      background: rgba(44, 42, 38, 0.78);
     }
 
     body.theme-light .controls button {
-      border: 1px solid rgba(15, 23, 42, 0.08);
-      background: rgba(255, 255, 255, 0.78);
-      color: #1E293B;
-      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.1);
+      border: 1px solid rgba(28, 25, 23, 0.1);
+      background: rgba(255, 253, 249, 0.82);
+      color: #1C1917;
+      box-shadow: 0 8px 22px rgba(28, 25, 23, 0.1);
     }
 
     body.theme-light .controls button:active {
-      background: rgba(248, 250, 252, 0.95);
+      background: rgba(237, 232, 223, 0.95);
     }
   </style>
 </head>
@@ -93,16 +93,17 @@
     const canvas = document.getElementById('graphCanvas');
     const ctx = canvas.getContext('2d');
 
-    // Aurora constellation palette (cohesive, not rainbow-slop)
+    // Blackrose layer palette — three families (bone, sage, muted rose),
+    // two shades each. Six layers, no rainbow.
     const LAYER_COLORS = {
-      episodic: '#C4A1FF',
-      semantic: '#7DD3FC',
-      profile: '#FDA4AF',
-      procedural: '#6EE7B7',
-      note: '#FCD34D',
-      working: '#F0ABFC',
+      episodic: '#C9C2B6',   // bone
+      semantic: '#7A9E7E',   // sage
+      profile: '#C4A0A6',    // muted rose
+      procedural: '#5F8065', // sage deep
+      note: '#A79E8F',       // bone deep
+      working: '#A4808A',    // muted rose deep
     };
-    const FALLBACK_COLOR = '#94A3B8';
+    const FALLBACK_COLOR = '#8A8580';
 
     const BLOOM_MS = 420;
     const EXIT_MS = 380;
@@ -113,52 +114,50 @@
 
     const THEMES = {
       dark: {
-        pageBg: '#06080F',
-        deep: '#03050A',
+        pageBg: '#0C0C0E',
+        deep: '#08080A',
         nebula: [
-          { c: '100,80,180', a: 0.14 },
-          { c: '40,90,160', a: 0.1 },
-          { c: '160,70,120', a: 0.08 },
+          { c: '201,194,182', a: 0.06 },
+          { c: '122,158,126', a: 0.05 },
+          { c: '196,160,166', a: 0.04 },
         ],
         vignetteOuter: 'rgba(0,0,0,0.55)',
-        star: '226,232,240',
-        dust: '148,163,184',
+        star: '237,232,224',
+        dust: '138,133,128',
         showStars: true,
-        nodeCore: '#0B1020',
-        nodeRim: 'rgba(255,255,255,0.14)',
-        focusRing: 'rgba(255,248,240,0.92)',
-        focusRingOuter: 'rgba(255,248,240,0.28)',
-        labelPill: 'rgba(8,12,22,0.82)',
-        labelText: 'rgba(248,250,252,0.96)',
-        clusterFill: 'rgba(12,18,32,0.72)',
-        clusterText: 'rgba(248,250,252,0.95)',
-        edgeMid: '#64748B',
-        mark: 'rgba(255,255,255,0.88)',
-        controlHint: 'rgba(255,255,255,0.06)',
+        nodeCore: '#151518',
+        nodeRim: 'rgba(237,232,224,0.14)',
+        focusRing: 'rgba(237,232,224,0.92)',
+        focusRingOuter: 'rgba(237,232,224,0.28)',
+        labelText: 'rgba(237,232,224,0.96)',
+        clusterFill: 'rgba(21,21,24,0.74)',
+        clusterText: 'rgba(237,232,224,0.95)',
+        edgeMid: '#5A554E',
+        mark: 'rgba(237,232,224,0.88)',
+        controlHint: 'rgba(237,232,224,0.06)',
       },
       light: {
-        pageBg: '#EEF1F8',
-        deep: '#E2E8F4',
+        pageBg: '#F4F1EB',
+        deep: '#EDE8DF',
         nebula: [
-          { c: '180,160,230', a: 0.18 },
-          { c: '140,190,230', a: 0.14 },
-          { c: '240,170,190', a: 0.12 },
+          { c: '92,86,76', a: 0.07 },
+          { c: '79,111,82', a: 0.06 },
+          { c: '138,95,104', a: 0.05 },
         ],
-        vignetteOuter: 'rgba(15,23,42,0.1)',
-        star: '100,116,139',
-        dust: '148,163,184',
+        vignetteOuter: 'rgba(28,25,23,0.1)',
+        star: '107,101,96',
+        dust: '160,152,142',
         showStars: false,
-        nodeCore: '#FFFFFF',
-        nodeRim: 'rgba(15,23,42,0.12)',
-        focusRing: 'rgba(15,23,42,0.88)',
-        focusRingOuter: 'rgba(15,23,42,0.22)',
-        labelPill: 'rgba(255,255,255,0.94)',
-        labelText: 'rgba(15,23,42,0.92)',
-        clusterFill: 'rgba(255,255,255,0.88)',
-        clusterText: 'rgba(15,23,42,0.92)',
-        edgeMid: '#94A3B8',
-        mark: 'rgba(15,23,42,0.72)',
-        controlHint: 'rgba(15,23,42,0.05)',
+        nodeCore: '#FFFDF9',
+        nodeRim: 'rgba(28,25,23,0.12)',
+        focusRing: 'rgba(28,25,23,0.88)',
+        focusRingOuter: 'rgba(28,25,23,0.22)',
+        labelText: 'rgba(28,25,23,0.92)',
+        clusterFill: 'rgba(255,253,249,0.88)',
+        clusterText: 'rgba(28,25,23,0.92)',
+        edgeMid: '#B4ABA0',
+        mark: 'rgba(28,25,23,0.72)',
+        controlHint: 'rgba(28,25,23,0.05)',
       },
     };
 
@@ -1082,11 +1081,34 @@
       ctx.closePath();
     }
 
+    // Node labels are the concept's literary moment: bare serif text under the
+    // star, wrapped to two short lines, no pill and no accent tick.
+    const LABEL_FONT = '13px Georgia, "Iowan Old Style", "Times New Roman", serif';
+    const LABEL_LINE_H = 17;
+    const LABEL_WRAP_CHARS = 14;
+    const LABEL_MAX_CHARS = 28;
+
+    function wrapLabel(rawTitle) {
+      const clean = String(rawTitle || '').trim();
+      if (!clean) return [];
+      const capped = clean.length > LABEL_MAX_CHARS
+        ? `${clean.slice(0, LABEL_MAX_CHARS - 1).trimEnd()}\u2026`
+        : clean;
+      if (capped.length <= LABEL_WRAP_CHARS) return [capped];
+      const head = capped.slice(0, LABEL_WRAP_CHARS + 1);
+      const cut = head.lastIndexOf(' ');
+      // A single long word stays whole rather than breaking mid-syllable.
+      if (cut <= 0) return [capped];
+      const first = capped.slice(0, cut);
+      const rest = capped.slice(cut + 1).trim();
+      return rest ? [first, rest] : [first];
+    }
+
     function drawLabels(now) {
       const zoomFade = clamp((camera.scale - LABEL_ZOOM) / 0.35, 0, 1);
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+      ctx.font = `600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
 
       // Collision grid for labels (screen space)
       const occupied = [];
@@ -1112,7 +1134,7 @@
         const py = sy - th / 2;
         ctx.globalAlpha = 0.95;
         roundedPill(px, py, tw, th, 10);
-        ctx.fillStyle = palette.labelPill;
+        ctx.fillStyle = palette.clusterFill;
         ctx.fill();
         ctx.fillStyle = palette.clusterText;
         ctx.fillText(label, sx, sy);
@@ -1120,6 +1142,7 @@
         occupied.push({ x: px, y: py, w: tw, h: th });
       });
 
+      ctx.font = LABEL_FONT;
       nodes.forEach((node) => {
         if (isNodeCollapsed(node)) return;
         const entry = nodeEntryScale(node, now);
@@ -1132,32 +1155,28 @@
         if (labelAlpha < 0.05) return;
         if (!nodeInView(node, 90)) return;
 
+        const lines = wrapLabel(node.title);
+        if (lines.length === 0) return;
+
         const sx = node.x * camera.scale + camera.x;
-        const sy = node.y * camera.scale + camera.y + node.r * camera.scale + 16;
-        let title = node.title;
-        if (title.length > 22) title = title.slice(0, 21) + '…';
+        const sy = node.y * camera.scale + camera.y + node.r * camera.scale + 12;
 
-        const metrics = ctx.measureText(title);
-        const padX = 8;
-        const tw = metrics.width + padX * 2;
-        const th = 20;
+        let tw = 0;
+        lines.forEach((line) => {
+          tw = Math.max(tw, ctx.measureText(line).width);
+        });
+        const th = lines.length * LABEL_LINE_H;
         const px = sx - tw / 2;
-        const py = sy - th / 2;
+        const py = sy;
 
-        if (!focused && collides(px - 2, py - 2, tw + 4, th + 4)) return;
+        if (!focused && collides(px - 3, py - 3, tw + 6, th + 6)) return;
         occupied.push({ x: px, y: py, w: tw, h: th });
 
         ctx.globalAlpha = labelAlpha;
-        roundedPill(px, py, tw, th, 10);
-        ctx.fillStyle = palette.labelPill;
-        ctx.fill();
-        // Soft accent tick
-        ctx.beginPath();
-        ctx.arc(px + 8, sy, 2.5, 0, Math.PI * 2);
-        ctx.fillStyle = nodeColor(node);
-        ctx.fill();
         ctx.fillStyle = palette.labelText;
-        ctx.fillText(title, sx + 4, sy);
+        lines.forEach((line, index) => {
+          ctx.fillText(line, sx, py + LABEL_LINE_H / 2 + index * LABEL_LINE_H);
+        });
         ctx.globalAlpha = 1;
       });
     }

@@ -1,20 +1,25 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
+import { BLACKROSE_PALETTE } from '@/constants/theme';
+import { navAwareBottomPadding } from '@/constants/spacing';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useGoals } from '@/hooks/goals/useGoals';
 import { useNavBack } from '@/hooks/navigation/useNavBack';
+import { GoalGroup } from '@/components/goals/GoalGroup';
 import { GoalQuickAddModal } from '@/components/goals/GoalQuickAddModal';
 import { getLocalDateKey } from '@/utils/date';
+import { habitCurrentStreak } from '@/utils/streakStats';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { LoadingStatus } from '@/components/ui/LoadingStatus';
 
 export default function GoalsScreen() {
     const goBack = useNavBack('/(tabs)/today');
-    const colorScheme = useColorScheme();
-    const iconColor = colorScheme === 'dark' ? '#F9FAFB' : '#111827';
+    const insets = useSafeAreaInsets();
+    const isDark = useColorScheme() === 'dark';
+    const iconColor = isDark ? BLACKROSE_PALETTE.dark.text : BLACKROSE_PALETTE.light.text;
     const { goals, toggle, create, isLoading } = useGoals();
     const [showAdd, setShowAdd] = useState(false);
 
@@ -23,27 +28,32 @@ export default function GoalsScreen() {
     if (isLoading) {
         return (
             <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
-                <View className="flex-1 max-w-md mx-auto w-full">
-                    <View className="flex-row items-center justify-between px-4 py-4">
-                        <Pressable onPress={goBack} className="p-2 -ml-2">
+                <View className="w-full max-w-md flex-1 self-center">
+                    <View className="flex-row items-center justify-between px-6 py-4">
+                        <Pressable onPress={goBack} className="h-10 w-10 items-center justify-center" accessibilityRole="button" accessibilityLabel="Back">
                             <MaterialIcons name="arrow-back" size={24} color={iconColor} />
                         </Pressable>
-                        <Text className="text-lg font-semibold text-text-light dark:text-text-dark">Goals & Habits</Text>
+                        <Text
+                            className="text-[22px] text-text-light dark:text-text-dark"
+                            style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                        >
+                            Goals & Habits
+                        </Text>
                         <View className="w-10" />
                     </View>
-                    <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
+                    <ScrollView className="flex-1 px-6" showsVerticalScrollIndicator={false}>
                         <View className="gap-6 pb-10">
                             <LoadingStatus label="Loading goals" compact />
                             <View className="gap-3">
                                 <Skeleton className="h-3 w-16" accessibilityLabel="Loading goals header" />
                                 {[1, 2, 3].map((index) => (
-                                    <Skeleton key={index} className="h-12 w-full rounded-2xl bg-surface-light dark:bg-surface-dark" accessibilityLabel={`Loading goal ${index}`} />
+                                    <Skeleton key={index} className="h-12 w-full rounded-card bg-surface-light dark:bg-surface-dark" accessibilityLabel={`Loading goal ${index}`} />
                                 ))}
                             </View>
-                            <View className="gap-3 mt-6">
+                            <View className="mt-6 gap-3">
                                 <Skeleton className="h-3 w-16" accessibilityLabel="Loading habits header" />
                                 {[1, 2].map((index) => (
-                                    <Skeleton key={index} className="h-12 w-full rounded-2xl bg-surface-light dark:bg-surface-dark" accessibilityLabel={`Loading habit ${index}`} />
+                                    <Skeleton key={index} className="h-12 w-full rounded-card bg-surface-light dark:bg-surface-dark" accessibilityLabel={`Loading habit ${index}`} />
                                 ))}
                             </View>
                         </View>
@@ -63,81 +73,95 @@ export default function GoalsScreen() {
 
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
-            <View className="flex-1 max-w-md mx-auto w-full">
-                <View className="flex-row items-center justify-between px-4 py-4">
-                    <Pressable onPress={goBack} className="p-2 -ml-2">
+            <View className="w-full max-w-md flex-1 self-center">
+                <View className="flex-row items-center justify-between px-6 py-4">
+                    <Pressable
+                        onPress={goBack}
+                        className="h-10 w-10 items-center justify-center"
+                        accessibilityRole="button"
+                        accessibilityLabel="Back"
+                        hitSlop={8}
+                    >
                         <MaterialIcons name="arrow-back" size={24} color={iconColor} />
                     </Pressable>
-                    <Text className="text-lg font-semibold text-text-light dark:text-text-dark">Goals & Habits</Text>
-                    <Pressable onPress={() => setShowAdd(true)}>
+                    <Text
+                        className="text-[22px] text-text-light dark:text-text-dark"
+                        style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                    >
+                        Goals & Habits
+                    </Text>
+                    <Pressable
+                        onPress={() => setShowAdd(true)}
+                        className="h-10 w-10 items-center justify-center"
+                        accessibilityRole="button"
+                        accessibilityLabel="Add goal or habit"
+                        hitSlop={8}
+                    >
                         <MaterialIcons name="add" size={24} color={iconColor} />
                     </Pressable>
                 </View>
 
-                <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
-                    <View className="gap-6 pb-10">
-                        <View>
-                            <Text className="text-xs uppercase tracking-wide text-text-secondary-light dark:text-text-secondary-dark mb-2">
-                                Today&apos;s goals
-                            </Text>
-                            <View className="gap-3">
-                                {todayGoals.map((goal) => (
-                                    <Pressable
-                                        key={goal.id}
-                                        onPress={() => toggle(goal.id)}
-                                        className="bg-surface-light dark:bg-surface-dark rounded-2xl p-4 flex-row items-center justify-between"
-                                    >
-                                        <Text className="text-base text-text-light dark:text-text-dark">
-                                            {goal.title}
-                                        </Text>
-                                        <MaterialIcons
-                                            name={goal.completed ? 'check-circle' : 'radio-button-unchecked'}
-                                            size={22}
-                                            color={goal.completed ? '#22C55E' : '#9CA3AF'}
-                                        />
-                                    </Pressable>
-                                ))}
-                                {todayGoals.length === 0 && (
-                                    <Text className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                                        No goals yet. Tap + to add one.
-                                    </Text>
-                                )}
-                            </View>
-                        </View>
+                <View className="h-px w-full bg-hairline-light dark:bg-hairline-dark" />
 
-                        <View>
-                            <Text className="text-xs uppercase tracking-wide text-text-secondary-light dark:text-text-secondary-dark mb-2">
-                                Habits
-                            </Text>
-                            <View className="gap-3">
-                                {habits.map((habit) => {
-                                    const completed = (habit.habitCompletions ?? []).includes(dateKey);
-                                    return (
-                                        <Pressable
-                                            key={habit.id}
-                                            onPress={() => toggle(habit.id, dateKey)}
-                                            className="bg-surface-light dark:bg-surface-dark rounded-2xl p-4 flex-row items-center justify-between"
-                                        >
-                                            <Text className="text-base text-text-light dark:text-text-dark">
-                                                {habit.title}
-                                            </Text>
-                                            <MaterialIcons
-                                                name={completed ? 'check-circle' : 'radio-button-unchecked'}
-                                                size={22}
-                                                color={completed ? '#22C55E' : '#9CA3AF'}
-                                            />
-                                        </Pressable>
-                                    );
-                                })}
-                                {habits.length === 0 && (
-                                    <Text className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                                        No habits yet. Tap + to add one.
-                                    </Text>
-                                )}
-                            </View>
-                        </View>
+                <ScrollView
+                    className="flex-1 px-6 pt-6"
+                    contentContainerStyle={{ paddingBottom: navAwareBottomPadding(insets.bottom) }}
+                    showsVerticalScrollIndicator={false}
+                >
+                    <View className="gap-8">
+                        <GoalGroup
+                            label="Today"
+                            items={todayGoals.map((goal) => ({
+                                id: goal.id,
+                                title: goal.title,
+                                completed: goal.completed,
+                            }))}
+                            emptyMessage="Nothing set for today yet."
+                            onToggle={(id) => void toggle(id)}
+                        />
+
+                        <GoalGroup
+                            label="Habits"
+                            items={habits.map((habit) => {
+                                const completionKeys = habit.habitCompletions ?? [];
+                                const streak = habitCurrentStreak(completionKeys, dateKey);
+                                return {
+                                    id: habit.id,
+                                    title: habit.title,
+                                    completed: completionKeys.includes(dateKey),
+                                    meta: streak > 1 ? `${streak} day streak` : undefined,
+                                };
+                            })}
+                            emptyMessage="No habits yet."
+                            onToggle={(id) => void toggle(id, dateKey)}
+                        />
+
+                        <Text
+                            className="text-center text-[15px] text-text-secondary-light dark:text-text-secondary-dark"
+                            style={{ fontFamily: 'PlayfairDisplayRegular', fontStyle: 'italic' }}
+                        >
+                            Consistency builds quietly.
+                        </Text>
                     </View>
                 </ScrollView>
+
+                {/* Bottom hairline + the concept's underlined add line. */}
+                <View className="h-px w-full bg-hairline-light dark:bg-hairline-dark" />
+                <View className="items-center py-4">
+                    <Pressable
+                        onPress={() => setShowAdd(true)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Add goal or habit"
+                        hitSlop={8}
+                    >
+                        <Text
+                            className="text-[16px] text-text-light underline dark:text-text-dark"
+                            style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                        >
+                            Add goal or habit
+                        </Text>
+                    </Pressable>
+                </View>
 
                 <GoalQuickAddModal
                     visible={showAdd}

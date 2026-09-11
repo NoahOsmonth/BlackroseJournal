@@ -42,10 +42,10 @@ describe('modelDisplay helpers', () => {
     it('prefers preferred free id then first free', () => {
         const models = [
             { id: 'a/other:free' },
-            { id: 'cl/dots-studio/dots-3-note-preview:free' },
+            { id: 'merge/deepseek/deepseek-v4-flash-0731' },
         ];
         expect(preferFreeModelId(models, 'a/other:free')).toBe('a/other:free');
-        expect(preferFreeModelId(models, null)).toBe('cl/dots-studio/dots-3-note-preview:free');
+        expect(preferFreeModelId(models, null)).toBe('merge/deepseek/deepseek-v4-flash-0731');
     });
 
     it('formats host and display names', () => {

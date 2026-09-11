@@ -17,7 +17,7 @@ describe('settingsSummaries', () => {
     it('formats appearance, generation, and color summaries', () => {
         expect(appearanceSummary('dark', 'flat')).toBe('Dark · Flat');
         expect(generationSummary(DEFAULT_GENERATION)).toBe('Balanced');
-        expect(colorThemeSummary(DEFAULT_COLOR_THEME)).toBe('Rosebud');
+        expect(colorThemeSummary(DEFAULT_COLOR_THEME)).toBe('Blackrose');
         expect(colorThemeSummary({ ...DEFAULT_COLOR_THEME, presetId: 'custom' })).toBe('Custom');
     });
 

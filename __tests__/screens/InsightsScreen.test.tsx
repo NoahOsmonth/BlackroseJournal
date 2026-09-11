@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { render, screen } from '@testing-library/react-native';
 
 import InsightsScreen from '../../app/(tabs)/insights';
 
@@ -80,22 +80,24 @@ describe('InsightsScreen', () => {
         });
     });
 
-    it('shows honest lock progress without Saturday theater', () => {
+    it('shows honest lock progress and keeps the concept cards on screen', () => {
         render(<InsightsScreen />);
 
         expect(screen.getByText('Insights')).toBeTruthy();
-        expect(screen.getByText(/3 of 5/)).toBeTruthy();
+        expect(screen.getByText(/Requires 2 more entries/)).toBeTruthy();
         expect(screen.queryByText(/Saturday/i)).toBeNull();
         expect(screen.queryByText(/AI Executive Summary/i)).toBeNull();
-        expect(screen.getByText(/Writing this week/i)).toBeTruthy();
-        expect(screen.getByText(/2,350 words/)).toBeTruthy();
-        expect(screen.getByText(/Moods, themes, and people unlock/)).toBeTruthy();
-    });
+        expect(screen.getByText('Writing stats')).toBeTruthy();
+        expect(screen.getByText('2,350')).toBeTruthy();
+        expect(screen.getByText('Words')).toBeTruthy();
+        expect(screen.getByText('Entries')).toBeTruthy();
 
-    it('routes write CTA to chat when locked', () => {
-        render(<InsightsScreen />);
-        fireEvent.press(screen.getByLabelText('Write an entry'));
-        expect(mockPush).toHaveBeenCalledWith('/chat');
+        // Locked weeks still show Mood / Key themes / Cast of characters, each
+        // carrying "Not enough data" rather than being replaced by a paragraph.
+        expect(screen.getByText('Mood')).toBeTruthy();
+        expect(screen.getByText('Key themes')).toBeTruthy();
+        expect(screen.getByText('Cast of characters')).toBeTruthy();
+        expect(screen.queryByText(/Moods, themes, and people unlock/)).toBeNull();
     });
 
     it('renders the week letter and meaning when unlocked', () => {

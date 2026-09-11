@@ -1,18 +1,24 @@
 import { useAuthActions } from '@/hooks/auth/useAuthActions';
 import { AuthFormSkeleton } from '@/components/auth/AuthFormSkeleton';
+import {
+    AuthInput,
+    FieldLabel,
+    PrimaryButton,
+    StatusBanner,
+    TextLink,
+} from '@/components/auth/AuthPrimitives';
+import {
+    AuthBackLink,
+    AuthCard,
+    AuthHeading,
+    AuthWordmark,
+    RoseRuleDivider,
+} from '@/components/auth/AuthScaffold';
 import { useAuthSession } from '@/hooks/auth/useAuthSession';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-function FieldLabel({ text }: { text: string }) {
-    return (
-        <Text className="text-xs font-bold uppercase tracking-wider text-subtext-light dark:text-subtext-dark mb-2">
-            {text}
-        </Text>
-    );
-}
 
 export default function ForgotPasswordScreen() {
     const router = useRouter();
@@ -50,65 +56,64 @@ export default function ForgotPasswordScreen() {
 
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
-            <View className="flex-1 max-w-md mx-auto w-full px-6 pt-6">
-                <Pressable onPress={() => router.back()} className="mb-4">
-                    <Text className="text-sm text-primary font-semibold dark:text-primary">Back</Text>
-                </Pressable>
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                className="flex-1"
+            >
+                <ScrollView
+                    contentContainerClassName="flex-grow"
+                    keyboardShouldPersistTaps="handled"
+                    bounces={false}
+                >
+                    <View className="w-full max-w-md mx-auto px-6 pt-2">
+                        <AuthBackLink onPress={() => router.back()} />
+                        <AuthHeading
+                            title="Reset password"
+                            subtitle="We will email you a secure link to reset your password."
+                        />
 
-                <Text className="text-3xl font-serif font-bold text-text-light dark:text-text-dark">
-                    Reset password
-                </Text>
-                <Text className="text-sm text-subtext-light dark:text-subtext-dark mt-2">
-                    We will email you a secure link to reset your password.
-                </Text>
+                        {isLoading ? (
+                            <AuthFormSkeleton fields={1} />
+                        ) : (
+                            <AuthCard>
+                                <FieldLabel text="Email" />
+                                <AuthInput
+                                    label="Email"
+                                    value={email}
+                                    onChangeText={setEmail}
+                                    placeholder="you@email.com"
+                                    keyboardType="email-address"
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
+                                    textContentType="emailAddress"
+                                    returnKeyType="go"
+                                    onSubmitEditing={() => void handleReset()}
+                                />
 
-                {isLoading ? (
-                    <AuthFormSkeleton fields={1} />
-                ) : (
-                <View className="bg-surface-light dark:bg-surface-dark rounded-2xl p-5 shadow-sm mt-6">
-                    <FieldLabel text="Email" />
-                    <TextInput
-                        value={email}
-                        onChangeText={setEmail}
-                        placeholder="you@email.com"
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        textContentType="emailAddress"
-                        className="rounded-xl border border-divider-light dark:border-divider-dark bg-background-light dark:bg-background-dark px-4 py-3 text-text-light dark:text-text-dark"
-                    />
+                                {status && <StatusBanner type={status.type} message={status.message} />}
 
-                    {status && (
-                        <View
-                            className={`mt-4 rounded-xl p-3 ${status.type === 'error'
-                                ? 'bg-yellow-300/20 dark:bg-yellow-300/10'
-                                : 'bg-green-300/20 dark:bg-green-300/10'
-                                }`}
-                        >
-                            <Text className="text-sm text-text-light dark:text-text-dark">
-                                {status.message}
-                            </Text>
-                        </View>
-                    )}
+                                <PrimaryButton
+                                    label="Send reset email"
+                                    loadingLabel="Sending…"
+                                    isLoading={isSubmitting}
+                                    onPress={() => void handleReset()}
+                                />
 
-                    <Pressable
-                        onPress={handleReset}
-                        disabled={isSubmitting}
-                        className={`mt-5 rounded-xl py-3 ${isSubmitting ? 'bg-primary/70' : 'bg-primary'}`}
-                    >
-                        <Text className="text-white font-semibold text-center dark:text-white">
-                            {isSubmitting ? 'Sending...' : 'Send reset email'}
-                        </Text>
-                    </Pressable>
+                                <RoseRuleDivider />
 
-                    <Pressable onPress={() => router.replace('/login')} className="mt-6">
-                        <Text className="text-sm text-primary font-semibold text-center dark:text-primary">
-                            Back to sign in
-                        </Text>
-                    </Pressable>
-                </View>
-                )}
-            </View>
+                                <View className="mt-1 items-center">
+                                    <TextLink
+                                        label="Back to sign in"
+                                        onPress={() => router.replace('/login')}
+                                    />
+                                </View>
+                            </AuthCard>
+                        )}
+
+                        <AuthWordmark />
+                    </View>
+                </ScrollView>
+            </KeyboardAvoidingView>
         </SafeAreaView>
     );
 }

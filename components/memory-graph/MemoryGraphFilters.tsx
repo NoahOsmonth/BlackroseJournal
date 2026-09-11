@@ -1,95 +1,62 @@
 import React from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
-import { MemoryLayerColors } from '@/constants/theme';
+import { Pressable, Text, View } from 'react-native';
+
 import type { MemoryLayer } from '@/services/memory/memoryGraph.types';
-import { MEMORY_LAYER_LABELS } from '@/components/memory/memoryDisplay';
 
 interface FilterProps {
     activeLayers: Set<MemoryLayer>;
     onToggle: (layer: MemoryLayer) => void;
 }
 
-const LAYERS: MemoryLayer[] = [
-    'episodic',
-    'semantic',
-    'profile',
-    'procedural',
-    'note',
-    'working',
-];
+/** Concept shows exactly three chips: Episodic · Semantic · Profile. */
+const LAYERS: MemoryLayer[] = ['episodic', 'semantic', 'profile'];
 
+const LABELS: Record<string, string> = {
+    episodic: 'Episodic',
+    semantic: 'Semantic',
+    profile: 'Profile',
+};
+
+/**
+ * Layer filters as three centred outline pills — no family dots, no scrolling.
+ * Matches black-rose-threads.png, where the chips sit as one quiet cluster.
+ */
 export function MemoryGraphFilters({ activeLayers, onToggle }: FilterProps) {
     return (
-        <ScrollView
+        <View
             testID="memory-layer-filters"
-            horizontal
-            className="border-b border-divider-light dark:border-divider-dark"
-            contentContainerStyle={{
-                alignItems: 'center',
-                gap: 10,
-                minHeight: 64,
-                paddingHorizontal: 20,
-                paddingVertical: 12,
-            }}
-            showsHorizontalScrollIndicator={false}
+            className="min-h-14 flex-row items-center justify-center gap-2 px-5 py-3"
         >
             {LAYERS.map((layer) => {
                 const isActive = activeLayers.has(layer);
-                const label = MEMORY_LAYER_LABELS[layer];
-                const color = MemoryLayerColors[layer];
-
                 return (
                     <Pressable
                         key={layer}
                         testID={`memory-layer-filter-${layer}`}
-                        accessibilityLabel={`Toggle ${label} memories`}
+                        accessibilityLabel={`Toggle ${LABELS[layer]} memories`}
                         accessibilityRole="button"
                         accessibilityState={{ selected: isActive }}
-                        className={`min-h-10 flex-row items-center rounded-2xl border px-3.5 py-2.5 ${
+                        className={
                             isActive
-                                ? 'border-transparent bg-surface-light dark:bg-surface-dark'
-                                : 'border-divider-light bg-surface-light dark:border-divider-dark dark:bg-surface-dark'
-                        }`}
-                        style={
-                            isActive
-                                ? {
-                                      borderColor: `${color}66`,
-                                      backgroundColor: `${color}28`,
-                                      shadowColor: color,
-                                      shadowOffset: { width: 0, height: 4 },
-                                      shadowOpacity: 0.28,
-                                      shadowRadius: 10,
-                                      elevation: 3,
-                                  }
-                                : undefined
+                                ? 'min-h-8 items-center justify-center rounded-control border border-bone-light px-3.5 py-1.5 dark:border-bone-dark'
+                                : 'min-h-8 items-center justify-center rounded-control border border-hairline-light px-3.5 py-1.5 dark:border-hairline-dark'
                         }
                         onPress={() => onToggle(layer)}
                     >
-                        <View
-                            className="mr-2.5 h-2.5 w-2.5 rounded-full"
-                            style={{
-                                backgroundColor: color,
-                                opacity: isActive ? 1 : 0.55,
-                                shadowColor: color,
-                                shadowOffset: { width: 0, height: 0 },
-                                shadowOpacity: isActive ? 0.9 : 0,
-                                shadowRadius: 6,
-                            }}
-                        />
                         <Text
                             numberOfLines={1}
-                            className={`text-xs font-semibold tracking-wide ${
+                            className={
                                 isActive
-                                    ? 'text-text-light dark:text-white'
-                                    : 'text-text-secondary-light dark:text-text-secondary-dark'
-                            }`}
+                                    ? 'text-[13px] text-text-light dark:text-text-dark'
+                                    : 'text-[13px] text-text-secondary-light dark:text-text-secondary-dark'
+                            }
                             style={{ lineHeight: 16 }}
                         >
-                            {label}
+                            {LABELS[layer]}
                         </Text>
                     </Pressable>
                 );
             })}
-        </ScrollView>
+        </View>
     );
 }

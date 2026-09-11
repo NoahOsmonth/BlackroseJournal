@@ -35,6 +35,7 @@ export default function MemoryGraphRoute() {
             initialLayer={layerParam(params.layer)}
             initialQuery={initialQuery}
             onBack={goBack}
+            showBottomNav
         />
     );
 }

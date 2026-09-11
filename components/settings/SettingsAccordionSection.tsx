@@ -2,69 +2,77 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
+import { BLACKROSE_PALETTE } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 interface SettingsAccordionSectionProps {
     readonly id: string;
     readonly title: string;
     readonly summary?: string;
-    readonly icon: keyof typeof MaterialIcons.glyphMap;
+    /** @deprecated the concept rows carry no icon chip — kept for callers. */
+    readonly icon?: keyof typeof MaterialIcons.glyphMap;
     readonly expanded: boolean;
     readonly onToggle: (id: string) => void;
     readonly children: React.ReactNode;
 }
 
+/**
+ * One Settings row: serif label on the left, its current value right-aligned in
+ * serif, chevron at the far edge, all separated by full-bleed hairlines. The
+ * concept shows no card and no icon chip — the list itself is the panel.
+ */
 export function SettingsAccordionSection({
     id,
     title,
     summary,
-    icon,
     expanded,
     onToggle,
     children,
 }: SettingsAccordionSectionProps) {
     const isDark = useColorScheme() === 'dark';
-    const iconColor = isDark ? '#F9FAFB' : '#111827';
-    const mutedIconColor = isDark ? '#9CA3AF' : '#6B7280';
+    const chevronColor = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
 
     return (
-        <View className="bg-surface-light dark:bg-surface-dark rounded-2xl shadow-sm mb-3 overflow-hidden">
+        <View>
             <Pressable
                 onPress={() => onToggle(id)}
                 accessibilityRole="button"
                 accessibilityState={{ expanded }}
                 accessibilityLabel={`${title}${summary ? `, ${summary}` : ''}`}
-                className="flex-row items-center gap-3 px-4 py-4 min-h-[56px] active:opacity-80"
+                className="min-h-[64px] flex-row items-center gap-3 py-4 active:opacity-70"
             >
-                <View className="w-9 h-9 rounded-xl bg-background-light dark:bg-secondary-dark items-center justify-center">
-                    <MaterialIcons name={icon} size={20} color={iconColor} />
-                </View>
+                <Text
+                    className="shrink-0 text-[19px] text-text-light dark:text-text-dark"
+                    style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                >
+                    {title}
+                </Text>
 
-                <View className="flex-1 min-w-0">
-                    <Text className="text-[16px] font-semibold text-text-light dark:text-text-dark">
-                        {title}
+                {summary ? (
+                    <Text
+                        className="min-w-0 flex-1 text-right text-[15px] text-text-secondary-light dark:text-text-secondary-dark"
+                        numberOfLines={1}
+                        style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                    >
+                        {summary}
                     </Text>
-                    {summary ? (
-                        <Text
-                            className="text-[13px] text-text-secondary-light dark:text-text-secondary-dark mt-0.5"
-                            numberOfLines={1}
-                        >
-                            {summary}
-                        </Text>
-                    ) : null}
-                </View>
+                ) : (
+                    <View className="flex-1" />
+                )}
 
                 <MaterialIcons
                     name={expanded ? 'expand-less' : 'expand-more'}
-                    size={24}
-                    color={mutedIconColor}
+                    size={22}
+                    color={chevronColor}
                 />
             </Pressable>
 
+            {/* Hairline sits between rows and under the last one — the concept's
+                list has a rule on both sides of every entry. */}
+            <View className="h-px w-full bg-hairline-light dark:bg-hairline-dark" />
+
             {expanded ? (
-                <View className="border-t border-divider-light dark:border-divider-dark px-4 pt-4 pb-5">
-                    {children}
-                </View>
+                <View className="pt-4 pb-6">{children}</View>
             ) : null}
         </View>
     );

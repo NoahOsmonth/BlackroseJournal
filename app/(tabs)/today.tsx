@@ -1,6 +1,7 @@
 /**
  * Today Screen
- * Daily home: week strip, morning/evening rituals, intentions, goals, insight.
+ * Daily home: writing card, morning/evening rituals, intentions, and (only when
+ * they exist) today's goals plus the entry insight.
  */
 
 import React, { useCallback, useMemo, useState } from 'react';
@@ -13,21 +14,18 @@ import Animated from 'react-native-reanimated';
 
 import { BottomNav } from '@/components/journal';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
-import { navAwareBottomPadding } from '@/constants/spacing';
+import { navAwareBottomPadding, SCREEN_PADDING_X } from '@/constants/spacing';
 import { AppHeader } from '@/components/navigation';
 import { GoalQuickAddModal } from '@/components/goals/GoalQuickAddModal';
 import {
     EntryInsightsCard,
     GoalsSection,
     InsightMoreOptionsModal,
-    IntentionActionCard,
     MyIntentionsSection,
+    TodayRitualRow,
+    TodayWritingCard,
     buildGoalListItems,
 } from '@/components/today';
-import {
-    EveningReflectionIcon,
-    MorningIntentionIcon,
-} from '@/components/today/TodayActionIcon';
 import { useGoals } from '@/hooks/goals/useGoals';
 import { useIntentions } from '@/hooks/intentions/useIntentions';
 import { useIntentionCheckIns } from '@/hooks/intentions/useIntentionCheckIns';
@@ -38,7 +36,6 @@ import { useHeaderActions } from '@/hooks/navigation/useHeaderActions';
 import { useTabNavigation } from '@/hooks/navigation/useTabNavigation';
 import { useSelectedDay } from '@/hooks/today/useSelectedDay';
 import { useSavedInsights } from '@/hooks/saved-insights/useSavedInsights';
-import { WeekdaySelector } from '@/components/today/WeekdaySelector';
 import { getLocalDateKey } from '@/utils/date';
 import { calculateStreakStats } from '@/utils/streakStats';
 import { SpatialView } from '@/components/ui/SpatialView';
@@ -50,7 +47,7 @@ export default function TodayScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { scrollY, onScroll } = useScrollReveal();
-    const { weekDays, selectedDay, selectDay, monthLabel, shortDateLabel } = useSelectedDay();
+    const { selectedDay, serifDateLabel } = useSelectedDay();
     const { completed: entries, refresh: refreshEntries, isLoading: entriesLoading } = useJournalEntries();
     const { completed: checkIns, refresh: refreshCheckIns, isLoading: checkInsLoading } = useIntentionCheckIns();
     const { activeIntentions, refresh: refreshIntentions, isLoading: intentionsLoading } = useIntentions();
@@ -83,11 +80,6 @@ export default function TodayScreen() {
         checkIns.forEach((checkIn) => keys.add(getLocalDateKey(new Date(checkIn.createdAt))));
         return keys;
     }, [entries, checkIns]);
-
-    const completedDayIndices = useMemo(
-        () => weekDays.filter((day) => completionKeys.has(getLocalDateKey(day.date))).map((day) => day.dayIndex),
-        [weekDays, completionKeys]
-    );
 
     const streakCount = useMemo(
         () => calculateStreakStats(completionKeys).currentStreak,
@@ -144,6 +136,10 @@ export default function TodayScreen() {
             return;
         }
         router.push({ pathname: '/intentions/chat', params: { type } });
+    };
+
+    const handleWritePress = () => {
+        router.push('/chat');
     };
 
     const handleMorningPress = () => {
@@ -213,7 +209,6 @@ export default function TodayScreen() {
         <ScreenContainer edges="top">
             <AppHeader
                 variant="today"
-                title={monthLabel}
                 streakCount={streakCount}
                 onLeftPress={openStreakView}
                 onRightPress={openSettings}
@@ -224,46 +219,45 @@ export default function TodayScreen() {
             ) : (
                 <>
                     <Animated.ScrollView
-                        className="flex-1 px-4"
-                        contentContainerStyle={{ paddingBottom: navAwareBottomPadding(insets.bottom) }}
+                        className="flex-1"
+                        contentContainerStyle={{
+                            paddingHorizontal: SCREEN_PADDING_X,
+                            paddingBottom: navAwareBottomPadding(insets.bottom),
+                        }}
                         showsVerticalScrollIndicator={false}
                         onScroll={onScroll}
                         scrollEventThrottle={16}
                     >
                         <SpatialView visible={true}>
                             <View className="gap-6">
+                                {/* One serif moment: the date headline. */}
                                 <RevealItem scrollY={scrollY}>
-                                    <WeekdaySelector
-                                        weekDays={weekDays}
-                                        selectedDayIndex={selectedDay.dayIndex}
-                                        onDaySelect={selectDay}
-                                        completedDayIndices={completedDayIndices}
-                                    />
+                                    <Text
+                                        className="text-[38px] leading-tight text-text-light dark:text-text-dark"
+                                        style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                                    >
+                                        {serifDateLabel}
+                                    </Text>
                                 </RevealItem>
 
                                 <RevealItem scrollY={scrollY}>
-                                    <View className="items-center justify-center">
-                                        <Text className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide">
-                                            Today {shortDateLabel}
-                                        </Text>
-                                    </View>
+                                    <TodayWritingCard onPress={handleWritePress} />
                                 </RevealItem>
 
                                 <RevealItem scrollY={scrollY}>
-                                    <View className="flex-row gap-4">
-                                        <IntentionActionCard
-                                            title={'Morning\nIntention'}
-                                            subtitle="Start your day"
-                                            icon={<MorningIntentionIcon />}
+                                    <View className="overflow-hidden rounded-card border border-hairline-light dark:border-hairline-dark">
+                                        <TodayRitualRow
+                                            title="Morning note"
                                             onPress={handleMorningPress}
                                             isCompleted={morningCompleted}
+                                            testID="today-ritual-morning"
                                         />
-                                        <IntentionActionCard
-                                            title={'Evening\nReflection'}
-                                            subtitle="Reflect & unwind"
-                                            icon={<EveningReflectionIcon />}
+                                        <TodayRitualRow
+                                            title="Evening close"
                                             onPress={handleEveningPress}
                                             isCompleted={eveningCompleted}
+                                            showDivider={false}
+                                            testID="today-ritual-evening"
                                         />
                                     </View>
                                 </RevealItem>
@@ -276,14 +270,16 @@ export default function TodayScreen() {
                                     />
                                 </RevealItem>
 
-                                <RevealItem scrollY={scrollY}>
-                                    <GoalsSection
-                                        items={goalListItems}
-                                        onAddGoal={handleAddGoal}
-                                        onManage={handleManageGoals}
-                                        onToggle={handleToggleGoal}
-                                    />
-                                </RevealItem>
+                                {goalListItems.length > 0 ? (
+                                    <RevealItem scrollY={scrollY}>
+                                        <GoalsSection
+                                            items={goalListItems}
+                                            onAddGoal={handleAddGoal}
+                                            onManage={handleManageGoals}
+                                            onToggle={handleToggleGoal}
+                                        />
+                                    </RevealItem>
+                                ) : null}
 
                                 {!isInsightHidden ? (
                                     <RevealItem scrollY={scrollY}>
@@ -303,7 +299,7 @@ export default function TodayScreen() {
                     <BottomNav
                         activeTab="today"
                         onTabPress={handleTabPress}
-                        onFabPress={() => router.push('/chat')}
+                        onFabPress={handleWritePress}
                     />
                 </>
             )}

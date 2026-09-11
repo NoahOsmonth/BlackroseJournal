@@ -52,11 +52,17 @@ describe('HistoryEntryCard', () => {
         expect(screen.getByLabelText('Open Grateful Code')).toBeTruthy();
     });
 
-    it('renders morning ritual meta and real mood only', () => {
+    it('renders ritual meta and real mood only (no decorative glyph)', () => {
         render(<HistoryEntryCard item={morningItem} onPress={jest.fn()} />);
-        expect(screen.getByText('Morning')).toBeTruthy();
+        expect(screen.getByText('Morning note')).toBeTruthy();
         expect(screen.getByText('Hopeful')).toBeTruthy();
-        expect(screen.getByText('wb-sunny')).toBeTruthy();
+    });
+
+    it('renders the title in the serif display face', () => {
+        render(<HistoryEntryCard item={journalItem} onPress={jest.fn()} isLast />);
+        expect(screen.getByText('Grateful Code').props.style).toEqual(
+            expect.objectContaining({ fontFamily: 'PlayfairDisplayRegular' })
+        );
     });
 
     it('invokes onPress when pressed', () => {

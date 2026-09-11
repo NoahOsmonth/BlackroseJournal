@@ -33,7 +33,9 @@ describe('composed loading skeletons', () => {
 
     it('uses multiple shaped blocks in the reflection placeholder', () => {
         render(<EntryReflectionSkeleton />);
-        expect(screen.getAllByLabelText(/Loading (reflection text line|feedback|insight|suggestions)/).length).toBeGreaterThan(8);
+        // Reflection card (mark, title, prose), the Helpful / Not quite pair, and
+        // the insight block — the concept's beats, each as its own placeholder.
+        expect(screen.getAllByLabelText(/Loading (reflection|feedback|insight)/).length).toBeGreaterThan(8);
     });
 
     it('gives history and memory loading a visible, named status', () => {

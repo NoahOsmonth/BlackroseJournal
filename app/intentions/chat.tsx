@@ -6,10 +6,7 @@ import * as Speech from 'expo-speech';
 import * as Clipboard from 'expo-clipboard';
 
 import { useChatOrchestration, useChatSessionFlush, useResumeChatSession } from '@/features/chat';
-import {
-    removeSession,
-    type ChatSessionMode,
-} from '@/services/ai/sessionStorage';
+import { removeSession } from '@/services/ai/sessionStorage';
 import { InlineTypingInputRef } from '@/components/InlineTypingInput';
 import { usePersonas } from '@/hooks/personas/usePersonas';
 import { useIntentionCheckIns } from '@/hooks/intentions/useIntentionCheckIns';
@@ -32,7 +29,7 @@ import { generateEntryTitle } from '@/services/ai';
 import { getLocalDateKey } from '@/utils/date';
 import { ChatModelPickerSheet } from '@/components/ai/ChatModelPickerSheet';
 import { IntentionChatHeader } from '@/components/intentions/IntentionChatHeader';
-import { IntentionChatFooter } from '@/components/intentions/IntentionChatFooter';
+import { IntentionChatComposerBar } from '@/components/intentions/IntentionChatComposerBar';
 import { IntentionChatBody } from '@/components/intentions/IntentionChatBody';
 import { IntentionChatOverlays } from '@/components/intentions/IntentionChatOverlays';
 import { useAiFeedback } from '@/hooks/feedback/useAiFeedback';
@@ -40,6 +37,7 @@ import { useIntentionFeedbackModal } from '@/hooks/feedback/useIntentionFeedback
 import { useChatModelPicker } from '@/hooks/settings/useChatModelPicker';
 import type { AiFeedbackValue } from '@/services/feedback/feedbackStorage';
 import { usePersonaSettingsActions } from '@/hooks/personas/usePersonaSettingsActions';
+import { useIntentionChatPersist } from '@/hooks/intentions/useIntentionChatPersist';
 export default function IntentionChatScreen() {
     const router = useRouter();
     const params = useLocalSearchParams();
@@ -75,8 +73,8 @@ export default function IntentionChatScreen() {
     const checkInType = (typeParam as IntentionCheckInType) ?? 'intention';
     const trimmedInput = inputValue.trim();
     const flowLabel = checkInType === 'morning'
-        ? 'Morning Intention'
-        : checkInType === 'evening' ? 'Evening Reflection' : 'Intention Setting';
+        ? 'Morning intention'
+        : checkInType === 'evening' ? 'Evening close' : 'Intention setting';
     const areaConfig = areaParam ? getIntentionAreaConfig(areaParam as IntentionArea) : undefined;
 
     useEffect(() => {
@@ -143,28 +141,15 @@ export default function IntentionChatScreen() {
         };
     }, [resumeId, draftCheckInId, draftIdParam, isFeedbackLoading, isPersonasLoading, flow, flowContext]);
 
-    const checkInMode: ChatSessionMode = checkInType === 'morning'
-        ? 'morning'
-        : checkInType === 'evening' ? 'evening' : 'intention';
-
-    const persistRouteParams = useMemo(() => {
-        const routeParams: Record<string, string> = {};
-        if (intentionId) routeParams.intentionId = intentionId;
-        if (areaParam) routeParams.area = areaParam;
-        if (typeParam) routeParams.type = typeParam;
-        if (modeParam) routeParams.mode = modeParam;
-        return Object.keys(routeParams).length > 0 ? routeParams : undefined;
-    }, [areaParam, intentionId, modeParam, typeParam]);
-
-    const persist = useMemo(
-        () => ({
-            conversationId,
-            mode: checkInMode,
-            personaId: activePersona?.id,
-            routeParams: persistRouteParams,
-        }),
-        [conversationId, checkInMode, activePersona?.id, persistRouteParams]
-    );
+    const { checkInMode, persistRouteParams, persist } = useIntentionChatPersist({
+        conversationId,
+        checkInType,
+        personaId: activePersona?.id,
+        intentionId,
+        areaParam,
+        typeParam,
+        modeParam,
+    });
 
     const {
         messages,
@@ -414,7 +399,7 @@ export default function IntentionChatScreen() {
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1">
             <View className="flex-1 max-w-md mx-auto w-full bg-background-light dark:bg-background-dark">
                 <IntentionChatHeader
-                    personaName={activePersona?.name ?? 'Rosebud'}
+                    personaName={activePersona?.name ?? 'Blackrose'}
                     onOpenPersona={() => {
                         modelPicker.close();
                         setPersonaSheetOpen(true);
@@ -454,9 +439,12 @@ export default function IntentionChatScreen() {
                     onContentSizeChange={() => scrollToBottom()}
                 />
 
-                <IntentionChatFooter
+                <IntentionChatComposerBar
+                    inputRef={inputRef}
                     isMuted={isMuted}
                     onToggleMuted={handleToggleMuted}
+                    onSubmitInput={handleSubmitInput}
+                    onInputTextChange={setInputValue}
                     onGoDeeper={handleGoDeeper}
                     onFinishEntry={handleFinish}
                     disabled={isLoading || isSaving}

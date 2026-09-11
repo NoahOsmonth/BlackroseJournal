@@ -14,6 +14,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 }));
 
 import {
+    AppBackgroundColors,
     DEFAULT_COLOR_THEME,
     updateColorThemeSlot,
 } from '../../../constants/theme';
@@ -54,8 +55,8 @@ describe('colorThemeStorage', () => {
     it('stores app background color slots', async () => {
         await saveStoredColorTheme(DEFAULT_COLOR_THEME);
         const stored = JSON.parse(mockStore.get(COLOR_THEME_STORAGE_KEY) ?? '{}');
-        expect(stored.theme.colors.appBackgroundLight).toBe('#F2F2F7');
-        expect(stored.theme.colors.appBackgroundDark).toBe('#0A0A0A');
+        expect(stored.theme.colors.appBackgroundLight).toBe(AppBackgroundColors.light);
+        expect(stored.theme.colors.appBackgroundDark).toBe(AppBackgroundColors.dark);
     });
 
     it('falls back to defaults when the stored payload is corrupt', async () => {

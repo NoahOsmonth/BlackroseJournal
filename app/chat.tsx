@@ -9,9 +9,10 @@ import { usePersonas } from '@/hooks/personas/usePersonas';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChatModelPickerSheet } from '../components/ai/ChatModelPickerSheet';
+import { ChatErrorCard } from '../components/chat/ChatErrorCard';
 import { EntryFinishCelebration } from '../components/celebrations/EntryFinishCelebration';
 import { ChatMessage } from '../components/ChatMessage';
 import { FooterActions } from '../components/FooterActions';
@@ -35,6 +36,9 @@ type ChatParams = {
     resume?: string;
     topic?: string;
 };
+
+/** Middle verb seed: opens the sentence, the writer finishes it. */
+const NAME_FEELING_STEM = 'What I actually feel is ';
 
 export default function ChatScreen() {
     const router = useRouter();
@@ -314,6 +318,15 @@ export default function ChatScreen() {
     const trimmedInput = inputValue.trim();
     const canGoDeeper = trimmedInput.length > 0 && !isLoading;
 
+    const headerTitle = useMemo(() => {
+        if (resolvedMode === 'continue') return 'Continue';
+        if (resolvedMode === 'dailyCheckIn') {
+            if (promptPeriod === 'morning') return 'Morning note';
+            if (promptPeriod === 'evening') return 'Evening close';
+        }
+        return 'Journal';
+    }, [promptPeriod, resolvedMode]);
+
     const handleGoDeeper = useCallback(async () => {
         if (!trimmedInput || isLoading) return;
         const message = trimmedInput;
@@ -321,6 +334,13 @@ export default function ChatScreen() {
         inputRef.current?.clear();
         await handleSendMessage(message);
     }, [trimmedInput, isLoading, handleSendMessage]);
+
+    // The middle verb seeds the slip rather than sending for the writer: the
+    // affordance opens the sentence, it does not put words in their mouth.
+    const handleNameFeeling = useCallback(() => {
+        setInputValue(NAME_FEELING_STEM);
+        inputRef.current?.setText(NAME_FEELING_STEM);
+    }, []);
 
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top', 'bottom']}>
@@ -334,7 +354,8 @@ export default function ChatScreen() {
                                 ? modelPicker.close
                                 : handleClose
                     }
-                    personaName={activePersona?.name ?? 'Rosebud'}
+                    title={headerTitle}
+                    personaName={activePersona?.name ?? 'Blackrose'}
                     onPersonaPress={() => {
                         modelPicker.close();
                         setPersonaSheetOpen(true);
@@ -348,7 +369,7 @@ export default function ChatScreen() {
 
                 <ScrollView
                     ref={scrollViewRef}
-                    className="flex-1 px-6 py-4 gap-6"
+                    className="flex-1 px-5 pt-5 pb-4"
                     contentContainerStyle={{ paddingBottom: 20 }}
                     showsVerticalScrollIndicator={false}
                     onScroll={handleScroll}
@@ -356,7 +377,7 @@ export default function ChatScreen() {
                     onContentSizeChange={() => scrollToBottom()}
                     keyboardShouldPersistTaps="handled"
                 >
-                    <View className="gap-y-4">
+                    <View className="gap-6">
                         {messages.map((message, index) => (
                             <ChatMessage
                                 key={message.id}
@@ -364,6 +385,7 @@ export default function ChatScreen() {
                                 text={message.content}
                                 reasoning={message.reasoning}
                                 isReadOnly={index < readOnlyMessageCount}
+                                toolActivity={message.toolActivity}
                             />
                         ))}
 
@@ -374,84 +396,49 @@ export default function ChatScreen() {
                                 text={streamingMessage.content}
                                 reasoning={streamingMessage.reasoning}
                                 isStreaming={true}
+                                toolActivity={streamingMessage.toolActivity}
+                                statusLines={streamingMessage.statusLines}
                             />
                         )}
 
                         {isLoading && !streamingMessage && (
-                            <View className="flex-row items-center gap-2 ml-4">
-                                <TypingIndicator
-                                    colorClassName="text-text-secondary-light dark:text-text-secondary-dark"
-                                    sizeClassName="text-sm"
-                                />
-                                <Text className="text-text-secondary-light dark:text-text-secondary-dark text-sm">AI is thinking</Text>
+                            <View className="pl-5">
+                                <TypingIndicator sizeClassName="text-sm" label="Thinking" />
                             </View>
                         )}
 
                         {errorMessage && (
-                            <View
-                                accessibilityRole="alert"
-                                accessibilityLabel={errorMessage}
-                                className={[
-                                    'rounded-xl border border-divider-light dark:border-divider-dark',
-                                    'bg-yellow-300/20 dark:bg-yellow-300/10 p-3',
-                                ].join(' ')}
-                            >
-                                <Text className="text-text-light dark:text-text-dark text-sm">
-                                    {errorMessage}
-                                </Text>
-                                <View className="flex-row items-center justify-end gap-3 mt-3">
-                                    {canRetry && (
-                                        <Pressable
-                                            onPress={retryLastMessage}
-                                            accessibilityRole="button"
-                                            accessibilityLabel="Retry AI request"
-                                            className="px-3 py-1.5 rounded-full bg-primary"
-                                        >
-                                            <Text className="text-white text-xs font-semibold">Retry</Text>
-                                        </Pressable>
-                                    )}
-                                    <Pressable
-                                        onPress={clearError}
-                                        accessibilityRole="button"
-                                        accessibilityLabel="Dismiss error message"
-                                        className="px-2 py-1"
-                                    >
-                                        <Text
-                                            className={[
-                                                'text-text-secondary-light dark:text-text-secondary-dark',
-                                                'text-xs',
-                                            ].join(' ')}
-                                        >
-                                            Dismiss
-                                        </Text>
-                                    </Pressable>
-                                </View>
-                            </View>
-                        )}
-
-                        {/* Inline typing input - document style */}
-                        {!isLoading && (
-                            <InlineTypingInput
-                                ref={inputRef}
-                                onSubmit={handleSendMessage}
-                                onTextChange={setInputValue}
-                                disabled={isLoading}
-                                placeholder="Type your thoughts..."
+                            <ChatErrorCard
+                                message={errorMessage}
+                                onRetry={canRetry ? retryLastMessage : undefined}
+                                onDismiss={clearError}
                             />
                         )}
                     </View>
                 </ScrollView>
 
-                {/* Pinned action footer — kept outside the ScrollView so it never overlaps the last message */}
-                <View className="px-6 pt-3 pb-1 border-t border-divider-light dark:border-divider-dark">
+                {/* Pinned block below the transcript — verbs, then the writing
+                    slip. Kept outside the ScrollView so it never overlaps the
+                    last message. The concept has no rule and no honesty line
+                    here: the verbs simply float above the slip. */}
+                <View className="gap-3 px-5 pb-2 pt-3">
                     <FooterActions
                         onGoDeeper={handleGoDeeper}
+                        onNameFeeling={handleNameFeeling}
                         onFinishEntry={handleFinishEntry}
                         disabled={isLoading || isSaving}
                         canGoDeeper={canGoDeeper}
                         canFinish={canFinish}
                         isSaving={isSaving}
                         savingLabel={finishStage}
+                    />
+
+                    <InlineTypingInput
+                        ref={inputRef}
+                        onSubmit={handleSendMessage}
+                        onTextChange={setInputValue}
+                        disabled={isLoading}
+                        placeholder="Write what's true…"
                     />
                 </View>
 

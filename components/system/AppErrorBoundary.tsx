@@ -36,19 +36,23 @@ export class AppErrorBoundary extends React.Component<
         }
 
         return (
-            <View className="flex-1 items-center justify-center bg-background-light dark:bg-background-dark px-6">
-                <Text className="text-lg font-semibold text-text-primary-light dark:text-text-primary-dark">
+            <View className="flex-1 items-center justify-center bg-background-light px-6 dark:bg-background-dark">
+                <Text
+                    className="text-[26px] leading-[34px] text-text-light dark:text-text-dark"
+                    style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                >
                     Something went wrong
                 </Text>
-                <Text className="text-xs text-text-secondary-light dark:text-text-secondary-dark mt-2 text-center">
+                <Text className="mt-3 text-center text-[15px] leading-[23px] text-text-secondary-light dark:text-text-secondary-dark">
                     {error.message}
                 </Text>
                 <Pressable
                     onPress={this.handleReset}
                     accessibilityLabel="Try again"
-                    className="mt-4 px-4 py-2 rounded-full bg-primary"
+                    accessibilityRole="button"
+                    className="mt-6 min-h-12 items-center justify-center rounded-control border border-bone-light px-6 dark:border-bone-dark"
                 >
-                    <Text className="text-sm font-semibold text-white">Try again</Text>
+                    <Text className="text-[16px] text-text-light dark:text-text-dark">Try again</Text>
                 </Pressable>
             </View>
         );

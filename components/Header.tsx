@@ -1,9 +1,10 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { ModelHeaderControl } from '@/components/ai/ModelHeaderControl';
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
+
+import { BLACKROSE_PALETTE } from '@/constants/theme';
+import { RoseMark } from '@/components/ui/RoseMark';
 
 interface HeaderProps {
   onClose?: () => void;
@@ -16,57 +17,77 @@ interface HeaderProps {
   onModelPress?: () => void;
   /** Disable model picker (e.g. while streaming). */
   modelPickerDisabled?: boolean;
+  /** Serif title for this sitting (e.g. “Evening close”). */
+  title?: string;
 }
 
+/**
+ * Chat header: one calm row — back chevron, a line rose beside the sitting's
+ * name, and a quiet trailing verb. The model picker is reached by tapping the
+ * sitting name (which carries the chevron); there is no second chrome band.
+ */
 export function Header({
   onClose,
   onDraftsPress,
   personaName,
   onPersonaPress,
-  onModelPress,
-  modelPickerDisabled = false,
+  title,
 }: HeaderProps) {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const isDark = useColorScheme() === 'dark';
   const pillLabel = personaName ?? 'Blackrose';
-  const pillInitial = pillLabel.trim().charAt(0).toUpperCase() || 'B';
   const isPersonaPill = Boolean(onPersonaPress);
-  const mutedIconColor = isDark ? Colors.dark.tabIconDefault : Colors.light.tabIconDefault;
-  const closeIconColor = isDark ? Colors.dark.text : Colors.light.text;
+  const closeIconColor = isDark ? BLACKROSE_PALETTE.dark.text : BLACKROSE_PALETTE.light.text;
+  const markColor = isDark ? BLACKROSE_PALETTE.dark.accent : BLACKROSE_PALETTE.light.accent;
+  const heading = title ?? pillLabel;
 
   return (
-    <View className="pt-4 px-4 pb-2 bg-background-light dark:bg-background-dark z-10 border-b border-transparent">
-      <View className="flex-row items-center justify-between">
+    <View className="z-10 border-b border-hairline-light bg-background-light px-4 pb-2 pt-3 dark:border-hairline-dark dark:bg-background-dark">
+      <View className="flex-row items-center justify-between gap-3">
+        <Pressable
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Close chat"
+          hitSlop={10}
+          className="h-8 w-8 items-center justify-center"
+        >
+          <MaterialIcons name="chevron-left" size={24} color={closeIconColor} />
+        </Pressable>
+
         <Pressable
           onPress={onPersonaPress}
           disabled={!isPersonaPill}
           accessibilityRole={isPersonaPill ? 'button' : undefined}
           accessibilityLabel={isPersonaPill ? `Persona: ${pillLabel}. Tap to switch.` : undefined}
-          className="flex-row items-center bg-white dark:bg-slate-800 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm gap-1.5"
+          className="min-w-0 flex-1 flex-row items-center justify-center gap-2"
         >
-          <View className="w-5 h-5 bg-primary rounded-full items-center justify-center">
-            <Text className="text-[10px] text-white font-bold leading-none mt-[1px]">{pillInitial}</Text>
-          </View>
-          <Text className="text-sm font-serif text-user-text dark:text-user-text-dark">{pillLabel}</Text>
-          <MaterialIcons name="expand-more" size={18} color={mutedIconColor} />
+          <RoseMark size={16} color={markColor} variant="bloom" />
+          <Text
+            className="text-center text-[15px] text-text-light dark:text-text-dark"
+            style={{ fontFamily: 'PlayfairDisplayRegular' }}
+            numberOfLines={1}
+          >
+            {heading}
+          </Text>
         </Pressable>
 
-        <View className="flex-row items-center gap-4">
-          <Pressable onPress={onDraftsPress}>
-            <Text className="text-[15px] font-serif text-user-text dark:text-user-text-dark">Drafts</Text>
-          </Pressable>
+        {onDraftsPress ? (
           <Pressable
-            onPress={onClose}
-            className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"
+            onPress={onDraftsPress}
+            accessibilityRole="button"
+            accessibilityLabel="Open drafts"
+            hitSlop={8}
           >
-            <MaterialIcons name="close" size={22} color={closeIconColor} />
+            <Text
+              className="text-[15px] text-text-light dark:text-text-dark"
+              style={{ fontFamily: 'PlayfairDisplayRegular' }}
+            >
+              Drafts
+            </Text>
           </Pressable>
-        </View>
+        ) : (
+          <View className="w-8" />
+        )}
       </View>
-      <ModelHeaderControl
-        onPress={onModelPress}
-        disabled={modelPickerDisabled}
-      />
     </View>
   );
 }

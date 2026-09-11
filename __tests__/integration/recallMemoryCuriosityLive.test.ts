@@ -70,7 +70,7 @@ function applyLiveEnv(): { model: string; apiBaseUrl: string } {
     const model =
         process.env.EXPO_PUBLIC_NANO_GPT_MODEL
         ?? fileEnv.EXPO_PUBLIC_NANO_GPT_MODEL
-        ?? 'cl/dots-studio/dots-3-note-preview:free';
+        ?? 'merge/deepseek/deepseek-v4-flash-0731';
 
     process.env.EXPO_PUBLIC_NANO_GPT_API_KEY = apiKey;
     process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL = apiBaseUrl;

@@ -1,13 +1,8 @@
 /**
- * Happiness Recipe Screen
- * Full screen for managing ingredients and goals
+ * Happiness Recipe — one quiet list per kind. Rows are hairline slips with a
+ * bone check bead; no emoji prefixes, no tinted add buttons, no brand fills.
  */
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useHappinessRecipe } from '@/hooks/useHappinessRecipe';
-import { useThemeColor } from '@/hooks/use-theme-color';
-import { HappinessRecipeSkeleton } from '@/components/happiness/HappinessRecipeSkeleton';
-import { RecipeItem, RecipeItemType } from '@/services/happinessRecipeStorage.types';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -21,12 +16,24 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { HappinessRecipeSkeleton } from '@/components/happiness/HappinessRecipeSkeleton';
+import { BLACKROSE_PALETTE } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useHappinessRecipe } from '@/hooks/useHappinessRecipe';
+import { RecipeItem, RecipeItemType } from '@/services/happinessRecipeStorage.types';
+
+const SERIF = { fontFamily: 'PlayfairDisplayRegular' };
+const HAIRLINE = 'border-hairline-light dark:border-hairline-dark';
+
+const LABELS: Record<RecipeItemType, string> = {
+    ingredient: 'ingredient',
+    habit: 'habit',
+    goal: 'goal',
+};
+
 export default function HappinessRecipeScreen() {
     const router = useRouter();
-    const colorScheme = useColorScheme();
-    const isDark = colorScheme === 'dark';
-    const primaryColor = useThemeColor({}, 'primary');
-    const mutedColor = useThemeColor({}, 'icon');
+    const isDark = useColorScheme() === 'dark';
     const {
         items,
         isLoading,
@@ -40,6 +47,9 @@ export default function HappinessRecipeScreen() {
     const [newItemText, setNewItemText] = useState('');
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editText, setEditText] = useState('');
+
+    const ink = isDark ? BLACKROSE_PALETTE.dark.text : BLACKROSE_PALETTE.light.text;
+    const quietInk = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
 
     const handleAddItem = async () => {
         if (addingType && newItemText.trim()) {
@@ -84,23 +94,21 @@ export default function HappinessRecipeScreen() {
 
     const renderItem = (item: RecipeItem) => {
         const isEditing = editingId === item.id;
-        const typePrefix = item.type === 'goal' ? '🎯 ' : item.type === 'habit' ? '🌿 ' : '';
 
         return (
             <View
                 key={item.id}
-                className={`flex-row items-center p-4 mb-2 rounded-xl ${isDark ? 'bg-surface-dark' : 'bg-surface-light'
-                    }`}
+                className={`mb-2 flex-row items-center gap-3 rounded-card border ${HAIRLINE} bg-surface-light px-4 py-3.5 dark:bg-surface-dark`}
             >
                 <Pressable
                     onPress={() => toggleItem(item.id)}
                     accessibilityLabel={`Toggle ${item.text}`}
-                    className="mr-3"
+                    className="min-h-11 min-w-11 items-center justify-center"
                 >
                     <MaterialIcons
                         name={item.completed ? 'check-circle' : 'radio-button-unchecked'}
-                        size={24}
-                        color={item.completed ? primaryColor : mutedColor}
+                        size={22}
+                        color={item.completed ? ink : quietInk}
                     />
                 </Pressable>
 
@@ -111,40 +119,36 @@ export default function HappinessRecipeScreen() {
                         onBlur={handleSaveEdit}
                         onSubmitEditing={handleSaveEdit}
                         autoFocus
-                        className={`flex-1 text-base ${isDark ? 'text-white' : 'text-black'
-                            }`}
+                        className="min-w-0 flex-1 text-[16px] text-text-light dark:text-text-dark"
                     />
                 ) : (
                     <Pressable
                         onLongPress={() => handleStartEdit(item)}
-                        className="flex-1"
+                        className="min-w-0 flex-1"
                     >
                         <Text
-                            className={`text-base ${item.completed
-                                ? 'line-through text-text-secondary-light dark:text-text-secondary-dark'
-                                : 'text-text-main-light dark:text-text-main-dark'
-                                }`}
+                            className={`text-[17px] leading-[25px] ${
+                                item.completed
+                                    ? 'text-text-secondary-light line-through dark:text-text-secondary-dark'
+                                    : 'text-text-light dark:text-text-dark'
+                            }`}
                         >
-                            {typePrefix}{item.text}
+                            {item.text}
                         </Text>
-                        {item.completedAt && (
-                            <Text className="text-xs text-text-secondary-light dark:text-text-secondary-dark mt-1">
+                        {item.completedAt ? (
+                            <Text className="mt-1 text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
                                 Completed {new Date(item.completedAt).toLocaleDateString()}
                             </Text>
-                        )}
+                        ) : null}
                     </Pressable>
                 )}
 
                 <Pressable
                     onPress={() => handleDelete(item)}
                     accessibilityLabel={`Delete ${item.text}`}
-                    className="ml-2 p-2"
+                    className="min-h-11 min-w-11 items-center justify-center"
                 >
-                    <MaterialIcons
-                        name="delete-outline"
-                        size={20}
-                        color={isDark ? '#666' : '#999'}
-                    />
+                    <MaterialIcons name="delete-outline" size={20} color={quietInk} />
                 </Pressable>
             </View>
         );
@@ -153,33 +157,33 @@ export default function HappinessRecipeScreen() {
     const renderAddInput = () => {
         if (!addingType) return null;
 
-        const addIcon = addingType === 'goal' ? 'flag' : addingType === 'habit' ? 'spa' : 'favorite';
-
         return (
             <View
-                className={`flex-row items-center p-4 mb-4 rounded-xl ${isDark ? 'bg-surface-dark' : 'bg-surface-light'
-                    }`}
+                className="mb-4 flex-row items-center gap-3 rounded-card border border-bone-light bg-surface-light px-4 py-3.5 dark:border-bone-dark dark:bg-surface-dark"
             >
-                <MaterialIcons
-                    name={addIcon}
-                    size={20}
-                    color={primaryColor}
-                    style={{ marginRight: 12 }}
-                />
+                <MaterialIcons name="add" size={20} color={ink} />
                 <TextInput
                     value={newItemText}
                     onChangeText={setNewItemText}
-                    placeholder={`Add ${addingType}...`}
-                    placeholderTextColor={isDark ? '#666' : '#999'}
+                    placeholder={`Add ${LABELS[addingType]}...`}
+                    placeholderTextColor={quietInk}
                     autoFocus
-                    className={`flex-1 text-base ${isDark ? 'text-white' : 'text-black'}`}
+                    className="min-w-0 flex-1 text-[16px] text-text-light dark:text-text-dark"
                     onSubmitEditing={handleAddItem}
                 />
-                <Pressable onPress={handleCancelAdd} className="p-2 mr-1">
-                    <MaterialIcons name="close" size={20} color={isDark ? '#666' : '#999'} />
+                <Pressable
+                    onPress={handleCancelAdd}
+                    className="min-h-11 min-w-11 items-center justify-center"
+                    accessibilityLabel="Cancel add"
+                >
+                    <MaterialIcons name="close" size={20} color={quietInk} />
                 </Pressable>
-                <Pressable onPress={handleAddItem} className="p-2">
-                    <MaterialIcons name="check" size={20} color={primaryColor} />
+                <Pressable
+                    onPress={handleAddItem}
+                    className="min-h-11 min-w-11 items-center justify-center"
+                    accessibilityLabel="Confirm add"
+                >
+                    <MaterialIcons name="check" size={20} color={ink} />
                 </Pressable>
             </View>
         );
@@ -217,7 +221,10 @@ export default function HappinessRecipeScreen() {
 
         return (
             <View className="mb-8">
-                <Text className="text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide mb-3 ml-1">
+                <Text
+                    className="mb-3 text-[22px] leading-[30px] text-text-light dark:text-text-dark"
+                    style={SERIF}
+                >
                     {title}
                 </Text>
 
@@ -225,8 +232,8 @@ export default function HappinessRecipeScreen() {
                 {sectionItems.completed.map(renderItem)}
 
                 {!hasAny && !isLoading && items.length > 0 && (
-                    <View className="p-4 rounded-xl bg-surface-light dark:bg-surface-dark">
-                        <Text className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
+                    <View className={`rounded-card border ${HAIRLINE} bg-surface-light p-4 dark:bg-surface-dark`}>
+                        <Text className="text-[15px] leading-[23px] text-text-secondary-light dark:text-text-secondary-dark">
                             {emptyText}
                         </Text>
                     </View>
@@ -237,75 +244,78 @@ export default function HappinessRecipeScreen() {
 
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
-            <View className="flex-1 max-w-md mx-auto w-full">
-                {/* Header */}
-                <View className="flex-row items-center justify-between px-4 py-4">
-                    <Pressable onPress={() => router.back()} className="p-2 -ml-2">
-                        <MaterialIcons
-                            name="arrow-back"
-                            size={24}
-                            color={isDark ? '#E5E5E7' : '#1C1C1E'}
-                        />
+            <View className="mx-auto w-full max-w-md flex-1">
+                <View className="flex-row items-center justify-between px-5 py-4">
+                    <Pressable
+                        onPress={() => router.back()}
+                        className="-ml-2 min-h-11 min-w-11 items-center justify-center"
+                        accessibilityLabel="Back"
+                    >
+                        <MaterialIcons name="arrow-back" size={26} color={ink} />
                     </Pressable>
-                    <Text className="text-xl font-bold text-text-main-light dark:text-text-main-dark">
+                    <Text
+                        className="text-[26px] leading-[34px] text-text-light dark:text-text-dark"
+                        style={SERIF}
+                    >
                         Happiness Recipe
                     </Text>
-                    <View className="w-10" />
+                    <View className="min-h-11 min-w-11" />
                 </View>
 
-                <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
+                <ScrollView className="flex-1 px-5" showsVerticalScrollIndicator={false}>
                     {isLoading ? (
                         <HappinessRecipeSkeleton />
                     ) : (
                         <>
-                    {/* Add buttons */}
-                    {!addingType && (
-                        <View className="flex-row gap-3 mb-6">
-                            <Pressable
-                                onPress={() => setAddingType('ingredient')}
-                                className="flex-1 flex-row items-center justify-center py-3 rounded-xl bg-primary/10"
-                            >
-                                <MaterialIcons name="add" size={20} color={primaryColor} />
-                                <Text className="text-primary font-bold ml-2">
-                                    Add ingredient
-                                </Text>
-                            </Pressable>
-                            <Pressable
-                                onPress={() => setAddingType('goal')}
-                                className="flex-1 flex-row items-center justify-center py-3 rounded-xl bg-primary/10"
-                            >
-                                <MaterialIcons name="add" size={20} color={primaryColor} />
-                                <Text className="text-primary font-bold ml-2">
-                                    Add goal
-                                </Text>
-                            </Pressable>
-                        </View>
-                    )}
+                            {!addingType && (
+                                <View className="mb-6 flex-row gap-3">
+                                    <Pressable
+                                        onPress={() => setAddingType('ingredient')}
+                                        className={`min-h-12 flex-1 flex-row items-center justify-center gap-2 rounded-control border ${HAIRLINE}`}
+                                        accessibilityRole="button"
+                                        accessibilityLabel="Add ingredient"
+                                    >
+                                        <MaterialIcons name="add" size={20} color={ink} />
+                                        <Text className="text-[16px] text-text-light dark:text-text-dark">
+                                            Add ingredient
+                                        </Text>
+                                    </Pressable>
+                                    <Pressable
+                                        onPress={() => setAddingType('goal')}
+                                        className={`min-h-12 flex-1 flex-row items-center justify-center gap-2 rounded-control border ${HAIRLINE}`}
+                                        accessibilityRole="button"
+                                        accessibilityLabel="Add goal"
+                                    >
+                                        <MaterialIcons name="add" size={20} color={ink} />
+                                        <Text className="text-[16px] text-text-light dark:text-text-dark">
+                                            Add goal
+                                        </Text>
+                                    </Pressable>
+                                </View>
+                            )}
 
-                    {renderAddInput()}
+                            {renderAddInput()}
 
-                    {renderSection('Ingredients', sections.ingredients, 'Add ingredients that consistently help you feel better.')}
-                    {renderSection('Habits', sections.habits, 'Habits you add from Suggestions will show up here.')}
-                    {renderSection('Goals', sections.goals, 'Set goals you want to work toward over time.')}
+                            {renderSection('Ingredients', sections.ingredients, 'Add ingredients that consistently help you feel better.')}
+                            {renderSection('Habits', sections.habits, 'Habits you add from Suggestions will show up here.')}
+                            {renderSection('Goals', sections.goals, 'Set goals you want to work toward over time.')}
 
-                    {/* Global empty state */}
-                    {items.length === 0 && !isLoading && (
-                        <View className="items-center py-12">
-                            <MaterialIcons
-                                name="favorite-border"
-                                size={48}
-                                color={isDark ? '#98989D' : '#6B7280'}
-                            />
-                            <Text className="text-lg text-text-secondary-light dark:text-text-secondary-dark mt-4">
-                                No items yet
-                            </Text>
-                            <Text className="text-sm text-text-secondary-light dark:text-text-secondary-dark mt-1">
-                                Add ingredients and goals (and habits from suggestions) to build your recipe
-                            </Text>
-                        </View>
-                    )}
+                            {items.length === 0 && !isLoading && (
+                                <View className="items-center py-12">
+                                    <MaterialIcons name="favorite-border" size={40} color={quietInk} />
+                                    <Text
+                                        className="mt-4 text-[21px] leading-[29px] text-text-light dark:text-text-dark"
+                                        style={SERIF}
+                                    >
+                                        No items yet
+                                    </Text>
+                                    <Text className="mt-2 text-center text-[15px] leading-[23px] text-text-secondary-light dark:text-text-secondary-dark">
+                                        Add ingredients and goals (and habits from suggestions) to build your recipe
+                                    </Text>
+                                </View>
+                            )}
 
-                    <View className="h-6" />
+                            <View className="h-6" />
                         </>
                     )}
                 </ScrollView>

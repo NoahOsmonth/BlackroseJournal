@@ -32,9 +32,17 @@ export interface UseSelectedDayReturn {
     monthLabel: string;
     /** Short date label (e.g., "January 18") */
     shortDateLabel: string;
+    /** Concept header label (e.g., "Thu · 10 Sep") */
+    serifDateLabel: string;
 }
 
 const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+/** Three-letter day abbreviations used by the serif date headline. */
+const DAY_SHORT_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTH_SHORT_NAMES = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MONTH_NAMES_FULL = [
     'January',
@@ -113,6 +121,12 @@ export function useSelectedDay(initialDate?: Date): UseSelectedDayReturn {
         return `${monthName} ${selectedDay.date.getDate()}`;
     }, [selectedDay]);
 
+    const serifDateLabel = useMemo(() => {
+        const dayName = DAY_SHORT_NAMES[selectedDay.dayIndex];
+        const monthName = MONTH_SHORT_NAMES[selectedDay.date.getMonth()];
+        return `${dayName} · ${selectedDay.date.getDate()} ${monthName}`;
+    }, [selectedDay]);
+
     const selectDay = useCallback((dayIndex: number) => {
         if (dayIndex >= 0 && dayIndex < 7) {
             setSelectedIndex(dayIndex);
@@ -126,5 +140,6 @@ export function useSelectedDay(initialDate?: Date): UseSelectedDayReturn {
         formattedDate,
         monthLabel,
         shortDateLabel,
+        serifDateLabel,
     };
 }

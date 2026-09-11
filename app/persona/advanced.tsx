@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
+import { BLACKROSE_PALETTE } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getPersona, updatePersona } from '@/services/personas/personasStorage';
 import { PersonaAdvancedSkeleton } from '@/components/personas/PersonaAdvancedSkeleton';
@@ -21,6 +22,8 @@ import {
     resolvePersonaModel as resolveModel,
 } from '@/constants/aiModels';
 
+const SERIF = { fontFamily: 'PlayfairDisplayRegular' };
+
 function getImaginationLabel(value: number): string {
     if (value <= 33) return 'Consistent';
     if (value <= 66) return 'Balanced';
@@ -29,8 +32,9 @@ function getImaginationLabel(value: number): string {
 
 export default function PersonaAdvancedScreen() {
     const router = useRouter();
-    const colorScheme = useColorScheme();
-    const iconColor = colorScheme === 'dark' ? '#F9FAFB' : '#111827';
+    const isDark = useColorScheme() === 'dark';
+    const inkColor = isDark ? BLACKROSE_PALETTE.dark.text : BLACKROSE_PALETTE.light.text;
+    const mutedColor = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
     const params = useLocalSearchParams<{ personaId?: string }>();
     const personaId = Array.isArray(params.personaId) ? params.personaId[0] : params.personaId;
 
@@ -84,62 +88,59 @@ export default function PersonaAdvancedScreen() {
 
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
-            <View className="flex-row items-center px-4 py-3 border-b border-divider-light dark:border-divider-dark">
-                <Pressable onPress={handleBack} className="p-2 -ml-2">
-                    <MaterialIcons name="arrow-back" size={24} color={iconColor} />
+            <View className="min-h-[56px] flex-row items-center px-4 py-2">
+                <Pressable
+                    onPress={handleBack}
+                    className="h-11 w-11 items-center justify-center"
+                    accessibilityRole="button"
+                    accessibilityLabel="Back"
+                >
+                    <MaterialIcons name="arrow-back" size={26} color={inkColor} />
                 </Pressable>
-                <Text className="ml-2 text-[20px] font-semibold text-text-light dark:text-text-dark">Advanced</Text>
+                <Text
+                    className="ml-1 flex-1 text-center text-[26px] text-text-light dark:text-text-dark"
+                    style={SERIF}
+                >
+                    Advanced
+                </Text>
+                <View className="w-11" />
             </View>
+            <View className="h-px bg-hairline-light dark:bg-hairline-dark" />
 
-            <View className="flex-1 max-w-md mx-auto px-4 py-6">
+            <View className="flex-1 max-w-md mx-auto px-5 py-6">
                 {isLoading ? (
                     <PersonaAdvancedSkeleton />
                 ) : (
                 <>
-                <View className="mb-2 pl-4">
-                    <Text className="text-[13px] font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide">
-                        Intelligence
-                    </Text>
-                </View>
-                <View className="bg-surface-light dark:bg-surface-dark rounded-xl overflow-hidden shadow-soft">
-                    <Pressable
-                        onPress={() => setShowModelPicker(true)}
-                        className="flex-row items-center justify-between p-4"
-                    >
-                        <View className="flex-row items-center gap-3">
-                            <MaterialIcons name="auto-awesome" size={26} color="#60A5FA" />
-                            <Text className="text-[17px] font-medium text-text-light dark:text-text-dark">AI Model</Text>
-                        </View>
-                        <View className="flex-row items-center gap-1">
-                            <Text className="text-[17px] text-text-secondary-light dark:text-text-secondary-dark">
-                                {MODEL_LABELS[model]}
-                            </Text>
-                            <MaterialIcons name="chevron-right" size={20} color="#9CA3AF" />
-                        </View>
-                    </Pressable>
-                    <View className="pl-16">
-                        <View className="h-px bg-divider-light dark:bg-divider-dark" />
+                <Pressable
+                    onPress={() => setShowModelPicker(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel="AI model"
+                    className="min-h-14 flex-row items-center justify-between border-t border-hairline-light px-1 py-3 dark:border-hairline-dark"
+                >
+                    <Text className="text-[19px] text-text-light dark:text-text-dark">AI model</Text>
+                    <View className="flex-row items-center gap-1.5">
+                        <Text className="text-[17px] text-text-secondary-light dark:text-text-secondary-dark">
+                            {MODEL_LABELS[model]}
+                        </Text>
+                        <MaterialIcons name="chevron-right" size={22} color={mutedColor} />
                     </View>
-                    <View className="p-4">
-                        <View className="flex-row items-center justify-between mb-4">
-                            <View className="flex-row items-center gap-3">
-                                <MaterialIcons name="psychology" size={26} color="#34D399" />
-                                <Text className="text-[17px] font-medium text-text-light dark:text-text-dark">Imagination</Text>
-                            </View>
-                            <Text className="text-[17px] text-text-secondary-light dark:text-text-secondary-dark">
-                                {getImaginationLabel(imagination)}
-                            </Text>
-                        </View>
-                        <View className="pl-[52px]">
-                            <ImaginationSlider
-                                value={imagination}
-                                onChange={setImagination}
-                            />
-                        </View>
+                </Pressable>
+
+                <View className="border-t border-hairline-light px-1 pt-4 dark:border-hairline-dark">
+                    <View className="mb-4 flex-row items-center justify-between">
+                        <Text className="text-[19px] text-text-light dark:text-text-dark">
+                            Imagination
+                        </Text>
+                        <Text className="text-[17px] text-text-secondary-light dark:text-text-secondary-dark">
+                            {getImaginationLabel(imagination)}
+                        </Text>
                     </View>
-                </View>
-                <View className="mt-3 px-4">
-                    <Text className="text-[13px] leading-[1.4] text-text-secondary-light dark:text-text-secondary-dark">
+                    <ImaginationSlider
+                        value={imagination}
+                        onChange={setImagination}
+                    />
+                    <Text className="mt-4 text-[14px] leading-[21px] text-text-secondary-light dark:text-text-secondary-dark">
                         Lower imagination yields consistent responses. Higher sparks variety.
                     </Text>
                 </View>

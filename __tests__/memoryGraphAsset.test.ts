@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 
+import { BLACKROSE_GRAPH_FAMILIES, BLACKROSE_PALETTE } from '../constants/blackrose';
+
 describe('memory graph asset integration', () => {
     it('keeps the production engine in assets and decoupled from prototypes', () => {
         const enginePath = path.join(
@@ -78,7 +80,7 @@ describe('memory graph asset integration', () => {
         expect(engine).not.toContain('1700');
     });
 
-    it('uses the aurora constellation layer palette', () => {
+    it('sets node labels as bare serif lines, not pill badges', () => {
         const enginePath = path.join(
             process.cwd(),
             'assets',
@@ -86,11 +88,58 @@ describe('memory graph asset integration', () => {
             'engine.html'
         );
         const engine = fs.readFileSync(enginePath, 'utf-8');
-        expect(engine).toContain("episodic: '#C4A1FF'");
-        expect(engine).toContain("semantic: '#7DD3FC'");
-        expect(engine).toContain("profile: '#FDA4AF'");
-        expect(engine).toContain("procedural: '#6EE7B7'");
-        expect(engine).toContain("note: '#FCD34D'");
-        expect(engine).toContain("working: '#F0ABFC'");
+
+        // The concept labels stars with plain serif text wrapped to two short lines.
+        expect(engine).toContain('function wrapLabel');
+        expect(engine).toContain('LABEL_WRAP_CHARS');
+        expect(engine).toContain('LABEL_LINE_H');
+        expect(engine).toContain('Georgia');
+        expect(engine).toContain('serif');
+        // The pre-rewrite pill + accent tick behind every node label is gone.
+        expect(engine).not.toContain('labelPill');
+        expect(engine).not.toContain('node.r * camera.scale + 16');
+    });
+
+    it('paints the Blackrose three-family layer palette, not a rainbow', () => {
+        const enginePath = path.join(
+            process.cwd(),
+            'assets',
+            'memory-graph',
+            'engine.html'
+        );
+        const engine = fs.readFileSync(enginePath, 'utf-8');
+
+        // Bone, sage and muted rose only — two shades per family.
+        [
+            BLACKROSE_GRAPH_FAMILIES.dark.bone,
+            BLACKROSE_GRAPH_FAMILIES.dark.sage,
+            BLACKROSE_GRAPH_FAMILIES.dark.rose,
+        ].forEach((shades) => {
+            expect(engine.toUpperCase()).toContain(shades.base.toUpperCase());
+            expect(engine.toUpperCase()).toContain(shades.deep.toUpperCase());
+        });
+
+        // The pre-rewrite aurora set must be gone.
+        ['#C4A1FF', '#7DD3FC', '#FDA4AF', '#6EE7B7', '#FCD34D', '#F0ABFC'].forEach((hex) => {
+            expect(engine.toUpperCase()).not.toContain(hex);
+        });
+    });
+
+    it('paints the Blackrose void and paper in both engine themes', () => {
+        const enginePath = path.join(
+            process.cwd(),
+            'assets',
+            'memory-graph',
+            'engine.html'
+        );
+        const engine = fs.readFileSync(enginePath, 'utf-8');
+        const upper = engine.toUpperCase();
+
+        expect(upper).toContain(BLACKROSE_PALETTE.dark.bg.toUpperCase());
+        expect(upper).toContain(BLACKROSE_PALETTE.light.bg.toUpperCase());
+        expect(upper).toContain(BLACKROSE_PALETTE.dark.surface.toUpperCase());
+        // The old night-sky page backgrounds must be gone.
+        expect(upper).not.toContain('#06080F');
+        expect(upper).not.toContain('#EEF1F8');
     });
 });

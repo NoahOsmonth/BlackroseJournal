@@ -90,7 +90,7 @@ function LoadingSegment({
     return (
         <Animated.View
             style={animatedStyle}
-            className={`rounded-full ${tone === 'primary' ? 'bg-primary dark:bg-primary-dark' : 'bg-text-secondary-light/60 dark:bg-text-secondary-dark/60'} ${segmentClassName}`}
+            className={`rounded-full ${tone === 'primary' ? 'bg-bone-light dark:bg-bone-dark' : 'bg-text-secondary-light/60 dark:bg-text-secondary-dark/60'} ${segmentClassName}`}
         />
     );
 }

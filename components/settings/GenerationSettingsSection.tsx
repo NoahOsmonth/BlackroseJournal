@@ -49,12 +49,12 @@ function SliderRow({
     return (
         <View className="mb-5">
             <View className="mb-1 flex-row items-baseline justify-between gap-3">
-                <Text className="text-sm font-semibold text-text-light dark:text-text-dark">
+                <Text className="text-[16px] text-text-light dark:text-text-dark">
                     {label}
                 </Text>
                 {/* Tabular readout — instrument dial, not a floating hero number */}
                 <Text
-                    className="text-sm font-semibold tabular-nums tracking-wide text-text-light dark:text-text-dark"
+                    className="text-[16px] tabular-nums tracking-wide text-text-light dark:text-text-dark"
                     style={{ fontVariant: ['tabular-nums'] }}
                 >
                     {formatDisplay(liveValue)}
@@ -83,10 +83,10 @@ function ContextReadout({ props }: { props: GenerationSettingsSectionProps }) {
         : contextError ?? (isLoading ? 'Detecting model context...' : 'Context unavailable');
 
     return (
-        <View className="mb-5 rounded-xl border border-divider-light dark:border-divider-dark p-3">
+        <View className="mb-5 rounded-control border border-hairline-light p-3.5 dark:border-hairline-dark">
             <View className="flex-row items-center justify-between gap-3">
                 <View className="flex-1">
-                    <Text className="text-sm font-semibold text-text-light dark:text-text-dark">
+                    <Text className="text-[16px] text-text-light dark:text-text-dark">
                         Detected context window
                     </Text>
                     <Text className={`mt-1 text-xs ${SECONDARY_TEXT}`}>
@@ -99,13 +99,13 @@ function ContextReadout({ props }: { props: GenerationSettingsSectionProps }) {
                     accessibilityRole="button"
                     accessibilityLabel="Refresh model context"
                 >
-                    <Text className="text-xs font-semibold text-text-light dark:text-text-dark">
+                    <Text className="text-[15px] text-text-light dark:text-text-dark">
                         Refresh
                     </Text>
                 </Pressable>
             </View>
             {modelContext ? (
-                <Text className="mt-2 self-start rounded-full bg-background-light px-2 py-1 text-[11px] font-semibold text-text-secondary-light dark:bg-background-dark dark:text-text-secondary-dark">
+                <Text className="mt-2 self-start text-[12px] text-text-secondary-light dark:text-text-secondary-dark">
                     {modelContext.source}
                 </Text>
             ) : null}
@@ -153,11 +153,11 @@ export function GenerationSettingsSection(props: GenerationSettingsSectionProps)
                             temperature: preset.temperature,
                             topP: preset.topP,
                         })}
-                        className="rounded-full border border-divider-light px-3 py-2 dark:border-divider-dark"
+                        className="rounded-full border border-hairline-light px-3.5 py-2 dark:border-hairline-dark"
                         accessibilityRole="button"
                         accessibilityLabel={`Use ${preset.label} generation preset`}
                     >
-                        <Text className="text-xs font-semibold text-text-light dark:text-text-dark">
+                        <Text className="text-[15px] text-text-light dark:text-text-dark">
                             {preset.label}
                         </Text>
                     </Pressable>
@@ -173,7 +173,7 @@ export function GenerationSettingsSection(props: GenerationSettingsSectionProps)
                 accessibilityState={{ disabled: isLoading }}
                 accessibilityLabel="Reset generation settings"
             >
-                <Text className="text-center text-sm font-semibold text-text-light dark:text-text-dark">
+                <Text className="text-center text-[15px] text-text-light dark:text-text-dark">
                     Reset to defaults
                 </Text>
             </Pressable>
