@@ -34,6 +34,19 @@ queue drained.
 
 ### Verification (Playwriter against the running web app + live OmniRoute)
 
+Pre-fix code re-checked-out for a controlled A/B on the same machine, provider, browser and flow:
+
+| Step | Pre-fix (broken) | Post-fix |
+|---|---|---|
+| 1st finish click → reflection | 1541 ms | 1530 ms |
+| Reflection screen, requests over 25 s | 442 → 993 → 1730 → 2769 → 3912 (climbing) | 10, flat |
+| Click "Close" on that screen | locator.click **timeout after 60 000 ms** | instant |
+| Second tab, chat reply | still pending after 60 s (Finish disabled) | 17.2 s |
+
+The 60 s click timeout is the reported ">1 minute of waiting". The second-tab row shows the jam is
+profile-wide (Chrome's socket pool is per profile), and closing the storming tab freed the pool —
+the user's "delete the tab and reopen" workaround.
+
 ```
 before  reflection screen: 28214 requests, 1358 pending, storm still growing, snapshot timed out
 after   reflection screen:  8 requests over 45 s, then flat (6 background steps + retain + 1 refresh)

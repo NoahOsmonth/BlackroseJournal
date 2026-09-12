@@ -23,6 +23,23 @@ Loop mechanics (all three were needed):
 
 ## Evidence (Playwriter, live OmniRoute + user's signed-in web app)
 
+### A/B reproduction — same machine, provider, browser, flow (pre-fix code checked out via
+`git checkout HEAD~1 -- <files>`, then restored with `git checkout HEAD -- <files>`)
+
+| Step | Pre-fix (broken) | Post-fix |
+|---|---|---|
+| 1st finish click → reflection | 1541 ms | 1530 ms |
+| Reflection screen, requests over 25 s | 442 → 993 → 1730 → 2769 → 3912 (climbing) | 10, flat |
+| Click "Close" on that screen | **locator.click timeout after 60000 ms** | n/a (instant) |
+| Second tab, chat reply | still pending after 60 s; Finish button disabled | 17.2 s (tab had just been drained) |
+
+The 60 s click timeout is the literal ">1 minute of waiting" symptom, and the second-tab result
+shows the jam is not per-tab: Chrome's socket pool is per profile, so one tab's storm starves AI
+calls in every other tab. Closing the storming tab freed the pool and the other tab recovered —
+the user's "delete the tab and reopen" workaround.
+
+### Longer run (first observation, pre-fix)
+
 Before fix, my own tab, `/entry-reflection?entryId=entry_...` (fetched via injected `fetch` counter):
 
 ```
