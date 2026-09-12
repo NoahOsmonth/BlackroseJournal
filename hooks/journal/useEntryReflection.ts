@@ -4,6 +4,16 @@ import { generateEntryReflection } from '@/services/ai/insights';
 import type { EntryReflectionResult } from '@/services/ai/insightsTypes';
 import { getEntry } from '@/services/journal/journalStorage';
 import type { JournalEntry } from '@/services/journal/journalStorage.types';
+import { withTimeout } from '@/utils/async';
+
+/**
+ * Ceiling on one reflection generation.
+ *
+ * A stalled provider used to leave the screen on its skeleton forever, which is
+ * the same "it never finishes" feeling as the Finish hang. Past this the screen
+ * shows an actionable error and a retry instead.
+ */
+export const REFLECTION_TIMEOUT_MS = 30_000;
 
 interface UseEntryReflectionState {
     entry: JournalEntry | null;
@@ -76,13 +86,23 @@ async function loadReflection(
 
         if (!cached) {
             const entryText = buildEntryText(storedEntry);
-            const reflection = await generateEntryReflection({ entryText });
+            const reflection = await withTimeout(
+                generateEntryReflection({ entryText }),
+                REFLECTION_TIMEOUT_MS,
+                'Reflection',
+            );
             reflectionCache.set(entryId, reflection);
             setData(reflection);
         }
     } catch (e) {
         setData(null);
-        setError(e instanceof Error ? e.message : 'Failed to load reflection');
+        if (e instanceof Error && /timed out/i.test(e.message)) {
+            setError('The reflection took too long to arrive. Try again.');
+        } else if (e instanceof Error) {
+            setError(e.message);
+        } else {
+            setError('Failed to load reflection');
+        }
     } finally {
         setIsLoading(false);
     }

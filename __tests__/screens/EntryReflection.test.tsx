@@ -3,6 +3,7 @@ import { fireEvent, render, waitFor } from '@testing-library/react-native';
 
 import EntryReflectionScreen from '../../app/entry-reflection';
 import { saveAiFeedback } from '@/services/feedback/feedbackStorage';
+import type { EntryReflectionResult } from '@/services/ai/insightsTypes';
 import type { FinishBackgroundStatus } from '@/services/journal/finishBackgroundStore';
 
 jest.mock('@expo/vector-icons', () => ({
@@ -27,17 +28,34 @@ jest.mock('@/hooks/use-theme-color', () => ({
 // changed.
 const mockRefresh = jest.fn(() => Promise.resolve());
 
+const mockHookState: {
+    data: EntryReflectionResult | null;
+    isLoading: boolean;
+    error: string | null;
+    refresh: () => Promise<void>;
+} = {
+    data: {
+        reflection: 'You are finding your pace.',
+        keyInsight: 'Small rituals help.',
+        suggestions: [],
+    },
+    isLoading: false,
+    error: null,
+    refresh: () => mockRefresh(),
+};
+
+function resetHookState(): void {
+    mockHookState.data = {
+        reflection: 'You are finding your pace.',
+        keyInsight: 'Small rituals help.',
+        suggestions: [],
+    };
+    mockHookState.isLoading = false;
+    mockHookState.error = null;
+}
+
 jest.mock('@/hooks/useEntryReflection', () => ({
-    useEntryReflection: () => ({
-        data: {
-            reflection: 'You are finding your pace.',
-            keyInsight: 'Small rituals help.',
-            suggestions: [],
-        },
-        isLoading: false,
-        error: null,
-        refresh: () => mockRefresh(),
-    }),
+    useEntryReflection: () => mockHookState,
 }));
 
 const mockBackgroundStatus: { current: FinishBackgroundStatus | null } = { current: null };
@@ -74,6 +92,7 @@ describe('EntryReflectionScreen feedback', () => {
     beforeEach(() => {
         mockRefresh.mockClear();
         mockBackgroundStatus.current = null;
+        resetHookState();
     });
 
     it('opens a comment popup and saves reflection feedback to memory', async () => {
@@ -97,6 +116,29 @@ describe('EntryReflectionScreen feedback', () => {
                 messageContent: 'You are finding your pace.',
             }));
         });
+    });
+});
+
+describe('EntryReflectionScreen error state', () => {
+    beforeEach(() => {
+        mockRefresh.mockClear();
+        mockBackgroundStatus.current = null;
+        resetHookState();
+    });
+
+    it('offers a retry when the reflection fails or times out', async () => {
+        mockHookState.data = null;
+        mockHookState.error = 'The reflection took too long to arrive. Try again.';
+
+        const { getByLabelText, getByText } = render(<EntryReflectionScreen />);
+
+        expect(getByText('The reflection took too long to arrive. Try again.')).toBeTruthy();
+
+        fireEvent.press(getByLabelText('Try loading the reflection again'));
+        expect(mockRefresh).toHaveBeenCalledTimes(1);
+
+        // Nothing to continue with while the reflection is missing.
+        expect(getByLabelText('Continue').props.accessibilityState.disabled).toBe(true);
     });
 });
 

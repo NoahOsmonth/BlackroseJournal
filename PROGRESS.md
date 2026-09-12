@@ -85,8 +85,13 @@ script groups. `npm run lint` now exits **0** with 0 errors / 72 pre-existing wa
 
 ### Follow-ups
 
-- `useEntryReflection` still has no ceiling on a hung `generateEntryReflection` (skeleton spins
-  indefinitely). Add bounded-wait treatment if it bites.
+- Follow-up from the same review, now closed: `useEntryReflection` had no ceiling on a hung
+  `generateEntryReflection`, so a stalled provider left the reflection screen on its skeleton forever —
+  the same "it never finishes" feeling as the Finish hang. `REFLECTION_TIMEOUT_MS = 30 000` wraps the
+  call in `withTimeout` and the stall surfaces as a retryable error, with a "Try again" action added to
+  the reflection error card. Tests: `__tests__/hooks/useEntryReflection.test.tsx` (+1) and
+  `__tests__/screens/EntryReflection.test.tsx` (+1), both sabotage-verified (dropping `withTimeout`
+  leaves `isLoading` true and fails the hook test; removing the retry label fails the screen test).
 - `.pi/tasks/**` is tracked by git (4 agent task files committed in `250506e`); gitignore rules already cover the
   harness itself. Left alone — deleting committed files is not mine to decide.
 - Root-cause write-up: `.planning/debug/finish-entry-hang.resolved.md` (renamed so `gsd-debug list` skips it).

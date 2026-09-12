@@ -129,6 +129,17 @@ export default function EntryReflectionScreen() {
                             <Text className="mt-1.5 text-[14px] text-text-secondary-light dark:text-text-secondary-dark">
                                 {error}
                             </Text>
+                            <Pressable
+                                onPress={() => void refresh()}
+                                accessibilityRole="button"
+                                accessibilityLabel="Try loading the reflection again"
+                                className="mt-4 min-h-11 flex-row items-center justify-center gap-2 rounded-control border border-bone-light active:opacity-70 dark:border-bone-dark"
+                            >
+                                <MaterialIcons name="refresh" size={20} color={inkColor} />
+                                <Text className="text-[16px] text-text-light dark:text-text-dark">
+                                    Try again
+                                </Text>
+                            </Pressable>
                         </View>
                     )}
 

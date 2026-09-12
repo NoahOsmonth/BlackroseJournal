@@ -1,6 +1,6 @@
 /* eslint-disable import/first */
 import { act, renderHook } from '@testing-library/react-native';
-import { useEntryReflection } from '../../hooks/journal/useEntryReflection';
+import { REFLECTION_TIMEOUT_MS, useEntryReflection } from '../../hooks/journal/useEntryReflection';
 import type { JournalEntry } from '../../services/journal/journalStorage.types';
 
 const mockEntry: JournalEntry = {
@@ -113,5 +113,44 @@ describe('useEntryReflection', () => {
 
         expect(mockedGenerate).toHaveBeenCalledTimes(2);
         expect(result.current.error).toBeNull();
+    });
+
+    it('reports a timeout instead of spinning forever when the provider hangs', async () => {
+        // A stalled provider used to leave `isLoading` true forever, so the
+        // reflection screen sat on its skeleton with no way forward.
+        jest.useFakeTimers();
+        try {
+            mockedGenerate.mockImplementationOnce(() => new Promise<never>(() => { }));
+
+            const { result } = renderHook(() => useEntryReflection('entry-hang-1'));
+
+            await act(async () => {
+                await Promise.resolve();
+            });
+            expect(result.current.isLoading).toBe(true);
+
+            await act(async () => {
+                jest.advanceTimersByTime(REFLECTION_TIMEOUT_MS + 1);
+                await Promise.resolve();
+            });
+
+            expect(result.current.isLoading).toBe(false);
+            expect(result.current.data).toBeNull();
+            expect(result.current.error).toBe(
+                'The reflection took too long to arrive. Try again.',
+            );
+
+            // The abandoned load must not block a retry: refresh() starts a fresh
+            // generation rather than joining the hung in-flight entry.
+            await act(async () => {
+                await result.current.refresh();
+            });
+
+            expect(mockedGenerate).toHaveBeenCalledTimes(2);
+            expect(result.current.data).not.toBeNull();
+            expect(result.current.error).toBeNull();
+        } finally {
+            jest.useRealTimers();
+        }
     });
 });
