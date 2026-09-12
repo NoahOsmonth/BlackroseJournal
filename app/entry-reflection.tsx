@@ -12,14 +12,14 @@ import { FinishBackgroundBanner } from '@/components/entries/FinishBackgroundBan
 import { FeedbackCommentModal } from '@/components/intentions/FeedbackCommentModal';
 import { RoseMark } from '@/components/ui/RoseMark';
 import { BLACKROSE_PALETTE } from '@/constants/theme';
-import { useFinishBackgroundStatus } from '@/hooks/journal/useFinishBackgroundStatus';
+import { useRefreshOnFinishRun } from '@/hooks/journal/useRefreshOnFinishRun';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useEntryReflection } from '@/hooks/useEntryReflection';
 import type { AiFeedbackValue } from '@/services/feedback/feedbackStorage';
 import { saveAiFeedback } from '@/services/feedback/feedbackStorage';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -48,15 +48,11 @@ export default function EntryReflectionScreen() {
     }, [params.entryId]);
 
     const { data, isLoading, error, refresh } = useEntryReflection(entryId);
-    const { isDone } = useFinishBackgroundStatus();
 
     // When the background analysis lands, refresh the reflection so the
     // entry's analysis-backed content (and any regenerated reflection) shows.
-    useEffect(() => {
-        if (isDone) {
-            void refresh();
-        }
-    }, [isDone, refresh]);
+    // One refresh per finished run — never one per render.
+    useRefreshOnFinishRun(refresh, entryId);
 
     const handleBack = () => {
         router.replace('/(tabs)/entries');

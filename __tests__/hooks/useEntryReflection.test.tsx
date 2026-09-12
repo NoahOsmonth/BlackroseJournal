@@ -61,8 +61,43 @@ describe('useEntryReflection', () => {
         expect(remounted.result.current.data).not.toBeNull();
     });
 
+    it('refresh() keeps a stable identity across renders', async () => {
+        // Consumers put `refresh` in effect dependency arrays. An inline arrow
+        // here re-fired the reflection screen's "analysis landed" effect on
+        // every render, which queued thousands of AI requests.
+        const { result, rerender } = renderHook(() => useEntryReflection('entry-stable-1'));
+
+        await act(async () => {
+            await Promise.resolve();
+        });
+
+        const firstRefresh = result.current.refresh;
+        rerender({});
+        rerender({});
+
+        expect(result.current.refresh).toBe(firstRefresh);
+    });
+
+    it('collapses overlapping refresh() calls into one generation', async () => {
+        const { result } = renderHook(() => useEntryReflection('entry-dedupe-1'));
+
+        await act(async () => {
+            await Promise.resolve();
+        });
+        expect(mockedGenerate).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+            const first = result.current.refresh();
+            const second = result.current.refresh();
+            await Promise.all([first, second]);
+        });
+
+        // Both callers shared one in-flight load — no second AI call.
+        expect(mockedGenerate).toHaveBeenCalledTimes(2);
+    });
+
     it('refresh() forces a fresh generation even when a cached reflection exists', async () => {
-        const { result, rerender } = renderHook(() => useEntryReflection('entry-refresh-1'));
+        const { result } = renderHook(() => useEntryReflection('entry-refresh-1'));
 
         await act(async () => {
             await Promise.resolve();

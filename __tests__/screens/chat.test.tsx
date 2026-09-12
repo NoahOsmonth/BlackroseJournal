@@ -198,7 +198,7 @@ jest.mock('../../hooks/useJournalEntries', () => ({
 }));
 
 jest.mock('../../services/ai', () => ({
-    generateEntryTitle: jest.fn(),
+    generateEntryTitle: jest.fn(async () => 'Test title'),
     generateEntryAnalysis: jest.fn(),
 }));
 

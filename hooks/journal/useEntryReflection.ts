@@ -13,7 +13,25 @@ interface UseEntryReflectionState {
     refresh: () => Promise<void>;
 }
 
+interface ReflectionSetters {
+    setEntry: (entry: JournalEntry | null) => void;
+    setData: (data: EntryReflectionResult | null) => void;
+    setIsLoading: (isLoading: boolean) => void;
+    setError: (error: string | null) => void;
+}
+
 const reflectionCache = new Map<string, EntryReflectionResult>();
+
+/**
+ * In-flight loads keyed by `<entryId>:<force>`.
+ *
+ * A screen that re-renders while a load is pending must not fire a second AI
+ * call. Without this guard a render loop on the reflection screen queued
+ * thousands of `generateEntryReflection` requests, saturating the browser's
+ * per-origin connection pool and starving every later AI call (including the
+ * entry title on the next Finish).
+ */
+const inFlightLoads = new Map<string, Promise<void>>();
 
 function buildEntryText(entry: JournalEntry): string {
     const parts = entry.messages
@@ -22,6 +40,52 @@ function buildEntryText(entry: JournalEntry): string {
         .filter(Boolean);
 
     return parts.join('\n\n');
+}
+
+async function loadReflection(
+    entryId: string,
+    forceRegenerate: boolean,
+    { setEntry, setData, setIsLoading, setError }: ReflectionSetters,
+): Promise<void> {
+    // A cached reflection is a source-of-truth for the initial mount, but
+    // refresh() must force a fresh generation — otherwise editing an entry
+    // leaves a stale reflection forever and "Regenerate" is a silent no-op.
+    if (forceRegenerate) {
+        reflectionCache.delete(entryId);
+    }
+
+    const cached = forceRegenerate ? undefined : reflectionCache.get(entryId);
+    if (cached) {
+        setIsLoading(false);
+        setError(null);
+        setData(cached);
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+        const storedEntry = await getEntry(entryId);
+        setEntry(storedEntry);
+
+        if (!storedEntry) {
+            setData(null);
+            setError('Entry not found');
+            return;
+        }
+
+        if (!cached) {
+            const entryText = buildEntryText(storedEntry);
+            const reflection = await generateEntryReflection({ entryText });
+            reflectionCache.set(entryId, reflection);
+            setData(reflection);
+        }
+    } catch (e) {
+        setData(null);
+        setError(e instanceof Error ? e.message : 'Failed to load reflection');
+    } finally {
+        setIsLoading(false);
+    }
 }
 
 export function useEntryReflection(entryId?: string): UseEntryReflectionState {
@@ -35,7 +99,7 @@ export function useEntryReflection(entryId?: string): UseEntryReflectionState {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const load = useCallback(async (forceRegenerate = false) => {
+    const load = useCallback(async (forceRegenerate = false): Promise<void> => {
         if (!resolvedEntryId) {
             setEntry(null);
             setData(null);
@@ -43,46 +107,31 @@ export function useEntryReflection(entryId?: string): UseEntryReflectionState {
             return;
         }
 
-        // A cached reflection is a source-of-truth for the initial mount, but
-        // refresh() must force a fresh generation — otherwise editing an entry
-        // leaves a stale reflection forever and "Regenerate" is a silent no-op.
-        if (forceRegenerate) {
-            reflectionCache.delete(resolvedEntryId);
-        }
+        const loadKey = `${resolvedEntryId}:${forceRegenerate ? 'force' : 'cached'}`;
+        const pending = inFlightLoads.get(loadKey);
+        if (pending) return pending;
 
-        const cached = forceRegenerate ? undefined : reflectionCache.get(resolvedEntryId);
-        if (cached) {
-            setIsLoading(false);
-            setError(null);
-            setData(cached);
-        }
-
-        setIsLoading(true);
-        setError(null);
+        const run = loadReflection(resolvedEntryId, forceRegenerate, {
+            setEntry,
+            setData,
+            setIsLoading,
+            setError,
+        });
+        inFlightLoads.set(loadKey, run);
 
         try {
-            const storedEntry = await getEntry(resolvedEntryId);
-            setEntry(storedEntry);
-
-            if (!storedEntry) {
-                setData(null);
-                setError('Entry not found');
-                return;
-            }
-
-            if (!cached) {
-                const entryText = buildEntryText(storedEntry);
-                const reflection = await generateEntryReflection({ entryText });
-                reflectionCache.set(resolvedEntryId, reflection);
-                setData(reflection);
-            }
-        } catch (e) {
-            setData(null);
-            setError(e instanceof Error ? e.message : 'Failed to load reflection');
+            await run;
         } finally {
-            setIsLoading(false);
+            if (inFlightLoads.get(loadKey) === run) {
+                inFlightLoads.delete(loadKey);
+            }
         }
     }, [resolvedEntryId]);
+
+    // `refresh` must keep a stable identity: consumers list it in effect
+    // dependency arrays, and an inline arrow here re-fires those effects on
+    // every render.
+    const refresh = useCallback(() => load(true), [load]);
 
     useEffect(() => {
         load();
@@ -93,6 +142,6 @@ export function useEntryReflection(entryId?: string): UseEntryReflectionState {
         data,
         isLoading,
         error,
-        refresh: () => load(true),
+        refresh,
     };
 }

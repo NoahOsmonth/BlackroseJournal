@@ -27,6 +27,7 @@ import { useJournalEntries } from '../hooks/useJournalEntries';
 import { generateEntryTitle } from '../services/ai';
 import { runJournalFinishBackground } from '../services/journal/journalFinishSideEffects';
 import type { JournalEntry } from '../services/journal/journalStorage.types';
+import { withTimeout } from '../utils/async';
 import { latestUserMemoryQuery, resolveMemoryCapsuleQuery } from '../utils/memoryCapsuleQuery';
 
 type ChatParams = {
@@ -39,6 +40,13 @@ type ChatParams = {
 
 /** Middle verb seed: opens the sentence, the writer finishes it. */
 const NAME_FEELING_STEM = 'What I actually feel is ';
+
+/**
+ * The title call is the only AI step the writer waits on before the entry is
+ * saved. A stalled provider must fall back to the local title instead of
+ * holding Finish open.
+ */
+const FINISH_TITLE_TIMEOUT_MS = 8_000;
 
 export default function ChatScreen() {
     const router = useRouter();
@@ -264,7 +272,11 @@ export default function ChatScreen() {
             try {
                 if (entryText.trim()) {
                     setFinishStage('Finding a title');
-                    title = await generateEntryTitle({ entryText });
+                    title = await withTimeout(
+                        generateEntryTitle({ entryText }),
+                        FINISH_TITLE_TIMEOUT_MS,
+                        'Entry title',
+                    );
                 }
             } catch (err) {
                 console.warn('AI title generation failed, using fallback', err);

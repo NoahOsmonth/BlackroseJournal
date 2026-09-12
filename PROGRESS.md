@@ -1,5 +1,64 @@
 # PROGRESS — Optimization + Bug Hunt (2026-09-02)
 
+## 2026-09-12 — Finish hangs "forever": reflection-screen request storm
+
+### Symptom
+
+Finishing an entry spun for over a minute, so the tab got killed; reopening showed the entry
+already saved in History. Every finish after the first one in a tab was affected.
+
+### Root cause (three-part render loop → request storm)
+
+1. `finishBackgroundStore` keeps a settled run in memory forever, so
+   `useFinishBackgroundStatus().isDone` stays `true` for the rest of the session.
+2. `app/entry-reflection.tsx` ran `useEffect(() => { if (isDone) void refresh(); }, [isDone, refresh])`.
+3. `useEntryReflection` returned `refresh: () => load(true)` — a new function identity on every
+   render — so that effect re-ran after every render. Each pass awaited `getEntry`, called
+   `generateEntryReflection`, set state, and re-rendered, which fired the effect again.
+
+The loop queued thousands of `/v1/chat/completions` calls (measured: **28 214 requests, 1 358
+still pending**, tab unresponsive to CDP). Chrome allows ~6 connections per origin, so every
+later AI call — including the entry title that Finish awaits before saving — queued behind the
+backlog. That is why Finish appeared to hang while the entry still landed in history once the
+queue drained.
+
+### Fix
+
+| File | Change |
+|---|---|
+| `hooks/journal/useEntryReflection.ts` | `refresh` is `useCallback`-stable; module-level in-flight map (`<entryId>:<force>`) collapses overlapping loads into one AI call |
+| `hooks/journal/useRefreshOnFinishRun.ts` | new shared guard — one refresh per settled run (runId + entryId match), idempotent even if `refresh` identity is unstable |
+| `app/entry-reflection.tsx` | uses `useRefreshOnFinishRun(refresh, entryId)` |
+| `app/saved-insights.tsx` | same hook replaces its identical sticky-`isDone` effect |
+| `app/chat.tsx`, `utils/async.ts` | blocking title call capped at 8 s (`FINISH_TITLE_TIMEOUT_MS`) so a stalled provider falls back to the local title instead of holding Finish open |
+
+### Verification (Playwriter against the running web app + live OmniRoute)
+
+```
+before  reflection screen: 28214 requests, 1358 pending, storm still growing, snapshot timed out
+after   reflection screen:  8 requests over 45 s, then flat (6 background steps + retain + 1 refresh)
+after   repeat finish:      1693 ms click → /entry-reflection   (previously the hanging case)
+after   post-refactor run:  2022 ms click → nav, requests stable at 12 for 30 s
+```
+
+### Tests
+
+`__tests__/utils/async.test.ts` (3), `__tests__/hooks/useEntryReflection.test.tsx` (+2:
+stable `refresh` identity, overlapping-refresh dedupe), `__tests__/hooks/useRefreshOnFinishRun.test.ts` (4),
+`__tests__/screens/EntryReflection.test.tsx` (+3). Sabotage-verified: removing the runId guard
+gives `Expected 1 / Received 3` in both the hook and screen suites; removing dedupe gives 3
+generations instead of 2.
+
+Full suite: 266 suites / 1390 tests green. Two unrelated suites fail on baseline too
+(`__tests__/docs/aiControlPlaneOperations.test.ts`, `__tests__/metro-phosphor-resolve.test.ts`).
+`npx tsc --noEmit`, `npm run lint` (changed files), `npm run check:design` clean.
+
+### Follow-ups
+
+- `useEntryReflection` still has no ceiling on a hung `generateEntryReflection` (skeleton spins
+  indefinitely). Add bounded-wait treatment if it bites.
+- Root-cause write-up: `.planning/debug/finish-entry-hang.md`.
+
 ## 2026-09-11 — Default model → `merge/deepseek/deepseek-v4-flash-0731`; design rewrite Phase 7a
 
 ### Model switch (app default + live-test path)

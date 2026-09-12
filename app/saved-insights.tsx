@@ -1,5 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,7 +11,7 @@ import { LoadingStatus } from '@/components/ui/LoadingStatus';
 import { RevealItem } from '@/components/ui/RevealItem';
 import { StaggerEntranceItem } from '@/components/ui/StaggerEntrance';
 import { useScrollReveal } from '@/components/ui/useScrollReveal';
-import { useFinishBackgroundStatus } from '@/hooks/journal/useFinishBackgroundStatus';
+import { useRefreshOnFinishRun } from '@/hooks/journal/useRefreshOnFinishRun';
 import { useNavBack } from '@/hooks/navigation/useNavBack';
 import { useSavedInsights } from '@/hooks/saved-insights/useSavedInsights';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -20,7 +20,6 @@ export default function SavedInsightsScreen() {
     const goBack = useNavBack('/(tabs)/insights');
     const { scrollY, onScroll } = useScrollReveal();
     const { insights, isLoading, remove, refresh } = useSavedInsights();
-    const { isDone } = useFinishBackgroundStatus();
     const colorScheme = useColorScheme();
     const iconColor = colorScheme === 'dark' ? '#F9FAFB' : '#111827';
     const [removingId, setRemovingId] = useState<string | null>(null);
@@ -28,11 +27,8 @@ export default function SavedInsightsScreen() {
 
     // Saved insights are not memory-change subscribers; refresh when the
     // finish background run settles so new insights appear automatically.
-    useEffect(() => {
-        if (isDone) {
-            void refresh();
-        }
-    }, [isDone, refresh]);
+    // Guarded per run so a settled run cannot re-fire the effect on re-render.
+    useRefreshOnFinishRun(refresh);
 
     const handleRemove = useCallback((id: string) => {
         setRemovingId(id);
