@@ -62,15 +62,28 @@ stable `refresh` identity, overlapping-refresh dedupe), `__tests__/hooks/useRefr
 gives `Expected 1 / Received 3` in both the hook and screen suites; removing dedupe gives 3
 generations instead of 2.
 
-Full suite: 266 suites / 1390 tests green. Two unrelated suites fail on baseline too
-(`__tests__/docs/aiControlPlaneOperations.test.ts`, `__tests__/metro-phosphor-resolve.test.ts`).
-`npx tsc --noEmit`, `npm run lint` (changed files), `npm run check:design` clean.
+Full suite re-run at HEAD (`a01859b` + other agents' in-flight `services/ai` edits): **266 suites passed,
+1 393 tests passed**, 3 failed tests inside the two pre-existing suites
+(`__tests__/docs/aiControlPlaneOperations.test.ts`, `__tests__/metro-phosphor-resolve.test.ts`) that fail on
+baseline too. Touched-file suite re-run: 4 suites / 15 tests green.
+
+Sabotage re-check after commit: deleting the `runId` guard in `useRefreshOnFinishRun` turned
+`__tests__/hooks/useRefreshOnFinishRun.test.ts` red (`expect(jest.fn()).toHaveBeenCalledTimes(1)`), restore made it
+15/15 green again; `git status` on the hook file clean afterwards.
+
+`npx tsc --noEmit` exit 0. `npm run check:design` PASSED (179 files, 0 errors, 3 size warnings).
+`npm run lint` scoped to the files this change touched: **0 errors** (2 warnings in `__tests__/screens/chat.test.tsx`
+that exist identically at HEAD). Repo-wide `npm run lint` (`eslint .`) exits 1 with 1 622 errors — **pre-existing and
+not from this change**: 1 502 findings are `.pi/**` (pi/GSD harness install + task output, partly gitignored already)
+and 180 are `scripts/**/*.cjs` (`__dirname`/`no-var` with no Node env override). See follow-up.
 
 ### Follow-ups
 
 - `useEntryReflection` still has no ceiling on a hung `generateEntryReflection` (skeleton spins
   indefinitely). Add bounded-wait treatment if it bites.
-- Root-cause write-up: `.planning/debug/finish-entry-hang.md`.
+- `npm run lint` is red repo-wide on non-source files: add `.pi/**` to eslint ignores and give
+  `scripts/**/*.cjs` a Node env override (or fix its `no-var`/`__dirname` findings). Untouched by this change.
+- Root-cause write-up: `.planning/debug/finish-entry-hang.resolved.md` (renamed so `gsd-debug list` skips it).
 
 ## 2026-09-11 — Default model → `merge/deepseek/deepseek-v4-flash-0731`; design rewrite Phase 7a
 
