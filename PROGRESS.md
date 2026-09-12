@@ -73,16 +73,22 @@ Sabotage re-check after commit: deleting the `runId` guard in `useRefreshOnFinis
 
 `npx tsc --noEmit` exit 0. `npm run check:design` PASSED (179 files, 0 errors, 3 size warnings).
 `npm run lint` scoped to the files this change touched: **0 errors** (2 warnings in `__tests__/screens/chat.test.tsx`
-that exist identically at HEAD). Repo-wide `npm run lint` (`eslint .`) exits 1 with 1 622 errors — **pre-existing and
-not from this change**: 1 502 findings are `.pi/**` (pi/GSD harness install + task output, partly gitignored already)
-and 180 are `scripts/**/*.cjs` (`__dirname`/`no-var` with no Node env override). See follow-up.
+that exist identically at HEAD).
+
+Repo-wide `npm run lint` was red when I got here: `eslint .` exited 1 with 1 622 errors, **none of them from this
+change** — 1 445 were `.pi/**` (installed agent harness, own runtime and own lint rules) and 177 were `scripts/**`
+(Playwriter snippets whose `state`/`context`/`snapshot`/`getLatestLogs`/`importModule` globals are injected by the
+Playwriter CLI, plus two `.cjs` files using `__dirname`). Repaired in `eslint.config.js`: `.pi/**` added to the
+existing ignore list (same family as the `.agents/**` entry) and scoped `languageOptions.globals` added for those two
+script groups. `npm run lint` now exits **0** with 0 errors / 72 pre-existing warnings, and a `var` probe dropped into
+`utils/` still fails lint, so first-party coverage is intact.
 
 ### Follow-ups
 
 - `useEntryReflection` still has no ceiling on a hung `generateEntryReflection` (skeleton spins
   indefinitely). Add bounded-wait treatment if it bites.
-- `npm run lint` is red repo-wide on non-source files: add `.pi/**` to eslint ignores and give
-  `scripts/**/*.cjs` a Node env override (or fix its `no-var`/`__dirname` findings). Untouched by this change.
+- `.pi/tasks/**` is tracked by git (4 agent task files committed in `250506e`); gitignore rules already cover the
+  harness itself. Left alone — deleting committed files is not mine to decide.
 - Root-cause write-up: `.planning/debug/finish-entry-hang.resolved.md` (renamed so `gsd-debug list` skips it).
 
 ## 2026-09-11 — Default model → `merge/deepseek/deepseek-v4-flash-0731`; design rewrite Phase 7a
