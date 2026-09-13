@@ -15,7 +15,11 @@ import {
     Message,
     StreamingCallback,
 } from './chatTypes';
-import type { AgentActivityListener } from './agentEvents';
+import {
+    type AgentActivityListener,
+    type AgentToolCallSnapshot,
+    reduceAgentToolSnapshots,
+} from './agentEvents';
 import { createTemporalMessage } from './messageTemporalMetadata';
 
 export { buildDailyCheckInSystemPrompt };
@@ -28,13 +32,15 @@ function appendAssistantMessage(
     messagesRef: React.MutableRefObject<Message[]>,
     fullContent: string,
     fullReasoning: string,
-    onComplete: (fullContent: string, fullReasoning: string) => void
+    onComplete: (fullContent: string, fullReasoning: string) => void,
+    toolActivity?: AgentToolCallSnapshot[]
 ): void {
     const aiMessage: Message = createTemporalMessage({
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: fullContent,
         reasoning: fullReasoning,
+        ...(toolActivity && toolActivity.length > 0 ? { toolActivity } : {}),
     });
     messagesRef.current = [...messagesRef.current, aiMessage];
     onComplete(fullContent, fullReasoning);
@@ -78,18 +84,31 @@ export function useChat() {
             });
             messagesRef.current = [...messagesRef.current, userMessage];
             const basePrompt = systemPromptRef.current || THERAPIST_SYSTEM_PROMPT;
+            let collectedActivity: AgentToolCallSnapshot[] = [];
+            const activityListener: AgentActivityListener | undefined = extras?.onAgentActivity
+                ? (event) => {
+                    collectedActivity = reduceAgentToolSnapshots(collectedActivity, event);
+                    extras.onAgentActivity?.(event);
+                }
+                : undefined;
+
             await streamChat(
                 messagesRef.current,
                 onChunk,
-                (fullContent, fullReasoning) => appendAssistantMessage(messagesRef, fullContent, fullReasoning, onComplete),
+                (fullContent, fullReasoning) =>
+                    appendAssistantMessage(
+                        messagesRef,
+                        fullContent,
+                        fullReasoning,
+                        onComplete,
+                        collectedActivity
+                    ),
                 onError,
                 {
                     systemPrompt: basePrompt,
                     conversationId: conversationIdRef.current,
                     generation: generationRef.current,
-                    ...(extras?.onAgentActivity
-                        ? { onAgentActivity: extras.onAgentActivity }
-                        : {}),
+                    ...(activityListener ? { onAgentActivity: activityListener } : {}),
                 }
             );
         },

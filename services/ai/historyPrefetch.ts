@@ -20,7 +20,7 @@ import { estimateTokensFromChars } from './promptBudget';
 export const AUGMENT_BLOB_MAX_EST_TOKENS = 1_500;
 
 const HISTORY_INTENT_RE =
-    /\b(yesterday|today|tomorrow|last\s+(week|night|monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun)|this\s+week|last\s+month|what\s+did\s+i\s+(talk|write|say|journal|share|mention)|what\s+did\s+we\s+talk|what\s+was\s+i\s+(talking|writing)|remember\s+when|past\s+(entry|entries|conversation|session)|on\s+\d{4}-\d{2}-\d{2}|full\s+(conversation|transcript|entry))\b/i;
+    /\b(yesterday|today|tomorrow|last\s+(week|night|monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun)|this\s+week|last\s+month|what\s+did\s+i\s+(talk|write|say|journal|share|mention)|what\s+did\s+we\s+talk|what\s+was\s+i\s+(talking|writing)|remember\s+(?:when|that|our|my|the)?|past\s+(entry|entries|conversation|session|chat)|(first|previous|earlier|old)\s+(chat|conversation|entry|entries|session|message)|(have|did)\s+i\s+(?:ever\s+)?(talk|talked|write|written|say|said|mention|mentioned|journal|journaled)|on\s+\d{4}-\d{2}-\d{2}|full\s+(conversation|transcript|entry))\b/i;
 
 const RELATIVE_DATE_RE =
     /\b(yesterday|today|tomorrow|last\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun)|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{4}-\d{2}-\d{2})\b/gi;

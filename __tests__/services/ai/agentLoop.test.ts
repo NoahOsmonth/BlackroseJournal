@@ -7,6 +7,7 @@ import {
 } from '../../../services/ai/agentLoop';
 import * as aiTransport from '../../../services/ai/aiTransport';
 import * as executeTool from '../../../services/ai/tools/executeTool';
+import { clearToolsUnsupportedCache } from '../../../services/ai/tools/toolCapability';
 
 jest.mock('../../../services/ai/aiTransport', () => ({
     fetchAiChatCompletion: jest.fn(),
@@ -62,6 +63,11 @@ describe('runAgentTurnWithTools', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+        clearToolsUnsupportedCache();
+    });
+
+    afterEach(() => {
+        clearToolsUnsupportedCache();
     });
 
     it('returns content when the model does not call tools', async () => {

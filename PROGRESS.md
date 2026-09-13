@@ -1,5 +1,62 @@
 # PROGRESS — Optimization + Bug Hunt (2026-09-02)
 
+## 2026-09-13 — Independent verification pass at HEAD (offline memory): live E2E, Drive soft-fail, flaky timeout test fixed
+
+Handoff said "re-run all gates, live E2E (mandatory, Jest alone is insufficient), Drive tail, commit". Done. Everything below is observed output from this machine, not a summary.
+
+### 1. Gates at HEAD
+- `npx tsc --noEmit` clean · `npm run lint` 0 errors / 72 warnings (all pre-existing) · `npm run check:design` PASSED (176 files OK, 3 warnings).
+- `npx jest --runInBand` full: **272 suites / 1422 tests passed, 1 suite failed**. The one failure is `__tests__/docs/aiControlPlaneOperations.test.ts` — **pre-existing, Windows-only, untouched by this diff**: the suite shells out to `bash scripts/control-plane/export-supabase.sh` and uses `chmod` + a POSIX `PATH` prefix, so Git-Bash mangles the path (`/bin/bash: C:UserssigmuDesktopBlackroseJournal…: No such file or directory`, exit 127). Neither that test nor the shell script it runs is modified here.
+- `__tests__/metro-phosphor-resolve.test.ts` failed in the first full run with a 5s `done()` timeout, passes in isolation (7 tests green) — load flake, not a defect.
+
+### 2. Live E2E re-verified end-to-end (new probe `scripts/e2e/pw-memory-recall-offline.mjs`)
+Real Expo web app on :8081 in headless Chromium, live OmniRoute model, storage cleared at boot, dev demo seed suppressed (rule 8), **Supabase down** (:54321 closed) and **Hindsight unreachable** (route-blocked :8890; console during the run: `Hindsight gateway /v1/memory/retain unavailable: TypeError: Failed to fetch`). Auth bootstrapped offline from a seeded, non-expired Supabase session in browser storage only — zero app code touched. Log: `output/playwright/memory-recall-offline-1789282174777.log`.
+
+**RESULT: PASS.** Evidence, verbatim:
+
+1. Typed a journal turn → "Finish entry" → navigated to `/entry-reflection?entryId=entry_1789282216830_atu1aucuf`. AsyncStorage then held exactly one staged file: `projects/_tmp/Project/general-copper-lighthouse-tired-legs-proud-heart-bcj2y3.md` — header name `General: Copper Lighthouse, Tired Legs, Proud Heart`, body `## Current Stage … ## Notes - Written 2026-09-13: …` → staging survived with Hindsight dead.
+2. Fresh page load (new chat, no conversation context) → asked: *"What do you remember about the copper lighthouse tattoo and the Reykjavik trip? Search your offline memory and quote what you find."*
+3. Tool calls captured off the provider wire: `memory_search`, `memory_search`, `memory_get`, `get_day`, `get_conversation` (specs = all 16 tools, shortlist `branch: memory`); UI chip: **"Used 5 tools"**.
+4. Assistant reply, verbatim: *"Here's what's actually on the device — and I want to be straight with you that it's thin. One line, from today's entry, "Copper Lighthouse, Tired Legs, Proud Heart": "Tonight I finally told Mara about the copper lighthouse tattoo I've been hiding since the Reykjavik trip. The marathon in November is still on my mind too - Tuesday tempo runs, Sunday long slow runs. Legs are tired but my heart is proud of week four.""* Recall tokens present: lighthouse, tattoo, reykjavik, marathon — from the offline file, with Hindsight contributing nothing.
+5. Same probe, earlier run, showed the pre-finish turn answering honestly that there was "nothing on the device yet" — so the recall in (4) is not context bleed.
+
+### 3. Drive tail (no client ID configured)
+Probe STEP 6: Settings → expand the "Data Management" accordion → both rows render, detail = `Set EXPO_PUBLIC_GOOGLE_DRIVE_CLIENT_ID to enable.`; clicking both produces no crash and no error boundary. `EXPO_PUBLIC_GOOGLE_DRIVE_CLIENT_ID` is absent from `.env`, so the OAuth upload/download path is **not** live-verified; it is covered by `driveBackup.test.ts` with injected opener/fetch. Follow-up: add a Google OAuth client id and re-run to exercise Drive upload → restore.
+
+### 4. Flaky test found and fixed by this pass
+`__tests__/services/ai/agentLoop.timeouts.test.ts` — injected `turnTimeoutMs: 20` raced test setup/JIT: the deadline could fire *before round 0* (`[tools] agent_timeout { rounds: 0, turnMs: 40 }`), so the "slow" mock was consumed by the final no-tools pass and content fell back to `AGENT_EXHAUSTION_FALLBACK`. It passed warm in the full suite and failed 3/3 in isolation. Rewritten with virtual time (`jest.spyOn(Date, 'now')` + a deferred completion promise + `setImmediate` flush): no real waits, no duration guessing. Sabotage check: disabling the final no-tools pass → red with the same fallback string; restored → 3/3 green, sibling loop suites 18/18 green.
+
+### 5. Diff delta from this pass
+New: `scripts/e2e/pw-memory-recall-offline.mjs`. Modified: `__tests__/services/ai/agentLoop.timeouts.test.ts`, `PROGRESS.md`. All other changes are the Wave 1–3 offline-memory diff recorded below.
+
+## 2026-09-12 — REAL E2E (Playwright, live app, NO Hindsight, NO Supabase) + shortlist fix
+
+You asked "fully tested??? real testing??" — so I ran the real app in headless Chrome against Expo web (:8081), live OmniRoute model, Hindsight request-blocked, Supabase actually down. Auth wall bypassed with a seeded local remembered account (test scaffolding in browser storage only — zero app code touched for this).
+
+What the live run proved, with verbatim evidence:
+
+1. **Finish pipeline is Hindsight-proof (real soft-fail):** console showed `Hindsight gateway /v1/memory/retain unavailable: Failed to fetch` while entry save + reflection + staging all succeeded. Exactly the designed fire-and-forget behavior.
+2. **Staging from a REAL user turn:** after I typed a marathon-training message and hit Finish entry, storage gained `general-nervous-heart-marathon-road-ahead-t3515z.md` with full body + `Written 2026-09-12` label + `sourceSessionKey` → live LLM topic analysis, not seed data.
+3. **REAL BUG FOUND (Jest-green, app-broken): two "run a memory dream" requests both ended with the model saying "I can't rewrite the memory bank — no tool for that."** Root cause: `selectToolShortlist` in `services/ai/agenticGate.ts` still used the old 10-tool catalog — `memory_dream` was NEVER offered to the model. Fix landed: new `memory` branch (`MEMORY_CUE_RE`: memory/staged/dream/consolidat/threads/forget), `DAY_TOOLS` + remember-when now include `memory_search` (offline-first), full catalog 10→16. Guard pins updated (`agenticGate.test`, `agenticGateFollowup.test`, `agentLoop.shortlist.test` — all 10→16 + history spec list; note: first two files have other-agent in-flight edits, only the length pins were touched). New `__tests__/services/ai/agenticGateMemory.test.ts` (5 tests).
+4. **Dream verified live after fix:** "Used 1 tool · Consolidating memories: ok" → all 7 `_tmp` files `deprecated:true`, promoted into 4 formal threads (morning-intentions×2, evening-intentions×3, intention-intentions×1, general×1 marathon), evidence fields preserved.
+5. **Recall verified live, fresh chat, Hindsight blocked:** "Searching offline memory" (2ms, query `training plan marathon running goal`) → verbatim: "The city marathon in November — that's the one. Tempo runs on Tuesdays, long slow run on Sundays. Nervous about the distance but excited… finished week four… tired legs… pride… post-run clarity."
+
+Gates after fix: 58/58 ai suites (428 tests) green, `tsc` clean, eslint clean. Expo dev server left running on :8081; test script `e2e-send.mjs` deleted. Lesson learned: the shortlister is a silent tool-killer — any new tool MUST be added to `ALL_HISTORY_TOOL_NAMES` + its branch in `agenticGate.ts`, and LLM-behavior changes REQUIRE this live loop, never Jest alone.
+
+Wave 2 landed: `services/memory/memoryStage.ts` (deterministic `_tmp` staging from entry analysis, idempotent per session, never throws) wired into journal sequential + background finish and check-in completion; `services/memory/memoryDream.ts` (LLM global-plan via `fetchDirectJsonCompletion` with fail-closed validation → offline thread-hint clustering fallback; per-thread duplicate collapse; anti-umbrella); tools `memory_overview`/`memory_flush`/`memory_dream` registered with UI meta. Wave 3 landed: `services/backup/driveBackup.ts` (versioned memory bundle — identity + atoms + files — through owning modules only; Google OAuth code flow with lazy expo imports; Drive appDataFolder list/upload/download; no new deps), `hooks/backup/useDriveBackup.ts`, two Drive rows in DataManagementSection (settings.tsx untouched, still 493 lines).
+
+Guards updated deliberately: toolSchemaPin re-frozen for 16 tools (was 10; pin generated from source, byte-encoding incident — python locale mangling — reverted and redone in Node), toolUiMeta entries for all 6 tools. Sabotage checks: gate bypass → red; umbrella-thread Dream → red; weakened snapshot validation → red (added wrong-version-right-shape case); all restored → green.
+
+Final gates: 102 suites / 624 tests green across services/{memory,backup,ai} + hooks + settings; `npx tsc --noEmit` clean; eslint clean (1 pre-existing warning in journalFinishSideEffects untouched); `npm run check:design` PASSED. No lockfile/migration/example-design touches. Follow-up: set EXPO_PUBLIC_GOOGLE_DRIVE_CLIENT_ID to enable Drive; live recall smoke with Hindsight unreachable.
+
+Research: Hermes (MEMORY.md/USER.md frozen snapshot + add/replace/remove tool), OpenClaw (USER/MEMORY/daily-notes/DREAMS + dreaming sweep), and a deep read of OpenBMB/ClawXMemory source (build pipeline: episodes → memory units → project/temporal/profile indexes; inference: route gate → single-project shortlist → header scan → top-K bodies with 12k/30k budgets; `_tmp` staging + Dream with merge_reason evidence rule). Full notes in `.planning/offline-memory/RESEARCH.md`, executable plan in `.planning/offline-memory/PLAN.md`.
+
+Wave 1 tracer landed: `services/memory/memoryFiles.ts` (one AsyncStorage key per doc + manifest, `_tmp` staging, header-only list, exact-id get, lock + safe-parse per rule 4), `services/memory/memoryRetrieval.ts` (route none/user/project_memory → lexical thread shortlist → manifest scan → top-5 bodies, budgets, 30s cache, trace), tools `memory_search`/`memory_list`/`memory_get` wired in registry, `HISTORY_TOOLS_POLICY` now leads with memory_search (curiosity-nudge phrases + 900-char budget guard tests kept green), `recall_memory` demoted to Hindsight FALLBACK.
+
+Verification: 9 new tests green (`memoryFiles`, `memoryRetrieval`); sabotage check (gate bypass → red, restore → green); `historyTools` + `agentLoop` suites green (30/30 across 4 suites); `npx tsc --noEmit` clean; eslint clean on touched files.
+
+Follow-ups (Wave 2/3): `_tmp` writes on journal/check-in finish, `memory_overview`/`memory_flush`/`memory_dream`, manual Drive backup file (`expo-auth-session` + appDataFolder REST, Expo Go compatible).
+
 ## 2026-09-12 — Finish hangs "forever": reflection-screen request storm
 
 ### Symptom

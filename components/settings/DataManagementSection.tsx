@@ -1,8 +1,9 @@
 import React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Alert, Pressable, Text, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useDriveBackup } from '@/hooks/backup/useDriveBackup';
 import { BLACKROSE_PALETTE } from '@/constants/theme';
 import type { LocalBackupManifest } from '@/services/backup/localBackup';
 import { SettingsSection } from './SettingsSection';
@@ -92,6 +93,23 @@ export function DataManagementSection({
     const showSeed = showDemoSeedControls && typeof onSeedDemoData === 'function';
     const showBulk = showDemoSeedControls && typeof onSeedBulkProbe === 'function';
     const showClearDemo = showDemoSeedControls && typeof onClearDemoData === 'function';
+    const drive = useDriveBackup();
+    const driveBusy = drive.status === 'busy';
+    const driveDetail = drive.status === 'not-configured'
+        ? 'Set EXPO_PUBLIC_GOOGLE_DRIVE_CLIENT_ID to enable.'
+        : drive.detail ?? 'Manual backup file in your Drive app folder.';
+
+    const handleDriveBackup = () => {
+        void drive.backupNow().then((message) => {
+            Alert.alert(message ? 'Drive backup done' : 'Drive backup', message ?? 'Google Drive backup failed.');
+        });
+    };
+
+    const handleDriveRestore = () => {
+        void drive.restoreLatest().then((message) => {
+            Alert.alert(message ? 'Drive restore done' : 'Drive restore', message ?? 'Google Drive restore failed.');
+        });
+    };
 
     return (
         <SettingsSection title="Data Management" embedded={embedded}>
@@ -137,6 +155,18 @@ export function DataManagementSection({
                     onPress={onClearDemoData}
                 />
             ) : null}
+            <SettingsRow
+                label="Back up memory to Google Drive"
+                detail={driveDetail}
+                disabled={isBusy || driveBusy}
+                onPress={handleDriveBackup}
+            />
+            <SettingsRow
+                label="Restore memory from Google Drive"
+                detail={drive.remoteFiles[0] ? `Latest: ${drive.remoteFiles[0].name}` : 'Uses the newest Drive backup.'}
+                disabled={isBusy || driveBusy}
+                onPress={handleDriveRestore}
+            />
             <SettingsRow
                 label="Clear history & memories"
                 detail="Removes journal entries, intentions, chat sessions, insights, and saved AI memories."

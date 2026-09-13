@@ -10,6 +10,7 @@ import {
 } from '../../../services/ai/agentLoop';
 import * as aiTransport from '../../../services/ai/aiTransport';
 import * as executeTool from '../../../services/ai/tools/executeTool';
+import { clearToolsUnsupportedCache } from '../../../services/ai/tools/toolCapability';
 
 jest.mock('../../../services/ai/aiTransport', () => ({
     fetchAiChatCompletion: jest.fn(),
@@ -59,36 +60,54 @@ describe('runAgentTurnWithTools whole-turn timeout', () => {
     const toolsMock = executeTool.executeToolCalls as jest.Mock;
 
     beforeEach(() => {
-        jest.clearAllMocks();
+        fetchMock.mockReset();
+        toolsMock.mockReset();
+        clearToolsUnsupportedCache();
+    });
+
+    afterEach(() => {
+        clearToolsUnsupportedCache();
     });
 
     it('aborts the loop at the turn deadline and runs a final no-tools pass', async () => {
-        // Round 1 completion is slow (> the injected 50ms deadline); the final
-        // no-tools pass resolves immediately.
+        // Virtual time: the turn starts at t=0 and the tool round only completes
+        // once the clock has been advanced past the deadline. No real waiting, so
+        // slow CI cannot make the deadline fire before round 0 even begins.
+        let now = 1_000_000;
+        const nowSpy = jest.spyOn(Date, 'now').mockImplementation(() => now);
+        let releaseRound: ((response: Response) => void) | undefined;
         fetchMock
             .mockImplementationOnce(
-                () =>
-                    new Promise<Response>((resolve) =>
-                        setTimeout(() => resolve(jsonResponse(toolCallMessage('get_clock', '{}'))), 120)
-                    )
+                () => new Promise<Response>((resolve) => { releaseRound = resolve; })
             )
-            .mockResolvedValueOnce(jsonResponse(textMessage('Final answer after timeout.')));
+            .mockResolvedValue(jsonResponse(textMessage('Final answer after timeout.')));
 
         toolsMock.mockResolvedValueOnce([
             { toolCallId: 'call_1', name: 'get_clock', content: 'ok' },
         ]);
 
-        const result = await runAgentTurnWithTools({
+        const pending = runAgentTurnWithTools({
             systemPrompt: 'sys',
             messages: [{ id: '1', role: 'user', content: 'what time is it?', timestamp: 1 }],
-            turnTimeoutMs: 50,
+            turnTimeoutMs: 250,
         });
+
+        // Drive the loop to its first (deferred) completion call.
+        for (let i = 0; i < 100 && !releaseRound; i += 1) {
+            await new Promise<void>((resolve) => setImmediate(resolve));
+        }
+        expect(releaseRound).toBeDefined();
+
+        now += 1_000; // past the 250ms deadline
+        releaseRound?.(jsonResponse(toolCallMessage('get_clock', '{}')));
+        const result = await pending;
 
         expect(result.stopReason).toBe('timeout');
         expect(result.content).toBe('Final answer after timeout.');
         expect(result.content.length).toBeGreaterThan(0);
         // One slow tool round only — the deadline cut off further rounds.
         expect(toolsMock).toHaveBeenCalledTimes(1);
+        nowSpy.mockRestore();
     });
 
     it('exposes a sane default turn timeout constant', () => {

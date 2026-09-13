@@ -143,25 +143,28 @@ export async function streamChat(
     try {
         const resolved = resolveStreamOptions(options);
         let systemPrompt = resolved.systemPrompt || THERAPIST_SYSTEM_PROMPT;
+        const runtime = await resolveLocalAiRuntime();
+        const activeModelId = resolved.model || runtime.modelId || DEFAULT_DIRECT_MODEL;
+        const capability = resolved.capability
+            || (resolved.model ? resolveToolCapability(resolved.model) : runtime.capability);
+        const contextWindow = resolved.contextWindow || runtime.contextWindow;
+        const outputReserve = Math.min(
+            DEFAULT_OUTPUT_RESERVE,
+            Math.max(512, Math.floor(contextWindow * 0.12))
+        );
+
         const userText = latestUserText(messages);
         const toolsBranch = resolveHistoryToolsBranch(
             resolved.enableHistoryTools,
             userText,
-            messages
+            messages,
+            capability
         );
         const toolsEnabled = shouldEnableHistoryTools(
             resolved.enableHistoryTools,
             userText,
-            messages
-        );
-
-        const runtime = await resolveLocalAiRuntime();
-        const contextWindow = runtime.contextWindow;
-        const activeModelId = runtime.modelId;
-        const capability = runtime.capability;
-        const outputReserve = Math.min(
-            DEFAULT_OUTPUT_RESERVE,
-            Math.max(512, Math.floor(contextWindow * 0.12))
+            messages,
+            capability
         );
 
         // Auto-compact older turns when free/small context windows fill up.
@@ -199,7 +202,7 @@ export async function streamChat(
                         systemPrompt,
                         messages: outboundMessages,
                         generation: resolved.generation,
-                        model: DEFAULT_DIRECT_MODEL,
+                        model: activeModelId,
                         capability,
                         turnTokenBudget: resolveAgentTurnTokenBudget(contextWindow, AGENT_TURN_TOKEN_BUDGET),
                         ...(resolved.onAgentActivity
@@ -209,7 +212,6 @@ export async function streamChat(
                     lastUsage = agentResult.usage ?? null;
                     logPromptBudget(attachRealUsage(preLedger, lastUsage));
                     if (lastUsage) {
-                        // eslint-disable-next-line no-console
                         console.log('[prompt-budget] usage', JSON.stringify(lastUsage));
                     }
                     logToolTelemetry('stream_agent_result', {
@@ -274,7 +276,7 @@ export async function streamChat(
         };
 
         const streamPayload = buildChatPayload(
-            DEFAULT_DIRECT_MODEL,
+            activeModelId,
             outboundMessages,
             systemPrompt,
             true,
@@ -324,15 +326,17 @@ export async function streamChat(
 export async function completeChat(
     messages: Message[],
     systemPrompt: string,
-    options?: { conversationId?: string; generation?: StreamChatOptions['generation'] }
+    options?: { conversationId?: string; generation?: StreamChatOptions['generation']; model?: string }
 ): Promise<ChatAccumulator> {
-    const contextWindow = (await resolveLocalAiRuntime()).contextWindow;
+    const runtime = await resolveLocalAiRuntime();
+    const activeModelId = options?.model || runtime.modelId || DEFAULT_DIRECT_MODEL;
+    const contextWindow = runtime.contextWindow;
     const compactResult = compactConversationIfNeeded(messages, {
         systemPrompt,
         contextWindow,
     });
     const payload = buildChatPayload(
-        DEFAULT_DIRECT_MODEL,
+        activeModelId,
         compactResult.messages,
         systemPrompt,
         false,

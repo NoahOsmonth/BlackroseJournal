@@ -23,6 +23,7 @@ import { upsertJournalDayDigest } from '@/services/memory/dayDigestStorage';
 import { retainJournalEntryToHindsight } from '@/services/memory/hindsight/hindsightRetain';
 import { extractIdentityFromSessionTranscript } from '@/services/memory/identityExtraction';
 import { saveJournalEntryMemories } from '@/services/memory/localMemory';
+import { stageJournalEntryMemoryFiles } from '@/services/memory/memoryStage';
 import { buildAndSaveSessionDigest } from '@/services/memory/sessionDigestBuild';
 import {
     FinishBackgroundStep,
@@ -148,6 +149,12 @@ async function runJournalFinishSideEffectsForAccount(
     );
 
     await runStep(
+        'Failed to stage offline memory files',
+        () => stageJournalEntryMemoryFiles(savedEntry),
+        context,
+    );
+
+    await runStep(
         'Failed to update day digest',
         () => upsertJournalDayDigest(savedEntry),
         context,
@@ -232,7 +239,10 @@ export function runJournalFinishBackground(
                 {
                     step: 'memories',
                     label: 'Failed to save journal memories',
-                    operation: () => saveJournalEntryMemories(savedEntry),
+                    operation: () => Promise.all([
+                        saveJournalEntryMemories(savedEntry),
+                        stageJournalEntryMemoryFiles(savedEntry),
+                    ]),
                 },
                 {
                     step: 'digest',

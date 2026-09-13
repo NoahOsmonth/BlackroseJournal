@@ -158,7 +158,6 @@ function injectOnlyCapability(): ToolCapability {
 /** Lightweight debug telemetry (no PII). */
 export function logToolTelemetry(event: string, data: Record<string, unknown>): void {
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
-        // eslint-disable-next-line no-console
         console.debug(`[tools] ${event}`, data);
     }
 }

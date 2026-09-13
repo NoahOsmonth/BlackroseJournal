@@ -28,6 +28,7 @@ import { upsertCheckInDayDigest } from '../memory/dayDigestStorage';
 import { extractIdentityFromSessionTranscript } from '../memory/identityExtraction';
 import { retainCheckInToHindsight } from '../memory/hindsight/hindsightRetain';
 import { saveIntentionCheckInMemories } from '../memory/localMemory';
+import { stageCheckInMemoryFiles } from '../memory/memoryStage';
 import { buildAndSaveSessionDigest } from '../memory/sessionDigestBuild';
 import {
     AccountStorageAdapter,
@@ -391,7 +392,7 @@ async function runCompletedCheckInSideEffects(
 ): Promise<void> {
     try {
         assertAccountOperationActive(context);
-        await saveIntentionCheckInMemories(checkIn);
+        await Promise.all([saveIntentionCheckInMemories(checkIn), stageCheckInMemoryFiles(checkIn)]);
         assertAccountOperationActive(context);
     } catch (error) {
         if (context.signal.aborted) throw error;

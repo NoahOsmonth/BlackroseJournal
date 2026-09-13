@@ -133,7 +133,7 @@ describe('selectToolShortlist — per-turn spec subset', () => {
     it('unmatched turns fall back to the full catalog', () => {
         const short = selectToolShortlist('hello there friend');
         expect(short.branch).toBe('all-fallback');
-        expect(short.names).toHaveLength(10);
+        expect(short.names).toHaveLength(16);
     });
 
     it('combined intents union both subsets', () => {
@@ -161,3 +161,5 @@ describe('resolveAgentTurnTokenBudget', () => {    it('floors small windows up t
         expect(resolveAgentTurnTokenBudget(128_000, 24_000)).toBe(24_000);
     });
 });
+
+

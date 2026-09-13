@@ -231,6 +231,19 @@ function missingRequired(args: Record<string, unknown>, schema: ToolJsonSchema):
     });
 }
 
+export function canonicalJson(val: unknown): string {
+    if (val === null || typeof val !== 'object') {
+        return JSON.stringify(val ?? {});
+    }
+    if (Array.isArray(val)) {
+        return `[${val.map((item) => (item === undefined ? 'null' : canonicalJson(item))).join(',')}]`;
+    }
+    const record = val as Record<string, unknown>;
+    const sortedKeys = Object.keys(record).filter((k) => record[k] !== undefined).sort();
+    const parts = sortedKeys.map((k) => `${JSON.stringify(k)}:${canonicalJson(record[k])}`);
+    return `{${parts.join(',')}}`;
+}
+
 /**
  * Validate + repair a single tool call against the registered schema.
  * Returns null when the call cannot be made safe/valid.
@@ -275,7 +288,13 @@ export function validateAndRepairToolCall(
     if (missing.length > 0) return null;
 
     const repairedArgs = JSON.stringify(args);
-    const repaired = repairedArgs !== (originalRaw?.trim() || '{}');
+    let originalParsed: unknown = null;
+    try {
+        originalParsed = JSON.parse(originalRaw || '{}');
+    } catch {
+        originalParsed = null;
+    }
+    const repaired = originalParsed === null || canonicalJson(args) !== canonicalJson(originalParsed);
 
     return {
         id: call.id,

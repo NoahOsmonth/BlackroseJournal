@@ -106,9 +106,80 @@ export const HISTORY_TOOL_DEFINITIONS: ToolDefinition[] = [
         execClass: 'pure',
     },
     {
+        name: 'memory_search',
+        description:
+            'Search OFFLINE file memories first (gated recall: route → thread shortlist → headers → bodies). Use for durable preferences, collaboration rules, or thread progress across sessions. Returns context + file refs; call memory_get for exact ids to verify. Example args: {"query":"promotion plan feedback"}.',
+        parameters: {
+            type: 'object',
+            properties: {
+                query: { type: 'string', description: 'Question or topic to search in offline memory.' },
+                limit: { type: 'number', description: 'Max files after manifest selection (default 5).' },
+            },
+            required: ['query'],
+            additionalProperties: false,
+        },
+        execClass: 'pure',
+    },
+    {
+        name: 'memory_list',
+        description:
+            'Browse offline file memories by kind/query/thread (headers only, never bodies). Use to see what threads exist before searching. Example args: {"kind":"project"}.',
+        parameters: {
+            type: 'object',
+            properties: {
+                kind: { type: 'string', enum: ['all', 'user', 'feedback', 'project'] },
+                query: { type: 'string', description: 'Optional search string.' },
+                projectId: { type: 'string', description: 'Optional thread id filter.' },
+                limit: { type: 'number', description: 'Max items (default 10).' },
+                offset: { type: 'number', description: 'Skip N items.' },
+            },
+            additionalProperties: false,
+        },
+        execClass: 'pure',
+    },
+    {
+        name: 'memory_get',
+        description:
+            'Load exact offline memory files by ids from memory_search or memory_list. Use ONLY with ids you already have — never guess ids. Example args: {"ids":["projects/work/Project/current-stage-abc.md"]}.',
+        parameters: {
+            type: 'object',
+            properties: {
+                ids: {
+                    type: 'array',
+                    description: 'One or more relative file ids from memory_search or memory_list.',
+                    items: { type: 'string' },
+                },
+            },
+            required: ['ids'],
+            additionalProperties: false,
+        },
+        execClass: 'pure',
+    },
+    {
+        name: 'memory_overview',
+        description:
+            'Offline memory status: formal thread counts, staged backlog, freshness. Use when the user asks about memory health or why something is not recalled yet.',
+        parameters: { type: 'object', properties: {}, additionalProperties: false },
+        execClass: 'pure',
+    },
+    {
+        name: 'memory_flush',
+        description:
+            'Stage recent finished sessions into offline memory now. Use when the user wants a just-finished conversation searchable immediately.',
+        parameters: { type: 'object', properties: {}, additionalProperties: false },
+        execClass: 'mutating',
+    },
+    {
+        name: 'memory_dream',
+        description:
+            'Consolidate staged memories into formal threads (Dream). Use when the user wants memory cleanup or duplicate threads merged.',
+        parameters: { type: 'object', properties: {}, additionalProperties: false },
+        execClass: 'mutating',
+    },
+    {
         name: 'recall_memory',
         description:
-            'Query the long-term memory bank (Hindsight) for recollections relevant to a topic. Use for "remember when\u2026", feelings echoing an older pattern, or grounding across past months. Do NOT use for recent days — use get_day or list_recent_days. Example args: {"query":"argument that kept looping"}.',
+            'Query the long-term memory bank (Hindsight) as a FALLBACK when offline memory_search has nothing — prefer memory_search first (fully offline). Use for older echoes across past months. Do NOT use for recent days — use get_day or list_recent_days.',
         parameters: {
             type: 'object',
             properties: {
@@ -232,9 +303,9 @@ export function toOpenAiToolSpecs(definitions: readonly ToolDefinition[] = HISTO
 /** PR8c-then-toolfix: decision-rule policy with a good/bad chain + STOP rules. Kept under 900 chars (prompt budget). */
 export const HISTORY_TOOLS_POLICY = [
     '## On-device tools — use freely (proactive)',
-    'Tools run on the phone — call when they help.',
-    'Decision: get_clock (never invent time) → list_recent_days → get_day → get_conversation for exact words. search_history: themes; recall_memory: older memory — be curious about it, a "remember when…" echo — one call costs nothing.',
-    'Good: "work last week?" → get_clock, list_recent_days, get_day, get_conversation. Bad: answer from memory.',
-    'Identity/goals: stated or explicit requests only; never invent.',
+    'Tools run on the phone.',
+    'Decision: get_clock (never invent time) → memory_search (offline file recall — be curious about it, a "remember when…" echo — one call costs nothing) → list_recent_days → get_day → get_conversation for exact words. memory_search first, memory_get exact ids. search_history: themes; recall_memory: Hindsight FALLBACK only.',
+    'Good: "work last week?" → get_clock, memory_search, get_day. Bad: answer from memory.',
+    'Identity/goals (update_identity, list_goals): stated or explicit requests only; never invent.',
     'STOP: never invent results; empty → say so. Never fake tool syntax. Status text OK only with tool_calls same turn — never end on "one sec" / "let me pull that up": call tools or answer fully. Past chat: get_day then get_conversation (not only get_clock). Use ## Identity name.',
 ].join('\n');

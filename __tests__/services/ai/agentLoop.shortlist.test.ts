@@ -156,6 +156,8 @@ describe('runAgentTurnWithTools — refused mutating re-request', () => {
             'get_conversation',
             'get_day',
             'list_recent_days',
+            'memory_list',
+            'memory_search',
             'search_history',
         ]);
         expect(firstRequest).toHaveProperty('tool_choice', 'auto');
@@ -173,6 +175,6 @@ describe('runAgentTurnWithTools — refused mutating re-request', () => {
         const firstRequest = fetchMock.mock.calls[0][0] as {
             tools?: { function: { name: string } }[];
         };
-        expect((firstRequest.tools ?? []).map((t) => t.function.name)).toHaveLength(10);
+        expect((firstRequest.tools ?? []).map((t) => t.function.name)).toHaveLength(16);
     });
 });

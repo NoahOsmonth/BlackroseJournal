@@ -8,6 +8,7 @@ import {
 import { recallMemoryToolHandler } from './hindsightTools';
 import { getIdentityTool, updateIdentityTool } from './identityTools';
 import { createGoalTool, listGoalsTool } from './goalsTools';
+import { memoryDreamTool, memoryFlushTool, memoryGetTool, memoryListTool, memoryOverviewTool, memorySearchTool } from './memoryFileTools';
 import { HISTORY_TOOL_DEFINITIONS } from './definitions';
 import type { RegisteredTool, ToolDefinition, ToolHandler } from './types';
 
@@ -18,6 +19,12 @@ const handlers: Record<string, ToolHandler> = {
     get_conversation: getConversationTool,
     search_history: searchHistoryTool,
     recall_memory: recallMemoryToolHandler,
+    memory_search: memorySearchTool,
+    memory_list: memoryListTool,
+    memory_get: memoryGetTool,
+    memory_overview: memoryOverviewTool,
+    memory_flush: memoryFlushTool,
+    memory_dream: memoryDreamTool,
     get_identity: getIdentityTool,
     update_identity: updateIdentityTool,
     list_goals: listGoalsTool,

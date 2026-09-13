@@ -96,6 +96,19 @@ describe('validateAndRepairToolCall', () => {
             )
         ).toBeNull();
     });
+
+    it('does not flag repaired when structured arguments have whitespace or permuted keys', () => {
+        const out = validateAndRepairToolCall(
+            {
+                id: '1',
+                name: 'list_recent_days',
+                arguments: '{\n  "order": "newest",\n  "days": 7\n}',
+            },
+            'structured'
+        );
+        expect(out).not.toBeNull();
+        expect(out!.repaired).toBe(false);
+    });
 });
 
 describe('prepareToolCalls', () => {

@@ -610,7 +610,7 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
     const runId = `agent_${Date.now().toString(36)}_${(agentTurnSeq += 1)}`;
     const emitActivity = activityEmitter(options.onActivity, runId);
     // Per-turn shortlist: send only the specs this turn plausibly needs.
-    const shortlist = selectToolShortlist(latestUserText(options.messages));
+    const shortlist = selectToolShortlist(latestUserText(options.messages), options.messages);
     const shortlisted = HISTORY_TOOL_DEFINITIONS.filter((def) =>
         shortlist.names.includes(def.name)
     );

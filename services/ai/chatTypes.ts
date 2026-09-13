@@ -4,6 +4,7 @@ import {
     sanitizeGenerationSettings,
 } from './generationSettings';
 import type { AgentActivityListener, AgentToolCallSnapshot } from './agentEvents';
+import type { ToolCapability } from './tools/toolCapability';
 
 export interface Message {
     id: string;
@@ -44,6 +45,12 @@ export interface StreamChatOptions {
     enableHistoryTools?: boolean | 'auto';
     /** Live agent activity listener (tool timeline). Fire-and-forget from the service. */
     onAgentActivity?: AgentActivityListener;
+    /** Optional model override for this stream turn. */
+    model?: string;
+    /** Optional tool capability override for this stream turn. */
+    capability?: ToolCapability;
+    /** Optional context window override for this stream turn. */
+    contextWindow?: number;
 }
 
 export interface ChatUsage {

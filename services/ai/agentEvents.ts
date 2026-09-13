@@ -68,3 +68,24 @@ export type AgentActivityEvent =
     | { type: 'follow_up_injected'; reason: AgentFollowUpReason };
 
 export type AgentActivityListener = (event: AgentActivityEvent) => void;
+
+export function reduceAgentToolSnapshots(
+    toolActivity: AgentToolCallSnapshot[] | undefined,
+    event: AgentActivityEvent
+): AgentToolCallSnapshot[] {
+    switch (event.type) {
+        case 'tool_call_start':
+        case 'tool_call_end': {
+            const next = [...(toolActivity ?? [])];
+            const index = next.findIndex((item) => item.toolCallId === event.call.toolCallId);
+            if (index >= 0) {
+                next[index] = event.call;
+            } else {
+                next.push(event.call);
+            }
+            return next;
+        }
+        default:
+            return toolActivity ?? [];
+    }
+}

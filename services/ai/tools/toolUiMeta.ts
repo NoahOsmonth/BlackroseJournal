@@ -104,6 +104,40 @@ export const TOOL_UI_META: Record<string, ToolUiMeta> = {
         iconName: 'search',
         formatArgsPreview: (args) => firstPreviewArg(args, ['query', 'q']) || 'search',
     },
+    memory_search: {
+        label: 'Searching offline memory',
+        iconName: 'saved-search',
+        formatArgsPreview: (args) => firstPreviewArg(args, ['query', 'q']) || 'memory',
+    },
+    memory_list: {
+        label: 'Browsing memory files',
+        iconName: 'folder',
+        formatArgsPreview: (args) => firstPreviewArg(args, ['kind']) || 'all memory',
+    },
+    memory_get: {
+        label: 'Reading a memory file',
+        iconName: 'article',
+        formatArgsPreview: (args) => {
+            const ids = args.ids;
+            if (Array.isArray(ids) && ids.length > 0) return `${ids.length} file${ids.length === 1 ? '' : 's'}`;
+            return 'memory file';
+        },
+    },
+    memory_overview: {
+        label: 'Checking memory health',
+        iconName: 'assessment',
+        formatArgsPreview: () => '—',
+    },
+    memory_flush: {
+        label: 'Staging new memories',
+        iconName: 'upload',
+        formatArgsPreview: () => '—',
+    },
+    memory_dream: {
+        label: 'Consolidating memories',
+        iconName: 'bedtime',
+        formatArgsPreview: () => '—',
+    },
     recall_memory: {
         label: 'Searching long-term memory',
         iconName: 'psychology',

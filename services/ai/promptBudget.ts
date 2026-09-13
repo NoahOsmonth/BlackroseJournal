@@ -31,6 +31,9 @@ export type HistoryToolsBranch =
     | 'bootstrap'
     | 'historyIntent'
     | 'agentic-task'
+    | 'tool-cue'
+    | 'conversation-followup'
+    | 'native-capable'
     | 'length>=80'
     | 'PROACTIVE_RE'
     | 'first-turns'
@@ -251,7 +254,6 @@ export function formatPromptBudgetLogLine(ledger: PromptBudgetLedger): string {
 }
 
 export function logPromptBudget(ledger: PromptBudgetLedger): void {
-    // eslint-disable-next-line no-console
     console.log(formatPromptBudgetLogLine(ledger));
 }
 
