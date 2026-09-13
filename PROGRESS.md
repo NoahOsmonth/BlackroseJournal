@@ -1,5 +1,25 @@
 # PROGRESS — Optimization + Bug Hunt (2026-09-02)
 
+## 2026-09-13 (later) — Demo-clear left staged memory files behind: seed ledger write-ahead + product-path live proof
+
+Rule 8 requires clearing demo data before memory probes. The live probe for that path showed it was **not** clean: after `Settings → Clear demo data`, one staged `_tmp` memory file survived each run — run 1 (probe navigated away mid-seed) 5/6 removed; run 2 (reload to Settings while the seed was still running; the settle poll only saw a ≥6 s stall between ledger writes, not completion) 5/6 removed with `unrecorded sources: 1`.
+
+### Root cause (observed, not inferred)
+`createCheckIn` stages the offline memory file *named after the row id* inside the completed branch, and the seed pushed/persisted that id in its ledger only **after** the call returned. A kill (or a reload) between the row write — which has already staged the file — and the ledger write strands a file no clear can match. Evidence: the surviving file's `sourceSessionKey` was absent from `@…:demo_data_seed_record`, while its check-in **row still existed**. The uninterrupted seed path itself is covered by the Jest assertions below: every staged file's source is in the ledger, and each ledger write precedes its row write.
+
+### Design tried and rejected, with evidence
+Orphan sweep in `clearDemoDataForAccount` (`listTmpFiles()` → delete staged files whose `sourceSessionKey` is in neither `listEntries()` nor `listCheckIns()`). Run 2 disproved it: the stranded file's check-in row existed, so the sweep classified it as live and spared it (and the broader variant would additionally have deleted user-derived files of user-deleted sessions). Reverted; the fix is at the source.
+
+### Fix — write-ahead ids
+- `IntentionCheckInCreateInput.id?` (services/intentions/intentionsStorage.types.ts) + `createCheckIn` honors a caller-supplied id.
+- Seed: generate the id, push to the ledger, `saveSeedRecord`, **then** `createCheckIn({ id, … })`. Kill before the row → an uncreated id (`deleteCheckIn` is a no-op); kill during → the id is already recorded, so the tracked-id delete finds the staged file.
+
+### Verification
+- **Unit (new invariant test, `__tests__/services/seed/seedDemoClear.test.ts`):** a write observer on the AsyncStorage mock records the write index of every ledger write and every `@intention_checkins` row write; the test asserts each check-in id's ledger write precedes its row write. Sabotage (move the ledger write back after `createCheckIn`): **red** — `expect(recordWriteAt.get(id)).toBeLessThan(rowWrite)` → `Expected: < 27, Received: 32`; restored → green. The demo-clear test moved here too (it and the invariant test pushed `seedDemoData.test.ts` past the 300-line test cap; both files are now 260 / 172 lines).
+- **Clear paths:** `useClearJournalHistory` now asserts memory files are wiped with history; `memoryFiles.test.ts` adds session-scoped `deleteMemoryFilesBySourceSessions`; the seed clear test stages a file from a **live** session (`sourceSessionKey: real.id`) and asserts it survives while seeded files go.
+- **Live product path (new probe mode `E2E_ONLY_DEMO_CLEAR=1`, `scripts/e2e/pw-memory-recall-offline.mjs`):** boots on `/today` and reaches Settings through the in-app header gear (a document reload would kill the in-flight seed and measure an interruption), then clicks the real "Clear demo data" row and waits for the ledger key to disappear. Result: `11` ledger sessions, `6` staged files, **`unrecorded sources: 0`** (the write-ahead invariant, live), then `seed record removed: true`, `memory files after clear: 0 | headers: 0` → **RESULT: PASS** (`output/playwright/memory-recall-offline-1789283736619.log`).
+- Gates after the change: `npx tsc --noEmit` clean · `npm run lint` 0 errors / 72 pre-existing warnings · `npm run check:design` PASSED (176/179 OK, 3 size warnings).
+
 ## 2026-09-13 — Independent verification pass at HEAD (offline memory): live E2E, Drive soft-fail, flaky timeout test fixed
 
 Handoff said "re-run all gates, live E2E (mandatory, Jest alone is insufficient), Drive tail, commit". Done. Everything below is observed output from this machine, not a summary.

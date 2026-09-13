@@ -8,6 +8,7 @@ import { deleteMemoryAtomsBySource } from '@/services/memory/localMemory';
 import { clearSessionDigests } from '@/services/memory/sessionDigestStorage';
 import { clearMemoryRollups } from '@/services/memory/memoryRollupStorage';
 import { clearRollupAttempts } from '@/services/memory/memoryRollupBuild';
+import { clearMemoryFiles } from '@/services/memory/memoryFiles';
 import { removeAllChatSessions } from '@/services/ai/sessionStorage';
 import { clearAllEntries } from '@/services/journal/journalStorage';
 import { clearAllCheckIns } from '@/services/intentions/intentionsStorage';
@@ -35,6 +36,7 @@ export function useClearJournalHistory(): UseClearJournalHistoryReturn {
             await clearSessionDigests();
             await clearMemoryRollups();
             await clearRollupAttempts();
+            await clearMemoryFiles();
             await clearIdentityProfile();
             await removeAllChatSessions();
             await clearCachedInsights();

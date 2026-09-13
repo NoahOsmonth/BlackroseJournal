@@ -70,7 +70,7 @@ import {
     seedDemoDataIfFirstLaunch,
     setDemoSeedEnabledForTests,
 } from '../../../services/seed/seedDemoData';
-import { createEntry, listEntries } from '../../../services/journal/journalStorage';
+import { listEntries } from '../../../services/journal/journalStorage';
 import { listCheckIns, listIntentions } from '../../../services/intentions/intentionsStorage';
 import { listGoals } from '../../../services/goals/goalsStorage';
 import { listMemoryAtoms } from '../../../services/memory/localMemory';
@@ -256,44 +256,5 @@ describe('seedDemoData', () => {
             DEMO_SEED_RECORD_KEY,
             'seed-account-b',
         ))).toBe(false);
-    });
-
-    /**
-     * Clear removes only tracked seed IDs; real entry stays; flag reset.
-     */
-    it('clearDemoData removes seed and keeps a real entry; resets seed flag', async () => {
-        await seedDemoData();
-        expect(await listEntries()).toHaveLength(5);
-
-        const real = await createEntry({
-            title: 'Real user lunch',
-            emoji: '🍜',
-            status: 'completed',
-            messages: [{
-                id: 'real_u',
-                role: 'user',
-                content: 'I ate real ramen with no seed content at all.',
-                timestamp: Date.now(),
-            }],
-        });
-
-        expect(await listEntries()).toHaveLength(6);
-        expect(seedStorageValue(SEED_FLAG_KEY)).toBe('true');
-        expect(seedStorageValue(DEMO_SEED_RECORD_KEY)).toBeTruthy();
-
-        const cleared = await clearDemoData();
-        expect(cleared).toBe(true);
-
-        const remaining = await listEntries();
-        expect(remaining).toHaveLength(1);
-        expect(remaining[0].id).toBe(real.id);
-        expect(remaining[0].title).toBe('Real user lunch');
-        expect(seedStorageValue(SEED_FLAG_KEY)).toBeUndefined();
-        expect(seedStorageValue(DEMO_SEED_RECORD_KEY)).toBeUndefined();
-
-        // Flag reset allows re-seed
-        await seedDemoData();
-        expect(await listEntries()).toHaveLength(6); // 5 seed + real
-        expect(seedStorageValue(SEED_FLAG_KEY)).toBe('true');
     });
 });

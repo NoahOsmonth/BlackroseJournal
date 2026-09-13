@@ -48,12 +48,14 @@ const ACCOUNT_PRIVATE_EXACT_KEYS = [
     '@demo_data_seeded',
     '@blackrose_local_backups',
     '@blackrose_hindsight_rebuild',
+    '@blackrose_memory_manifest',
 ] as const;
 
 const ACCOUNT_PRIVATE_KEY_PREFIXES = [
     '@rosebud_session_digest:',
     '@rosebud_memory_rollup:',
     '@blackrose_local_backup_session_digest:',
+    '@blackrose_memory_file:',
 ] as const;
 
 export function hasUnclaimedLegacyData(): Promise<boolean> {

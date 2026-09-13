@@ -63,6 +63,13 @@ export interface IntentionUpdateInput {
 }
 
 export interface IntentionCheckInCreateInput {
+    /**
+     * Optional caller-supplied id. The demo seed records the id in its ledger
+     * *before* creating the check-in: `createCheckIn` stages a memory file from
+     * the row id, so recording it afterwards can strand a staged file whose id
+     * never reached the ledger (app killed mid-check-in).
+     */
+    id?: string;
     intentionId?: string;
     type: IntentionCheckInType;
     title: string;

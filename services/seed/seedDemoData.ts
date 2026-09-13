@@ -54,6 +54,7 @@ import {
     saveJournalEntryMemories,
     saveManualMemoryNote,
 } from '@/services/memory/localMemory';
+import { deleteMemoryFilesBySourceSessions } from '@/services/memory/memoryFiles';
 const DAY_MS = 86_400_000;
 
 /** Flag + tracked seed IDs (deterministic clear — no content matching). */
@@ -522,6 +523,17 @@ async function clearDemoDataForAccount(
         }
     }
 
+    // Offline memory files staged from seeded sessions (createCheckIn /
+    // created journal entries stage on completion). Tracked ids only.
+    try {
+        assertAccountOperationActive(context);
+        await deleteMemoryFilesBySourceSessions([...record.journalEntryIds, ...record.checkInIds]);
+        assertAccountOperationActive(context);
+    } catch (error) {
+        if (context.signal.aborted) throw error;
+        // continue
+    }
+
     await rebuildDayDigestsFromRemaining(context);
 
     try {
@@ -600,7 +612,16 @@ async function seedDemoDataForAccount(
             const createdAt = daysAgo(checkIn.daysBack);
             const idSeed = `c_${seed.title}_${checkIn.daysBack}_${checkIn.type}`;
             assertAccountOperationActive(context);
+            // Write-ahead: createCheckIn stages a memory file from the row id, so
+            // record the id first. A kill mid-check-in then leaves an id whose row
+            // never existed (deleteCheckIn is a no-op), never a staged file that
+            // demo clear cannot match.
+            const checkInId = `checkin_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+            record.checkInIds.push(checkInId);
+            await saveSeedRecord(record, storage, context);
+            assertAccountOperationActive(context);
             const saved = await createCheckIn({
+                id: checkInId,
                 intentionId: intention.id,
                 type: checkIn.type,
                 title: checkIn.title,
@@ -613,7 +634,6 @@ async function seedDemoDataForAccount(
             });
             assertAccountOperationActive(context);
             // createCheckIn already saves memories + day digest for completed.
-            record.checkInIds.push(saved.id);
             sourceIds.add(saved.id);
 
             const dateKey = dateKeyDaysAgo(checkIn.daysBack);

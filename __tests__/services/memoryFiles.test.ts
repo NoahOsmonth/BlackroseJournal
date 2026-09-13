@@ -1,5 +1,6 @@
 import {
     clearMemoryFiles,
+    deleteMemoryFilesBySourceSessions,
     getMemoryRecordsByIds,
     listMemoryFiles,
     resetMemoryFilesStorageAdapter,
@@ -93,6 +94,45 @@ describe('memoryFiles (offline file-semantic store)', () => {
             await clearMemoryFiles();
             expect(await listMemoryFiles({})).toHaveLength(0);
             expect(await getMemoryRecordsByIds([staged.id])).toHaveLength(0);
+        } finally {
+            resetMemoryFilesStorageAdapter();
+        }
+    });
+
+    it('deletes only the files staged from the given sessions', async () => {
+        const adapter = createAdapter();
+        setMemoryFilesStorageAdapter(adapter);
+        try {
+            const seededCheckIn = await stageTmpMemory({
+                type: 'project',
+                name: 'Morning intention: demo',
+                description: 'Thread hint morning-intentions. demo',
+                body: '## Current Stage\nSeeded demo check-in.',
+                sourceSessionKey: 'checkin_seed_1',
+            });
+            const seededEntry = await stageTmpMemory({
+                type: 'project',
+                name: 'Sunday reset: demo',
+                description: 'Thread hint general. demo',
+                body: '## Current Stage\nSeeded demo entry.',
+                sourceSessionKey: 'entry_seed_1',
+            });
+            const realEntry = await stageTmpMemory({
+                type: 'project',
+                name: 'Real thread',
+                description: 'Thread hint general. real',
+                body: '## Current Stage\nA real journal entry.',
+                sourceSessionKey: 'entry_real_1',
+            });
+
+            const removed = await deleteMemoryFilesBySourceSessions(['checkin_seed_1', 'entry_seed_1']);
+
+            expect(removed).toBe(2);
+            const remaining = await listMemoryFiles({ limit: 50 });
+            expect(remaining.map((h) => h.id)).toEqual([realEntry.id]);
+            // Bodies follow the headers — no orphan left behind.
+            expect(await getMemoryRecordsByIds([seededCheckIn.id, seededEntry.id])).toHaveLength(0);
+            expect(await getMemoryRecordsByIds([realEntry.id])).toHaveLength(1);
         } finally {
             resetMemoryFilesStorageAdapter();
         }

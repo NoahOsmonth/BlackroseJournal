@@ -19,6 +19,7 @@ import path from 'node:path';
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const HEADLESS = process.env.E2E_HEADLESS !== '0';
+const onlyDemoClear = process.env.E2E_ONLY_DEMO_CLEAR === '1';
 const OUT_DIR = path.join(process.cwd(), 'output', 'playwright');
 const LOG_PATH = path.join(OUT_DIR, `memory-recall-offline-${Date.now()}.log`);
 
@@ -124,8 +125,38 @@ async function readMemoryFiles(page) {
         const headers = manifest && typeof manifest === 'object' && manifest.files ? Object.values(manifest.files) : [];
         return {
             files,
-            headers: headers.map((h) => ({ id: h.id, name: h.name, description: h.description, type: h.type, deprecated: !!h.deprecated })),
+            headers: headers.map((h) => ({
+                id: h.id,
+                name: h.name,
+                description: h.description,
+                type: h.type,
+                deprecated: !!h.deprecated,
+                sourceSessionKey: h.sourceSessionKey ?? null,
+            })),
         };
+    });
+}
+
+async function readSeedRecord(page) {
+    return page.evaluate(() => {
+        const empty = { present: false, journalEntryIds: [], checkInIds: [] };
+        for (let i = 0; i < localStorage.length; i += 1) {
+            const key = localStorage.key(i);
+            if (!key || !key.includes('demo_data_seed_record')) continue;
+            const raw = localStorage.getItem(key);
+            if (!raw) return empty;
+            try {
+                const parsed = JSON.parse(raw);
+                return {
+                    present: true,
+                    journalEntryIds: parsed?.journalEntryIds ?? [],
+                    checkInIds: parsed?.checkInIds ?? [],
+                };
+            } catch {
+                return { present: true, journalEntryIds: [], checkInIds: [] };
+            }
+        }
+        return empty;
     });
 }
 
@@ -153,7 +184,7 @@ async function main() {
     };
 
     await context.addInitScript(
-        ({ sessionKey, sessionValue, accountId }) => {
+        ({ sessionKey, sessionValue, accountId, suppressSeed }) => {
             if (localStorage.getItem('__e2e_offline_seed__')) return;
             for (let i = localStorage.length - 1; i >= 0; i -= 1) {
                 const key = localStorage.key(i);
@@ -171,11 +202,14 @@ async function main() {
                     },
                 }),
             );
-            // Demo seed is dev-only and pollutes recall probes (rule 8): keep it off.
-            localStorage.setItem(`@blackrose_account:v1:${encodeURIComponent(accountId)}:demo_data_seeded`, 'true');
+            // Demo seed is dev-only and pollutes recall probes (rule 8): keep it off
+            // unless this run exists to prove the demo-clear path.
+            if (suppressSeed) {
+                localStorage.setItem(`@blackrose_account:v1:${encodeURIComponent(accountId)}:demo_data_seeded`, 'true');
+            }
             localStorage.setItem('__e2e_offline_seed__', '1');
         },
-        { sessionKey: SUPABASE_SESSION_KEY, sessionValue: session, accountId: ACCOUNT_ID },
+        { sessionKey: SUPABASE_SESSION_KEY, sessionValue: session, accountId: ACCOUNT_ID, suppressSeed: !onlyDemoClear },
     );
 
     let hindsightBlocked = 0;
@@ -247,7 +281,10 @@ async function main() {
         if (/:54321/.test(url)) supabaseBlocked += 1;
     });
 
-    await page.goto(`${BASE}/chat`, { waitUntil: 'domcontentloaded' });
+    // Demo-clear mode starts on Today: the header gear is the only in-app route
+    // to Settings (the dock has no Settings tab), and a document reload mid-seed
+    // would measure an interruption rather than the product path.
+    await page.goto(onlyDemoClear ? `${BASE}/today` : `${BASE}/chat`, { waitUntil: 'domcontentloaded' });
     await page.waitForLoadState('networkidle').catch(() => {});
     await wait(4000);
 
@@ -257,16 +294,97 @@ async function main() {
         await wait(1500);
     }
 
-    const input = await inputLocator(page);
-    if (!(await input.isVisible({ timeout: 60000 }).catch(() => false))) {
-        log('FAIL: chat composer never appeared. URL=' + page.url());
-        log('BODY:', (await page.locator('body').innerText()).slice(0, 1200));
-        log('CONSOLE:', consoleLines.slice(-20).join('\n'));
-        persistLog();
-        await browser.close();
-        process.exit(1);
+    if (!onlyDemoClear) {
+        const input = await inputLocator(page);
+        if (!(await input.isVisible({ timeout: 60000 }).catch(() => false))) {
+            log('FAIL: chat composer never appeared. URL=' + page.url());
+            log('BODY:', (await page.locator('body').innerText()).slice(0, 1200));
+            log('CONSOLE:', consoleLines.slice(-20).join('\n'));
+            persistLog();
+            await browser.close();
+            process.exit(1);
+        }
+        log('STEP 1 ok: chat composer visible at', page.url());
     }
-    log('STEP 1 ok: chat composer visible at', page.url());
+
+    if (onlyDemoClear) {
+        // Product-path check: dev "Clear demo data" must remove the memory files
+        // staged from seeded sessions (rule 8 residue) and leave nothing behind.
+        page.on('dialog', (dialog) => { void dialog.accept(); });
+
+        for (let i = 0; i < 40; i += 1) {
+            await wait(1500);
+            const probe = await readMemoryFiles(page);
+            if (probe.files.length > 0) break;
+        }
+
+        const seeded = await readMemoryFiles(page);
+        const ledger = await readSeedRecord(page);
+        const seedSessionIds = new Set([...(ledger.journalEntryIds ?? []), ...(ledger.checkInIds ?? [])]);
+        const unrecorded = seeded.files.filter((file) => {
+            const source = seeded.headers.find((h) => h.id === file.id)?.sourceSessionKey;
+            return !source || !seedSessionIds.has(source);
+        });
+        log('seed ledger sessions: ' + seedSessionIds.size);
+        log('memory files staged by the demo seed: ' + seeded.files.length
+            + ' | headers: ' + seeded.headers.length
+            + ' | unrecorded sources: ' + unrecorded.length);
+        for (const file of seeded.files) {
+            const source = seeded.headers.find((h) => h.id === file.id)?.sourceSessionKey ?? '<none>';
+            log('  seed file: ' + file.id + ' | sourceSessionKey=' + source
+                + (seedSessionIds.has(source) ? '' : ' | NOT-IN-LEDGER'));
+        }
+
+        const settingsButton = page.getByLabel('Open settings').first();
+        if ((await settingsButton.count()) === 0) {
+            log('RESULT: FAIL (no in-app route to settings; refusing to reload mid-seed)');
+            persistLog();
+            await browser.close();
+            process.exit(1);
+        }
+        await settingsButton.click();
+        await wait(3000);
+        const dataHeader = page.getByText('Data Management', { exact: true }).first();
+        await dataHeader.click().catch(() => {});
+        await wait(1500);
+        const clearDemo = page.getByText('Clear demo data', { exact: false }).first();
+        const clearRowPresent = (await clearDemo.count()) > 0;
+        log('clear-demo row present: ' + clearRowPresent);
+        if (!clearRowPresent) {
+            log('RESULT: FAIL (clear-demo row missing)');
+            persistLog();
+            await page.screenshot({ path: path.join(OUT_DIR, 'demo-clear-missing-row.png'), fullPage: false });
+            await browser.close();
+            process.exit(1);
+        }
+
+        await clearDemo.click().catch(() => {});
+        // The clear queues behind an in-flight seed, so wait for the ledger key
+        // to disappear rather than guessing a duration.
+        let recordGone = false;
+        for (let i = 0; i < 80 && !recordGone; i += 1) {
+            await wait(1500);
+            const record = await readSeedRecord(page);
+            recordGone = !record.present;
+        }
+        const after = await readMemoryFiles(page);
+        log('seed record removed: ' + recordGone);
+        log('memory files after clear: ' + after.files.length + ' | headers: ' + after.headers.length);
+        for (const file of after.files) {
+            log('  survivor: ' + file.id + ' | sourceSessionKey='
+                + (after.headers.find((h) => h.id === file.id)?.sourceSessionKey ?? '<none>'));
+        }
+        const ok = seeded.files.length > 0
+            && unrecorded.length === 0
+            && recordGone
+            && after.files.length === 0
+            && after.headers.length === 0;
+        log(ok ? 'RESULT: PASS' : 'RESULT: FAIL');
+        persistLog();
+        await page.screenshot({ path: path.join(OUT_DIR, 'demo-clear.png'), fullPage: false });
+        await browser.close();
+        process.exit(ok ? 0 : 1);
+    }
 
     const onlyDrive = process.env.E2E_ONLY_DRIVE === '1';
     let staged = null;
@@ -276,6 +394,7 @@ async function main() {
     let calledMemoryTool = false;
     let uiToolSummary = '';
     let hindsightTouched = false;
+    let priorContextBleed = [];
 
     if (!onlyDrive) {
     log('STEP 2: writing journal turn');
@@ -322,6 +441,11 @@ async function main() {
     await page.goto(`${BASE}/chat`, { waitUntil: 'domcontentloaded' });
     await page.waitForLoadState('networkidle').catch(() => {});
     await wait(4000);
+    // Guard against session-resume bleed: the entry text must NOT already be on
+    // screen, otherwise a quotable answer could come from context, not memory.
+    const preSendBody = await page.locator('body').innerText();
+    priorContextBleed = ['lighthouse', 'reykjavik', 'marathon'].filter((token) => preSendBody.toLowerCase().includes(token));
+    log('fresh-chat pre-send leakage check (must be empty): ' + JSON.stringify(priorContextBleed));
     const recallMark = Date.now();
     await sendTurn(page, RECALL_QUESTION);
     const recall = await waitForAssistantSettle(page, RECALL_QUESTION, 180000);

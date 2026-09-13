@@ -403,6 +403,35 @@ export async function importMemoryFiles(records: unknown): Promise<{ imported: n
     });
 }
 
+/**
+ * Delete every file staged from the given sessions (demo-clear: only rows the
+ * seed ledger tracks, never real sessions). Returns the number removed.
+ */
+export async function deleteMemoryFilesBySourceSessions(
+    sourceSessionKeys: readonly string[],
+): Promise<number> {
+    const doomedSources = new Set(sourceSessionKeys.filter((key) => typeof key === 'string' && key.trim()));
+    if (doomedSources.size === 0) return 0;
+    return withFilesLock(async () => {
+        const manifest = await loadManifest();
+        const doomed = Object.values(manifest)
+            .filter((header) => header.sourceSessionKey && doomedSources.has(header.sourceSessionKey))
+            .map((header) => header.id);
+        if (doomed.length === 0) return 0;
+        for (const id of doomed) delete manifest[id];
+        // Header first: a crash mid-cleanup leaves an orphan body, never a dangling header.
+        await saveManifest(manifest);
+        for (const id of doomed) {
+            try {
+                await storageAdapter.removeItem(bodyKey(id));
+            } catch {
+                // Best effort.
+            }
+        }
+        return doomed.length;
+    });
+}
+
 export async function clearMemoryFiles(): Promise<void> {
     const manifest = await withFilesLock(async () => {
         const doc = await loadManifest();

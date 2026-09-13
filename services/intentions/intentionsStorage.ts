@@ -450,7 +450,7 @@ export function createCheckIn(
             ? input.updatedAt
             : createdAt;
         const checkIn: IntentionCheckIn = {
-            id: generateId('checkin'),
+            id: typeof input.id === 'string' && input.id.trim() ? input.id.trim() : generateId('checkin'),
             intentionId: input.intentionId,
             type: input.type,
             title: input.title.trim(),

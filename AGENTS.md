@@ -193,6 +193,7 @@ Registry: `services/ai/tools/*`. Agent loop: `services/ai/agentLoop.ts`. Wired f
 | `@rosebud_memory_rollup_index` + `@rosebud_memory_rollup:<kind>:<periodKey>` (week/month/year rollups + embeddings) | `services/memory/memoryRollupStorage.ts` |
 | `@rosebud_memory_rollup_attempts` (last LLM attempt per period — offline backoff) | `services/memory/memoryRollupBuild.ts` |
 | `@blackrose_local_backup_session_digest:<backupId>:<sessionId>` (backup bodies only; meta in `@blackrose_local_backups`) | `services/backup/localBackup.ts` |
+| `@blackrose_memory_manifest` (header index) + `@blackrose_memory_file:<id>` (body, one key per file) — offline file memories; staged on finish, promoted by Dream | `services/memory/memoryFiles.ts` |
 | `@blackrose_custom_ai_provider` (OmniRoute/custom provider, freeOnly, recentModelIds, selected model) | `services/ai/customModels.ts` |
 | `@blackrose_generation_settings` | `services/ai/generationSettings.ts` |
 | `@blackrose_model_context_cache` | `services/ai/modelContext.ts` |
@@ -200,7 +201,7 @@ Registry: `services/ai/tools/*`. Agent loop: `services/ai/agentLoop.ts`. Wired f
 
 View-model types must not reuse a stored type's name (e.g. `MemoryGraphAtom` is the graph display model — ISO dates, 1–10 salience — never write it back to storage).
 
-**Write-path coupling:** journal finish → `saveJournalEntryMemories` **and** `upsertJournalDayDigest` **and** `buildAndSaveSessionDigest` **and** fire-and-forget `retainJournalEntryToHindsight` (`journalFinishSideEffects.ts`). Check-in complete → `saveIntentionCheckInMemories` **and** `upsertCheckInDayDigest` **and** `buildAndSaveSessionDigest` **and** fire-and-forget `retainCheckInToHindsight` (`intentionsStorage.ts` completed branch). Local backup includes day digests + packed session-digest bundle (`services/backup/localBackup.ts`). Clear history must also `clearSessionDigests()` and `clearMemoryRollups()`.
+**Write-path coupling:** journal finish → `saveJournalEntryMemories` **and** `upsertJournalDayDigest` **and** `buildAndSaveSessionDigest` **and** `stageJournalEntryMemoryFiles` (offline `_tmp` memory files) **and** fire-and-forget `retainJournalEntryToHindsight` (`journalFinishSideEffects.ts`). Check-in complete → `saveIntentionCheckInMemories` **and** `upsertCheckInDayDigest` **and** `buildAndSaveSessionDigest` **and** `stageCheckInMemoryFiles` (completed branch of `intentionsStorage.ts`) **and** fire-and-forget `retainCheckInToHindsight`. Local backup includes day digests + packed session-digest bundle (`services/backup/localBackup.ts`). Clear history must also `clearSessionDigests()`, `clearMemoryRollups()`, **and** `clearMemoryFiles()` (`useClearJournalHistory`); the dev demo clear removes memory files staged from the seed ledger's session ids only (`deleteMemoryFilesBySourceSessions`).
 
 **Session digest sharding:** never store all embeddings under one AsyncStorage key (Android ~2MB/key). One record key per digest + lightweight index. Aggregate Android DB size: `AsyncStorage_db_size_in_MB` in `android/gradle.properties`.
 

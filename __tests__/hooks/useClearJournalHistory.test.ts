@@ -50,6 +50,7 @@ import { useClearJournalHistory } from '../../hooks/journal/useClearJournalHisto
 import { createEntry, listEntries } from '../../services/journal/journalStorage';
 import { createCheckIn, listCheckIns } from '../../services/intentions/intentionsStorage';
 import { listMemoryAtoms } from '../../services/memory/localMemory';
+import { listMemoryFiles } from '../../services/memory/memoryFiles';
 import {
     applyIdentityPatch,
     getIdentityProfile,
@@ -127,6 +128,8 @@ describe('useClearJournalHistory', () => {
         expect(await listEntries()).toEqual([]);
         expect(await listCheckIns()).toEqual([]);
         expect(await listMemoryAtoms()).toEqual([]);
+        // Memory files are journal-derived: finished sessions stage them.
+        expect(await listMemoryFiles({ limit: 50 })).toEqual([]);
         expect(profileHasIdentity(await getIdentityProfile())).toBe(false);
         expect(await loadSessions()).toEqual([]);
         expect(await loadCachedInsights('2026-W01')).toBeNull();
