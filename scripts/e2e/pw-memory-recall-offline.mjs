@@ -20,6 +20,14 @@ import path from 'node:path';
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const HEADLESS = process.env.E2E_HEADLESS !== '0';
 const onlyDemoClear = process.env.E2E_ONLY_DEMO_CLEAR === '1';
+const offlineWalk = process.env.E2E_OFFLINE_WALK === '1';
+const bootOnly = process.env.E2E_BOOT_ONLY === '1';
+const signOutCheck = process.env.E2E_SIGNOUT_CHECK === '1';
+const seedForWalk = onlyDemoClear || offlineWalk || bootOnly || signOutCheck;
+/** abort = host unreachable · 503 = paused project · hang = blackholed packets. */
+const supabaseMode = process.env.E2E_SUPABASE_MODE || 'abort';
+/** 1 = stored access token already expired, so supabase-js must refresh it. */
+const expiredSession = process.env.E2E_EXPIRED_SESSION === '1';
 const OUT_DIR = path.join(process.cwd(), 'output', 'playwright');
 const LOG_PATH = path.join(OUT_DIR, `memory-recall-offline-${Date.now()}.log`);
 
@@ -184,14 +192,17 @@ async function main() {
     };
 
     await context.addInitScript(
-        ({ sessionKey, sessionValue, accountId, suppressSeed }) => {
+        ({ sessionKey, sessionValue, accountId, suppressSeed, expired }) => {
             if (localStorage.getItem('__e2e_offline_seed__')) return;
             for (let i = localStorage.length - 1; i >= 0; i -= 1) {
                 const key = localStorage.key(i);
                 if (!key) continue;
                 if (/^@blackrose|^@demo_|^@rosebud|^sb-/.test(key)) localStorage.removeItem(key);
             }
-            localStorage.setItem(sessionKey, JSON.stringify({ ...sessionValue, expires_at: Math.floor(Date.now() / 1000) + 86400 * 30 }));
+            const expiresAt = expired
+                ? Math.floor(Date.now() / 1000) - 3600
+                : Math.floor(Date.now() / 1000) + 86400 * 30;
+            localStorage.setItem(sessionKey, JSON.stringify({ ...sessionValue, expires_at: expiresAt }));
             localStorage.setItem(
                 '@blackrose_account_registry',
                 JSON.stringify({
@@ -209,23 +220,59 @@ async function main() {
             }
             localStorage.setItem('__e2e_offline_seed__', '1');
         },
-        { sessionKey: SUPABASE_SESSION_KEY, sessionValue: session, accountId: ACCOUNT_ID, suppressSeed: !onlyDemoClear },
+        {
+            sessionKey: SUPABASE_SESSION_KEY,
+            sessionValue: session,
+            accountId: ACCOUNT_ID,
+            suppressSeed: !seedForWalk,
+            expired: expiredSession,
+        },
     );
 
     let hindsightBlocked = 0;
+    let agentGatewayBlocked = 0;
     let supabaseBlocked = 0;
     const toolNames = [];
     const calledTools = [];
     const consoleLines = [];
 
-    await context.route(/100\.107\.7\.52:(8890|54321)/, (route) => {
+    await context.route(/100\.107\.7\.52:(54321|8787|8890)/, (route) => {
         const url = route.request().url();
-        if (/:8890/.test(url)) hindsightBlocked += 1;
-        else supabaseBlocked += 1;
+        if (/:8787/.test(url)) {
+            agentGatewayBlocked += 1;
+            hindsightBlocked += 1;
+            return route.abort('failed');
+        }
+        if (/:8890/.test(url)) {
+            hindsightBlocked += 1;
+            return route.abort('failed');
+        }
+        supabaseBlocked += 1;
+        if (supabaseMode === 'hang') return undefined; // never answered: blackholed packets
+        if (supabaseMode.startsWith('revoked')) {
+            // Supabase reachable, credential rejected: refresh token no longer valid.
+            const payload = supabaseMode === 'revoked'
+                ? { code: 'refresh_token_not_found', message: 'Invalid Refresh Token' }
+                : { message: 'Invalid Refresh Token' };
+            return route.fulfill({
+                status: 400,
+                contentType: 'application/json',
+                body: JSON.stringify(payload),
+            });
+        }
+        if (supabaseMode === '503') {
+            return route.fulfill({
+                status: 503,
+                contentType: 'application/json',
+                body: JSON.stringify({ message: 'Service Unavailable' }),
+            });
+        }
         return route.abort('failed');
     });
 
     const page = await context.newPage();
+    const pageErrors = [];
+    page.on('pageerror', (error) => pageErrors.push(String(error?.message || error).slice(0, 200)));
     page.on('console', (msg) => {
         const text = msg.text();
         if (/hindsight|agent[-_]|tool|memory|Supabase|supabase/i.test(text)) consoleLines.push(text.slice(0, 300));
@@ -277,14 +324,15 @@ async function main() {
     });
     page.on('requestfailed', (req) => {
         const url = req.url();
-        if (/:8890/.test(url)) hindsightBlocked += 1;
+        if (/:8787/.test(url)) agentGatewayBlocked += 1;
+        if (/:8787/.test(url) || /:8890/.test(url)) hindsightBlocked += 1;
         if (/:54321/.test(url)) supabaseBlocked += 1;
     });
 
-    // Demo-clear mode starts on Today: the header gear is the only in-app route
-    // to Settings (the dock has no Settings tab), and a document reload mid-seed
-    // would measure an interruption rather than the product path.
-    await page.goto(onlyDemoClear ? `${BASE}/today` : `${BASE}/chat`, { waitUntil: 'domcontentloaded' });
+    // Demo-clear / walk modes start on Today: the header gear is the only in-app
+    // route to Settings, and a document reload mid-seed would measure an
+    // interruption rather than the product path.
+    await page.goto(seedForWalk ? `${BASE}/today` : `${BASE}/chat`, { waitUntil: 'domcontentloaded' });
     await page.waitForLoadState('networkidle').catch(() => {});
     await wait(4000);
 
@@ -294,7 +342,7 @@ async function main() {
         await wait(1500);
     }
 
-    if (!onlyDemoClear) {
+    if (!seedForWalk) {
         const input = await inputLocator(page);
         if (!(await input.isVisible({ timeout: 60000 }).catch(() => false))) {
             log('FAIL: chat composer never appeared. URL=' + page.url());
@@ -305,6 +353,198 @@ async function main() {
             process.exit(1);
         }
         log('STEP 1 ok: chat composer visible at', page.url());
+    }
+
+    if (signOutCheck) {
+        // Offline boot with an expired token needs the bootstrap ceiling to elapse,
+        // so wait for real content instead of a fixed delay.
+        const waitForContent = async () => {
+            await page.waitForFunction(
+                () => document.body.innerText.replace(/\s+/g, ' ').trim().length > 40,
+                null,
+                { timeout: 45000 }
+            ).catch(() => undefined);
+        };
+        const readStorage = () => page.evaluate((sessionKey) => {
+            const registry = localStorage.getItem('@blackrose_account_registry');
+            return {
+                registryBody: registry || '',
+                session: !!localStorage.getItem(sessionKey),
+            };
+        }, SUPABASE_SESSION_KEY);
+
+        await page.goto(`${BASE}/today`, { waitUntil: 'domcontentloaded' });
+        await waitForContent();
+        const before = await readStorage();
+        const bootBody = (await page.locator('body').innerText().catch(() => '')).replace(/\s+/g, ' ');
+        log(`signout check — offline boot landed on ${page.url()}`
+            + ` | journal visible: ${/What wants your attention/.test(bootBody)}`
+            + ` | stored session: ${before.session}`
+            + ` | remembered account kept: ${/"rememberedAccountId":"e2e-offline-account"/.test(before.registryBody)}`);
+
+        await page.goto(`${BASE}/settings`, { waitUntil: 'domcontentloaded' });
+        await waitForContent();
+        // Settings sections start collapsed; the Account header carries the
+        // accessibility label ('Account, Signed in as …').
+        await page.locator('[aria-label^="Account"]').first().click();
+        const signOutButton = page.getByText('Sign out', { exact: true }).first();
+        await signOutButton.waitFor({ state: 'visible', timeout: 45000 });
+        await signOutButton.click();
+        await page.waitForURL(/forgot-password|\/login|\/sign/, { timeout: 30000 }).catch(() => undefined);
+        await wait(3000);
+
+        const afterClickUrl = page.url();
+        const afterClick = await readStorage();
+        const onAuthScreenAfterClick = /forgot-password|\/login|\/sign/.test(afterClickUrl);
+        log(`  after click → url=${afterClickUrl} | auth screen: ${onAuthScreenAfterClick}`
+            + ` | stored session removed: ${!afterClick.session}`
+            + ` | remembered account cleared: ${/"rememberedAccountId":null/.test(afterClick.registryBody)}`);
+
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await waitForContent();
+        const reloadBody = (await page.locator('body').innerText().catch(() => '')).replace(/\s+/g, ' ');
+        const onAuthScreenAfterReload = /forgot-password|\/login|\/sign/.test(page.url());
+        const journalAfterReload = /What wants your attention|INTENTIONS/.test(reloadBody);
+        log(`  after reload → url=${page.url()} | auth screen: ${onAuthScreenAfterReload}`
+            + ` | journal visible: ${journalAfterReload}`);
+
+        const ok = onAuthScreenAfterClick && !afterClick.session
+            && /"rememberedAccountId":null/.test(afterClick.registryBody)
+            && onAuthScreenAfterReload && !journalAfterReload;
+        log('RESULT: ' + (ok ? 'PASS' : 'FAIL (offline sign out did not stick)'));
+        persistLog();
+        await browser.close();
+        process.exit(ok ? 0 : 1);
+    }
+
+    if (bootOnly) {
+        const budgetMs = Number(process.env.E2E_BOOT_WAIT_MS || 240000);
+        const started = Date.now();
+        let appeared = false;
+        while (Date.now() - started < budgetMs) {
+            await wait(15000);
+            const body = (await page.locator('body').innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
+            const elapsed = Math.round((Date.now() - started) / 1000);
+            log(`boot wait ${elapsed}s | text=${body.length}ch | supabase requests blocked=${supabaseBlocked}`
+                + ` | pageErrors=${pageErrors.length} | url=${page.url()}`);
+            if (body.length > 0) {
+                appeared = true;
+                log('  head: ' + body.slice(0, 120));
+                break;
+            }
+        }
+        const afterBoot = await page.evaluate((sessionKey) => {
+            const registry = localStorage.getItem('@blackrose_account_registry');
+            return {
+                registry: !!registry,
+                registryBody: registry ? registry.slice(0, 300) : null,
+                session: !!localStorage.getItem(sessionKey),
+                sessionBody: (localStorage.getItem(sessionKey) || '').slice(0, 120),
+            };
+        }, SUPABASE_SESSION_KEY);
+        log('app rendered within budget: ' + appeared);
+        log('  registry: ' + afterBoot.registryBody);
+        log('  session : ' + afterBoot.sessionBody);
+        for (const line of consoleLines.slice(-25)) log('  console: ' + line);
+
+        // A rejected credential must NOT get offline access: supabase-js removes the
+        // stored session and emits SIGNED_OUT, so this boots to the auth screens.
+        if (supabaseMode.startsWith('revoked')) {
+            const onAuthScreen = /forgot-password|\/login|\/sign/.test(page.url());
+            const sessionGone = !afterBoot.session;
+            const accountCleared = /"rememberedAccountId":null/.test(afterBoot.registryBody || '');
+            const ok = onAuthScreen && sessionGone && accountCleared;
+            log('revoked-credential expectation → auth screen: ' + onAuthScreen
+                + ' | stored session removed: ' + sessionGone
+                + ' | remembered account cleared: ' + accountCleared);
+            log('RESULT: ' + (ok ? 'PASS' : 'FAIL (rejected credential kept offline access)'));
+            persistLog();
+            await browser.close();
+            process.exit(ok ? 0 : 1);
+        }
+
+        log('RESULT: ' + (appeared ? 'PASS' : 'FAIL (stuck on loading screen)'));
+        persistLog();
+        await browser.close();
+        process.exit(appeared ? 0 : 1);
+    }
+
+    if (offlineWalk) {
+        const routes = [
+            '/today', '/entries', '/insights', '/explore', '/settings',
+            '/goals', '/drafts', '/saved-insights', '/memory-graph', '/streak-view', '/rewards',
+        ];
+        log(`OFFLINE WALK: supabase=${supabaseMode} expiredSession=${expiredSession}`);
+        log('after boot: url=' + page.url());
+        const bootStorage = await page.evaluate((sessionKey) => ({
+            registry: !!localStorage.getItem('@blackrose_account_registry'),
+            session: !!localStorage.getItem(sessionKey),
+        }), SUPABASE_SESSION_KEY);
+        log('boot storage — registry: ' + bootStorage.registry + ' | supabase session: ' + bootStorage.session);
+
+        const results = [];
+        const bootBody = (await page.locator('body').innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
+        results.push({
+            rendered: bootBody.length > 40,
+            route: '(boot)',
+            boundary: /Something went wrong/i.test(bootBody),
+            signedOut: /\/(auth|login|signup|forgot-password)/.test(page.url()) || /Sign in|Log in|Create account/i.test(bootBody),
+            body: bootBody,
+            newConsole: [],
+            newErrors: pageErrors.slice(),
+            url: page.url(),
+        });
+        log(`WALK (boot) → url=${page.url()} | boundary=${results[0].boundary} | signedOut=${results[0].signedOut}`
+            + ` | rendered=${results[0].rendered} | text=${bootBody.length}ch | pageErrors=${results[0].newErrors.length}`);
+        const routeBudgetMs = Number(process.env.E2E_ROUTE_WAIT_MS || 30000);
+        for (const route of routes) {
+            const before = consoleLines.length;
+            const beforeErrors = pageErrors.length;
+            await page.goto(`${BASE}${route}`, { waitUntil: 'domcontentloaded' });
+            await page.waitForLoadState('networkidle').catch(() => {});
+            // Rendered content is the pass condition: a spinner-only shell with no
+            // text means the app never reached the screen (offline hang).
+            const routeStarted = Date.now();
+            let body = '';
+            while (Date.now() - routeStarted < routeBudgetMs) {
+                await wait(2000);
+                body = (await page.locator('body').innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
+                if (body.length > 40) break;
+            }
+            const renderedMs = Date.now() - routeStarted;
+            const rendered = body.length > 40;
+            const boundary = /Something went wrong/i.test(body);
+            const signedOut = /\/(auth|login|signup|forgot-password)/.test(page.url()) || /Sign in|Log in|Create account/i.test(body);
+            const newConsole = consoleLines.slice(before);
+            const newErrors = pageErrors.slice(beforeErrors);
+            results.push({ route, boundary, signedOut, rendered, body, newConsole, newErrors, url: page.url() });
+            log(`WALK ${route} → url=${page.url()} | boundary=${boundary} | signedOut=${signedOut} | rendered=${rendered}`
+                + ` | text=${body.length}ch | waited=${renderedMs}ms`
+                + ` | consoleErrors=${newConsole.filter((l) => /error|failed/i.test(l)).length}`
+                + ` | pageErrors=${newErrors.length}`);
+            log(`  head: ${body.slice(0, 160)}`);
+        }
+
+        const after = await page.evaluate((sessionKey) => ({
+            registry: !!localStorage.getItem('@blackrose_account_registry'),
+            session: !!localStorage.getItem(sessionKey),
+        }), SUPABASE_SESSION_KEY);
+        const crashed = results.filter((r) => r.boundary);
+        const signedOutRoutes = results.filter((r) => r.signedOut);
+        const blank = results.filter((r) => !r.rendered);
+        const threw = results.filter((r) => r.newErrors.length > 0);
+        log('after walk — registry: ' + after.registry + ' | supabase session: ' + after.session);
+        log(`summary: boundary=${crashed.length} signedOut=${signedOutRoutes.length}`
+            + ` neverRendered=${blank.length} pageErrors=${threw.length}`
+            + ` | supabase requests blocked: ${supabaseBlocked}`
+            + ` | Hindsight via agent gateway (:8787) blocked: ${agentGatewayBlocked}`
+            + ` | total Hindsight hosts blocked: ${hindsightBlocked}`);
+        for (const error of pageErrors.slice(0, 8)) log('  pageError: ' + error);
+        const ok = crashed.length === 0 && signedOutRoutes.length === 0 && blank.length === 0;
+        log('RESULT: ' + (ok ? 'PASS' : 'FAIL'));
+        persistLog();
+        await browser.close();
+        process.exit(ok ? 0 : 1);
     }
 
     if (onlyDemoClear) {
@@ -472,7 +712,8 @@ async function main() {
     uiShowsToolUse = /Used \d+ tools?/i.test(uiToolSummary);
     hindsightTouched = hindsightBlocked > 0 || consoleLines.some((line) => /Hindsight gateway .* unavailable/.test(line));
 
-    log('hindsight requests failed: ' + hindsightBlocked + ' | supabase failed: ' + supabaseBlocked);
+    log('hindsight requests failed: ' + hindsightBlocked + ' (agent gateway :8787: ' + agentGatewayBlocked + ')'
+        + ' | supabase failed: ' + supabaseBlocked);
     log('memory_search offered to model: ' + usedMemorySearch + ' | memory tool called: ' + JSON.stringify(recallTools) + ' | UI tool summary: ' + JSON.stringify(uiToolSummary));
     log('distinctive tokens in reply: ' + JSON.stringify(hits));
     }

@@ -40,6 +40,31 @@ function registerAuthRefreshLifecycle(client: SupabaseClient): void {
     });
 }
 
+/**
+ * supabase-js derives this key from the project host when no `storageKey` is
+ * configured. Naming it explicitly (same value) lets sign-out drop the stored
+ * session locally while the server is unreachable.
+ */
+function authStorageKeyFor(url: string): string {
+    const projectRef = new URL(url).hostname.split('.')[0];
+    return `sb-${projectRef}-auth-token`;
+}
+
+/**
+ * Removes the persisted Supabase session. Without this, an offline sign-out
+ * survives the current screen only: the next boot would find the untouched
+ * session, refresh it once connectivity returns, and show the journal again.
+ */
+export async function clearStoredAuthSession(): Promise<void> {
+    const config = getSupabaseConfig();
+    if (!config) return;
+    try {
+        await AsyncStorage.removeItem(authStorageKeyFor(config.url));
+    } catch (error) {
+        console.warn('Failed to clear the stored Supabase session', error);
+    }
+}
+
 export function getSupabaseClient(): SupabaseClient | null {
     if (supabaseClient) {
         return supabaseClient;
@@ -57,6 +82,7 @@ export function getSupabaseClient(): SupabaseClient | null {
     supabaseClient = createClient(config.url, config.anonKey, {
         auth: {
             storage: AsyncStorage,
+            storageKey: authStorageKeyFor(config.url),
             autoRefreshToken: true,
             persistSession: true,
             detectSessionInUrl: false,

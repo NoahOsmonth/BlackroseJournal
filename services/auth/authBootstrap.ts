@@ -96,6 +96,16 @@ function isNetworkTransportFailure(error: unknown): boolean {
         .test(candidate.message);
 }
 
+/**
+ * Cold-boot ceiling for confirming a session. A blackholed Supabase connection
+ * (dropped packets, no RST) leaves `getSession()` pending forever, including the
+ * `initialize()` chain it awaits — without this bound the app would sit on the
+ * loading screen indefinitely instead of opening offline.
+ */
+export const AUTH_BOOTSTRAP_TIMEOUT_MS = 8000;
+
+const BOOTSTRAP_TIMED_OUT = Symbol('auth-bootstrap-timeout');
+
 export async function resolveAuthBootstrap(
     client: AuthBootstrapClient | null
 ): Promise<AuthTransitionIntent> {
@@ -103,8 +113,23 @@ export async function resolveAuthBootstrap(
         return { type: 'signed-out' };
     }
 
+    const pending = client.auth.getSession();
+    // The raced-away promise must not surface as an unhandled rejection.
+    pending.catch(() => undefined);
+    let cancelTimeout: () => void = () => undefined;
+    const timedOut = new Promise<typeof BOOTSTRAP_TIMED_OUT>((resolve) => {
+        const handle = setTimeout(() => resolve(BOOTSTRAP_TIMED_OUT), AUTH_BOOTSTRAP_TIMEOUT_MS);
+        cancelTimeout = () => clearTimeout(handle);
+    });
+
     try {
-        const { data, error } = await client.auth.getSession();
+        const settled = await Promise.race([pending, timedOut]);
+
+        if (settled === BOOTSTRAP_TIMED_OUT) {
+            return resolveRememberedAccountOffline();
+        }
+
+        const { data, error } = settled;
         if (error) {
             return isNetworkTransportFailure(error)
                 ? resolveRememberedAccountOffline()
@@ -118,6 +143,8 @@ export async function resolveAuthBootstrap(
         return isNetworkTransportFailure(error)
             ? resolveRememberedAccountOffline()
             : { type: 'signed-out' };
+    } finally {
+        cancelTimeout();
     }
 }
 
@@ -148,12 +175,27 @@ export async function bootstrapAuth(
     return applyAuthTransition(await resolveAuthBootstrap(client));
 }
 
-export async function handleAuthSessionChange(
+/**
+ * Maps a supabase-js auth event to a transition intent.
+ *
+ * A null session only means "signed out" when supabase-js says so explicitly:
+ * `SIGNED_OUT` is emitted after it removed the stored session (user sign-out, or
+ * a refresh token the server rejected). Every other sessionless event means we
+ * merely *could not confirm* a session — a cold boot whose expired token cannot
+ * be refreshed while Supabase is unreachable — so it re-derives through
+ * `resolveAuthBootstrap` and keeps the remembered account offline instead of
+ * logging the user out of their own journal.
+ */
+export async function resolveAuthSessionEvent(
+    client: AuthBootstrapClient | null,
+    event: string,
     session: AuthSessionLike | null
-): Promise<AuthBootstrapState> {
-    return applyAuthTransition(
-        session && !session.user.is_anonymous
-            ? { type: 'session', session }
-            : { type: 'signed-out' }
-    );
+): Promise<AuthTransitionIntent> {
+    if (session && !session.user.is_anonymous) {
+        return { type: 'session', session };
+    }
+    if (event === 'SIGNED_OUT') {
+        return { type: 'signed-out' };
+    }
+    return resolveAuthBootstrap(client);
 }

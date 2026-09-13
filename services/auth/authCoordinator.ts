@@ -2,6 +2,7 @@ import {
     applyAuthTransition,
     AuthTransitionCancelledError,
     resolveAuthBootstrap,
+    resolveAuthSessionEvent,
     type AuthBootstrapClient,
     type AuthBootstrapState,
     type AuthSessionLike,
@@ -32,6 +33,7 @@ export interface AuthCoordinator {
     subscribe(listener: () => void): () => void;
     getSnapshot(): AuthCoordinatorSnapshot;
     whenIdle(): Promise<void>;
+    signOutLocally(): Promise<void>;
     stop(): void;
 }
 
@@ -50,6 +52,12 @@ export function createAuthCoordinator(
     let started = false;
     let stopped = false;
     let transitionQueue: Promise<void> = Promise.resolve();
+    // A local sign-out must not be undone by supabase-js re-adopting the session
+    // it still holds in storage: when the server was unreachable the revoke never
+    // happened, so a later successful background refresh would emit
+    // TOKEN_REFRESHED and silently sign the user back in. Only a deliberate
+    // sign-in clears the latch.
+    let signedOutLocally = false;
     let subscription: { unsubscribe(): void } | null = null;
     const listeners = new Set<() => void>();
     const pending = new Set<Promise<void>>();
@@ -91,12 +99,15 @@ export function createAuthCoordinator(
         const bootstrapRevision = ++revision;
         track(resolveAuthBootstrap(client).then((intent) => schedule(intent, bootstrapRevision)));
         if (client) {
-            subscription = client.auth.onAuthStateChange((_event, session) => {
+            subscription = client.auth.onAuthStateChange((event, session) => {
+                if (event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') {
+                    signedOutLocally = false;
+                } else if (signedOutLocally) {
+                    return;
+                }
                 const eventRevision = ++revision;
-                const intent: AuthTransitionIntent = session && !session.user.is_anonymous
-                    ? { type: 'session', session }
-                    : { type: 'signed-out' };
-                track(schedule(intent, eventRevision));
+                track(resolveAuthSessionEvent(client, event, session)
+                    .then((intent) => schedule(intent, eventRevision)));
             }).data.subscription;
         }
     };
@@ -108,6 +119,10 @@ export function createAuthCoordinator(
             return () => listeners.delete(listener);
         },
         getSnapshot: () => snapshot,
+        async signOutLocally() {
+            signedOutLocally = true;
+            await schedule({ type: 'signed-out' }, ++revision);
+        },
         async whenIdle() {
             while (pending.size > 0) {
                 await Promise.all(Array.from(pending));
@@ -141,4 +156,14 @@ export function subscribeAuthCoordinator(listener: () => void): () => void {
 
 export function getAuthCoordinatorSnapshot(): AuthCoordinatorSnapshot {
     return getSharedCoordinator().getSnapshot();
+}
+
+/**
+ * Ends local access immediately. `supabase.auth.signOut()` cannot do this while
+ * Supabase is unreachable (auth-js returns the session error without removing
+ * the session or emitting SIGNED_OUT), which would leave the journal on screen
+ * after the user asked to sign out.
+ */
+export function signOutAuthCoordinator(): Promise<void> {
+    return getSharedCoordinator().signOutLocally();
 }

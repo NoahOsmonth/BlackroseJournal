@@ -1,5 +1,43 @@
 # PROGRESS — Optimization + Bug Hunt (2026-09-02)
 
+## 2026-09-13 (latest) — Offline fallback verified live (Supabase down + Hindsight down) and the two defects it exposed
+
+Question: with Supabase **and** Hindsight both unreachable, does the app fall back overall? Answered with a live Playwright matrix against the running app (`scripts/e2e/pw-memory-recall-offline.mjs`), which found two real defects; both are fixed here.
+
+### First, a correction: Hindsight's host was never the one being blocked
+`services/memory/hindsight/hindsightConfig.ts:4` derives its base URL from `EXPO_PUBLIC_AGENT_BASE_URL` (`:8787`). `.env`'s `EXPO_PUBLIC_HINDSIGHT_BASE_URL=:8890` is inert — only tests reference the name (`__tests__/services/memory/hindsightConfig.test.ts`, `backend/src/memory/__tests__/memoryConfig.test.ts`). The earlier "Hindsight unreachable / `:8890` route-blocked" claims in this file blocked a host the client never calls. The probe now blocks `:8787` (+`:8890`) and reports the agent-gateway count separately, so the soft-fail evidence is real: **4/4 Hindsight requests blocked on `:8787`** in the recall probe.
+
+### Supabase down — live matrix (expired token is the common case; Supabase access tokens last an hour)
+Boot probe on `/today` with `getSession()`'s refresh answer controlled per run:
+
+| Session state + Supabase answer | Before | After |
+|---|---|---|
+| Valid cached session, abort | app renders, local data (12/12 routes, 0 Supabase requests) | unchanged |
+| **Expired token, abort** | ~30 s spinner → `/forgot-password`, `rememberedAccountId` cleared | offline `/today` with the local journal, account kept |
+| **Expired token, blackholed (`hang`)** | spinner until the request dies | offline `/today` (8 s ceiling) |
+| **Expired token, 503** | signed out | offline `/today` |
+| Expired token, 400 `refresh_token_not_found` | signed out | signed out (unchanged — correct) |
+
+### Defect 1 — a sessionless auth event logged the user out of their own journal
+`createAuthCoordinator`'s `onAuthStateChange` handler ignored the event name: any null session mapped to `{ type: 'signed-out' }` **and** bumped `revision`, which cancelled the in-flight bootstrap. supabase-js emits `INITIAL_SESSION` with a null session *while* the expired-token refresh is still failing, so a cold boot with Supabase down cleared the remembered account (`applyAuthTransition` signed-out branch) and routed to the auth screens. Evidence (`bg_7` dump): URL `/forgot-password`, `"rememberedAccountId":null`, while the stale `sb-100-auth-token` was **still in storage** — i.e. no `_removeSession()`, so nothing had genuinely signed the user out.
+
+Fix: `resolveAuthSessionEvent(client, event, session)` (`services/auth/authBootstrap.ts`) — `SIGNED_OUT` stays authoritative (auth-js only emits it after removing the session locally), every other sessionless event re-derives through `resolveAuthBootstrap`, which already classifies network/5xx failures as offline. The coordinator (and `handleAuthSessionChange`, now deleted) route through it.
+
+### Defect 2 — boot could hang forever, and offline sign-out was a local no-op
+- `resolveAuthBootstrap` now races `getSession()` against `AUTH_BOOTSTRAP_TIMEOUT_MS` (8 s) → remembered-account offline; a blackholed Supabase (dropped packets, no RST) otherwise leaves `getSession()` — and the `initialize()` chain it awaits — pending forever, i.e. a permanent spinner.
+- `supabase.auth.signOut()` cannot end local access while unreachable: `_signOut` returns the session error before `_removeSession` (GoTrueClient.js:3421-3424), so no `SIGNED_OUT`, no storage change → the journal stayed on screen. `signOut()` (`services/auth/authService.ts`) now always removes the stored session (`clearStoredAuthSession`, with the `storageKey` named explicitly in `supabaseClient.ts` — same value supabase-js derives) and clears the remembered/active account plus the coordinator snapshot (`signOutAuthCoordinator`), then reports a failed server revoke as a warning. A local latch keeps a later successful background refresh (`TOKEN_REFRESHED`) from silently reviving the session; a deliberate `SIGNED_IN`/`PASSWORD_RECOVERY` clears it. No client configured → still signs out locally (previously it threw and kept the journal).
+
+### Verification
+- **Unit:** `__tests__/services/auth/` 19 tests green, incl. new ones for the event rule, the 8 s ceiling (fake timers), local sign-out, the latch, and `signOut()` storage/coordinator contract (incl. "no Supabase config"). Sabotage: coordinator mapped back to the blind null→signed-out rule → new coordinator test **red** (restored → green); `clearStoredAuthSession()` removed from `signOut()` → 3 service tests **red** (restored → green).
+- **Live:** matrix above; offline sign-out click-through (`E2E_SIGNOUT_CHECK=1`, expired token + abort): `/settings` → Account → Sign out → `/forgot-password`, stored session removed, `rememberedAccountId` null; **reload → still the auth screen, journal not visible** (no resurrect).
+- **Recall with Hindsight down:** probe PASS — model called `memory_search`/`memory_get`/`get_day`/`get_conversation`, 4 Hindsight requests blocked on `:8787`, distinctive tokens `lighthouse/tattoo/reykjavik/marathon` in the reply. Verbatim: "The only thing offline memory holds is one file, and it's short. Quoting it exactly: "Tonight I finally told Mara about the copper lighthouse tattoo I've been hiding since the Reykjavik trip…"". Drive rows render with no `EXPO_PUBLIC_GOOGLE_DRIVE_CLIENT_ID` and soft-fail (`rows present: true | hint visible: true | crashed: false`).
+- **Harness honesty:** the walk gate now requires rendered content per route (`rendered=true`, text floor 40 chars) instead of only "no crash/no sign-out" — the old gate printed `PASS` over a spinner-only shell, which is exactly the failure being investigated.
+- **Gates:** `npx tsc --noEmit` clean; `npm run lint` 0 errors (72 pre-existing warnings); `npm run check:design` PASSED with warnings; `npm test` 1434 passed / 2 failed — both failures are `__tests__/docs/aiControlPlaneOperations.test.ts`, which spawns POSIX scripts and exits 127 because `psql` is not installed on this machine (file untouched by this diff; pre-existing environment gap).
+
+### Observation (not changed)
+Staged memory-file bodies are intentionally short excerpts (`memoryStage.ts`: insight fallback `trimSection(userText, 180)`, notes ≤300 chars), so the model can quote them mid-sentence ("…Tuesday tempo runs, Sun.") and then reach the fuller entry via `get_conversation`. Truncating on a word boundary would read better; left as a follow-up.
+
+
 ## 2026-09-13 (later) — Demo-clear left staged memory files behind: seed ledger write-ahead + product-path live proof
 
 Rule 8 requires clearing demo data before memory probes. The live probe for that path showed it was **not** clean: after `Settings → Clear demo data`, one staged `_tmp` memory file survived each run — run 1 (probe navigated away mid-seed) 5/6 removed; run 2 (reload to Settings while the seed was still running; the settle poll only saw a ≥6 s stall between ledger writes, not completion) 5/6 removed with `unrecorded sources: 1`.

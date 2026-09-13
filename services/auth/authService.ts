@@ -2,7 +2,11 @@ import {
     extractAuthLinkTokens,
     getPasswordResetRedirectUrl,
 } from '@/services/auth/authLinking';
-import { getSupabaseClient } from '@/services/supabase/supabaseClient';
+import {
+    clearStoredAuthSession,
+    getSupabaseClient,
+} from '@/services/supabase/supabaseClient';
+import { signOutAuthCoordinator } from '@/services/auth/authCoordinator';
 import type { Session, User } from '@supabase/supabase-js';
 import { clearRememberedAccount } from '@/services/account/accountRegistry';
 import { clearActiveAccount } from '@/services/account/accountRuntime';
@@ -72,15 +76,39 @@ export async function sendPasswordResetEmail(
     }
 }
 
+/**
+ * Signing out is a local decision first: while Supabase is unreachable,
+ * `client.auth.signOut()` neither revokes the session nor emits SIGNED_OUT, so
+ * the app must end local access on its own. The server revoke is attempted and
+ * reported, but a failed revoke never keeps the journal on screen.
+ */
 export async function signOut(): Promise<void> {
-    const client = getClientOrThrow();
-    const { error } = await client.auth.signOut();
-
-    if (error) {
-        throw new Error(error.message);
+    const client = getSupabaseClient();
+    let revokeFailure: string | null = null;
+    if (client) {
+        try {
+            const { error } = await client.auth.signOut();
+            revokeFailure = error ? error.message : null;
+        } catch (thrown) {
+            // The revoke call itself can reject (lock acquisition, transport);
+            // local sign-out must not depend on it.
+            revokeFailure = thrown instanceof Error ? thrown.message : 'unknown error';
+        }
     }
-    await clearRememberedAccount();
-    await clearActiveAccount();
+
+    try {
+        await clearStoredAuthSession();
+        await clearRememberedAccount();
+        await clearActiveAccount();
+    } finally {
+        // The signed-out transition clears both accounts itself, so it still runs
+        // (and the UI leaves the journal) if one of the clears above failed.
+        await signOutAuthCoordinator();
+    }
+
+    if (revokeFailure) {
+        console.warn('Supabase sign-out failed; signed out locally.', revokeFailure);
+    }
 }
 
 export async function refreshSession(): Promise<void> {
