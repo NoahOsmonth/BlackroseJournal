@@ -1,0 +1,19 @@
+{
+  "id": "bddc8a36f",
+  "name": "Expo web dev server",
+  "command": "npx expo start --web --port 8081 2>&1 | tail -n 30",
+  "status": "failed",
+  "outputPath": ".pi\\tasks\\session-22872-22872\\bddc8a36f.output",
+  "cwd": "C:\\Users\\sigmu\\Desktop\\blackrosejournal",
+  "startTime": 1789220026281,
+  "endTime": 1789220026383,
+  "exitCode": 255,
+  "signal": null,
+  "pid": 27896,
+  "bytesWritten": 95,
+  "isAgent": false,
+  "error": "Exited with code 255",
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true
+}

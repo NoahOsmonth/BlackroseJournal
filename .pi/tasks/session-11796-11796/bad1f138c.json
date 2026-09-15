@@ -1,0 +1,20 @@
+{
+  "id": "bad1f138c",
+  "name": "Expo web dev server",
+  "command": "cd \"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\" && npx expo start --web --port 8081",
+  "status": "failed",
+  "outputPath": ".pi\\tasks\\session-11796-11796\\bad1f138c.output",
+  "cwd": "C:\\Users\\sigmu\\Desktop\\BlackroseJournal",
+  "startTime": 1789392681339,
+  "endTime": 1789394492368,
+  "exitCode": 1,
+  "signal": null,
+  "pid": 2176,
+  "bytesWritten": 4243,
+  "isAgent": false,
+  "error": "Timed out after 1800s",
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 1800
+}

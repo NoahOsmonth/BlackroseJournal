@@ -1,0 +1,30 @@
+env: load .env
+env: export EXPO_PUBLIC_NANO_GPT_API_KEY EXPO_PUBLIC_NANO_GPT_API_BASE_URL EXPO_PUBLIC_NANO_GPT_MODEL EXPO_PUBLIC_NANO_GPT_FLASH_MODEL SUPABASE_URL SUPABASE_ANON_KEY EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_ANON_KEY HEROKU_KEY HINDSIGHT_GEMINI_EMBEDDINGS_API_KEY EXPO_PUBLIC_HINDSIGHT_BASE_URL EXPO_PUBLIC_AGENT_BASE_URL
+Starting project at C:\Users\sigmu\Desktop\BlackroseJournal
+Starting Metro Bundler
+The following packages should be updated for best compatibility with the installed expo version:
+  react-native-svg@15.15.5 - expected version: 15.12.1
+Your project may not work correctly until you install the expected versions of the packages.
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+Web node_modules\expo-router\entry.js ▓▓▓▓▓░░░░░░░░░░░ 31.8% (468/830)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.9% (1878/1879)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.9% (1879/1879)
+Web Bundled 11128ms node_modules\expo-router\entry.js (1879 modules)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 128ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 115ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 118ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 80ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+
+[background task timeout: Timed out after 1800s]
+
+[background task Windows termination: taskkill terminate reported process not found for pid 2176 (exit=128 signal=null stderr="ERROR: The process with PID 19164 (child process of PID 12936) could not be terminated.\r\nReason: This process can only be terminated forcefully (with /F option).\r\nERROR: The process with PID 19620 (child process of PID 12936) could not be terminated.\r\nReason: This process can only be terminated forcefully (with /F option).\r\nERROR: The process with PID 19004 (child process of PID 12936) could not be terminated.\r\nReason: This process can only be terminated forcefully (with /F option).\r\nERROR: The process with PID 7064 (child process of PID 12936) could not be terminated.\r\nReason: This process can only be terminated forcefully (with /F option).\r\nERROR: The process with PID 21124 (child process of PID 12936) could not be terminated.\r\nReason: This process can only be terminated forcefully (with /F option).\r\nERROR: The process with PID 12332 (child process of PID 12936) could not be terminated.\r\nReason: This process can only be terminated forcefully (with /F option).\r\nERROR: The process with PID 17504 (child process of PID 12936) could not be terminated.\r\nReason: This process can only be terminated forcefully (with /F option).\r\nERROR: The process with PID 12936 (child process of PID 4868) could not be terminated.\r\nReason: One or more child processes of this process were still running.\r\nERROR: The process with PID 4868 (child process of PID 19648) could not be terminated.\r\nReason: One or more child processes of this process were still running.\r\nERROR: The process with PID 9100 (child process of PID 2176) could not be terminated.\r\nReason: This process can only be terminated forcefully (with /F option).\r\nERROR: The process with PID 19648 (child process of PID 2176) could not be terminated.\r\nReason: One or more child processes of this process were still running.\r\nERROR: The process with PID 2176 (child process of PID 11796) could not be terminated.\r\nReason: One or more child processes of this process were still running.\r\n"); treating as an already-exited race]

@@ -1,0 +1,20 @@
+{
+  "id": "bbaefd24e",
+  "name": "Start Supabase on .52",
+  "command": "ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=30 -o LogLevel=ERROR sigmund@100.107.7.52 \"bash -lc 'cd /home/sigmund/Desktop/BlackroseJournal && supabase start 2>&1'\"",
+  "status": "failed",
+  "outputPath": ".pi\\tasks\\session-11796-11796\\bbaefd24e.output",
+  "cwd": "C:\\Users\\sigmu\\Desktop\\BlackroseJournal",
+  "startTime": 1789394222100,
+  "endTime": 1789394230108,
+  "exitCode": 255,
+  "signal": null,
+  "pid": 15248,
+  "bytesWritten": 483,
+  "isAgent": false,
+  "error": "Exited with code 255",
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 2400
+}

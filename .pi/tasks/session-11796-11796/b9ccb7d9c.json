@@ -1,0 +1,20 @@
+{
+  "id": "b9ccb7d9c",
+  "name": "Wait for Supabase ready",
+  "command": "/usr/bin/ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=30 sigmund@100.107.7.52 'bash -lc \"until curl -sf --max-time 3 http://localhost:54321/auth/v1/health > /dev/null; do sleep 10; done; echo SUPABASE_READY; curl -s http://localhost:54321/auth/v1/health; echo; echo ---TAIL---; tail -20 /tmp/supabase-start.log\"'",
+  "status": "failed",
+  "outputPath": ".pi\\tasks\\session-11796-11796\\b9ccb7d9c.output",
+  "cwd": "C:\\Users\\sigmu\\Desktop\\BlackroseJournal",
+  "startTime": 1789394643501,
+  "endTime": 1789394650320,
+  "exitCode": 1,
+  "signal": null,
+  "pid": 21352,
+  "bytesWritten": 44,
+  "isAgent": false,
+  "error": "Exited with code 1",
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 2400
+}

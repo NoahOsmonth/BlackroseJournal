@@ -1,0 +1,16 @@
+{
+  "id": "b7d177759",
+  "name": "Expo web dev server",
+  "command": "cd \"C:\\Users\\sigmu\\Desktop\\BlackroseJournal\" && npx expo start --web --port 8081",
+  "status": "running",
+  "outputPath": ".pi\\tasks\\session-11796-11796\\b7d177759.output",
+  "cwd": "C:\\Users\\sigmu\\Desktop\\BlackroseJournal",
+  "startTime": 1789394690555,
+  "pid": 13320,
+  "bytesWritten": 0,
+  "isAgent": false,
+  "notified": false,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 10800
+}

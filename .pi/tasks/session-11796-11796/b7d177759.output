@@ -1,0 +1,21 @@
+env: load .env
+env: export EXPO_PUBLIC_NANO_GPT_API_KEY EXPO_PUBLIC_NANO_GPT_API_BASE_URL EXPO_PUBLIC_NANO_GPT_MODEL EXPO_PUBLIC_NANO_GPT_FLASH_MODEL SUPABASE_URL SUPABASE_ANON_KEY EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_ANON_KEY HEROKU_KEY HINDSIGHT_GEMINI_EMBEDDINGS_API_KEY EXPO_PUBLIC_HINDSIGHT_BASE_URL EXPO_PUBLIC_AGENT_BASE_URL
+Starting project at C:\Users\sigmu\Desktop\BlackroseJournal
+Starting Metro Bundler
+The following packages should be updated for best compatibility with the installed expo version:
+  react-native-svg@15.15.5 - expected version: 15.12.1
+Your project may not work correctly until you install the expected versions of the packages.
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓░░░░ 75.9% (1276/1465)
+Web Bundled 3163ms node_modules\expo-router\entry.js (1879 modules)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 95ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 86ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 84ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
