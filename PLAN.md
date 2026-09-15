@@ -5,18 +5,22 @@
 This file records the implemented local-memory baseline and is retained as
 current-state context. It is not the active cloud migration plan.
 
-The approved 2026-07-28 architecture is defined by:
+**Superseded 2026-08-18.** The cloud-migration plan this section used to point
+at was abandoned and its documents were deleted. Nothing here is a forward plan
+and none of it is executable.
 
-- [Cloud-memory master roadmap](docs/superpowers/plans/2026-07-28-cloud-memory-master-roadmap.md)
-- [Portability as the final memory phase](docs/superpowers/specs/2026-07-29-portability-final-phase-sequencing-design.md)
-- [Cloud-authoritative Rosebud memory design](docs/superpowers/specs/2026-07-28-cloud-authoritative-rosebud-memory-design.md)
-- [Backend and database portability design](docs/superpowers/specs/2026-07-28-rosebud-backend-database-portability-design.md)
-- [Phase 0 contract and safety execution plan](docs/superpowers/plans/2026-07-28-cloud-memory-phase-0-contract-safety.md)
+The architecture that actually replaced it is the offline-first on-device memory
+system — see [`.planning/offline-memory/PLAN.md`](.planning/offline-memory/PLAN.md)
+(done 2026-09-12) and `services/memory/memoryFiles.ts` + `memoryRetrieval.ts`.
+Hindsight is the fallback tier, not long-term memory. See AGENTS.md rules 9–12.
 
-Phase 0 is complete and Phase 1 is next. Phases 1–8 deliver the cloud-memory
-behavior sequence; Phase 8 may stage CLOUD authority while retaining full local
-sources read-only. Final Phase 9 owns portability, disaster recovery, and the
-only gate that may authorize local heavy-store retirement.
+The deleted cloud-memory documents were recovered for reference only and live in
+[`.planning/archive/`](.planning/archive/README.md). They are **not** approved
+and must not be implemented: AGENTS.md forbids resurrecting the platform or its
+storage keys (`@rosebud_cloud_memory_mirror_outbox`,
+`@rosebud_memory_dataset_binding`), enforced by
+`__tests__/backend-local-only.test.ts`. Mine them for requirements and
+invariants only.
 
 ## Goal
 Build a phone-local memory system for Rosebud that gives the AI durable,
@@ -28,8 +32,8 @@ history experience.
 ## Current Direction
 1. **Research and invention**
    - Ground the architecture in recent memory-agent research.
-   - Document the full proposal in `idea.md` and the implementation contract in
-     `memory.md`.
+   - Document the full proposal in `.planning/archive/idea.md` (archived
+     2026-09-01) and the implementation contract in `memory.md`.
 2. **Local memory service**
    - Add `services/memory/` with on-device memory atoms.
    - Persist completed journal memory in AsyncStorage.
@@ -62,8 +66,8 @@ history experience.
   feedback guidance, then writes completed entries into memory.
 
 ## Acceptance Criteria
-- `idea.md` contains a 1000+ word research-backed invention for the memory
-  system.
+- `.planning/archive/idea.md` contains a 1000+ word research-backed invention for the memory
+  system (archived; superseded by `.planning/offline-memory/PLAN.md`).
 - `memory.md` documents implemented behavior and next phases.
 - Completed journal entries create local memory atoms.
 - Journal chat receives a bounded local memory capsule.

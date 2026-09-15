@@ -3,8 +3,10 @@
 ## Long-Term Memory (Hindsight)
 
 Long-term memory is **Hindsight** (vectorize-io, local Docker container) —
-see `docs/superpowers/plans/2026-08-18-hindsight-integration.md` for the
-integration plan and `services/memory/hindsight/` for the client. Every
+see `.planning/archive/docs/superpowers/plans/2026-08-18-hindsight-integration.md`
+for the historical integration plan (the original path was deleted on 2026-08-18
+by `88845b1`; recovered into `.planning/archive/`) and
+`services/memory/hindsight/` for the client. Every
 completed journal entry / check-in fires a fire-and-forget retain; recall is
 **tool-driven**: the AI calls the `recall_memory` agent tool on demand — the send
 path never awaits Hindsight and no always-on recall block is injected. Gemini is
@@ -13,11 +15,20 @@ embeddings-only (768-dim); all LLM work is OpenRouter. Everything is soft-fail.
 The earlier custom cloud-memory platform (`LOCAL → MIRROR → SHADOW → CLOUD`)
 was removed on 2026-08-18; do not resurrect it or its storage keys
 (`@rosebud_cloud_memory_mirror_outbox`, `@rosebud_memory_dataset_binding`).
+Its documents were deleted in `f2415ff` and recovered read-only into
+`.planning/archive/` — requirements and invariants only, never implementation.
+
+> **Superseded details in this file.** Hindsight is now the **fallback** tier,
+> not long-term memory; the primary long-term layer is the offline memory files
+> (`services/memory/memoryFiles.ts` → `memoryRetrieval.ts`). OpenRouter was
+> removed 2026-09-10 — the local OmniRoute gateway is the only chat provider.
+> See AGENTS.md rule 9.
 
 ## Implemented Local Baseline
 
 Rosebud now has the first local-only memory slice of the larger Memory Loom
-architecture described in `idea.md`.
+architecture described in `.planning/archive/idea.md` (archived 2026-09-01;
+see `.planning/archive/README.md` for what of that roadmap landed).
 
 ### Storage
 
