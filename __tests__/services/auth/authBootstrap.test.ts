@@ -82,11 +82,11 @@ describe('auth bootstrap', () => {
         expect(getActiveAccountId()).toBe('user-a');
     });
 
-    it('denies offline reopen for an authentication error', async () => {
+    it('denies offline reopen for a server-side authentication rejection', async () => {
         await rememberAuthenticatedAccount({ id: 'user-a', email: 'a@example.com' });
         const client = createClient({
             data: { session: null },
-            error: { message: 'Invalid Refresh Token: Already Used' },
+            error: { message: 'Invalid Refresh Token: Already Used', name: 'AuthApiError', status: 400 },
         });
 
         await expect(bootstrapAuth(client)).resolves.toEqual({
@@ -96,37 +96,70 @@ describe('auth bootstrap', () => {
         expect(getActiveAccountId()).toBeNull();
     });
 
-    it('denies offline reopen when Supabase is not configured', async () => {
+    it('opens the remembered account offline when Supabase is not configured', async () => {
         await rememberAuthenticatedAccount({ id: 'user-a', email: 'a@example.com' });
 
+        // A pure local build (no EXPO_PUBLIC_SUPABASE_URL) can never sign in, so
+        // hiding the on-device journal behind the auth screens is not an option.
+        await expect(bootstrapAuth(null)).resolves.toMatchObject({
+            status: 'offline',
+            account: { id: 'user-a' },
+        });
+        await expect(loadRememberedAccount()).resolves.toMatchObject({ id: 'user-a' });
+    });
+
+    it('signs out with no Supabase client when no account was ever remembered', async () => {
         await expect(bootstrapAuth(null)).resolves.toEqual({
             status: 'signed-out', account: null, session: null,
         });
-        await expect(loadRememberedAccount()).resolves.toBeNull();
     });
 
-    it('denies offline reopen for an unclassified exception', async () => {
+    it('keeps the remembered account offline for an unclassified exception', async () => {
         await rememberAuthenticatedAccount({ id: 'user-a', email: 'a@example.com' });
         const client: AuthBootstrapClient = {
             auth: { getSession: async () => { throw new Error('configuration invalid'); } },
         };
 
-        await expect(bootstrapAuth(client)).resolves.toEqual({
-            status: 'signed-out', account: null, session: null,
+        await expect(bootstrapAuth(client)).resolves.toMatchObject({
+            status: 'offline',
+            account: { id: 'user-a' },
         });
-        await expect(loadRememberedAccount()).resolves.toBeNull();
+        await expect(loadRememberedAccount()).resolves.toMatchObject({ id: 'user-a' });
     });
 
-    it('does not treat a clean signed-out result as offline access', async () => {
+    it('never signs out on a lock acquire abort', async () => {
+        await rememberAuthenticatedAccount({ id: 'user-a', email: 'a@example.com' });
+        const abort = new Error('signal is aborted without reason');
+        abort.name = 'AbortError';
+        const client: AuthBootstrapClient = {
+            auth: { getSession: async () => { throw abort; } },
+        };
+
+        await expect(bootstrapAuth(client)).resolves.toMatchObject({
+            status: 'offline',
+            account: { id: 'user-a' },
+        });
+    });
+
+    it('keeps the remembered account when Supabase answers with no session', async () => {
         await rememberAuthenticatedAccount({ id: 'user-a', email: 'a@example.com' });
         const client = createClient({ data: { session: null }, error: null });
 
-        await expect(bootstrapAuth(client)).resolves.toEqual({
-            status: 'signed-out',
-            account: null,
-            session: null,
+        // Expired token + unreachable server makes supabase-js answer exactly like
+        // this, so it must not be read as "the user signed out".
+        await expect(bootstrapAuth(client)).resolves.toMatchObject({
+            status: 'offline',
+            account: { id: 'user-a' },
         });
-        expect(getActiveAccountId()).toBeNull();
+        expect(getActiveAccountId()).toBe('user-a');
+    });
+
+    it('still signs out a sessionless answer when no account was ever remembered', async () => {
+        const client = createClient({ data: { session: null }, error: null });
+
+        await expect(bootstrapAuth(client)).resolves.toEqual({
+            status: 'signed-out', account: null, session: null,
+        });
     });
 
     it('reopens the remembered account when a sessionless event cannot be confirmed offline', async () => {

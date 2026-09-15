@@ -1,6 +1,35 @@
 # PROGRESS — Optimization + Bug Hunt (2026-09-02)
 
-## 2026-09-13 (latest) — Offline fallback verified live (Supabase down + Hindsight down) and the two defects it exposed
+## 2026-09-15 (latest) — Local-first boot: the navigator-lock abort crash and the account-wipe lockout
+
+Follow-up to `07d25cd` (expired token + unreachable Supabase), re-tested on the pulled tree with this machine's own Supabase **actually down**: `.env` points `EXPO_PUBLIC_SUPABASE_URL` at `http://100.107.7.52:54321` — this box's Tailscale IP — and `curl` gets connection refused (Docker runs only `omniroute` / `omniroute-redis`). Two defects survived that fix.
+
+### Defect 1 — `signal is aborted without reason` uncaught on boot (Expo red box)
+3–4 uncaught `AbortError` page errors per boot (`locks.js:98 abortController.abort()`). Measured, not inferred:
+- With a stale `sb-100-auth-token`, `initialize()` → `_recoverAndRefresh` → `_refreshAccessToken` retries a connection-refused refresh **while holding `lock:sb-100-auth-token`**: 7× `POST :54321/auth/v1/token?grant_type=refresh_token` (200/400/800/1600/3200/6400 ms backoff, bounded by `AUTO_REFRESH_TICK_DURATION_MS` = 30s).
+- `navigator.locks.query()` from another tab: the lock was **held continuously** for the whole 22s sample window (a single tab holds it too, until the retry loop ends).
+- Waiters queue behind the holder and abort at `lockAcquireTimeout` (10s) → `AbortError` escapes as an unhandled rejection (`window.onunhandledrejection` captured 3 × `signal is aborted without reason`).
+- A/B control: 4 app tabs open → 3 page errors; single fresh tab → 0.
+
+Fix: `services/supabase/authLock.ts` — `resilientAuthLock` keeps an in-process per-name queue (same-tick boot callers no longer race into the navigator queue), acquires cross-document with the caller's ceiling, retries once at 45s (the holder is mid-refresh-retry), then falls back in-process; a lock-acquire failure is never thrown at a caller. `supabaseClient.ts` passes `lock: resilientAuthLock` and exposes `getSessionSafely()` — `managedCatalog`, `managedTransport`, `hindsightClient` and `syncQueue` read sessions through it, so no lock abort can surface as an uncaught error again.
+
+### Defect 2 — a sessionless boot permanently locked the user out of their on-device journal
+`resolveAuthBootstrap` returned `{ type: 'signed-out' }` whenever `getSession()` answered `{ session: null, error: null }` — exactly what a sessionless / failed-refresh boot returns — and `applyAuthTransition` then called `clearRememberedAccount()`. Live proof (seeded `rememberedAccountId`, no stored session, Supabase down): boot → `/forgot-password`, `rememberedAccountId: null`. Once cleared no offline path can recover it: the journal data stays in storage but is unreachable behind `Stack.Protected guard={auth.isAuthenticated}`.
+
+Fix: boot is **local-first**. Unconfirmed (no session & no error / lock abort / transport fault / unclassified exception) → `{ type: 'offline' }` with the remembered account; only an explicit `SIGNED_OUT` event or a *server-side* rejection (`AuthApiError`, 4xx except 408/429) ends local access. `bootstrapAuth(null)` (no Supabase configured) also reopens the remembered account — a pure-local build must not show an auth screen it can never satisfy.
+
+### Verification
+- **Unit:** new `__tests__/services/supabase/authLock.test.ts` (5) and `supabaseClientSafety.test.ts` (4, incl. `createClient` receiving `resilientAuthLock`), rewritten bootstrap cases (no-client offline, unclassified exception, lock abort, sessionless-but-remembered, server rejection still signs out). 41 green in `__tests__/services/auth/` + `__tests__/services/supabase/` + `supabaseClient-local-only`.
+- **Sabotage:** fallback → `throw error` in `authLock`; bootstrap sessionless → `signed-out` — **4 red**, restored → **41 green**.
+- **Live (Playwright, Supabase `:54321` dead):** expired stored session → `/today` with the real journal rendered (“What wants your attention? Morning note Open Evening close Open…”), **0 page errors**, `rememberedAccountId` kept, 7 doomed refresh requests (soft). Second tab booting while the first is live → 0 page errors. Clean single-tab re-check → `/today`, rendered, 0 page errors.
+- **Gates:** `npx tsc --noEmit` clean · `npm run lint` 0 errors (72 pre-existing warnings) · `npm run check:design` PASSED (176/179 OK, 3 size warnings).
+- **Docs:** AGENTS.md rule 9 rewritten (offline memory files primary, Hindsight fallback tier), new rule 12 (local-first boot / never let a lock abort escape), tools table, offline-boot gate in Workflow, two changelog lines.
+
+### Follow-ups (not done)
+- The doomed token refresh still burns ~30s of background retries per boot while the auth host is unreachable; a reachability (`navigator.onLine`) pre-check before the boot `getSession()` would remove it.
+- `.env` disagrees with itself: `EXPO_PUBLIC_SUPABASE_URL` = tailnet IP vs `SUPABASE_URL` = `127.0.0.1`. `npx supabase start` only serves the loopback binding, so the client keeps failing until one of them is changed.
+
+## 2026-09-13 — Offline fallback verified live (Supabase down + Hindsight down) and the two defects it exposed
 
 Question: with Supabase **and** Hindsight both unreachable, does the app fall back overall? Answered with a live Playwright matrix against the running app (`scripts/e2e/pw-memory-recall-offline.mjs`), which found two real defects; both are fixed here.
 

@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { isRemoteDataSyncEnabled } from '@/services/data/dataProvider';
-import { ensureSupabaseSession } from './supabaseClient';
+import { ensureSupabaseSession, getSessionSafely } from './supabaseClient';
 import { logSupabaseError } from './supabaseErrors';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
@@ -224,8 +224,8 @@ async function sessionMatchesAccount(
     client: SupabaseClient,
     accountId: string
 ): Promise<boolean> {
-    const { data, error } = await client.auth.getSession();
-    return !error && data.session?.user.id === accountId;
+    const { session, error } = await getSessionSafely(client);
+    return !error && session?.user.id === accountId;
 }
 
 export async function removeSyncTasksForTable(table: string): Promise<void> {

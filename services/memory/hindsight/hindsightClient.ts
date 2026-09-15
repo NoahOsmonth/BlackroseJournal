@@ -7,7 +7,7 @@ import {
 import {
     getActiveAccountId, runAccountBoundOperation, type AccountOperationContext,
 } from '@/services/account/accountRuntime';
-import { getSupabaseClient } from '@/services/supabase/supabaseClient';
+import { getSupabaseClient, getSessionSafely } from '@/services/supabase/supabaseClient';
 import { getHindsightConfig } from './hindsightConfig';
 
 export interface HindsightRetainItem { content: string; timestamp: number; document_id: string }
@@ -21,9 +21,9 @@ const listeners = new Set<ChangeListener>();
 const defaultSessionProvider: HindsightSessionProvider = async () => {
     const client = getSupabaseClient();
     if (!client) return null;
-    const { data, error } = await client.auth.getSession();
-    if (error || !data.session || data.session.user.is_anonymous) return null;
-    return { accessToken: data.session.access_token, userId: data.session.user.id };
+    const { session, error } = await getSessionSafely(client);
+    if (error || !session || session.user.is_anonymous) return null;
+    return { accessToken: session.access_token, userId: session.user.id };
 };
 let sessionProvider: HindsightSessionProvider = defaultSessionProvider;
 export function setHindsightSessionProvider(provider: HindsightSessionProvider): void { sessionProvider = provider; }

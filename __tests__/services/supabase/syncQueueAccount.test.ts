@@ -4,6 +4,14 @@ const mockEnsureSupabaseSession = jest.fn();
 
 jest.mock('../../../services/supabase/supabaseClient', () => ({
     ensureSupabaseSession: (...args: unknown[]) => mockEnsureSupabaseSession(...args),
+    getSessionSafely: async (client: { auth: { getSession(): Promise<{ data: { session: { user: { id: string } } | null }; error: unknown }> } }) => {
+        try {
+            const { data, error } = await client.auth.getSession();
+            return { session: data?.session ?? null, error: error ? new Error('session error') : null };
+        } catch (thrown) {
+            return { session: null, error: thrown instanceof Error ? thrown : new Error(String(thrown)) };
+        }
+    },
 }));
 
 import { activateAccount, clearActiveAccount, getActiveAccountId } from '../../../services/account/accountRuntime';

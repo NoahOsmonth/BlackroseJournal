@@ -81,19 +81,28 @@ async function resolveRememberedAccountOffline(): Promise<AuthTransitionIntent> 
     return account ? { type: 'offline', account } : { type: 'signed-out' };
 }
 
-function isNetworkTransportFailure(error: unknown): boolean {
+/**
+ * A rejection the *server* made about the credential itself — the one case that
+ * ends local access. Everything else (transport faults, lock aborts, unexpected
+ * exceptions, a plain sessionless answer) only means we could not confirm a
+ * session, and local-first keeps the on-device journal reachable instead.
+ */
+const SERVER_AUTH_REJECTION_MESSAGE =
+    /invalid refresh token|refresh[-_ ]?token[-_ ]?(?:not[-_ ]?found|revoked|expired)|invalid grant|invalid jwt|invalid claim|user not found/i;
+
+function isServerAuthRejection(error: unknown): boolean {
     if (!error || typeof error !== 'object') return false;
-    const candidate = error as {
-        message?: unknown;
+    const { name, message, status } = error as {
         name?: unknown;
+        message?: unknown;
         status?: unknown;
-        code?: unknown;
     };
-    if (candidate.status === 0 || candidate.name === 'AuthRetryableFetchError') return true;
-    if (candidate.code === 'NETWORK_ERROR' || candidate.code === 'ETIMEDOUT') return true;
-    if (typeof candidate.message !== 'string') return false;
-    return /network request failed|failed to fetch|fetch failed|network unavailable|\boffline\b|timed? out/i
-        .test(candidate.message);
+    if (name === 'AuthApiError') return true;
+    // 4xx means the server answered; 408/429 are throttles, not credential verdicts.
+    if (typeof status === 'number' && status >= 400 && status < 500) {
+        return status !== 408 && status !== 429;
+    }
+    return typeof message === 'string' && SERVER_AUTH_REJECTION_MESSAGE.test(message);
 }
 
 /**
@@ -109,8 +118,10 @@ const BOOTSTRAP_TIMED_OUT = Symbol('auth-bootstrap-timeout');
 export async function resolveAuthBootstrap(
     client: AuthBootstrapClient | null
 ): Promise<AuthTransitionIntent> {
+    // No Supabase configured — or no client could be created — is not a reason to
+    // hide the on-device journal: the last known account opens offline.
     if (!client) {
-        return { type: 'signed-out' };
+        return resolveRememberedAccountOffline();
     }
 
     const pending = client.auth.getSession();
@@ -130,19 +141,17 @@ export async function resolveAuthBootstrap(
         }
 
         const { data, error } = settled;
-        if (error) {
-            return isNetworkTransportFailure(error)
-                ? resolveRememberedAccountOffline()
-                : { type: 'signed-out' };
-        }
         if (data.session && !data.session.user.is_anonymous) {
             return { type: 'session', session: data.session };
         }
-        return { type: 'signed-out' };
+        if (error && isServerAuthRejection(error)) {
+            return { type: 'signed-out' };
+        }
+        return resolveRememberedAccountOffline();
     } catch (error) {
-        return isNetworkTransportFailure(error)
-            ? resolveRememberedAccountOffline()
-            : { type: 'signed-out' };
+        return isServerAuthRejection(error)
+            ? { type: 'signed-out' }
+            : resolveRememberedAccountOffline();
     } finally {
         cancelTimeout();
     }

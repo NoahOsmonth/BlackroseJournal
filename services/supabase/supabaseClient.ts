@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { AppState, Platform, type NativeEventSubscription } from 'react-native';
 import { isRemoteDataSyncEnabled } from '@/services/data/dataProvider';
 import { getSupabaseConfig } from './supabaseConfig';
+import { resilientAuthLock } from './authLock';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 const MISSING_CONFIG_MESSAGE =
@@ -86,6 +87,10 @@ export function getSupabaseClient(): SupabaseClient | null {
             autoRefreshToken: true,
             persistSession: true,
             detectSessionInUrl: false,
+            // Navigator locks abort queued acquires after 10s; a single
+            // unreachable auth server holds the lock for ~30s of refresh
+            // retries, which used to surface as uncaught AbortErrors.
+            lock: resilientAuthLock,
         },
     });
     registerAuthRefreshLifecycle(supabaseClient);
@@ -93,14 +98,58 @@ export function getSupabaseClient(): SupabaseClient | null {
     return supabaseClient;
 }
 
+/**
+ * The slice of a Supabase session these services consume. Declared structurally
+ * so tests can inject a plain object and so callers only depend on what they use.
+ */
+export interface SupabaseSessionLike {
+    readonly access_token: string;
+    readonly user: { readonly id: string; readonly is_anonymous?: boolean };
+}
+
+/**
+ * The slice of a Supabase auth client these services consume. Declared
+ * structurally so tests can inject a plain object.
+ */
+export interface SupabaseSessionReader {
+    auth: {
+        getSession(): Promise<{
+            data: { session: SupabaseSessionLike | null };
+            error: { message: string } | null;
+        }>;
+    };
+}
+
+/**
+ * `auth.getSession()` rejects (rather than returning `{ error }`) when the
+ * underlying lock acquire aborts or the transport dies. Every caller that only
+ * wants "is there a session?" goes through here so those faults stay soft.
+ */
+export async function getSessionSafely(
+    client: SupabaseSessionReader
+): Promise<{ session: SupabaseSessionLike | null; error: Error | null }> {
+    try {
+        const { data, error } = await client.auth.getSession();
+        if (error) {
+            return { session: null, error: new Error(error.message) };
+        }
+        return { session: data.session ?? null, error: null };
+    } catch (thrown) {
+        return {
+            session: null,
+            error: thrown instanceof Error ? thrown : new Error(String(thrown)),
+        };
+    }
+}
+
 async function ensureAnonymousSession(client: SupabaseClient): Promise<boolean> {
-    const { data, error } = await client.auth.getSession();
+    const { session, error } = await getSessionSafely(client);
 
     if (error) {
         console.warn('Supabase session error:', error.message);
     }
 
-    if (data?.session) {
+    if (session) {
         return true;
     }
 
@@ -144,6 +193,6 @@ export async function getSupabaseUserId(): Promise<string | null> {
         return null;
     }
 
-    const { data } = await client.auth.getSession();
-    return data?.session?.user?.id ?? null;
+    const { session } = await getSessionSafely(client);
+    return session?.user?.id ?? null;
 }

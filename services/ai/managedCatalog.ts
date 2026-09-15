@@ -10,7 +10,7 @@ import {
     getActiveAccountId,
     registerAccountTeardown,
 } from '@/services/account/accountRuntime';
-import { getSupabaseClient } from '@/services/supabase/supabaseClient';
+import { getSupabaseClient, getSessionSafely } from '@/services/supabase/supabaseClient';
 
 interface StorageAdapter {
     getItem(key: string): Promise<string | null>;
@@ -88,10 +88,10 @@ function defaultGatewayBaseUrl(): string {
 async function defaultAccessToken(): Promise<string> {
     const client = getSupabaseClient();
     if (!client) throw new Error('Supabase authentication is not configured.');
-    const { data, error } = await client.auth.getSession();
+    const { session, error } = await getSessionSafely(client);
     if (error) throw new Error(error.message);
-    const token = data.session?.access_token;
-    if (!token || data.session?.user?.is_anonymous) {
+    const token = session?.access_token;
+    if (!token || session?.user?.is_anonymous) {
         throw new Error('Managed AI requires an authenticated account.');
     }
     return token;

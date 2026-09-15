@@ -6,7 +6,7 @@ import {
     type NormalizedInferenceEvent,
     type NormalizedInferenceRequest,
 } from '@blackrose/ai-control-plane-contracts';
-import { getSupabaseClient } from '@/services/supabase/supabaseClient';
+import { getSupabaseClient, getSessionSafely } from '@/services/supabase/supabaseClient';
 import {
     acquireAccountOperationLease,
     runAccountBoundOperation,
@@ -29,12 +29,9 @@ type ManagedSessionProvider = (signal?: AbortSignal) => Promise<ManagedSessionId
 const defaultSessionProvider: ManagedSessionProvider = async () => {
     const client = getSupabaseClient();
     if (!client) return null;
-    const { data, error } = await client.auth.getSession();
-    if (error) throw new Error('Unable to verify the managed AI session.');
-    if (data.session?.user?.is_anonymous) return null;
-    const accessToken = data.session?.access_token;
-    const userId = data.session?.user?.id;
-    return accessToken && userId ? { accessToken, userId } : null;
+    const { session, error } = await getSessionSafely(client);
+    if (error || !session || session.user.is_anonymous) return null;
+    return { accessToken: session.access_token, userId: session.user.id };
 };
 
 let sessionProvider: ManagedSessionProvider = defaultSessionProvider;

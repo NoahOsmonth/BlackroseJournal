@@ -132,7 +132,7 @@ Every change updates or adds tests. If a test isn't feasible, document why in `P
 
 `AppHeader` (`components/navigation`) for Today + History headers, `useHeaderActions`, `useTabNavigation`. Prefer `router.navigate` over `router.push` for tab switches. Don't reinvent navigation per screen.
 
-### 9. AI context is layered; long-term recall is Hindsight-backed.
+### 9. AI context is layered; long-term recall is **offline files first**, Hindsight is the fallback.
 
 | Layer | What | Where |
 |---|---|---|
@@ -141,11 +141,14 @@ Every change updates or adds tests. If a test isn't feasible, document why in `P
 | Memory capsule | Ranked atoms (with dates on lines) | `localMemory.ts` → `buildLocalMemoryContext` |
 | Full transcripts | On demand only | Tools: `get_conversation` reads journal/check-in storage |
 | Session compact | Older turns → rolling summary when ctx fills | `conversationCompact.ts` inside `streamChat` / `completeChat` |
-| Long-term recollections | Hindsight container (local-first) | `services/memory/hindsight/` — retain on finish, recall block + `recall_memory` tool |
+| **Offline memory files** | Frontmatter docs + manifest index — the primary long-term layer, works with Hindsight **and** Supabase down | `services/memory/memoryFiles.ts` → `memory_search` / `memory_list` / `memory_get` via `memoryRetrieval.ts` |
+| Dream consolidation | `_tmp` staged files → LLM rewrite with merge reasons (local keyword fallback when the provider is down) | `memoryStage.ts`, `memoryDream.ts` |
+| Long-term recollections | Hindsight container — **fallback only**, used when `memory_search` has nothing | `services/memory/hindsight/` — retain on finish, `recall_memory` tool |
+| Drive backup (manual) | Export/restore bundle of memory files + identity + digests | `services/backup/driveBackup.ts` |
 
-Long-term memory is **Hindsight** (vectorize-io, local Docker): every completed journal entry / check-in fires a fire-and-forget retain (`retainJournalEntryToHindsight` / `retainCheckInToHindsight`); **recall is tool-driven** — the AI calls `recall_memory` on demand (curiosity nudge in `HISTORY_TOOLS_POLICY`); the send path never awaits Hindsight and no reactive recall block is injected into prompts (`ChatFlowContext.retrievedHistoryContext` stays as the flow slot the tool fills mid-reply). Everything is **soft-fail**: Hindsight down → chat, finish path, and navigation are unaffected. Gemini (`gemini-embedding-001`, 768-dim) is **embeddings-only — never an LLM**; all LLM work goes to the local OmniRoute gateway (structured default `merge/deepseek/deepseek-v4-flash-0731`; free dump-prone models are fallback only). The abandoned custom cloud-memory platform (`LOCAL → MIRROR → SHADOW → CLOUD`) was removed 2026-08-18 — never resurrect it or its storage keys (`@rosebud_cloud_memory_mirror_outbox`, `@rosebud_memory_dataset_binding`). OpenRouter was removed 2026-09-10 — OmniRoute (`http://100.107.7.52:20128/v1`, data-plane key) is the only chat gateway; do not re-add openrouter.ai defaults.
+**Offline-first doctrine (Hindsight + Supabase are enhancements, never requirements).** Journal/check-in finish stages a memory file into `_tmp` alongside the existing atoms (`memoryStage.ts`); `memory_search` → `memory_get` is the primary recall path and is fully on-device (gate → thread shortlist → header scan → body budgets, 12k/file & 30k total, 30s cache in `memoryRetrieval.ts`). Hindsight (vectorize-io, local Docker) still retains on finish (`retainJournalEntryToHindsight` / `retainCheckInToHindsight`) and stays the deep-history fallback through `recall_memory` — but it is **never** a dependency: with it down, chat, finish, recall, and navigation behave exactly as with it up. Gemini (`gemini-embedding-001`, 768-dim) is **embeddings-only — never an LLM**; all LLM work goes to the local OmniRoute gateway (structured default `merge/deepseek/deepseek-v4-flash-0731`; free dump-prone models are fallback only). The abandoned custom cloud-memory platform (`LOCAL → MIRROR → SHADOW → CLOUD`) was removed 2026-08-18 — never resurrect it or its storage keys (`@rosebud_cloud_memory_mirror_outbox`, `@rosebud_memory_dataset_binding`). OpenRouter was removed 2026-09-10 — OmniRoute (`http://100.107.7.52:20128/v1`, data-plane key) is the only chat gateway; do not re-add openrouter.ai defaults.
 
-Guard: `__tests__/backend-local-only.test.ts` (cloud-memory removal boundary + credential isolation).
+Guard: `__tests__/backend-local-only.test.ts` (cloud-memory removal boundary + credential isolation), `__tests__/services/memory/memoryFiles.test.ts`, `memoryRetrieval.test.ts`.
 
 ### 10. System prompts: long freeform vs short guided — don't mix them up.
 
@@ -171,11 +174,25 @@ Registry: `services/ai/tools/*`. Agent loop: `services/ai/agentLoop.ts`. Wired f
 | `search_history` | Topic search across digests + atoms |
 | `get_identity` | Re-read always-on identity profile (usually already injected) |
 | `update_identity` | Optional pin of durable identity; secondary to automatic extraction |
+| `memory_search` / `memory_list` / `memory_get` | **Primary long-term recall** — offline memory files (gate → shortlist → headers → bodies). Search first, then `memory_get` with exact ids; never invent ids. |
+| `memory_overview` / `memory_flush` / `memory_dream` | Index/compact the offline store (Dream consolidates `_tmp` into promoted files) |
+| `recall_memory` | Hindsight **fallback only** — when `memory_search` has nothing |
 
 - Soft-fail if the provider rejects tools → fall back to streaming + clock/digests/eager prefetch (`historyPrefetch.ts`).
 - Proactive enablement: history intent, long rants, tired/work/today cues, first real turns — **not** every `"hi"` (latency). See `shouldEnableHistoryTools` in `ai.ts`.
 - Clear history must also `clearDayDigests()` **and** `clearIdentityProfile()` (`useClearJournalHistory`).
 - **Identity core memory** is separate from ranked atoms: `@rosebud_identity_profile` via `identityProfile.ts` / turn-level `identityExtraction.ts`. Always inject `## Identity` early in `composeHistoryContextBlocks` — never rely on the 6-atom capsule for preferred name.
+
+### 12. Boot is local-first: no Supabase, no Hindsight, no network — the journal still opens.
+
+Supabase auth is an **enhancement, not a gate on local data**. Verified failure modes and their rules:
+
+- Only two things may end local access: an explicit `SIGNED_OUT` event (auth-js emits it only after it removed the stored session — user sign-out, or a refresh token the *server* rejected) or a server-side rejection (`AuthApiError`, 4xx except 408/429). Transport faults, lock aborts, blackholes, unexpected exceptions and a plain sessionless answer mean **unconfirmed**, not signed out → `{ type: 'offline' }` with `loadRememberedAccount()` (`services/auth/authBootstrap.ts`).
+- `bootstrapAuth(null)` (no Supabase configured — a pure local build) reopens the remembered account offline. Never show an auth screen the build can never satisfy, and never `clearRememberedAccount()` on a boot that merely failed to confirm a session.
+- Never let a supabase-js lock abort escape: pass `lock: resilientAuthLock` (`services/supabase/authLock.ts`) and read sessions through `getSessionSafely()` (`services/supabase/supabaseClient.ts`). Navigator locks abort queued acquires with a raw `AbortError` after `lockAcquireTimeout` (10s), and one unreachable auth server holds the lock for ~30s of refresh retries — concurrent boot callers (any second tab) used to throw `signal is aborted without reason` as an uncaught page error.
+- `AUTH_BOOTSTRAP_TIMEOUT_MS` (8s) caps the cold-boot probe so a blackholed Supabase cannot leave the app spinning on the loading screen.
+
+Guard tests: `__tests__/services/auth/authBootstrap.test.ts`, `__tests__/services/supabase/authLock.test.ts`, `__tests__/services/supabase/supabaseClientSafety.test.ts`.
 
 ---
 
@@ -215,7 +232,7 @@ View-model types must not reuse a stored type's name (e.g. `MemoryGraphAtom` is 
 - `features/chat/` — shared chat engine (`useChatOrchestration`, flows, session flush/resume).
 - `constants/aiPrompts.ts`, `constants/rosebudCompanionPrompt.ts` — companion system prompts.
 - `services/ai/` — transport, tools, agent loop, compact, streaming (phone → provider).
-- `services/memory/` — localMemory atoms + day digests + graph helpers; `services/memory/hindsight/` is the Hindsight client (retain/recall/reflect, soft-fail).
+- `services/memory/` — offline file memory (`memoryFiles.ts` store, `memoryRetrieval.ts` recall, `memoryStage.ts` / `memoryDream.ts` consolidation) + localMemory atoms + day digests + graph helpers; `services/memory/hindsight/` is the Hindsight client (retain/recall/reflect, soft-fail, **fallback tier**).
 - `backend/` — Node AI proxy (optional local agent). AI provider config lives in `backend/src/config/ai/`. **`NANO_GPT_*` env names are legacy.** Production chat remains **device-direct** (`directTransport.ts`); the backend is not part of the chat path.
 - `example-design/` — HTML/CSS reference prototypes. Not deployed. Copy patterns out; never modify.
 - `example-design/concepts/generated/` — **Blackrose design-source PNGs** (quiet literary system). Read these before any UI work; do not treat old Rosebud HTML as the target look.
@@ -261,6 +278,11 @@ RUN_INTEGRATION_TESTS=1 npx jest --runInBand --testPathPattern="integration" --f
 
 # Regenerate long companion prompt (keep 5k–8k words)
 node scripts/generate-rosebud-prompt.mjs
+
+# Offline / outage E2E probe (Playwright, blocks Supabase + Hindsight hosts)
+node scripts/e2e/pw-memory-recall-offline.mjs                 # recall with both down
+E2E_BOOT_ONLY=1 node scripts/e2e/pw-memory-recall-offline.mjs  # boot gate only
+E2E_HEADLESS=0 E2E_BASE_URL=http://localhost:8081 node scripts/e2e/pw-memory-recall-offline.mjs
 
 npx tsc --noEmit
 npm run lint
@@ -333,6 +355,9 @@ Key files:
 | Prefetch | `services/ai/historyPrefetch.ts` |
 | Digests | `services/memory/dayDigestStorage.ts` |
 | Capsule | `services/memory/localMemory.ts` |
+| Offline memory files | `services/memory/memoryFiles.ts` + `memoryRetrieval.ts` |
+| Auth / local-first boot | `services/auth/authBootstrap.ts`, `services/supabase/authLock.ts` |
+| Hindsight (fallback) | `services/memory/hindsight/` |
 | Live test | `__tests__/integration/rosebudHistoryLive.test.ts` |
 | Design notes | `memory.md` |
 
@@ -349,6 +374,7 @@ Key files:
    - Backend is optional; device-direct path is the source of truth.
 7. **E2E-required gate (learned the hard way):** Jest green is **not** sufficient for LLM extraction/identity/recall work. Unit tests can all pass while the live flash model rejects `response_format: json_object` and every extract soft-fails with no write. Any phase that touches structured extraction, identity write path, session digests, or memory **recall** must be verified with a real Playwright run against the running app before calling it done. Paste verbatim assistant replies, not summaries.
 8. **Memory/recall E2E must run against cleared demo data.** First-launch seed (and residual seed rows) pollute digests/capsule/History and invalidate recall assertions — proven by Test B blending “Sunday reset” / “argument that kept looping” with real entries. Clear demo (or use empty storage) before recall probes.
+9. **Offline-boot gate:** any change to auth, boot, memory recall, or backup must be verified with the app **offline** — Supabase unreachable (`:54321`) and Hindsight unreachable (`:8787`) — and must show the local journal rendered (`/today` with content, 0 page errors), not a spinner and not `/forgot-password`. A green Jest suite cannot see a navigator-lock abort or a wiped remembered account.
 
 ## Done = all of these
 
@@ -358,6 +384,7 @@ Key files:
 - [ ] `PROGRESS.md` updated.
 - [ ] Nothing in "What NOT to touch" was modified.
 - [ ] If AI history/tools/prompts changed: storage-key ownership respected; digests write on finish; clear-history clears digests; freeform vs guided prompt not swapped.
+- [ ] If auth / boot / memory-recall changed: verified offline (Supabase + Hindsight unreachable) — journal renders, no uncaught page errors (rule 12).
 
 ## Living changelog of pain
 
@@ -376,3 +403,5 @@ This file grows from real incidents only. When an agent does something wrong, ad
 - Sabotage required for real behavior fixes: deliberate break → confirm red → restore → confirm green; paste real output. Never mock the unit under test.
 - Test B day-slip: injected dates are **write day**; event weekdays live only in user prose. Clock doctrine + "Written YYYY-MM-DD" labels required; do not invent structured event-date extraction without a plan.
 - Demo seed is **dev-only** (`__DEV__`); production first launch stays empty. Memory/recall E2E must clear seed before probes.
+- `signal is aborted without reason` (uncaught, Expo red box) → supabase-js navigator-lock acquire aborts at 10s while a refresh against a dead auth host holds the lock ~30s. Custom `resilientAuthLock` + `getSessionSafely()` (rule 12); do not "fix" by raising `lockAcquireTimeout` alone — the rejection still escapes.
+- A sessionless boot wiped `rememberedAccountId`, so one failed boot locked the user out of their own on-device journal forever (login screen with Supabase down) → boot failures stay **unconfirmed/offline**; only explicit `SIGNED_OUT` or a server-side auth rejection ends local access (rule 12).

@@ -20,13 +20,21 @@ describe('AGENTS memory graph guidance', () => {
         expect(source).toContain('cd backend && npx tsc --noEmit');
     });
 
-    it('documents the Hindsight long-term recall contract', () => {
-        expect(source).toContain('long-term recall is Hindsight-backed');
+    it('documents the offline-first long-term recall contract', () => {
+        expect(source).toContain('offline files first');
+        expect(source).toContain('memory_search');
         expect(source).toContain('retainJournalEntryToHindsight');
         expect(source).toContain('recall_memory');
         expect(source).toContain('gemini-embedding-001');
         expect(source).toContain('embeddings-only');
         expect(source).toContain('@rosebud_cloud_memory_mirror_outbox');
         expect(source).toContain('backend-local-only.test.ts');
+    });
+
+    it('documents the local-first boot contract', () => {
+        expect(source).toContain('Boot is local-first');
+        expect(source).toContain('resilientAuthLock');
+        expect(source).toContain('getSessionSafely');
+        expect(source).toContain('AUTH_BOOTSTRAP_TIMEOUT_MS');
     });
 });
