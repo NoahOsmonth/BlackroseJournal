@@ -109,3 +109,8 @@ live-run*.log
 
 # Playwright probe output (logs + screenshots, never commit)
 /output/
+.fusion/
+.pi/
+fusion.db
+fusion.db-wal
+fusion.db-shm
