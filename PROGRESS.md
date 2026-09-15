@@ -1,6 +1,78 @@
 # PROGRESS — Optimization + Bug Hunt (2026-09-02)
 
-## 2026-09-15 (latest) — Local-first boot: the navigator-lock abort crash and the account-wipe lockout
+## 2026-09-15 (latest) — Memory-plan archaeology recovered + context-retention deep plan
+
+The memory architecture went through **three eras** and the documents for the first two
+were deleted, leaving two live docs pointing at files that no longer existed.
+
+### Recovered — `.planning/archive/` (11 files, 14,125 lines)
+- **Era 1** — `idea.md`, *Rosebud Memory Loom* (phone-local atoms, six layers,
+  5-phase roadmap). Deleted 2026-09-01 by `3d044aa`; recovered from `3d044aa^`.
+- **Era 2** — 8 cloud-memory plans/specs (Phases 0–9). Deleted 2026-08-18 by
+  `f2415ff`; recovered from `f2415ff^`.
+- `2026-08-18-hindsight-integration.md` — deleted separately by `88845b1`
+  ("remove superpowers framework"); recovered from `88845b1^`.
+- New `.planning/archive/README.md` indexes all three eras, records which Loom
+  phases actually landed (**1–2 landed; 3 and 5 never built; 4 partial**) and
+  carries the do-not-implement rule for Era 2.
+
+Every recovered file carries a banner naming its deletion commit, recovery blob, and
+status. **Era 2 stays dead** — requirements and invariants only, never implementation.
+
+### Fixed links
+- `PLAN.md` listed five cloud-memory files as "the approved 2026-07-28
+  architecture" and claimed "Phase 0 is complete and Phase 1 is next" — about a
+  plan whose docs were removed a month earlier. Replaced with accurate status +
+  pointers to `.planning/offline-memory/PLAN.md` and AGENTS.md rules 9–12.
+- `memory.md` pointed at the deleted hindsight-integration plan, and was flagged
+  inline as superseded where it still called Hindsight "long-term memory" (now
+  the fallback tier) and named OpenRouter as the only provider (removed
+  2026-09-10; OmniRoute is the gateway).
+
+### New — `.planning/context-retention/` (deep plan)
+`PLAN.md` (334 lines) + `RESEARCH.md` (210 lines), built on Memory Loom phases 3–5 +
+ClawX Dream rules, grafted onto the current offline-file architecture. Six phases:
+
+| Phase | Content | Verified gap |
+|---|---|---|
+| **R0** | Measurement harness — seeded ledger + planted needles, six metrics | nothing about recall is measured today |
+| **R1** | Background/idle Dream trigger (logic exists; only the trigger is missing) | `runMemoryDream` is tool-only — `memoryFileTools.ts:122` |
+| **R2** | Supersession + fading, manual content immune | Era 1 Phase 3's unbuilt half |
+| **R3** | Entity links → temporal queries → prospection, each gated on R0 | Era 1 Phases 4–5 |
+| **R4** | Finish-path perf budget + socket-pool regression guard | 28,214-request incident |
+| **R5** | Compaction durability contract | `conversationCompact.ts:153` |
+
+**Locked:** Finish keeps the title call blocking; `FINISH_TITLE_TIMEOUT_MS`
+8 000 → **2 500 ms** (`app/chat.tsx:49`), justified by the measured 1.43 s title
+latency (~1.7× headroom over p50, worst case 8 s → 2.5 s). No idle scheduler exists
+today — the only `AppState` listener in the repo is auth refresh
+(`supabaseClient.ts:32-35`); `memoryRollupBuild.ts:22` states rollups run on app open,
+"not a background timer".
+
+### Correction to a prior follow-up
+`.planning/debug/finish-entry-hang.resolved.md` lists "no ceiling on a hung
+`generateEntryReflection`" as open. **Stale** — `REFLECTION_TIMEOUT_MS = 30_000` exists
+and is applied (`hooks/journal/useEntryReflection.ts:16`, `:89`; landed in `076fe31`).
+Recorded as closed instead of repeated.
+
+### Verification
+- `__tests__/backend-local-only.test.ts` **3/3 green** — its scan roots are
+  `app components hooks services backend/src utils constants shared` for
+  `.ts/.tsx/.js/.jsx`, so `.planning/` markdown is outside every one of them.
+- `npx tsc --noEmit` exit 0 · `npm run check:design` PASSED (176 OK, 3 pre-existing
+  size warnings) · all links in `PLAN.md` / `memory.md` / archive README resolve.
+- Docs-only change: no source, lockfile, migration, or `example-design/` file touched.
+
+### Follow-ups (not done)
+- **R0 not started** — it blocks R1–R5 validation and is the first board task.
+- Idle trigger thresholds (staged-count, hours-since-Dream) still unset; an acceptable
+  Dream false-merge rate is undefined.
+- `.env` self-disagreement (`EXPO_PUBLIC_SUPABASE_URL` tailnet IP vs `SUPABASE_URL`
+  `127.0.0.1`) still open from the entry below.
+
+---
+
+## 2026-09-15 — Local-first boot: the navigator-lock abort crash and the account-wipe lockout
 
 Follow-up to `07d25cd` (expired token + unreachable Supabase), re-tested on the pulled tree with this machine's own Supabase **actually down**: `.env` points `EXPO_PUBLIC_SUPABASE_URL` at `http://100.107.7.52:54321` — this box's Tailscale IP — and `curl` gets connection refused (Docker runs only `omniroute` / `omniroute-redis`). Two defects survived that fix.
 
