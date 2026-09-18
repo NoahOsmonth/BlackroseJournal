@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import type { Persona } from '@/services/personas/personasStorage.types';
+import { webConfirm } from '@/components/ui/webConfirm';
 
 interface UsePersonaSettingsActionsOptions {
     activePersona?: Persona | null;
@@ -48,16 +49,19 @@ export function usePersonaSettingsActions({
     };
 
     const deletePersona = (persona: Persona) => {
-        Alert.alert('Delete persona?', `This removes ${persona.name} from your device.`, [
+        const message = `This removes ${persona.name} from your device.`;
+        const runDelete = async () => {
+            await remove(persona.id);
+            closeSettings();
+        };
+        const confirmed = webConfirm(message);
+        if (confirmed !== null) {
+            if (confirmed) void runDelete();
+            return;
+        }
+        Alert.alert('Delete persona?', message, [
             { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Delete',
-                style: 'destructive',
-                onPress: async () => {
-                    await remove(persona.id);
-                    closeSettings();
-                },
-            },
+            { text: 'Delete', style: 'destructive', onPress: runDelete },
         ]);
     };
 

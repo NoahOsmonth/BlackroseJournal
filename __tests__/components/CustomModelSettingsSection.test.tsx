@@ -116,6 +116,51 @@ describe('CustomModelSettingsSection', () => {
         expect(props.addManualModel).toHaveBeenCalledWith('qwen-web/qwen3.8-max');
     });
 
+    // DEF-009: Alert.alert is a no-op under react-native-web, so the free-only
+    // unlock must confirm through window.confirm on web or the switch silently
+    // refuses to turn off.
+    it('confirms through window.confirm before showing paid models on web', () => {
+        const props = buildProps();
+        const confirmSpy = jest.fn(() => true);
+        const host = globalThis as unknown as { window?: { confirm: jest.Mock } };
+        const originalWindow = host.window;
+        host.window = { confirm: confirmSpy };
+        try {
+            render(<CustomModelSettingsSection {...props} />);
+            fireEvent.press(screen.getByLabelText('Free models only'));
+
+            expect(confirmSpy).toHaveBeenCalledTimes(1);
+            expect(props.setFreeOnly).toHaveBeenCalledWith(false);
+        } finally {
+            host.window = originalWindow;
+        }
+    });
+
+    it('keeps free-only when the web confirmation is declined', () => {
+        const props = buildProps();
+        const host = globalThis as unknown as { window?: { confirm: jest.Mock } };
+        const originalWindow = host.window;
+        host.window = { confirm: jest.fn(() => false) };
+        try {
+            render(<CustomModelSettingsSection {...props} />);
+            fireEvent.press(screen.getByLabelText('Free models only'));
+
+            expect(props.setFreeOnly).not.toHaveBeenCalled();
+        } finally {
+            host.window = originalWindow;
+        }
+    });
+
+    it('turns free-only back on without any confirmation', () => {
+        const props = buildProps();
+        props.settings = { ...props.settings, freeOnly: false };
+        render(<CustomModelSettingsSection {...props} />);
+
+        fireEvent.press(screen.getByLabelText('Free models only'));
+
+        expect(props.setFreeOnly).toHaveBeenCalledWith(true);
+    });
+
     it('does not call addManualModel with a blank id', () => {
         const props = buildProps();
         props.addManualModel = jest.fn().mockResolvedValue(undefined);

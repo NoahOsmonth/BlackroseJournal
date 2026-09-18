@@ -203,7 +203,7 @@ Guard tests: `__tests__/services/auth/authBootstrap.test.ts`, `__tests__/service
 | `@journal_entries` | `services/journal/journalStorage.ts` |
 | `@intentions`, `@intention_checkins` | `services/intentions/intentionsStorage.ts` |
 | `@goals` | `services/goals/goalsStorage.ts` |
-| `@rosebud_local_memory` (v2 envelope, pruned at 400 atoms) | `services/memory/localMemory.ts` |
+| `@rosebud_local_memory` (v3 header index: shardCount + atomCount, **no atoms**) + `@rosebud_local_memory_shard:<0-7>` (atom bodies, ~425 KB per key at the 4000-atom cap) | `services/memory/localMemory.ts` |
 | `@rosebud_identity_profile` (always-on name/pronouns/people/facts) | `services/memory/identityProfile.ts` |
 | `@blackrose_day_digests` (calendar-day rollups for AI history tools) | `services/memory/dayDigestStorage.ts` |
 | `@rosebud_session_digest_index` + `@rosebud_session_digest:<id>` (sharded session digests + embeddings; index has no vectors) | `services/memory/sessionDigestStorage.ts` |
@@ -221,6 +221,8 @@ View-model types must not reuse a stored type's name (e.g. `MemoryGraphAtom` is 
 **Write-path coupling:** journal finish → `saveJournalEntryMemories` **and** `upsertJournalDayDigest` **and** `buildAndSaveSessionDigest` **and** `stageJournalEntryMemoryFiles` (offline `_tmp` memory files) **and** fire-and-forget `retainJournalEntryToHindsight` (`journalFinishSideEffects.ts`). Check-in complete → `saveIntentionCheckInMemories` **and** `upsertCheckInDayDigest` **and** `buildAndSaveSessionDigest` **and** `stageCheckInMemoryFiles` (completed branch of `intentionsStorage.ts`) **and** fire-and-forget `retainCheckInToHindsight`. Local backup includes day digests + packed session-digest bundle (`services/backup/localBackup.ts`). Clear history must also `clearSessionDigests()`, `clearMemoryRollups()`, **and** `clearMemoryFiles()` (`useClearJournalHistory`); the dev demo clear removes memory files staged from the seed ledger's session ids only (`deleteMemoryFilesBySourceSessions`).
 
 **Session digest sharding:** never store all embeddings under one AsyncStorage key (Android ~2MB/key). One record key per digest + lightweight index. Aggregate Android DB size: `AsyncStorage_db_size_in_MB` in `android/gradle.properties`.
+
+**Atom sharding:** the atom store follows the same rule — 8 shard keys + a header index. Raising `MAX_MEMORY_ATOMS` (400 → 4000) without sharding would have written a 3 MB single value, past Android's per-key ceiling. Restore paths write atoms with `importMemoryAtoms` (one locked batch); a per-atom `upsertMemoryAtom` loop at a full store measures 220 ms *per atom*. Legacy v1/v2 single-value payloads fold in on load and are rewritten as shards on the next save.
 
 ---
 
@@ -405,3 +407,4 @@ This file grows from real incidents only. When an agent does something wrong, ad
 - Demo seed is **dev-only** (`__DEV__`); production first launch stays empty. Memory/recall E2E must clear seed before probes.
 - `signal is aborted without reason` (uncaught, Expo red box) → supabase-js navigator-lock acquire aborts at 10s while a refresh against a dead auth host holds the lock ~30s. Custom `resilientAuthLock` + `getSessionSafely()` (rule 12); do not "fix" by raising `lockAcquireTimeout` alone — the rejection still escapes.
 - A sessionless boot wiped `rememberedAccountId`, so one failed boot locked the user out of their own on-device journal forever (login screen with Supabase down) → boot failures stay **unconfirmed/offline**; only explicit `SIGNED_OUT` or a server-side auth rejection ends local access (rule 12).
+- The 400-atom cap was a storage bound wearing a policy's clothes: one AsyncStorage value can hold ~2 MB and 4000 atoms measure 3 MB. Shard the key *before* raising a cap, and keep restore paths on `importMemoryAtoms` — a per-atom loop at a full store is 220 ms per atom.

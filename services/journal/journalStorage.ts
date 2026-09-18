@@ -354,16 +354,10 @@ export function clearAllEntries(): Promise<void> {
             const entries = await getAllEntriesMap(storage, context);
             const entryIds = Object.keys(entries);
 
-            if (entryIds.length > 0) {
-                try {
-                    await deleteRemoteJournalEntries(entryIds);
-                    assertAccountOperationActive(context);
-                } catch (error) {
-                    if (context.signal.aborted) throw error;
-                    console.warn('Failed to delete remote journal entries:', error);
-                }
-            }
-
+            // LOCAL FIRST (DEF-011). The wipe is a device-local action; it must
+            // finish even when the remote gateway is unreachable, because the
+            // auth refresh it triggers can abort this lease mid-transaction.
+            // Everything below the local phase is best-effort cleanup.
             await Promise.all(entryIds.map((entryId) => (
                 queueJournalEntryDeleteForAccount(entryId, context)
             )));
@@ -374,7 +368,6 @@ export function clearAllEntries(): Promise<void> {
 
             try {
                 await removeSyncTasksForTable(JOURNAL_TABLE);
-                assertAccountOperationActive(context);
             } catch (error) {
                 if (context.signal.aborted) throw error;
                 console.warn('Failed to remove pending journal sync tasks:', error);
@@ -382,13 +375,27 @@ export function clearAllEntries(): Promise<void> {
 
             hasPulledRemote = false;
             hasPushedLocal = false;
+
+            if (entryIds.length > 0) {
+                try {
+                    await deleteRemoteJournalEntries(entryIds);
+                } catch (error) {
+                    // Gateway down: the local data is already gone, so a failed
+                    // remote delete must not fail the wipe.
+                    console.warn('Failed to delete remote journal entries:', error);
+                }
+            }
+
+            // Account isolation contract (kept deliberately): a real account
+            // switch pauses and aborts this lease, and the caller must learn
+            // that the operation was aborted rather than see a silent success.
+            // The local wipe above is scoped to this context's account, so the
+            // abort can never clear the other account's rows.
+            assertAccountOperationActive(context);
         });
     });
 }
 
-/**
- * Get all entries as a JSON string for export.
- */
 export function getAllEntriesForExport(): Promise<string> {
     return runAccountBoundOperation('journal-export', async (context) => {
         const list = await listEntriesForAccount(

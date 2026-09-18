@@ -25,6 +25,7 @@ import { SkeletonProvider } from '@/components/ui/SkeletonProvider';
 import { WoltTransitionManager } from '@/components/ui/WoltTransitionManager';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthSession } from '@/hooks/auth/useAuthSession';
+import { useIdleDreamTrigger } from '@/hooks/memory/useIdleDreamTrigger';
 import { useThemeSettings } from '@/hooks/useThemeSettings';
 import { scheduleMemoryRollupsOnAppOpen } from '@/services/memory/memoryRollupBuild';
 import { seedDemoDataIfFirstLaunch } from '@/services/seed/seedDemoData';
@@ -47,6 +48,8 @@ SplashScreen.preventAutoHideAsync().catch(() => { });
 export default function RootLayout() {
     useThemeSettings();
     const auth = useAuthSession();
+    // R1: consolidate staged memory files on idle (never mid-turn, never backgrounded).
+    useIdleDreamTrigger(Boolean(auth.user?.id));
     const segments = useSegments();
     const colorScheme = useColorScheme();
     const [appReady, setAppReady] = useState(false);

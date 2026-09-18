@@ -22,7 +22,7 @@ import {
 import { InlineTypingInputRef } from '../../../components/InlineTypingInput';
 import { DAILY_PROMPTS, DailyPrompt, PromptPeriod } from '../../../constants/dailyPrompts';
 import { DirectConfigError } from '../../../services/ai/directConfig';
-import { Message, useChat } from '../../../services/ai';
+import { isChatAbortedError, Message, useChat } from '../../../services/ai';
 import { createTemporalMessage } from '../../../services/ai/messageTemporalMetadata';
 import { resolveGenerationSettings } from '../../../services/ai/generationSettings';
 import {
@@ -102,19 +102,27 @@ export interface UseChatOrchestrationOptions {
     flowContext?: ChatFlowContext;
     /** When provided, the conversation is debounced-autosaved to the session store. */
     persist?: ChatPersistOptions;
+    /** Live composer text — persisted with the session so an unsent draft survives reload. */
+    getComposerDraft?: () => string;
+    /** Called with the persisted composer text when a session is restored (may be undefined). */
+    onComposerDraftRestore?: (draft: string | undefined) => void;
 }
 
 export interface UseChatOrchestrationReturn {
+    /** Called by the surface on composer keystrokes so unsent drafts autosave (DEF-007). */
+    noteComposerActivity: () => void;
     messages: Message[];
     streamingMessage: StreamingMessage | null;
     isLoading: boolean;
     errorMessage: string | null;
     canRetry: boolean;
     handleSendMessage: (text: string) => Promise<void>;
+    /** Aborts the active generation; partial text (if any) stays as a message. */
+    stopGeneration: () => void;
     retryLastMessage: () => Promise<void>;
     clearError: () => void;
     handleNewChat: () => void;
-    initializeMessages: (initialMessages: Message[]) => void;
+    initializeMessages: (initialMessages: Message[], composerDraft?: string) => void;
     /** Removes the autosaved session for the active conversation (call on finish/discard). */
     clearPersistedSession: () => Promise<void>;
     scrollToBottom: (options?: ScrollToBottomOptions) => void;
@@ -145,6 +153,8 @@ export function useChatOrchestration({
     flow,
     flowContext,
     persist,
+    getComposerDraft,
+    onComposerDraftRestore,
 }: UseChatOrchestrationOptions): UseChatOrchestrationReturn {
     const [messages, setMessages] = useState<Message[]>([]);
     const [streamingMessage, setStreamingMessage] = useState<StreamingMessage | null>(null);
@@ -169,6 +179,7 @@ export function useChatOrchestration({
         setConversationId,
         setGenerationSettings,
         setSystemPrompt,
+        stopGeneration: abortGeneration,
     } = useChat();
     const { settings: generationDefaults } = useGenerationSettings();
     const hasInitialized = useRef(false);
@@ -249,6 +260,11 @@ export function useChatOrchestration({
     // Keep the latest persist descriptor in a ref so the debounced save reads
     // current values without re-subscribing on every option change.
     const persistRef = useRef<ChatPersistOptions | undefined>(persist);
+    /** Latest getComposerDraft — read by the autosave timer without re-subscribing. */
+    const getComposerDraftRef = useRef<(() => string) | undefined>(getComposerDraft);
+    getComposerDraftRef.current = getComposerDraft;
+    /** Bumped on composer keystrokes so the autosave effect re-arms (DEF-007). */
+    const [composerActivityTick, setComposerActivityTick] = useState(0);
     persistRef.current = persist;
 
     // Prune stale/over-cap sessions once when a persistent chat mounts.
@@ -271,19 +287,23 @@ export function useChatOrchestration({
                 personaId: target.personaId,
                 routeParams: target.routeParams,
                 messages,
+                ...(getComposerDraftRef.current
+                    ? { composerDraft: getComposerDraftRef.current().trim() || undefined }
+                    : {}),
                 updatedAt: Date.now(),
                 createdAt: Date.now(),
             });
         }, PERSIST_DEBOUNCE_MS);
 
         return () => clearTimeout(timer);
-    }, [messages, persist?.conversationId, persist?.mode, persist?.personaId]);
+    }, [messages, composerActivityTick, persist?.conversationId, persist?.mode, persist?.personaId]);
 
     const clearPersistedSession = useCallback(async () => {
         const id = persistRef.current?.conversationId;
         if (!id) return;
         await removeSession(id);
     }, []);
+
 
     const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
         shouldAutoScrollRef.current = isNearBottom(event.nativeEvent);
@@ -361,7 +381,36 @@ export function useChatOrchestration({
         setErrorMessage(null);
     }, []);
 
+    /**
+     * End a generation that the user stopped. Keeps whatever streamed so far
+     * (partial text becomes a committed message) and never shows an error card.
+     */
+    const finishStoppedGeneration = useCallback((tempStreamingId?: string) => {
+        streamingToolActivityRef.current = [];
+        streamingStatusLinesRef.current = [];
+        setStreamingMessage((current) => {
+            const partial = current?.content ?? '';
+            const reasoning = current?.reasoning ?? '';
+            if (partial.trim().length > 0) {
+                const id = tempStreamingId ?? current?.id ?? `stopped-${Date.now()}`;
+                setMessages((prev) => [
+                    ...prev,
+                    commitAssistantMessage(id, partial, reasoning),
+                ]);
+            }
+            return null;
+        });
+        setIsLoading(false);
+        focusInput();
+    }, [commitAssistantMessage, focusInput]);
+
     const handleAiError = useCallback((error: Error) => {
+        // User Stop: never an error card — partials were already committed by
+        // finishStoppedGeneration; just settle quietly.
+        if (isChatAbortedError(error)) {
+            finishStoppedGeneration();
+            return;
+        }
         console.error('AI Error:', error);
         streamingToolActivityRef.current = [];
         streamingStatusLinesRef.current = [];
@@ -369,7 +418,14 @@ export function useChatOrchestration({
         setStreamingMessage(null);
         setIsLoading(false);
         focusInput();
-    }, [focusInput]);
+    }, [finishStoppedGeneration, focusInput]);
+
+    const stopGeneration = useCallback(() => {
+        if (!isLoading) return;
+        abortGeneration();
+        // Commit partials immediately; the aborted stream settles without error UI.
+        finishStoppedGeneration();
+    }, [abortGeneration, finishStoppedGeneration, isLoading]);
 
     // Seed static flow openers immediately (morning / evening / intention).
     // Avoids a free-model reasoning + agent-loop wait that leaves "…" on screen.
@@ -550,7 +606,7 @@ export function useChatOrchestration({
         } catch (error) {
             handleAiError(error instanceof Error ? error : new Error('Unknown error'));
         }
-    }, [sendMessage, scrollToBottom, focusInput, beginStreaming, clearError, handleAiError, handleAgentActivity, commitAssistantMessage]);
+    }, [sendMessage, scrollToBottom, focusInput, beginStreaming, clearError, handleAiError, handleAgentActivity, commitAssistantMessage, isLoading]);
 
     const retryLastMessage = useCallback(async () => {
         if (!lastUserMessage || isLoading) {
@@ -606,8 +662,8 @@ export function useChatOrchestration({
         focusInput();
     }, [clearMessages, focusInput, inputRef, setConversationId]);
 
-    const initializeMessages = useCallback((initialMessages: Message[]) => {
-        if (initialMessages.length === 0) return;
+    const initializeMessages = useCallback((initialMessages: Message[], composerDraft?: string) => {
+        if (initialMessages.length === 0 && !composerDraft) return;
         hasInitialized.current = true;
         setMessages(initialMessages);
         setChatMessages(initialMessages);
@@ -615,10 +671,19 @@ export function useChatOrchestration({
         setIsLoading(false);
         setErrorMessage(null);
         setLastUserMessage(null);
+        if (composerDraft) {
+            onComposerDraftRestore?.(composerDraft);
+            inputRef.current?.setText(composerDraft);
+        }
         scrollToBottom();
-    }, [scrollToBottom, setChatMessages]);
+    }, [scrollToBottom, setChatMessages, onComposerDraftRestore, inputRef]);
 
     const canRetry = Boolean(lastUserMessage);
+
+    /** Re-arm the autosave debounce so the latest composer text is snapshotted. */
+    const noteComposerActivity = useCallback(() => {
+        setComposerActivityTick((n) => n + 1);
+    }, []);
 
     return {
         messages,
@@ -626,12 +691,14 @@ export function useChatOrchestration({
         isLoading,
         errorMessage,
         canRetry,
+        noteComposerActivity,
         handleSendMessage,
         retryLastMessage,
         clearError,
         handleNewChat,
         initializeMessages,
         clearPersistedSession,
+        stopGeneration,
         scrollToBottom,
         handleScroll,
         currentPrompt,

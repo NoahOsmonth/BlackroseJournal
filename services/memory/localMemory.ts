@@ -19,12 +19,33 @@ import {
     extractCheckInMemoryAtoms,
     extractJournalMemoryAtoms,
 } from './memoryAtomExtraction';
-import { migrateAtomProvenance } from './memoryProvenance';
+import { migrateAtomProvenance, resolveRootSource } from './memoryProvenance';
 
+/**
+ * Index key. Holds `{ schemaVersion: 3, shardCount, atomCount }` — never atoms.
+ * Before sharding it held every atom, which is why the store was capped at 400:
+ * at the measured 500–840 bytes/atom (body length and tags vary) a 4000-atom
+ * store is a 2–3.4 MB value, at or past Android's ~2 MB per-key ceiling. Atom
+ * bodies now live one key per shard (LOCAL_MEMORY_SHARD_KEY_PREFIX): measured
+ * 425 KB per shard at a full store, and the trim bounds `mergeAtom` enforces
+ * (600-char content, ~12 tags) put the theoretical worst case near 900 KB —
+ * both inside the ceiling. Same doctrine as session digests: record keys plus
+ * an index.
+ */
 export const LOCAL_MEMORY_STORAGE_KEY = '@rosebud_local_memory';
+export const LOCAL_MEMORY_SHARD_KEY_PREFIX = '@rosebud_local_memory_shard:';
 export const LOCAL_MEMORY_CORRUPT_BACKUP_KEY = '@rosebud_local_memory_corrupt';
-export const LOCAL_MEMORY_SCHEMA_VERSION = 2;
-export const MAX_MEMORY_ATOMS = 400;
+export const LOCAL_MEMORY_SCHEMA_VERSION = 3;
+export const LOCAL_MEMORY_SHARD_COUNT = 8;
+
+/**
+ * History bound, not a storage bound. Measured against the deterministic
+ * extractor this is ~10 years of daily journaling; against the LLM extractor at
+ * a realistic 3 atoms/entry it is ~3.7 years, and each shard stays far below the
+ * Android per-key ceiling. Raising it further would need more shards, not a
+ * bigger value.
+ */
+export const MAX_MEMORY_ATOMS = 4000;
 
 const MAX_CONTEXT_ATOMS = 6;
 const MAX_CONTEXT_CHARS = 1200;
@@ -139,52 +160,207 @@ function sanitizeAtoms(value: unknown): Record<string, LocalMemoryAtom> {
     return result;
 }
 
-async function loadMemoryMap(): Promise<Record<string, LocalMemoryAtom>> {
-    const json = await memoryStorageAdapter.getItem(LOCAL_MEMORY_STORAGE_KEY);
-    if (!json) return {};
+interface LocalMemoryStore {
+    map: Record<string, LocalMemoryAtom>;
+    /** Index payload as loaded, so a save only rewrites it when the header moved. */
+    indexPayload: string | null;
+    /** Whether each shard key existed at load. */
+    shardExists: boolean[];
+    /**
+     * Canonical payload of each shard at load. Callers mutate `map` in place, so
+     * this has to be captured here rather than recomputed at save time.
+     */
+    shardCanonical: string[];
+}
 
-    let parsed: unknown;
-    try {
-        parsed = JSON.parse(json);
-    } catch {
-        // Corrupted payload (e.g. interrupted write). Preserve it for diagnosis,
-        // then start clean — memory must never crash its callers.
-        try {
-            await memoryStorageAdapter.setItem(LOCAL_MEMORY_CORRUPT_BACKUP_KEY, json);
-            await memoryStorageAdapter.removeItem(LOCAL_MEMORY_STORAGE_KEY);
-        } catch {
-            // Best effort only.
-        }
-        return {};
+interface LocalMemoryIndexPayload {
+    schemaVersion: number;
+    shardCount: number;
+    atomCount: number;
+}
+
+function shardStorageKey(index: number): string {
+    return `${LOCAL_MEMORY_SHARD_KEY_PREFIX}${String(index)}`;
+}
+
+/** FNV-1a over the atom key: stable, cheap, and spreads sequential ids evenly. */
+function shardIndexOf(atomKey: string): number {
+    let hash = 0x811c9dc5;
+    for (let i = 0; i < atomKey.length; i += 1) {
+        hash ^= atomKey.charCodeAt(i);
+        hash = Math.imul(hash, 0x01000193) >>> 0;
     }
+    return hash % LOCAL_MEMORY_SHARD_COUNT;
+}
 
+function atomsFromPayload(parsed: unknown): Record<string, LocalMemoryAtom> {
     if (typeof parsed !== 'object' || parsed === null) return {};
+    const record = parsed as Record<string, unknown>;
 
-    if ('schemaVersion' in (parsed as Record<string, unknown>)) {
-        const envelope = parsed as Partial<LocalMemoryEnvelope>;
-        return sanitizeAtoms(envelope.atoms);
-    }
-
-    // Legacy v1 payload: a raw atom map. Migrates to the v2 envelope on next save.
+    // The index carries no atoms; it is identified by its own header field, not
+    // by its version — v3 shard payloads are atom payloads and must not match.
+    if ('shardCount' in record) return {};
+    // v2 single-value envelope, and the v3 shard payload.
+    if ('atoms' in record) return sanitizeAtoms(record.atoms);
+    // Legacy v1 payload: a raw atom map.
     return sanitizeAtoms(parsed);
 }
 
-async function saveMemoryMap(map: Record<string, LocalMemoryAtom>): Promise<void> {
-    const envelope: LocalMemoryEnvelope = {
-        schemaVersion: LOCAL_MEMORY_SCHEMA_VERSION,
-        atoms: map,
+/**
+ * Parse one stored payload, tolerating corruption. A payload that will not parse
+ * is preserved for diagnosis, its key dropped, and the caller sees no atoms —
+ * memory must never crash its callers. One corrupt-backup key serves all shards
+ * (last corrupt payload wins), and the loss is announced rather than silent.
+ */
+async function readAtomsFromPayload(
+    key: string,
+    json: string | null,
+): Promise<Record<string, LocalMemoryAtom> | null> {
+    if (!json) return null;
+
+    try {
+        return atomsFromPayload(JSON.parse(json));
+    } catch {
+        try {
+            await memoryStorageAdapter.setItem(LOCAL_MEMORY_CORRUPT_BACKUP_KEY, json);
+            await memoryStorageAdapter.removeItem(key);
+            console.warn(
+                `Local memory: corrupt payload at ${key} preserved under `
+                + `${LOCAL_MEMORY_CORRUPT_BACKUP_KEY} and treated as empty.`,
+            );
+        } catch {
+            // Best effort only.
+        }
+        return null;
+    }
+}
+
+async function loadMemoryStore(): Promise<LocalMemoryStore> {
+    const shardKeys = Array.from(
+        { length: LOCAL_MEMORY_SHARD_COUNT },
+        (_, index) => shardStorageKey(index),
+    );
+    const [indexPayload, ...shardPayloads] = await Promise.all([
+        memoryStorageAdapter.getItem(LOCAL_MEMORY_STORAGE_KEY),
+        ...shardKeys.map((key) => memoryStorageAdapter.getItem(key)),
+    ]);
+
+    const map: Record<string, LocalMemoryAtom> = {};
+    const shardExists: boolean[] = [];
+
+    // The index key doubles as the pre-shard single-value payload. Those atoms
+    // fold in first and are rewritten as shards on the next save, so a v2 store
+    // migrates itself on first write and stays readable until then.
+    const legacyAtoms = await readAtomsFromPayload(LOCAL_MEMORY_STORAGE_KEY, indexPayload);
+    if (legacyAtoms) Object.assign(map, legacyAtoms);
+
+    for (let index = 0; index < shardKeys.length; index += 1) {
+        const stored = shardPayloads[index] ?? null;
+        const atoms = await readAtomsFromPayload(shardKeys[index], stored);
+        // A shard dropped as corrupt counts as absent, so the next save writes
+        // fresh atoms instead of treating the dead payload as current.
+        shardExists[index] = atoms !== null && stored !== null;
+        // Shards win on conflict: after a partially-written migration they are
+        // the newer copy of the atom.
+        if (atoms) Object.assign(map, atoms);
+    }
+
+    return {
+        map,
+        indexPayload,
+        shardExists,
+        shardCanonical: bucketAtoms(map).map(serializeBucket),
     };
-    await memoryStorageAdapter.setItem(LOCAL_MEMORY_STORAGE_KEY, JSON.stringify(envelope));
+}
+
+function bucketAtoms(
+    map: Record<string, LocalMemoryAtom>,
+): Record<string, LocalMemoryAtom>[] {
+    const buckets: Record<string, LocalMemoryAtom>[] = Array.from(
+        { length: LOCAL_MEMORY_SHARD_COUNT },
+        () => ({}),
+    );
+    Object.entries(map).forEach(([key, atom]) => {
+        buckets[shardIndexOf(key)][key] = atom;
+    });
+    return buckets;
+}
+
+function serializeBucket(atoms: Record<string, LocalMemoryAtom>): string {
+    return JSON.stringify({
+        schemaVersion: LOCAL_MEMORY_SCHEMA_VERSION,
+        atoms,
+    } satisfies LocalMemoryEnvelope);
+}
+
+const EMPTY_SHARD_PAYLOAD = serializeBucket({});
+
+async function saveMemoryStore(
+    store: LocalMemoryStore,
+    map: Record<string, LocalMemoryAtom>,
+): Promise<void> {
+    const next = bucketAtoms(map).map(serializeBucket);
+    // Compared against the canonical form of what was loaded, not the raw bytes:
+    // loading backfills atom provenance, so raw bytes differ from the stored
+    // payload on the first save after every launch and would rewrite the whole
+    // store for no content change.
+    const previous = store.shardCanonical;
+
+    for (let index = 0; index < next.length; index += 1) {
+        const willBeEmpty = next[index] === EMPTY_SHARD_PAYLOAD;
+        if (next[index] === previous[index] && store.shardExists[index] === !willBeEmpty) {
+            continue;
+        }
+        if (willBeEmpty) {
+            await memoryStorageAdapter.removeItem(shardStorageKey(index));
+        } else {
+            await memoryStorageAdapter.setItem(shardStorageKey(index), next[index]);
+        }
+    }
+
+    if (Object.keys(map).length === 0) {
+        if (store.indexPayload !== null) {
+            await memoryStorageAdapter.removeItem(LOCAL_MEMORY_STORAGE_KEY);
+        }
+        return;
+    }
+
+    // Shards before the index. An interrupted save leaves an older index payload
+    // behind, which the next load still reads as a full copy of the store.
+    const indexPayload = JSON.stringify({
+        schemaVersion: LOCAL_MEMORY_SCHEMA_VERSION,
+        shardCount: LOCAL_MEMORY_SHARD_COUNT,
+        atomCount: Object.keys(map).length,
+    } satisfies LocalMemoryIndexPayload);
+    if (indexPayload !== store.indexPayload) {
+        await memoryStorageAdapter.setItem(LOCAL_MEMORY_STORAGE_KEY, indexPayload);
+    }
 }
 
 const EMPTY_QUERY_TOKENS = new Set<string>();
 
+interface PruneOutcome {
+    map: Record<string, LocalMemoryAtom>;
+    evicted: number;
+}
+
+/**
+ * Bound the atom store at `MAX_MEMORY_ATOMS`, lowest-salience first. Manual notes
+ * are never auto-evicted.
+ *
+ * The cap itself is a deliberate product decision and stays. What could not stay is
+ * its silence: this used to drop atoms and return only the surviving map, so the
+ * store simply stopped growing at 400 with no log, no count, and nothing in a
+ * return value — the same shape as every other bound this sweep has fixed. It now
+ * reports how many it dropped and says so, so a shrinking store is an event rather
+ * than a mystery.
+ */
 function pruneMemoryMap(
     map: Record<string, LocalMemoryAtom>,
     now: number
-): Record<string, LocalMemoryAtom> {
+): PruneOutcome {
     const atoms = Object.values(map);
-    if (atoms.length <= MAX_MEMORY_ATOMS) return map;
+    if (atoms.length <= MAX_MEMORY_ATOMS) return { map, evicted: 0 };
 
     // Manual notes are explicit user input — never auto-evicted.
     const protectedAtoms = atoms.filter((atom) => atom.source === 'manual');
@@ -198,7 +374,15 @@ function pruneMemoryMap(
     [...protectedAtoms, ...kept].forEach((atom) => {
         result[atom.id] = atom;
     });
-    return result;
+    const evicted = atoms.length - Object.keys(result).length;
+    if (evicted > 0) {
+        console.warn(
+            'Local memory: evicted ' + String(evicted) + ' lowest-salience atom(s) to stay within '
+            + String(MAX_MEMORY_ATOMS) + ' (kept ' + String(Object.keys(result).length)
+            + '; manual notes are never evicted).',
+        );
+    }
+    return { map: result, evicted };
 }
 
 function mergeAtom(existing: LocalMemoryAtom | undefined, input: LocalMemoryAtomInput): LocalMemoryAtom {
@@ -238,13 +422,28 @@ function mergeAtom(existing: LocalMemoryAtom | undefined, input: LocalMemoryAtom
 
 const MAX_PROFILE_ATOMS = 3;
 
-function enforceProfileCap(map: Record<string, LocalMemoryAtom>): void {
+/**
+ * Keep only the strongest `MAX_PROFILE_ATOMS` profile atoms.
+ *
+ * Same doctrine as `pruneMemoryMap`: the cap is the product decision and stays, the
+ * silence does not. This deleted the losers and returned nothing, so a profile atom
+ * could disappear between two reads with no trace anywhere.
+ */
+function enforceProfileCap(map: Record<string, LocalMemoryAtom>): number {
     const profiles = Object.values(map)
         .filter((atom) => atom.layer === 'profile')
         .sort((a, b) => (b.salience + b.confidence) - (a.salience + a.confidence));
-    profiles.slice(MAX_PROFILE_ATOMS).forEach((atom) => {
+    const dropped = profiles.slice(MAX_PROFILE_ATOMS);
+    dropped.forEach((atom) => {
         delete map[atom.id];
     });
+    if (dropped.length > 0) {
+        console.warn(
+            'Local memory: dropped ' + String(dropped.length) + ' weaker profile atom(s) to stay within '
+            + String(MAX_PROFILE_ATOMS) + ' (lowest salience+confidence first).',
+        );
+    }
+    return dropped.length;
 }
 
 function titleCaseTopic(topic: string): string {
@@ -271,12 +470,13 @@ function profileTitleFromInsight(insight: string): string {
 
 export async function upsertMemoryAtom(input: LocalMemoryAtomInput): Promise<LocalMemoryAtom> {
     const atom = await withMemoryLock(async () => {
-        const map = await loadMemoryMap();
+        const store = await loadMemoryStore();
+        const map = store.map;
         const id = atomId(input);
         const merged = mergeAtom(map[id], input);
         map[id] = merged;
         enforceProfileCap(map);
-        await saveMemoryMap(pruneMemoryMap(map, Date.now()));
+        await saveMemoryStore(store, pruneMemoryMap(map, Date.now()).map);
         return map[id] ?? merged;
     });
     notifyMemoryChanged();
@@ -286,21 +486,28 @@ export async function upsertMemoryAtom(input: LocalMemoryAtomInput): Promise<Loc
 
 export async function listMemoryAtoms(): Promise<LocalMemoryAtom[]> {
     return runAccountBoundOperation('local-memory-read', async () => {
-        const map = await loadMemoryMap();
-        return Object.values(map).sort((a, b) => b.updatedAt - a.updatedAt);
+        const store = await loadMemoryStore();
+        return Object.values(store.map).sort((a, b) => b.updatedAt - a.updatedAt);
     });
 }
 
 export async function clearMemoryAtoms(): Promise<void> {
     await withMemoryLock(async () => {
-        await memoryStorageAdapter.removeItem(LOCAL_MEMORY_STORAGE_KEY);
+        await Promise.all([
+            memoryStorageAdapter.removeItem(LOCAL_MEMORY_STORAGE_KEY),
+            ...Array.from(
+                { length: LOCAL_MEMORY_SHARD_COUNT },
+                (_, index) => memoryStorageAdapter.removeItem(shardStorageKey(index)),
+            ),
+        ]);
     });
     notifyMemoryChanged();
 }
 
 export async function deleteMemoryAtomsBySource(source: string): Promise<void> {
     await withMemoryLock(async () => {
-        const map = await loadMemoryMap();
+        const store = await loadMemoryStore();
+        const map = store.map;
         let changed = false;
         Object.keys(map).forEach((id) => {
             if (map[id].source === source) {
@@ -309,18 +516,51 @@ export async function deleteMemoryAtomsBySource(source: string): Promise<void> {
             }
         });
         if (changed) {
-            await saveMemoryMap(map);
+            await saveMemoryStore(store, map);
         }
     });
     notifyMemoryChanged();
 }
 
+/**
+ * Remove every atom that traces back to one root session (a deleted journal
+ * entry or check-in). Provenance is resolved the same way the graph resolves
+ * it — explicit root fields first, then legacy composite sourceIds — so an atom
+ * extracted through the fan-out pipeline (`{root}:topic:…`) is caught too.
+ * Also matches a direct `sourceId` so manual lookups stay symmetric.
+ * Returns how many atoms were dropped.
+ */
+export async function deleteMemoryAtomsByRootSource(rootSourceId: string): Promise<number> {
+    const clean = rootSourceId?.trim();
+    if (!clean) return 0;
+    const removed = await withMemoryLock(async () => {
+        const store = await loadMemoryStore();
+        const map = store.map;
+        let count = 0;
+        Object.keys(map).forEach((id) => {
+            const atom = map[id];
+            const root = resolveRootSource(atom);
+            if (root?.id === clean || atom.sourceId === clean) {
+                delete map[id];
+                count += 1;
+            }
+        });
+        if (count > 0) {
+            await saveMemoryStore(store, map);
+        }
+        return count;
+    });
+    if (removed > 0) notifyMemoryChanged();
+    return removed;
+}
+
 export async function deleteMemoryAtom(id: string): Promise<boolean> {
     const deleted = await withMemoryLock(async () => {
-        const map = await loadMemoryMap();
+        const store = await loadMemoryStore();
+        const map = store.map;
         if (!map[id]) return false;
         delete map[id];
-        await saveMemoryMap(map);
+        await saveMemoryStore(store, map);
         return true;
     });
     if (deleted) notifyMemoryChanged();
@@ -455,7 +695,8 @@ function buildJournalAtoms(entry: JournalEntry): LocalMemoryAtomInput[] {
 
 async function saveAtomBatch(atoms: readonly LocalMemoryAtomInput[]): Promise<LocalMemoryAtom[]> {
     const saved = await withMemoryLock(async () => {
-        const map = await loadMemoryMap();
+        const store = await loadMemoryStore();
+        const map = store.map;
         const merged = atoms.map((input) => {
             const id = atomId(input);
             const atom = mergeAtom(map[id], input);
@@ -463,13 +704,69 @@ async function saveAtomBatch(atoms: readonly LocalMemoryAtomInput[]): Promise<Lo
             return atom;
         });
         enforceProfileCap(map);
-        await saveMemoryMap(pruneMemoryMap(map, Date.now()));
-        // Return the atoms that still exist after profile cap (some profile upserts may drop).
-        return merged.filter((atom) => Boolean(map[atom.id]));
+        // Filter against the pruned map, not `map`: prune returns a new map and
+        // never mutates its input, so reading `map` here reported atoms that had
+        // just been evicted as saved.
+        const pruned = pruneMemoryMap(map, Date.now()).map;
+        await saveMemoryStore(store, pruned);
+        return merged.filter((atom) => Boolean(pruned[atom.id]));
     });
     notifyMemoryChanged();
 
     return saved;
+}
+
+/**
+ * Write many atoms in a single locked load→save cycle.
+ *
+ * Restore paths must use this instead of looping `upsertMemoryAtom`: at a full
+ * store each upsert re-reads and re-serializes every atom, so a 4000-atom
+ * snapshot imported one atom at a time is 4000 full-store round trips.
+ *
+ * Returns how many atoms the store actually kept (the cap and the profile cap
+ * can both drop inputs).
+ */
+export async function importMemoryAtoms(
+    atoms: readonly LocalMemoryAtomInput[],
+): Promise<number> {
+    if (atoms.length === 0) return 0;
+    const saved = await saveAtomBatch(atoms);
+    return saved.length;
+}
+
+/**
+ * Merge the whole store into one payload for a local-backup item. Assembled in
+ * memory only — it is never written back to a runtime key, because a single
+ * value holding every atom is exactly what sharding exists to avoid.
+ */
+export async function exportMemoryBundle(): Promise<string | null> {
+    const store = await loadMemoryStore();
+    if (Object.keys(store.map).length === 0) return null;
+    return JSON.stringify({
+        schemaVersion: LOCAL_MEMORY_SCHEMA_VERSION,
+        atoms: store.map,
+    } satisfies LocalMemoryEnvelope);
+}
+
+/** Replace the store from a local-backup payload. `null` clears it. */
+export async function importMemoryBundle(json: string | null): Promise<number> {
+    let parsed: unknown = null;
+    if (json) {
+        try {
+            parsed = JSON.parse(json);
+        } catch {
+            throw new Error('Memory backup payload is not valid JSON.');
+        }
+    }
+
+    const atoms = parsed === null ? {} : atomsFromPayload(parsed);
+    const kept = await withMemoryLock(async () => {
+        const store = await loadMemoryStore();
+        await saveMemoryStore(store, atoms);
+        return Object.keys(atoms).length;
+    });
+    notifyMemoryChanged();
+    return kept;
 }
 
 export async function saveJournalEntryMemories(entry: JournalEntry): Promise<LocalMemoryAtom[]> {
@@ -581,7 +878,8 @@ async function markAccessed(atomIds: readonly string[], now: number): Promise<vo
     if (atomIds.length === 0) return;
     try {
         await withMemoryLock(async () => {
-            const map = await loadMemoryMap();
+            const store = await loadMemoryStore();
+            const map = store.map;
             let changed = false;
             atomIds.forEach((id) => {
                 const existing = map[id];
@@ -594,7 +892,7 @@ async function markAccessed(atomIds: readonly string[], now: number): Promise<vo
                 changed = true;
             });
             if (changed) {
-                await saveMemoryMap(map);
+                await saveMemoryStore(store, map);
             }
         });
         // Deliberately NO notifyMemoryChanged() here: access bookkeeping firing

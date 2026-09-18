@@ -160,6 +160,8 @@ export default function IntentionChatScreen() {
         handleNewChat,
         initializeMessages,
         clearPersistedSession,
+        stopGeneration,
+        noteComposerActivity,
         scrollToBottom,
         handleScroll,
     } = useChatOrchestration({
@@ -171,6 +173,7 @@ export default function IntentionChatScreen() {
         flowContext,
         initialPrompt,
         persist,
+        getComposerDraft: () => inputValue,
     });
 
     const { handleThumb, feedbackModalProps } = useIntentionFeedbackModal({
@@ -444,7 +447,7 @@ export default function IntentionChatScreen() {
                     isMuted={isMuted}
                     onToggleMuted={handleToggleMuted}
                     onSubmitInput={handleSubmitInput}
-                    onInputTextChange={setInputValue}
+                    onInputTextChange={(text) => { setInputValue(text); noteComposerActivity(); }}
                     onGoDeeper={handleGoDeeper}
                     onFinishEntry={handleFinish}
                     disabled={isLoading || isSaving}
@@ -452,6 +455,8 @@ export default function IntentionChatScreen() {
                     canFinish={hasContent(messages) || trimmedInput.length > 0}
                     isSaving={isSaving}
                     savingLabel={finishStage}
+                    isStreaming={isLoading}
+                    onStop={stopGeneration}
                 />
 
                 <IntentionChatOverlays

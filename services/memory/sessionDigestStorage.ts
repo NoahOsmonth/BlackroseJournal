@@ -241,6 +241,39 @@ export async function getSessionDigest(sessionId: string): Promise<SessionDigest
     return loadRecordUnlocked(sessionId);
 }
 
+/**
+ * Drop one session digest (record key + index row).
+ *
+ * Deleting a source entry/check-in must also retire its digest: the digest is
+ * what history tools and the graph cite, so a stale row keeps a deleted session
+ * recallable (JOURNAL-11 tombstone requirement). Serialized with every other
+ * digest mutation so an index rewrite cannot interleave.
+ */
+export async function deleteSessionDigest(sessionId: string): Promise<boolean> {
+    const clean = sessionId?.trim();
+    if (!clean) return false;
+    return withSessionDigestLock(async () => {
+        const index = await loadIndexUnlocked();
+        const remaining = index.entries.filter((entry) => entry.id !== clean);
+        const hadRow = remaining.length !== index.entries.length;
+        let hadRecord = false;
+        try {
+            hadRecord = (await storageAdapter.getItem(sessionDigestRecordKey(clean))) !== null;
+        } catch {
+            hadRecord = false;
+        }
+        if (!hadRow && !hadRecord) return false;
+        await multiRemoveKeys([sessionDigestRecordKey(clean)]);
+        if (hadRow) {
+            await saveIndexUnlocked({
+                schemaVersion: SESSION_DIGEST_SCHEMA_VERSION,
+                entries: remaining,
+            });
+        }
+        return true;
+    });
+}
+
 export async function listSessionDigestIndex(
     options: SessionDigestListOptions = {},
 ): Promise<SessionDigestIndexEntry[]> {

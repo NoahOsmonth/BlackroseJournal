@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Alert, ScrollView, Share, Text, View } from 'react-native';
+import { Alert, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
@@ -30,15 +30,15 @@ import {
 } from '@/components/settings';
 import { useAuthSession } from '@/hooks/auth/useAuthSession';
 import { useAuthActions } from '@/hooks/auth/useAuthActions';
-import { useLocalBackups } from '@/hooks/backup/useLocalBackups';
 import { useIdentityProfile } from '@/hooks/memory/useIdentityProfile';
 import { useLocalMemories } from '@/hooks/memory/useLocalMemories';
 import { useCustomAiModels } from '@/hooks/settings/useCustomAiModels';
 import { useGenerationSettings } from '@/hooks/settings/useGenerationSettings';
 import { useTabNavigation } from '@/hooks/navigation/useTabNavigation';
 import { useThemeSettings } from '@/hooks/useThemeSettings';
-import { useClearJournalHistory } from '@/hooks/journal/useClearJournalHistory';
 import { useJournalExport } from '@/hooks/journal/useJournalExport';
+import { useDataManagementActions } from '@/hooks/settings/useDataManagementActions';
+import { notifyUser } from '@/components/ui/webConfirm';
 import { useSeedDemoData } from '@/hooks/seed/useSeedDemoData';
 import {
     clearDemoData,
@@ -62,14 +62,20 @@ export default function SettingsScreen() {
     } = useThemeSettings();
     const { user, isLoading: isAuthLoading } = useAuthSession();
     const { signOut } = useAuthActions();
-    const { latestBackup, isBusy, createBackup, restoreBackup } = useLocalBackups();
+    const {
+        latestBackup,
+        isBusy,
+        isClearingHistory,
+        handleCreateBackup,
+        handleRestoreLatestBackup,
+        handleClearHistory,
+    } = useDataManagementActions();
     const memory = useLocalMemories();
     const identity = useIdentityProfile();
     const customAi = useCustomAiModels();
     const generation = useGenerationSettings();
     const { goToTab } = useTabNavigation();
-    const { exportAsJson } = useJournalExport();
-    const { clearAll: clearJournalHistory, isClearing: isClearingJournalHistory } = useClearJournalHistory();
+    const { exportAsJson, shareJson } = useJournalExport();
     const { seed: seedDemoData, seedBulk: seedBulkProbe } = useSeedDemoData();
     const [isSigningOut, setIsSigningOut] = useState(false);
     const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set());
@@ -119,10 +125,11 @@ export default function SettingsScreen() {
     const handleExportJournalJson = async () => {
         try {
             const data = await exportAsJson();
-            await Share.share({ message: data, title: 'Journal Export' });
+            const day = new Date().toISOString().slice(0, 10);
+            await shareJson(data, `blackrose-journal-${day}.json`);
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Failed to export data.';
-            Alert.alert('Error', message);
+            notifyUser('Export failed', message);
         }
     };
 
@@ -192,98 +199,6 @@ export default function SettingsScreen() {
                     }
                 })();
             },
-        );
-    };
-
-    const handleCreateBackup = async () => {
-        try {
-            const backup = await createBackup();
-            Alert.alert('Backup created', `${backup.itemCount} local data groups saved on this device.`);
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Failed to create backup.';
-            Alert.alert('Error', message);
-        }
-    };
-
-    const restoreLatestBackup = async () => {
-        if (!latestBackup) {
-            return;
-        }
-
-        try {
-            const result = await restoreBackup(latestBackup.id);
-            if (result.status === 'missing') {
-                Alert.alert('Backup missing', 'The selected local backup could not be found.');
-                return;
-            }
-            if (result.status === 'account-mismatch') {
-                Alert.alert('Backup unavailable', 'This backup belongs to a different account.');
-                return;
-            }
-            Alert.alert('Backup restored', `${result.restoredKeys} local data groups restored.`);
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Failed to restore backup.';
-            Alert.alert('Error', message);
-        }
-    };
-
-    const runClearJournalHistory = async () => {
-        try {
-            await clearJournalHistory();
-            Alert.alert('Success', 'All history and related memories have been deleted.');
-        } catch (error) {
-            const message = error instanceof Error
-                ? error.message
-                : 'Failed to clear history and memories.';
-            Alert.alert('Error', message);
-        }
-    };
-
-    const handleRestoreLatestBackup = () => {
-        if (!latestBackup) {
-            Alert.alert('No backup', 'Create a local backup before restoring.');
-            return;
-        }
-
-        // Web: window.confirm is reliable under Playwright; native keeps Alert (mobile UX unchanged).
-        const message = `Restore "${latestBackup.name}"? Current local app data will be replaced.`;
-        if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
-            const ok = window.confirm(message);
-            if (ok) void restoreLatestBackup();
-            return;
-        }
-
-        Alert.alert(
-            'Restore local backup',
-            message,
-            [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Restore', style: 'destructive', onPress: restoreLatestBackup },
-            ]
-        );
-    };
-
-    const handleClearHistory = () => {
-        const message =
-            'Delete all journal entries, intention check-ins, chat sessions, insights, and saved AI memories from this device? This action cannot be undone.';
-        // Web: window.confirm is reliable under Playwright; native keeps Alert (mobile UX unchanged).
-        if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
-            const ok = window.confirm(message);
-            if (ok) void runClearJournalHistory();
-            return;
-        }
-
-        Alert.alert(
-            'Clear History & Memories',
-            message,
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: () => { void runClearJournalHistory(); },
-                },
-            ]
         );
     };
 
@@ -398,7 +313,7 @@ export default function SettingsScreen() {
                     <DataManagementSection
                         latestBackup={latestBackup}
                         isBusy={isBusy}
-                        isClearingHistory={isClearingJournalHistory}
+                        isClearingHistory={isClearingHistory}
                         onCreateBackup={handleCreateBackup}
                         onRestoreLatestBackup={handleRestoreLatestBackup}
                         onExportJournalJson={handleExportJournalJson}

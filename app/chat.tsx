@@ -150,6 +150,8 @@ export default function ChatScreen() {
         handleNewChat,
         initializeMessages,
         clearPersistedSession,
+        stopGeneration,
+        noteComposerActivity,
         scrollToBottom,
         handleScroll,
     } = useChatOrchestration({
@@ -162,6 +164,7 @@ export default function ChatScreen() {
         flowContext,
         persist,
         initialPrompt,
+        getComposerDraft: () => inputValue,
     });
 
     // After real user turns land, re-rank the capsule for the next model call.
@@ -178,10 +181,11 @@ export default function ChatScreen() {
         mode: resolvedMode === 'continue' ? 'continue' : 'freeform',
         messages,
         routeParams: entryId ? { entryId } : undefined,
+        getComposerDraft: () => inputValue,
     });
 
     // Resume an autosaved session: restore its messages (conversationId already
-    // matches via the resume param).
+    // matches via the resume param). Unsent composer text is restored too (DEF-007).
     useResumeChatSession({ resumeId, initializeMessages });
 
     useEffect(() => {
@@ -448,8 +452,10 @@ export default function ChatScreen() {
                     <InlineTypingInput
                         ref={inputRef}
                         onSubmit={handleSendMessage}
-                        onTextChange={setInputValue}
+                        onTextChange={(text) => { setInputValue(text); noteComposerActivity(); }}
                         disabled={isLoading}
+                        isStreaming={isLoading}
+                        onStop={stopGeneration}
                         placeholder="Write what's true…"
                     />
                 </View>

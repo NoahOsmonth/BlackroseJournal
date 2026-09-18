@@ -2,7 +2,9 @@ import {
     getMemoryRecordsByIds,
     listFormalProjectIds,
     listMemoryFiles,
+    listMemoryHeadersForThread,
 } from './memoryFiles';
+import { rankMemoryFiles } from './memoryFade';
 
 /**
  * ClawX-model gated recall, lexical edition (no embeddings).
@@ -180,17 +182,18 @@ export async function retrieveMemory(
         return result;
     }
 
-    const manifest = await listMemoryFiles({ projectId: resolvedProjectId, limit: 200 });
+    // Uncapped door: `listMemoryFiles` caps `limit` at 50 because it feeds prompts
+    // and UI pages, so asking it for 200 here returned 50 — silently, and the 200
+    // was a lie about what selection actually considered. Same single manifest read
+    // either way, and the same newest-capture-first ordering.
+    const manifest = await listMemoryHeadersForThread(resolvedProjectId);
     trace.push({ step: 'manifest_scanned', status: manifest.length ? 'success' : 'warning', input: `project_id=${resolvedProjectId}`, output: `${manifest.length} header entries` });
 
-    const selected = manifest
-        .map((header) => {
-            const hay = `${header.name} ${header.description}`.toLowerCase();
-            const score = tokens.reduce((total, token) => total + (hay.includes(token) ? 1 : 0), 0);
-            return { header, score };
-        })
-        .sort((a, b) => b.score - a.score || b.header.updatedAt.localeCompare(a.header.updatedAt))
-        .slice(0, RECALL_TOP_K);
+    // R2 fading: keyword overlap + recency, faded by capture date, deterministic
+    // ties (see memoryFade.ts). Replaces raw token counting, whose wall-clock
+    // tie-break both let templated near-duplicates outrank the right file and
+    // made the selection unreproducible run to run.
+    const selected = rankMemoryFiles(manifest, query).slice(0, RECALL_TOP_K);
 
     const records = await getMemoryRecordsByIds(selected.map((row) => row.header.id));
     trace.push({ step: 'files_loaded', status: records.length ? 'success' : 'warning', input: `${selected.length} requested`, output: `${records.length} files loaded.` });

@@ -10,6 +10,7 @@ import { useGoals } from '@/hooks/goals/useGoals';
 import { useNavBack } from '@/hooks/navigation/useNavBack';
 import { GoalGroup } from '@/components/goals/GoalGroup';
 import { GoalQuickAddModal } from '@/components/goals/GoalQuickAddModal';
+import { GoalEditModal } from '@/components/goals/GoalEditModal';
 import { getLocalDateKey } from '@/utils/date';
 import { habitCurrentStreak } from '@/utils/streakStats';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -20,8 +21,19 @@ export default function GoalsScreen() {
     const insets = useSafeAreaInsets();
     const isDark = useColorScheme() === 'dark';
     const iconColor = isDark ? BLACKROSE_PALETTE.dark.text : BLACKROSE_PALETTE.light.text;
-    const { goals, toggle, create, isLoading } = useGoals();
+    const { goals, habits, toggle, create, update, remove, isLoading } = useGoals();
     const [showAdd, setShowAdd] = useState(false);
+    const [editingGoal, setEditingGoal] = useState<{ id: string; title: string; type: 'goal' | 'habit' } | null>(null);
+
+    const handleSaveEdit = async (id: string, title: string) => {
+        await update(id, { title });
+        setEditingGoal(null);
+    };
+
+    const handleDeleteEdit = async (id: string) => {
+        await remove(id);
+        setEditingGoal(null);
+    };
 
     const dateKey = useMemo(() => getLocalDateKey(new Date()), []);
 
@@ -64,7 +76,6 @@ export default function GoalsScreen() {
     }
 
     const todayGoals = goals.filter((goal) => goal.type === 'goal' && goal.dateKey === dateKey);
-    const habits = goals.filter((goal) => goal.type === 'habit');
 
     const handleAdd = async (title: string, type: 'goal' | 'habit') => {
         await create({ title, type, dateKey: type === 'goal' ? dateKey : undefined });
@@ -115,9 +126,11 @@ export default function GoalsScreen() {
                                 id: goal.id,
                                 title: goal.title,
                                 completed: goal.completed,
+                                type: 'goal' as const,
                             }))}
                             emptyMessage="Nothing set for today yet."
                             onToggle={(id) => void toggle(id)}
+                            onLongPressItem={(item) => setEditingGoal({ id: item.id, title: item.title, type: item.type })}
                         />
 
                         <GoalGroup
@@ -130,10 +143,12 @@ export default function GoalsScreen() {
                                     title: habit.title,
                                     completed: completionKeys.includes(dateKey),
                                     meta: streak > 1 ? `${streak} day streak` : undefined,
+                                    type: 'habit' as const,
                                 };
                             })}
                             emptyMessage="No habits yet."
                             onToggle={(id) => void toggle(id, dateKey)}
+                            onLongPressItem={(item) => setEditingGoal({ id: item.id, title: item.title, type: item.type })}
                         />
 
                         <Text
@@ -167,6 +182,14 @@ export default function GoalsScreen() {
                     visible={showAdd}
                     onClose={() => setShowAdd(false)}
                     onSubmit={handleAdd}
+                />
+
+                <GoalEditModal
+                    visible={editingGoal !== null}
+                    goal={editingGoal}
+                    onClose={() => setEditingGoal(null)}
+                    onSave={(id, title) => void handleSaveEdit(id, title)}
+                    onDelete={(id) => void handleDeleteEdit(id)}
                 />
             </View>
         </SafeAreaView>

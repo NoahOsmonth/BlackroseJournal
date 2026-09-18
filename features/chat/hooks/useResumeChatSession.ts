@@ -15,7 +15,7 @@ import { getSession } from '../../../services/ai/sessionStorage';
 
 export interface ResumeChatSessionOptions {
     resumeId: string | undefined;
-    initializeMessages: (messages: Message[]) => void;
+    initializeMessages: (messages: Message[], composerDraft?: string) => void;
     onPersona?: (personaId: string) => Promise<void> | void;
 }
 
@@ -33,7 +33,7 @@ export function useResumeChatSession({
             if (session.personaId && onPersona) {
                 await onPersona(session.personaId);
             }
-            initializeMessages(session.messages);
+            initializeMessages(session.messages, session.composerDraft);
         };
         restore();
         return () => {

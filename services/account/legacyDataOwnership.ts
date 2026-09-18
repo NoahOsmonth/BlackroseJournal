@@ -52,6 +52,7 @@ const ACCOUNT_PRIVATE_EXACT_KEYS = [
 ] as const;
 
 const ACCOUNT_PRIVATE_KEY_PREFIXES = [
+    '@rosebud_local_memory_shard:',
     '@rosebud_session_digest:',
     '@rosebud_memory_rollup:',
     '@blackrose_local_backup_session_digest:',

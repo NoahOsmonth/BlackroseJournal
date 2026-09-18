@@ -22,6 +22,8 @@ interface ActiveAccountOperation {
     completion: Promise<void>;
 }
 
+const leaseAccountStack: (string | null)[] = [];
+
 let activeAccountId: string | null = null;
 let switchQueue: Promise<void> = Promise.resolve();
 const teardownHandlers = new Set<AccountTeardown>();
@@ -101,8 +103,17 @@ export function acquireAccountOperationLease(owner: string): AccountOperationLea
         );
     }
     const controller = new AbortController();
+    const leaseAccountId = leaseAccountStack.length > 0
+        ? leaseAccountStack[leaseAccountStack.length - 1]
+        : activeAccountId;
     let releaseCompletion!: () => void;
     const completion = new Promise<void>((resolve) => { releaseCompletion = resolve; });
+    // Lease inheritance: when acquiring inside an operation that already
+    // pinned an account, inherit it instead of re-reading the live global.
+    // Otherwise an auth re-bind (account switch/retry) mid-operation makes
+    // nested service calls land in a different scope than the caller pinned
+    // (DEF-003: seed rows scattered across account scopes).
+    leaseAccountStack.push(leaseAccountId);
     const record: ActiveAccountOperation = {
         owner: normalizedOwner,
         controller,
@@ -111,13 +122,25 @@ export function acquireAccountOperationLease(owner: string): AccountOperationLea
     activeOperations.add(record);
     let released = false;
     const lease: AccountOperationLease = {
-        accountId,
+        accountId: leaseAccountId,
         signal: controller.signal,
         release() {
             if (released) return;
             released = true;
             activeOperations.delete(record);
             releaseCompletion();
+            // Pop after the completion promise resolves so that listeners
+            // running synchronously inside activateAccount/clearActiveAccount            // never observe a partially-released stack. Stack discipline:            // nested leases release LIFO; concurrent top-level leases all            // hold the same accountId, so an out-of-order pop among equals            // is value-identical.            completion.then(() => {
+                const top = leaseAccountStack[leaseAccountStack.length - 1];
+                if (top === leaseAccountId) {
+                    leaseAccountStack.pop();
+                } else {
+                    const index = leaseAccountStack.lastIndexOf(leaseAccountId);
+                    if (index !== -1) {
+                        leaseAccountStack.splice(index, 1);
+                    }
+                }
+            });
         },
     };
     return lease;
@@ -168,4 +191,18 @@ export function clearActiveAccount(): Promise<void> {
             acceptsAccountOperations = true;
         }
     });
+}
+
+/**
+ * @internal Test-only: re-bind the global the way the auth coordinator's final
+ * state mutation does, bypassing the switch queue. The queue cannot re-bind
+ * while an operation is in flight (quiesce waits for it), which is exactly the
+ * mid-flight window the lease-inheritance fix (DEF-003) covers.
+ */
+export function __rebindActiveAccountIdForTests(accountId: string | null): void {
+    if (process.env.NODE_ENV !== 'test') {
+        throw new Error('Test-only helper.');
+    }
+    activeAccountId = accountId;
+    notifyAccountChange();
 }

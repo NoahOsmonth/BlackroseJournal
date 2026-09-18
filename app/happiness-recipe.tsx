@@ -21,6 +21,7 @@ import { BLACKROSE_PALETTE } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useHappinessRecipe } from '@/hooks/useHappinessRecipe';
 import { RecipeItem, RecipeItemType } from '@/services/happinessRecipeStorage.types';
+import { webConfirm } from '@/components/ui/webConfirm';
 
 const SERIF = { fontFamily: 'PlayfairDisplayRegular' };
 const HAIRLINE = 'border-hairline-light dark:border-hairline-dark';
@@ -78,18 +79,16 @@ export default function HappinessRecipeScreen() {
     };
 
     const handleDelete = (item: RecipeItem) => {
-        Alert.alert(
-            'Delete Item',
-            `Delete "${item.text}"?`,
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: () => deleteItem(item.id),
-                },
-            ]
-        );
+        const message = `Delete "${item.text}"?`;
+        const confirmed = webConfirm(message);
+        if (confirmed !== null) {
+            if (confirmed) void deleteItem(item.id);
+            return;
+        }
+        Alert.alert('Delete Item', message, [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Delete', style: 'destructive', onPress: () => void deleteItem(item.id) },
+        ]);
     };
 
     const renderItem = (item: RecipeItem) => {

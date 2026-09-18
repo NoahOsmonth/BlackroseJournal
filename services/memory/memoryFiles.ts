@@ -24,6 +24,10 @@ export interface MemoryFileFrontmatter {
     capturedAt?: string;
     sourceSessionKey?: string;
     deprecated?: boolean;
+    /** R2 supersession audit — set only when a newer memory restated this one. */
+    supersededBy?: string;
+    supersededAt?: string;
+    supersedeReason?: string;
 }
 
 export interface MemoryFileHeader extends MemoryFileFrontmatter {
@@ -43,6 +47,13 @@ export interface StageMemoryInput {
     body: string;
     projectId?: string;
     sourceSessionKey?: string;
+    /**
+     * When the memory was written, if the caller knows better than "now".
+     * `updatedAt` stays the storage-write time; this is the date recall fades
+     * and supersession orders by, so a caller replaying older entries can keep
+     * their real chronology.
+     */
+    capturedAt?: string;
 }
 
 export interface ListMemoryFilesOptions {
@@ -96,6 +107,32 @@ function nowIso(): string {
     return new Date().toISOString();
 }
 
+/**
+ * When the memory was captured. Ordering uses this rather than `updatedAt`
+ * because promotion and supersession both rewrite `updatedAt` — a promoted file
+ * would otherwise look like the newest memory in the store. Unparseable dates
+ * sort last instead of throwing.
+ */
+function headerCapturedAtMs(header: MemoryFileHeader): number {
+    const parsed = Date.parse(header.capturedAt ?? header.updatedAt);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+/**
+ * Newest capture first, id ascending. Total and reproducible: two orderings
+ * depend on it — `listMemoryFiles` is the recall recency fallback, and
+ * `listTmpFiles` decides which files Dream's `MAX_DREAM_FILES` slice promotes —
+ * so neither may rest on wall-clock ties or on manifest key order.
+ */
+function byCapturedDesc(a: MemoryFileHeader, b: MemoryFileHeader): number {
+    return headerCapturedAtMs(b) - headerCapturedAtMs(a) || a.id.localeCompare(b.id);
+}
+
+/** Oldest capture first, id ascending — the backlog order Dream drains. */
+function byCapturedAsc(a: MemoryFileHeader, b: MemoryFileHeader): number {
+    return headerCapturedAtMs(a) - headerCapturedAtMs(b) || a.id.localeCompare(b.id);
+}
+
 function normalizeText(value: string): string {
     return value.replace(/\s+/g, ' ').trim();
 }
@@ -114,6 +151,42 @@ function hashText(value: string): string {
         hash = (hash * 31 + value.charCodeAt(i)) | 0;
     }
     return Math.abs(hash).toString(36);
+}
+
+/**
+ * Pick an id that will not silently overwrite a *different* memory.
+ *
+ * Both writers (`stageTmpMemory`, `promoteTmpRecord`) derive an id from a header
+ * plus only the **first 400 characters** of the body, then assign it outright
+ * (`manifest[id] = header`). That is not a rare 32-bit hash collision — it is a
+ * deterministic one: two distinct memories sharing a name, description and
+ * opening 400 characters compute the *same* id every time, and the second write
+ * destroys the first with nothing in the return value to say so. Reproed: two
+ * distinct bodies, one file left in the store, the first unreachable.
+ *
+ * The base id is tried first, so every id already in a store keeps working and
+ * nothing is rewritten — this is a guard, not the migration the finding assumed.
+ * Only the losing write moves, and it moves *away*, never over.
+ *
+ * An id whose stored body is byte-identical is reused: re-staging the same
+ * memory stays idempotent rather than accumulating copies.
+ */
+async function idWithoutOverwriting(
+    manifest: ManifestDoc,
+    body: string,
+    baseId: string,
+): Promise<string> {
+    const stem = baseId.replace(/\.md$/, '');
+    const wide = hashText(body);
+    const candidates = [baseId, `${stem}-${wide}.md`];
+    for (let n = 2; n <= 64; n += 1) candidates.push(`${stem}-${wide}-${n}.md`);
+    for (const candidate of candidates) {
+        if (!manifest[candidate]) return candidate;
+        // Unreadable body: treat the slot as taken and widen, so a failed read can
+        // never license an overwrite.
+        if (await storageAdapter.getItem(bodyKey(candidate)) === body) return candidate;
+    }
+    return `${stem}-${wide}-overflow.md`;
 }
 
 function normalizeProjectId(value: string | undefined): string {
@@ -185,27 +258,38 @@ export async function stageTmpMemory(input: StageMemoryInput): Promise<MemoryFil
     if (!body) throw new Error('body is required');
     const projectId = normalizeProjectId(input.projectId);
     const fingerprint = hashText(`${input.type}|${name}|${description}|${body.slice(0, 400)}`);
-    const id = `projects/${projectId}/${input.type === 'feedback' ? 'Feedback' : 'Project'}/${slugify(name)}-${fingerprint}.md`;
+    const baseId = `projects/${projectId}/${input.type === 'feedback' ? 'Feedback' : 'Project'}/${slugify(name)}-${fingerprint}.md`;
     const timestamp = nowIso();
-    const header: MemoryFileHeader = {
-        id,
-        relativePath: id,
-        name,
-        description,
-        type: input.type,
-        scope: 'project',
-        projectId,
-        updatedAt: timestamp,
-        capturedAt: timestamp,
-        ...(input.sourceSessionKey ? { sourceSessionKey: input.sourceSessionKey } : {}),
-    };
+    // Capture date is what recall fades and supersession orders by; callers that
+    // know the memory's real date (entry timestamps, replays) can supply it.
+    const capturedAt = input.capturedAt && Number.isFinite(Date.parse(input.capturedAt))
+        ? input.capturedAt
+        : timestamp;
+    let record: MemoryFileRecord | undefined;
     await withFilesLock(async () => {
         const manifest = await loadManifest();
+        const id = await idWithoutOverwriting(manifest, body, baseId);
+        const header: MemoryFileHeader = {
+            id,
+            relativePath: id,
+            name,
+            description,
+            type: input.type,
+            scope: 'project',
+            projectId,
+            updatedAt: timestamp,
+            capturedAt,
+            ...(input.sourceSessionKey ? { sourceSessionKey: input.sourceSessionKey } : {}),
+        };
         manifest[id] = header;
         await saveManifest(manifest);
         await storageAdapter.setItem(bodyKey(id), body);
+        record = { ...header, content: body, preview: previewText(body, HEADER_PREVIEW_CHARS) };
     });
-    return { ...header, content: body, preview: previewText(body, HEADER_PREVIEW_CHARS) };
+    // Assignment happens inside the locked task, so this is only undefined if the
+    // lock never ran — which would mean the write did not happen either.
+    if (!record) throw new Error('memory staging did not run');
+    return record;
 }
 
 function scoreHeader(header: MemoryFileHeader, tokens: string[]): number {
@@ -232,24 +316,87 @@ export async function listMemoryFiles(options: ListMemoryFilesOptions = {}): Pro
         entries = entries
             .map((entry) => ({ entry, score: scoreHeader(entry, tokens.length ? tokens : [query]) }))
             .filter((row) => row.score > 0)
-            .sort((a, b) => b.score - a.score || b.entry.updatedAt.localeCompare(a.entry.updatedAt))
+            .sort((a, b) => b.score - a.score || byCapturedDesc(a.entry, b.entry))
             .map((row) => row.entry);
     } else {
-        entries = entries.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+        entries = entries.sort(byCapturedDesc);
     }
     return entries.slice(offset, offset + limit);
 }
 
-/** Exact-id body loads for ids returned by list/search. */
-export async function getMemoryRecordsByIds(ids: readonly string[]): Promise<MemoryFileRecord[]> {
-    const unique = Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean))).slice(0, 10);
+/**
+ * Every non-deprecated header, newest capture first.
+ *
+ * `listMemoryFiles` caps `limit` at 50 because it feeds prompts and UI pages.
+ * Batch passes that would otherwise page once per project — supersession over
+ * every thread, for instance — need the whole manifest from a single read
+ * instead: paging per project made such a pass O(projects x manifest), which is
+ * quadratic in the store's own growth.
+ */
+export async function listAllMemoryHeaders(): Promise<MemoryFileHeader[]> {
+    const manifest = await withFilesLock(loadManifest);
+    return Object.values(manifest)
+        .filter((header) => !header.deprecated)
+        .sort(byCapturedDesc);
+}
+
+/**
+ * Every non-deprecated header of one thread, newest capture first, uncapped.
+ *
+ * `listMemoryFiles` caps `limit` at 50 because it feeds prompts and UI pages, so
+ * it cannot serve a batch pass that needs a thread's whole history: asking it
+ * for 400 came back as 50, silently. That is how supersession's per-thread
+ * entry point ended up unable to see a thread's tail no matter what its own
+ * window said. Same single manifest read either way.
+ */
+export async function listMemoryHeadersForThread(projectId: string): Promise<MemoryFileHeader[]> {
+    const target = normalizeProjectId(projectId);
+    return (await listAllMemoryHeaders()).filter((header) => header.projectId === target);
+}
+
+/**
+ * Exact-id body loads for ids returned by list/search.
+ *
+ * There is deliberately no default cap. An unnamed 10 used to live here and
+ * silently truncated whoever asked for more: Dream got 10 bodies for 20
+ * candidates, supersession compared the newest 10 files of a thread, and drive
+ * backup — which paginates the manifest specifically so large stores export
+ * fully — exported 10 files. Bounding a request is the caller's job, because
+ * only the caller knows how big a prompt or a bundle it is willing to build.
+ */
+export async function getMemoryRecordsByIds(
+    ids: readonly string[],
+    options: { limit?: number } = {},
+): Promise<MemoryFileRecord[]> {
+    const unique = Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean)));
+    const requested = options.limit === undefined ? unique : unique.slice(0, options.limit);
     if (unique.length === 0) return [];
     const manifest = await withFilesLock(loadManifest);
     const records: MemoryFileRecord[] = [];
-    for (const id of unique) {
+    for (const id of requested) {
         const header = manifest[id];
         if (!header || header.deprecated) continue;
         const body = await storageAdapter.getItem(bodyKey(id));
+        if (typeof body !== 'string') continue;
+        records.push({ ...header, content: body, preview: previewText(body, BODY_PREVIEW_CHARS) });
+    }
+    return records;
+}
+
+/**
+ * Body loads for headers the caller already holds — no manifest read.
+ *
+ * `getMemoryRecordsByIds` re-reads the manifest to resolve ids, which is right
+ * for a caller that only has ids and wrong for a batch pass that just read the
+ * whole manifest itself: doing it per project turned supersession into
+ * `threads + 1` full manifest parses per run.
+ */
+export async function getMemoryRecordsForHeaders(
+    headers: readonly MemoryFileHeader[],
+): Promise<MemoryFileRecord[]> {
+    const records: MemoryFileRecord[] = [];
+    for (const header of headers) {
+        const body = await storageAdapter.getItem(bodyKey(header.id));
         if (typeof body !== 'string') continue;
         records.push({ ...header, content: body, preview: previewText(body, BODY_PREVIEW_CHARS) });
     }
@@ -272,7 +419,7 @@ export async function listTmpFiles(): Promise<MemoryFileHeader[]> {
     const manifest = await withFilesLock(loadManifest);
     return Object.values(manifest)
         .filter((h) => !h.deprecated && h.projectId === TMP_PROJECT_ID)
-        .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
+        .sort(byCapturedAsc);
 }
 
 /** True when this session already staged at least one file (idempotency). */
@@ -281,6 +428,30 @@ export async function hasStagedSession(sourceSessionKey: string): Promise<boolea
     if (!key) return false;
     const manifest = await withFilesLock(loadManifest);
     return Object.values(manifest).some((h) => h.sourceSessionKey === key);
+}
+
+/**
+ * Every session key that has staged at least one file — one manifest read.
+ *
+ * `hasStagedSession` in a loop re-parses the whole manifest once per candidate,
+ * the shape R2.2 measured at 401 manifest parses for a 200-thread pass. A
+ * backlog scan needs the whole answer at once, so it reads it once.
+ *
+ * Deprecated headers count, deliberately, because `hasStagedSession` counts them.
+ * The two must agree or flush would disagree with the per-session guard
+ * `stageTmpMemory` uses: promotion spreads the source header onto the live
+ * promoted file so the key usually survives there, but a promoted file that is
+ * later superseded is deprecated in place — drop deprecated headers here and a
+ * session whose memory supersession deliberately retired would look unstaged and
+ * get staged again on the next flush.
+ */
+export async function listStagedSessionKeys(): Promise<Set<string>> {
+    const manifest = await withFilesLock(loadManifest);
+    const keys = new Set<string>();
+    Object.values(manifest).forEach((h) => {
+        if (h.sourceSessionKey) keys.add(h.sourceSessionKey);
+    });
+    return keys;
 }
 
 export interface ManifestStats {
@@ -337,7 +508,11 @@ export async function promoteTmpRecord(id: string, targetProjectId: string): Pro
         const body = await storageAdapter.getItem(bodyKey(id));
         if (typeof body !== 'string') return null;
         const timestamp = nowIso();
-        const newId = `projects/${target}/${source.type === 'feedback' ? 'Feedback' : 'Project'}/${slugify(source.name)}-${hashText(body.slice(0, 400))}.md`;
+        const baseId = `projects/${target}/${source.type === 'feedback' ? 'Feedback' : 'Project'}/${slugify(source.name)}-${hashText(body.slice(0, 400))}.md`;
+        // Same guard as staging: two distinct `_tmp` files whose bodies agree on
+        // their first 400 characters would otherwise promote onto one id, and the
+        // second would silently replace the first.
+        const newId = await idWithoutOverwriting(manifest, body, baseId);
         const header: MemoryFileHeader = {
             ...source,
             id: newId,
@@ -354,13 +529,33 @@ export async function promoteTmpRecord(id: string, targetProjectId: string): Pro
     });
 }
 
-/** Soft-delete a file (deprecated, kept for audit, excluded everywhere). */
-export async function deprecateRecord(id: string): Promise<boolean> {
+export interface DeprecateRecordAudit {
+    /** Id of the newer memory that restated this one (supersession audit). */
+    supersededBy?: string;
+    reason?: string;
+}
+
+/**
+ * Soft-delete a file (deprecated, kept for audit, excluded everywhere).
+ *
+ * `audit` records *why* a record was superseded, following the identity
+ * profile's doctrine: supersede by invalidating prior values, never silent
+ * wipe. The body and header stay readable in storage.
+ */
+export async function deprecateRecord(id: string, audit: DeprecateRecordAudit = {}): Promise<boolean> {
     return withFilesLock(async () => {
         const manifest = await loadManifest();
         const existing = manifest[id];
         if (!existing || existing.deprecated) return false;
-        manifest[id] = { ...existing, deprecated: true, updatedAt: nowIso() };
+        const timestamp = nowIso();
+        manifest[id] = {
+            ...existing,
+            deprecated: true,
+            updatedAt: timestamp,
+            ...(audit.supersededBy ? { supersededBy: audit.supersededBy } : {}),
+            ...(audit.supersededBy || audit.reason ? { supersededAt: timestamp } : {}),
+            ...(audit.reason ? { supersedeReason: audit.reason } : {}),
+        };
         await saveManifest(manifest);
         return true;
     });
@@ -378,29 +573,53 @@ function isImportRecord(value: unknown): value is MemoryFileImportRecord {
 }
 
 /**
+ * Batch size for one manifest read-modify-write cycle during bulk import. This
+ * bounds the work per save, it is NOT a total ceiling — restore must not have
+ * one, or a large journal cannot be restored at all.
+ */
+const IMPORT_BATCH_SIZE = 1000;
+
+/**
  * Bulk import (Drive restore). Validates every record, skips ids already
- * present, writes the rest under one lock. Fail-closed on garbage.
+ * present, writes the rest in batches. Fail-closed on garbage.
+ *
+ * Validation and batching are kept apart on purpose. The previous version sliced
+ * to 1000 *before* comparing lengths, so a backup of 1001+ perfectly valid files
+ * threw `Backup contains invalid memory file records` and could never be
+ * restored. That was unreachable only because `buildMemorySnapshot` used to
+ * export ten files regardless of store size; once export was fixed it became a
+ * live ceiling that blamed the user's data for its own limit.
  */
 export async function importMemoryFiles(records: unknown): Promise<{ imported: number; skipped: number }> {
     if (!Array.isArray(records)) throw new Error('Memory file records must be an array.');
-    const valid = records.filter(isImportRecord).slice(0, 1000);
+    const valid = records.filter(isImportRecord);
     if (valid.length !== records.length) throw new Error('Backup contains invalid memory file records.');
-    return withFilesLock(async () => {
-        const manifest = await loadManifest();
-        let imported = 0;
-        let skipped = 0;
-        for (const record of valid) {
-            if (manifest[record.header.id]) {
-                skipped += 1;
-                continue;
+    let imported = 0;
+    let skipped = 0;
+    for (let offset = 0; offset < valid.length; offset += IMPORT_BATCH_SIZE) {
+        const batch = valid.slice(offset, offset + IMPORT_BATCH_SIZE);
+        const result = await withFilesLock(async () => {
+            const manifest = await loadManifest();
+            let batchImported = 0;
+            let batchSkipped = 0;
+            for (const record of batch) {
+                if (manifest[record.header.id]) {
+                    batchSkipped += 1;
+                    continue;
+                }
+                manifest[record.header.id] = record.header;
+                await storageAdapter.setItem(bodyKey(record.header.id), record.content);
+                batchImported += 1;
             }
-            manifest[record.header.id] = record.header;
-            await storageAdapter.setItem(bodyKey(record.header.id), record.content);
-            imported += 1;
-        }
-        await saveManifest(manifest);
-        return { imported, skipped };
-    });
+            // Headers land in the same save as their bodies, so a crash leaves an
+            // orphan body at worst — never a dangling header.
+            await saveManifest(manifest);
+            return { batchImported, batchSkipped };
+        });
+        imported += result.batchImported;
+        skipped += result.batchSkipped;
+    }
+    return { imported, skipped };
 }
 
 /**

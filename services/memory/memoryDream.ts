@@ -5,6 +5,7 @@ import {
     promoteTmpRecord,
 } from './memoryFiles';
 import type { MemoryFileHeader } from './memoryFiles';
+import { supersedeRestatedMemories } from './memorySupersession';
 
 /**
  * Dream consolidation (ClawX Dream, lexical edition).
@@ -24,6 +25,8 @@ export interface DreamPlanThread {
 
 export interface DreamOutcome {
     promoted: number;
+    /** R2: older memories a newer file restated, now deprecated. */
+    superseded: number;
     threads: string[];
     tmpRemaining: number;
     summary: string;
@@ -40,14 +43,6 @@ function slugThread(value: string): string {
 function threadHintOf(header: MemoryFileHeader): string | null {
     const match = /Thread hint ([a-z0-9\u4e00-\u9fff_-]+)\./i.exec(header.description);
     return match?.[1] ? slugThread(match[1]) : null;
-}
-
-function hashBody(body: string): string {
-    let hash = 0;
-    for (let i = 0; i < body.length; i += 1) {
-        hash = (hash * 31 + body.charCodeAt(i)) | 0;
-    }
-    return Math.abs(hash).toString(36);
 }
 
 /** Deterministic fallback: group by staging thread hint, loners by name slug. */
@@ -124,9 +119,9 @@ async function proposePlanWithLlm(
 export async function runMemoryDream(options: { tryLlm?: boolean } = {}): Promise<DreamOutcome> {
     const tmp = (await listTmpFiles()).slice(0, MAX_DREAM_FILES);
     if (tmp.length === 0) {
-        return { promoted: 0, threads: [], tmpRemaining: 0, summary: 'No staged memories to consolidate.', usedLlm: false };
+        return { promoted: 0, superseded: 0, threads: [], tmpRemaining: 0, summary: 'No staged memories to consolidate.', usedLlm: false };
     }
-    const records = await getMemoryRecordsByIds(tmp.map((t) => t.id));
+    const records = await getMemoryRecordsByIds(tmp.map((t) => t.id), { limit: MAX_DREAM_FILES });
     const bodies = new Map(records.map((r) => [r.id, r.content]));
 
     let plan: DreamPlanThread[] | null = null;
@@ -147,9 +142,15 @@ export async function runMemoryDream(options: { tryLlm?: boolean } = {}): Promis
         let threadPromoted = 0;
         for (const fileId of thread.fileIds) {
             const body = bodies.get(fileId) ?? '';
-            const digest = hashBody(body);
-            if (seenBodies.has(digest)) continue;
-            seenBodies.add(digest);
+            // A staged file always has a non-empty body (`stageTmpMemory` throws
+            // otherwise), so an empty body here means the load failed - never a
+            // duplicate. Collapsing on it made every unread file look alike and
+            // silently deferred all but one per thread. Bodies are compared
+            // exactly, not by hash: a hash collision would drop a distinct memory.
+            if (body) {
+                if (seenBodies.has(body)) continue;
+                seenBodies.add(body);
+            }
             const header = await promoteTmpRecord(fileId, thread.threadId);
             if (header) {
                 promoted += 1;
@@ -158,12 +159,22 @@ export async function runMemoryDream(options: { tryLlm?: boolean } = {}): Promis
         }
         if (threadPromoted > 0) threads.push(thread.threadId);
     }
+    // R2: the promotion pass is also the moment to collapse restated memories.
+    // Same trigger, same cap — supersession never adds scheduling of its own.
+    const supersession = await supersedeRestatedMemories();
     const remaining = (await listTmpFiles()).length;
+    const supersededNote = supersession.superseded > 0
+        ? '; superseded ' + supersession.superseded + ' restated file(s) in ' + supersession.threads.length + ' thread(s)'
+        : '';
     return {
         promoted,
+        superseded: supersession.superseded,
         threads,
         tmpRemaining: remaining,
-        summary: `Dream ${usedLlm ? '(LLM plan)' : '(offline plan)'}: promoted ${promoted} file(s) into ${threads.length} thread(s)${threads.length ? ` (${threads.join(', ')})` : ''}; ${remaining} staged file(s) remaining.`,
+        summary: 'Dream ' + (usedLlm ? '(LLM plan)' : '(offline plan)') + ': promoted ' + promoted
+            + ' file(s) into ' + threads.length + ' thread(s)'
+            + (threads.length ? ' (' + threads.join(', ') + ')' : '')
+            + '; ' + remaining + ' staged file(s) remaining' + supersededNote + '.',
         usedLlm,
     };
 }

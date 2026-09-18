@@ -17,6 +17,8 @@ interface IntentionChatComposerBarProps {
     readonly canFinish?: boolean;
     readonly isSaving?: boolean;
     readonly savingLabel?: string;
+    readonly isStreaming?: boolean;
+    readonly onStop?: () => void;
 }
 
 /**
@@ -37,6 +39,8 @@ export function IntentionChatComposerBar({
     canFinish = false,
     isSaving = false,
     savingLabel,
+    isStreaming = false,
+    onStop,
 }: IntentionChatComposerBarProps) {
     return (
         <View className="gap-3 border-t border-hairline-light px-5 pt-3 dark:border-hairline-dark">
@@ -56,6 +60,8 @@ export function IntentionChatComposerBar({
                 onSubmit={onSubmitInput}
                 onTextChange={onInputTextChange}
                 disabled={disabled}
+                isStreaming={isStreaming}
+                onStop={onStop}
                 placeholder="Write what's true…"
             />
         </View>

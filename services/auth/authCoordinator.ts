@@ -78,6 +78,11 @@ export function createAuthCoordinator(
                     snapshot = { authState: SIGNED_OUT_STATE, isLoading: false };
                     emit();
                 }
+                // A failed transition drops the app back to the signed-out UI with no
+                // user-visible signal (AUTH-04: signup returned a session, the app
+                // persisted it, and the screen just sat there). Silent swallows made
+                // that undiagnosable — always log before rethrowing.
+                console.error('[auth] Session transition failed:', error);
                 throw error;
             }
         });

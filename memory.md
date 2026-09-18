@@ -32,11 +32,15 @@ see `.planning/archive/README.md` for what of that roadmap landed).
 
 ### Storage
 
-- Memory lives in AsyncStorage under `@rosebud_local_memory`.
+- Memory lives in AsyncStorage: a header index at `@rosebud_local_memory`
+  (`schemaVersion: 3`, `shardCount`, `atomCount` — no atoms) plus atom bodies at
+  `@rosebud_local_memory_shard:<0-7>`. Pre-shard v1/v2 payloads at the index key
+  still load; they are rewritten as shards on the next save.
 - The service is `services/memory/localMemory.ts`.
 - Types live in `services/memory/localMemory.types.ts`.
 - Tests can inject a storage adapter with `setMemoryStorageAdapter`.
-- Local backup includes `@rosebud_local_memory` and `@blackrose_day_digests`.
+- Local backup includes the merged atom store (exported via `exportMemoryBundle`,
+  restored via `importMemoryBundle`) and `@blackrose_day_digests`.
 - Day digests (calendar rollups for “what did I talk about yesterday?”) live under
   `@blackrose_day_digests`, owned by `services/memory/dayDigestStorage.ts`.
 

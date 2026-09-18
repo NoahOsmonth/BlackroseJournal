@@ -89,7 +89,8 @@ describe('runAgentTurnWithTools', () => {
         expect(result.toolCallSource).toBe('none');
         expect(toolsMock).not.toHaveBeenCalled();
         expect(fetchMock).toHaveBeenCalledWith(
-            expect.objectContaining({ max_tokens: 1_536 })
+            expect.objectContaining({ max_tokens: 1_536 }),
+            undefined // no user-Stop signal on this turn
         );
     });
 

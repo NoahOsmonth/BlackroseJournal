@@ -35,9 +35,13 @@ function hasFinalContent(accumulator: ChatAccumulator): boolean {
     return accumulator.content.trim().length > 0;
 }
 
-export async function fetchChatCompletion(payload: ChatRequestPayload): Promise<Response> {
-    return fetchAiChatCompletion(payload);
+export async function fetchChatCompletion(
+    payload: ChatRequestPayload,
+    callerSignal?: AbortSignal
+): Promise<Response> {
+    return fetchAiChatCompletion(payload, callerSignal ? { signal: callerSignal } : undefined);
 }
+
 
 /** PR8c: stream result includes usage when the provider emits a usage chunk. */
 export interface StreamXhrResult {
@@ -48,7 +52,8 @@ export interface StreamXhrResult {
 export async function streamChatWithXhr(
     payload: ChatRequestPayload,
     onChunk: StreamingCallback,
-    onComplete: CompleteCallback
+    onComplete: CompleteCallback,
+    callerSignal?: AbortSignal
 ): Promise<StreamXhrResult> {
     if (!hasXmlHttpRequest()) return { ok: false, usage: null };
     const preparationLease = acquireAccountOperationLease('ai-inference-xhr-preparation');
@@ -85,6 +90,7 @@ export async function streamChatWithXhr(
             if (settled) return;
             settled = true;
             accountLease.signal.removeEventListener('abort', abortForAccountSwitch);
+            if (callerSignal) callerSignal.removeEventListener('abort', abortForCallerStop);
             try {
                 callback();
             } finally {
@@ -103,6 +109,22 @@ export async function streamChatWithXhr(
                 )));
             }
         };
+        // User Stop: abort the request; the caller distinguishes it via callerSignal.aborted.
+        const abortForCallerStop = () => {
+            if (settled) return;
+            try {
+                xhr.abort();
+            } finally {
+                settle(() => reject(new Error('AI request was stopped by the user.')));
+            }
+        };
+        if (callerSignal) {
+            if (callerSignal.aborted) {
+                abortForCallerStop();
+            } else {
+                callerSignal.addEventListener('abort', abortForCallerStop, { once: true });
+            }
+        }
         const processIncoming = () => {
             if (settled || accountLease.signal.aborted) return;
             const incoming = xhr.responseText.slice(consumedLength);

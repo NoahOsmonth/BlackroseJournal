@@ -113,6 +113,34 @@ describe('journalStorage analysis', () => {
         expect(removeSyncTasksForTable).toHaveBeenCalledWith('journal_entries');
     });
 
+    it('finishes the local wipe even when the remote delete fails (DEF-011)', async () => {
+        // A dead gateway used to abort the whole clear: the remote attempt
+        // triggered an auth refresh, the account re-bound, and the lease abort
+        // killed the transaction before a single local delete ran. The local
+        // wipe is device-local, so it must complete and the remote failure
+        // stays a warning.
+        const remoteDelete = jest.mocked(deleteRemoteJournalEntries);
+        const consoleWarn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+        await createEntry({
+            title: 'Survives the gateway being down',
+            status: 'completed',
+            messages: [{ id: 'm1', role: 'user', content: 'a', timestamp: 1 }],
+        });
+
+        remoteDelete.mockRejectedValueOnce(new Error('Failed to fetch'));
+        await expect(clearAllEntries()).resolves.toBeUndefined();
+
+        await expect(listEntries()).resolves.toEqual([]);
+        expect(consoleWarn).toHaveBeenCalledWith(
+            'Failed to delete remote journal entries:',
+            expect.any(Error)
+        );
+
+        consoleWarn.mockRestore();
+        remoteDelete.mockImplementation(() => Promise.resolve(true));
+    });
+
     it('does not expose one account journal to another account', async () => {
         await createEntry({
             title: 'Account A only',

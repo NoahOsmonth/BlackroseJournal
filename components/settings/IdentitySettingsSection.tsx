@@ -7,6 +7,7 @@ import React, { useCallback } from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
 
 import type { IdentityScalarField } from '@/services/memory/identityProfile.types';
+import { webConfirm } from '@/components/ui/webConfirm';
 import type {
     IdentityCollectionRow,
     IdentityScalarRow,
@@ -26,13 +27,6 @@ export interface IdentitySettingsSectionProps {
     readonly onConfirmPending: (field: IdentityScalarField) => void | Promise<unknown>;
     readonly onDismissPending: (field: IdentityScalarField) => void | Promise<unknown>;
     readonly embedded?: boolean;
-}
-
-function webConfirm(message: string): boolean | null {
-    if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
-        return window.confirm(message);
-    }
-    return null;
 }
 
 function ConfirmedFieldRow({ row }: { readonly row: IdentityScalarRow }) {

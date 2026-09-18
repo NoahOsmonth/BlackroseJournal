@@ -24,6 +24,8 @@ export interface ChatSessionFlushOptions {
     messages: Message[];
     personaId?: string;
     routeParams?: Record<string, string>;
+    /** Live composer text for the flush snapshot (DEF-007). */
+    getComposerDraft?: () => string;
 }
 
 export interface ChatSessionFlushControls {
@@ -37,21 +39,30 @@ export function useChatSessionFlush({
     messages,
     personaId,
     routeParams,
+    getComposerDraft,
 }: ChatSessionFlushOptions): ChatSessionFlushControls {
     const messagesRef = useRef<Message[]>(messages);
     messagesRef.current = messages;
+    const composerDraftRef = useRef<(() => string) | undefined>(getComposerDraft);
+    composerDraftRef.current = getComposerDraft;
     const finalizedRef = useRef(false);
 
     const flush = useCallback(() => {
         if (finalizedRef.current) return;
         const current = messagesRef.current;
-        if (current.length === 0) return;
+        // A composer-only draft (no messages yet) still flushes so the typed
+        // text survives reload (DEF-007) — but an empty session is skipped.
+        const draft = composerDraftRef.current?.().trim() || '';
+        if (current.length === 0 && !draft) return;
         void saveSession({
             conversationId,
             mode,
             messages: current,
             personaId,
             routeParams,
+            ...(composerDraftRef.current
+                ? { composerDraft: composerDraftRef.current().trim() || undefined }
+                : {}),
             updatedAt: Date.now(),
             createdAt: Date.now(),
         });

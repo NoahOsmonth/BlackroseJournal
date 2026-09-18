@@ -18,6 +18,11 @@ import {
     SESSION_DIGEST_BACKUP_BUNDLE_KEY,
     SESSION_DIGEST_SCHEMA_VERSION,
 } from '@/services/memory/sessionDigestStorage';
+import {
+    exportMemoryBundle,
+    importMemoryBundle,
+    LOCAL_MEMORY_STORAGE_KEY,
+} from '@/services/memory/localMemory';
 import type { SessionDigest } from '@/services/memory/sessionDigest.types';
 import {
     getAccountScopedStorageKey,
@@ -49,6 +54,13 @@ export const LOCAL_BACKUP_INDEX_KEY = '@blackrose_local_backups';
 /** Per-digest bodies for a named backup — never one mega-blob. */
 export const BACKUP_SESSION_DIGEST_KEY_PREFIX = '@blackrose_local_backup_session_digest:';
 
+/**
+ * Logical key only: the value is the memory module's merged payload, assembled
+ * in memory at backup time and re-sharded on restore. The runtime copy lives in
+ * `@rosebud_local_memory_shard:<n>` keys; this item is the backup record's copy.
+ */
+const LOCAL_MEMORY_KEY = LOCAL_MEMORY_STORAGE_KEY;
+
 export const LOCAL_BACKUP_DATA_KEYS = [
     '@journal_entries',
     '@intentions',
@@ -58,7 +70,7 @@ export const LOCAL_BACKUP_DATA_KEYS = [
     '@personas',
     '@persona_draft_settings',
     '@ai_response_feedback',
-    '@rosebud_local_memory',
+    LOCAL_MEMORY_KEY,
     '@rosebud_identity_profile',
     '@blackrose_day_digests',
     /**
@@ -85,7 +97,7 @@ const ACCOUNT_SCOPED_BACKUP_KEYS = new Set<LocalBackupDataKey>([
     '@personas',
     '@persona_draft_settings',
     '@ai_response_feedback',
-    '@rosebud_local_memory',
+    LOCAL_MEMORY_KEY,
     '@rosebud_identity_profile',
     '@blackrose_day_digests',
     SESSION_DIGEST_BACKUP_BUNDLE_KEY,
@@ -360,6 +372,12 @@ async function readBackupItem(
         assertAccountOperationActive(context);
         return { key, value };
     }
+    if (key === LOCAL_MEMORY_KEY) {
+        // Sharded at runtime, merged into one payload for the backup record only.
+        const value = await exportMemoryBundle();
+        assertAccountOperationActive(context);
+        return { key, value };
+    }
 
     const value = await AsyncStorage.getItem(resolveBackupStorageKey(key, accountId));
     assertAccountOperationActive(context);
@@ -481,6 +499,12 @@ export function restoreLocalBackup(
                 const item = backup.items.find((backupItem) => backupItem.key === key);
                 if (key === SESSION_DIGEST_BACKUP_BUNDLE_KEY) {
                     await restoreShardedDigestBackup(item?.value ?? null, accountId, context);
+                    continue;
+                }
+                if (key === LOCAL_MEMORY_KEY) {
+                    // Re-shards through the owning module — never a raw key write.
+                    await importMemoryBundle(item?.value ?? null);
+                    assertAccountOperationActive(context);
                     continue;
                 }
                 if (

@@ -17,13 +17,13 @@ import {
 } from '@/components/auth/AuthScaffold';
 import { useAuthSession } from '@/hooks/auth/useAuthSession';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SignupScreen() {
     const router = useRouter();
-    const { isLoading } = useAuthSession();
+    const { isLoading, user } = useAuthSession();
     const { signUp } = useAuthActions();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -32,6 +32,17 @@ export default function SignupScreen() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const passwordInputRef = React.useRef<TextInput>(null);
     const confirmInputRef = React.useRef<TextInput>(null);
+    const isSignedIn = useMemo(() => Boolean(user?.email), [user?.email]);
+
+    // Signup with email confirmation disabled returns a live session. The auth
+    // coordinator applies it asynchronously and the subtree remounts when the
+    // account key changes, so a status banner set in the handler is cleared
+    // before it can be read. Wait for the authenticated snapshot and leave the
+    // auth screen (AUTH-04: the form otherwise sits there after a real signup).
+    useEffect(() => {
+        if (!isSignedIn) return;
+        router.replace('/(tabs)/today');
+    }, [isSignedIn, router]);
 
     const handleSignup = useCallback(async () => {
         if (isSubmitting) return;

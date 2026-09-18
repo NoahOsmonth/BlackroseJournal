@@ -5,6 +5,8 @@ import {
     listLocalBackups,
     restoreLocalBackup,
 } from '@/services/backup/localBackup';
+import { getActiveAccountId } from '@/services/account/accountRuntime';
+import { runLocalOperationWithAccountRecovery } from '@/services/account/accountOperationRecovery';
 import type {
     LocalBackupManifest,
     RestoreLocalBackupResult,
@@ -52,7 +54,14 @@ export function useLocalBackups() {
         setIsBusy(true);
         setErrorMessage(null);
         try {
-            const backup = await createLocalBackup();
+            // Local-only writes: a dead auth gateway must not abort them
+            // (DEF-012). The pinned account is checked so a real account
+            // switch is still respected.
+            const pinnedAccountId = getActiveAccountId();
+            const backup = await runLocalOperationWithAccountRecovery(
+                pinnedAccountId,
+                () => createLocalBackup(),
+            );
             await refresh();
             return backup;
         } catch (error) {
@@ -69,7 +78,11 @@ export function useLocalBackups() {
         setIsBusy(true);
         setErrorMessage(null);
         try {
-            return await restoreLocalBackup(backupId);
+            const pinnedAccountId = getActiveAccountId();
+            return await runLocalOperationWithAccountRecovery(
+                pinnedAccountId,
+                () => restoreLocalBackup(backupId),
+            );
         } catch (error) {
             setErrorMessage(getBackupErrorMessage(error));
             throw error;

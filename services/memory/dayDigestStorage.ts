@@ -260,6 +260,47 @@ export async function upsertCheckInDayDigest(checkIn: IntentionCheckIn): Promise
     });
 }
 
+/**
+ * Remove one source (a deleted entry/check-in) from every day rollup and
+ * rebuild the affected summaries. Days left with no sources are dropped so an
+ * empty row never shows up in History. Returns the number of days touched.
+ */
+export async function removeDayDigestSource(
+    kind: DayDigestSource['kind'],
+    id: string,
+): Promise<number> {
+    const cleanId = id?.trim();
+    if (!cleanId) return 0;
+    return withLock(async () => {
+        const envelope = await loadEnvelope();
+        let touched = 0;
+        Object.keys(envelope.days).forEach((dateKey) => {
+            const digest = envelope.days[dateKey];
+            const remaining = digest.sources.filter(
+                (source) => !(source.kind === kind && source.id === cleanId),
+            );
+            if (remaining.length === digest.sources.length) return;
+            touched += 1;
+            if (remaining.length === 0) {
+                delete envelope.days[dateKey];
+                return;
+            }
+            envelope.days[dateKey] = {
+                ...digest,
+                sources: remaining,
+                entryCount: remaining.length,
+                summary: buildDigestSummary(remaining, digest.topics, remaining[0]?.title ?? ''),
+                updatedAt: Date.now(),
+                schemaNote: 'extractive',
+            };
+        });
+        if (touched > 0) {
+            await saveEnvelope(envelope);
+        }
+        return touched;
+    });
+}
+
 export async function clearDayDigests(): Promise<void> {
     await withLock(async () => {
         await storageAdapter.removeItem(DAY_DIGEST_STORAGE_KEY);

@@ -44,6 +44,7 @@ import {
     type ToolCallOrigin,
 } from './tools/validateToolCalls';
 import type { AgentMessage, ToolCall, ToolDefinition, ToolResult } from './tools/types';
+import { ChatAbortedError } from './chatTypes';
 import type { Message } from './chatTypes';
 import type {
     AgentActivityListener,
@@ -190,6 +191,8 @@ interface AgentLoopOptions {
     turnTimeoutMs?: number;
     /** Optional live activity listener for the visible tool timeline (UI). */
     onActivity?: AgentActivityListener;
+    /** Abort signal (user Stop): stops after the current round and cancels in-flight requests. */
+    signal?: AbortSignal;
 }
 
 /**
@@ -423,7 +426,8 @@ async function completeWithTools(
     model: string,
     sendTools: boolean,
     toolDefs: readonly ToolDefinition[] = HISTORY_TOOL_DEFINITIONS,
-    toolChoice: 'auto' | 'required' = 'auto'
+    toolChoice: 'auto' | 'required' = 'auto',
+    signal?: AbortSignal
 ): Promise<unknown> {
     const response = await fetchAiChatCompletion({
         model,
@@ -438,7 +442,7 @@ async function completeWithTools(
                 tool_choice: toolChoice,
             }
             : {}),
-    });
+    }, signal ? { signal } : undefined);
 
     const rawText = await response.text();
     if (!response.ok) {
@@ -695,6 +699,13 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
             break;
         }
 
+        // User Stop: abandon the turn immediately — no further model rounds.
+        if (options.signal?.aborted) {
+            stopReason = 'cancelled';
+            logToolTelemetry('agent_cancelled', { model, rounds });
+            throw new ChatAbortedError();
+        }
+
         rounds = round + 1;
         emitActivity({ type: 'turn_start', round: rounds });
         const roundStart = Date.now();
@@ -708,9 +719,13 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
                 model,
                 sendTools,
                 activeToolDefs,
-                wantRequiredTools ? 'required' : 'auto'
+                wantRequiredTools ? 'required' : 'auto',
+                options.signal
             );
         } catch (error) {
+            if (options.signal?.aborted) {
+                throw error;
+            }
             if (error instanceof ToolsUnsupportedError && wantRequiredTools && sendTools) {
                 // tool_choice:required rejected — retry auto; tools themselves are fine.
                 logToolTelemetry('agent_tool_choice_required_fallback', { model, rounds });
@@ -726,6 +741,14 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
         }
 
         lastUsage = extractUsageFromCompletion(data) ?? lastUsage;
+
+        // User Stop landed while the model round was in flight: skip tool
+        // execution entirely — the user asked for a halt, not more work.
+        if (options.signal?.aborted) {
+            stopReason = 'cancelled';
+            logToolTelemetry('agent_cancelled', { model, rounds, phase: 'post_model' });
+            throw new ChatAbortedError();
+        }
 
         const accounted = accountRoundTokens(data, agentMessages, sendTools, activeToolDefs);
         cumulativePromptTokens += accounted.tokens;
@@ -1114,6 +1137,11 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
         });
 
         // Discard any last-turn loop narration; only the final no-tools pass may ship.
+        // User Stop: no final pass — the orchestrator keeps whatever streamed.
+        if (options.signal?.aborted) {
+            stopReason = 'cancelled';
+            throw new ChatAbortedError();
+        }
         return runFinalNoToolsPass(agentMessages, settings, model, {
             usedTools,
             rounds,

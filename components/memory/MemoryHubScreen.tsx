@@ -13,6 +13,7 @@ import Animated from 'react-native-reanimated';
 
 import { BottomNav } from '@/components/journal';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
+import { webConfirm } from '@/components/ui/webConfirm';
 import { RevealItem } from '@/components/ui/RevealItem';
 import { useScrollReveal } from '@/components/ui/useScrollReveal';
 import { StaggerEntranceItem } from '@/components/ui/StaggerEntrance';
@@ -104,46 +105,42 @@ export function MemoryHubScreen() {
     };
 
     const deleteAtom = (atom: LocalMemoryAtom) => {
-        Alert.alert(
-            'Delete memory',
-            `Delete "${atom.title}" from local memory?`,
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            await memory.removeAtom(atom.id);
-                        } catch (error) {
-                            Alert.alert('Delete failed', errorMessage(error));
-                        }
-                    },
-                },
-            ]
-        );
+        const remove = async () => {
+            try {
+                await memory.removeAtom(atom.id);
+            } catch (error) {
+                Alert.alert('Delete failed', errorMessage(error));
+            }
+        };
+        const confirmed = webConfirm(`Delete "${atom.title}" from local memory?`);
+        if (confirmed !== null) {
+            if (confirmed) void remove();
+            return;
+        }
+        Alert.alert('Delete memory', `Delete "${atom.title}" from local memory?`, [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Delete', style: 'destructive', onPress: remove },
+        ]);
     };
 
     const clearAll = () => {
         setMenuOpen(false);
-        Alert.alert(
-            'Clear local memory',
-            'Delete all local AI memories from this device?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Clear',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            await memory.clearAll();
-                        } catch (error) {
-                            Alert.alert('Clear failed', errorMessage(error));
-                        }
-                    },
-                },
-            ]
-        );
+        const wipe = async () => {
+            try {
+                await memory.clearAll();
+            } catch (error) {
+                Alert.alert('Clear failed', errorMessage(error));
+            }
+        };
+        const confirmed = webConfirm('Delete all local AI memories from this device?');
+        if (confirmed !== null) {
+            if (confirmed) void wipe();
+            return;
+        }
+        Alert.alert('Clear local memory', 'Delete all local AI memories from this device?', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Clear', style: 'destructive', onPress: wipe },
+        ]);
     };
 
     return (

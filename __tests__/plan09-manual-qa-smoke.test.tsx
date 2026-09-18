@@ -317,7 +317,7 @@ describe('Plan 09 manual-QA smoke test', () => {
         });
     });
 
-    it('QA13: corrupt memory payload recovers without crash and writes the v2 envelope', async () => {
+    it('QA13: corrupt memory payload recovers without crash and writes the sharded store', async () => {
         const memoryKey = getAccountScopedStorageKey('@rosebud_local_memory');
         const corruptMemoryKey = getAccountScopedStorageKey('@rosebud_local_memory_corrupt');
         // Simulate the user opening the app after an interrupted write
@@ -332,13 +332,19 @@ describe('Plan 09 manual-QA smoke test', () => {
         expect(store.get(corruptMemoryKey)).toBe('{not json');
         expect(store.has(memoryKey)).toBe(false);
 
-        // First write creates the v2 envelope
+        // First write creates the sharded store: a header index plus atom shards
         await act(async () => {
             await memories1.result.current.addNote('Hello, post-crash world.');
         });
 
-        const envelope = JSON.parse(store.get(memoryKey) ?? '{}');
-        expect(envelope.schemaVersion).toBe(2);
-        expect(Object.keys(envelope.atoms).length).toBe(1);
+        const index = JSON.parse(store.get(memoryKey) ?? '{}');
+        expect(index.schemaVersion).toBe(3);
+        expect(index.atomCount).toBe(1);
+        expect(index.atoms).toBeUndefined();
+
+        // Account scoping strips the leading '@', so match on the key body.
+        const shards = [...store.keys()].filter((key) => key.includes('rosebud_local_memory_shard:'));
+        expect(shards).toHaveLength(1);
+        expect(Object.keys(JSON.parse(store.get(shards[0]) ?? '{}').atoms)).toHaveLength(1);
     });
 });

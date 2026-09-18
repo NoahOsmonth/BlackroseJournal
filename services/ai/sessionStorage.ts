@@ -30,6 +30,8 @@ export interface ChatSession {
     personaId?: string;
     /** Route params needed to faithfully resume (entryId, area, intentionId, type). */
     routeParams?: Record<string, string>;
+    /** Typed-but-unsent composer text at save time (restored on resume). */
+    composerDraft?: string;
     updatedAt: number;
     createdAt: number;
 }
@@ -135,6 +137,9 @@ function sanitizeSession(value: unknown): ChatSession | null {
         messages: sanitizeMessages(value.messages),
         personaId: typeof value.personaId === 'string' ? value.personaId : undefined,
         routeParams: sanitizeRouteParams(value.routeParams),
+        composerDraft: typeof value.composerDraft === 'string' && value.composerDraft.length > 0
+            ? value.composerDraft
+            : undefined,
         updatedAt,
         createdAt,
     };

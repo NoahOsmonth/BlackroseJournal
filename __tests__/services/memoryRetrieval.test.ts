@@ -5,6 +5,7 @@ import {
 } from '../../services/memory/memoryRetrieval';
 import {
     clearMemoryFiles,
+    importMemoryFiles,
     resetMemoryFilesStorageAdapter,
     setMemoryFilesStorageAdapter,
     stageTmpMemory,
@@ -86,5 +87,53 @@ describe('memoryRetrieval (gated lexical recall)', () => {
         expect(first.debug.cacheHit).toBe(false);
         expect(second.debug.cacheHit).toBe(true);
         expect(second.context).toBe(first.context);
+    });
+
+    it('considers a thread file older than the old fifty-header window', async () => {
+        // 60 files in one thread, capture dates pinned so the needle is provably the
+        // *oldest* — outside the newest fifty. Thread selection goes through
+        // `listFormalProjectIds` (uncapped), but the manifest scan that feeds ranking
+        // used to read `listMemoryFiles({ limit: 200 })`, which caps at 50 in the
+        // callee: the needle was never a candidate and no return value said so.
+        const day = 24 * 60 * 60 * 1000;
+        const base = Date.UTC(2026, 0, 1);
+        const files = [{
+            header: {
+                id: 'projects/lighthouse/Project/lens-restoration.md',
+                relativePath: 'projects/lighthouse/Project/lens-restoration.md',
+                name: 'Lighthouse lens restoration',
+                description: 'Lighthouse lens restoration notes and the copper optic.',
+                type: 'project' as const,
+                scope: 'project' as const,
+                projectId: 'lighthouse',
+                updatedAt: new Date(base).toISOString(),
+                capturedAt: new Date(base).toISOString(),
+            },
+            content: '## Current Stage\nLighthouse lens restoration: the copper optic is back in the lamp room.',
+        }];
+        for (let i = 0; i < 59; i += 1) {
+            const at = new Date(base + (i + 1) * day).toISOString();
+            files.push({
+                header: {
+                    id: `projects/lighthouse/Project/shelf-note-${i}.md`,
+                    relativePath: `projects/lighthouse/Project/shelf-note-${i}.md`,
+                    name: `Shelf note ${i}`,
+                    description: `Lighthouse shelf inventory entry number ${i}, unrelated to optics.`,
+                    type: 'project' as const,
+                    scope: 'project' as const,
+                    projectId: 'lighthouse',
+                    updatedAt: at,
+                    capturedAt: at,
+                },
+                content: `## Current Stage\nShelf inventory ${i}.`,
+            });
+        }
+        await importMemoryFiles(files);
+
+        const result = await retrieveMemory('lighthouse lens restoration');
+
+        expect(result.debug.resolvedProjectId).toBe('lighthouse');
+        expect(result.debug.selectedFileIds).toContain('projects/lighthouse/Project/lens-restoration.md');
+        expect(result.context).toContain('copper optic');
     });
 });

@@ -3,6 +3,9 @@ import {
     deleteMemoryFilesBySourceSessions,
     getMemoryRecordsByIds,
     listMemoryFiles,
+    listTmpFiles,
+    MEMORY_FILES_MANIFEST_KEY,
+    promoteTmpRecord,
     resetMemoryFilesStorageAdapter,
     setMemoryFilesStorageAdapter,
     stageTmpMemory,
@@ -134,6 +137,80 @@ describe('memoryFiles (offline file-semantic store)', () => {
             expect(await getMemoryRecordsByIds([seededCheckIn.id, seededEntry.id])).toHaveLength(0);
             expect(await getMemoryRecordsByIds([realEntry.id])).toHaveLength(1);
         } finally {
+            resetMemoryFilesStorageAdapter();
+        }
+    });
+    it('orders the staged backlog by capture date then id, never by manifest key order', async () => {
+        const adapter = createAdapter();
+        setMemoryFilesStorageAdapter(adapter);
+        try {
+            // Same capture instant: the only thing left to order by is the id.
+            const sameInstant = '2026-09-01T09:00:00.000Z';
+            for (const name of ['Gamma', 'Alpha', 'Beta']) {
+                await stageTmpMemory({
+                    type: 'project',
+                    name,
+                    description: `Thread hint workload. ${name} backlog item.`,
+                    body: `## Current Stage\n${name} backlog body.`,
+                    capturedAt: sameInstant,
+                });
+            }
+
+            const first = await listTmpFiles();
+            expect(first).toHaveLength(3);
+            expect([...first].map((h) => h.id)).toEqual(first.map((h) => h.id));
+            // Tie-break is the id, so the order is alphabetical by slug, not by
+            // the order the files happened to be staged in.
+            expect(first.map((h) => h.name)).toEqual(['Alpha', 'Beta', 'Gamma']);
+
+            // Rewrite the manifest with its keys reversed. Ordering must not move.
+            const raw = adapter.store.get(MEMORY_FILES_MANIFEST_KEY);
+            expect(raw).toBeDefined();
+            const manifest = JSON.parse(raw as string) as Record<string, unknown>;
+            const reversed: Record<string, unknown> = {};
+            Object.keys(manifest).reverse().forEach((key) => {
+                reversed[key] = manifest[key];
+            });
+            adapter.store.set(MEMORY_FILES_MANIFEST_KEY, JSON.stringify(reversed));
+
+            expect((await listTmpFiles()).map((h) => h.name)).toEqual(['Alpha', 'Beta', 'Gamma']);
+        } finally {
+            await clearMemoryFiles();
+            resetMemoryFilesStorageAdapter();
+        }
+    });
+
+    it('keeps capture order across promotion even though promotion rewrites updatedAt', async () => {
+        const adapter = createAdapter();
+        setMemoryFilesStorageAdapter(adapter);
+        try {
+            const ids: string[] = [];
+            for (const [index, name] of ['Oldest', 'Middle', 'Newest'].entries()) {
+                const staged = await stageTmpMemory({
+                    type: 'project',
+                    name,
+                    description: `Thread hint workload. ${name} backlog item.`,
+                    body: `## Current Stage\n${name} backlog body.`,
+                    capturedAt: `2026-09-0${index + 1}T09:00:00.000Z`,
+                });
+                ids.push(staged.id);
+            }
+
+            for (const id of ids) {
+                expect(await promoteTmpRecord(id, 'workload')).not.toBeNull();
+            }
+
+            // Recency reads the capture date, so promotion cannot promote a file
+            // into looking like the newest memory in the store.
+            const promoted = await listMemoryFiles({ projectId: 'workload', limit: 10 });
+            expect(promoted.map((h) => h.name)).toEqual(['Newest', 'Middle', 'Oldest']);
+            // Every updatedAt was rewritten to promotion time, yet the order still
+            // follows the capture date. That is the property being pinned.
+            promoted.forEach((h) => {
+                expect(Date.parse(h.updatedAt)).toBeGreaterThan(Date.parse(h.capturedAt ?? ''));
+            });
+        } finally {
+            await clearMemoryFiles();
             resetMemoryFilesStorageAdapter();
         }
     });

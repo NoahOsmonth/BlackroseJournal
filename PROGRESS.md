@@ -1,5 +1,1086 @@
 # PROGRESS — Optimization + Bug Hunt (2026-09-02)
 
+## 2026-09-17 — QA Run 1 executed: 18 cases dispositioned, 4 defects (2×S2)
+
+Executed the QA program live (playwriter.dev → user's Chrome, Expo web :8081, commit `478b56d`). Pre-flight gate green (1511 jest tests, tsc, lint, design). Results: **5 Pass / 3 Fail / 10 Blocked** (full detail: `docs/qa/results/2026-09-17-run1.md`; tracker updated in `docs/qa/cases/*.csv` + dashboard).
+
+Findings that matter:
+- **DEF-003 (S2, SETTINGS-05):** demo seed silently fails to persist check-ins + goals to the active account scope — seed *record* lists 12 goal/6 check-in ids that exist in **no** account scope (entries do seed). One run's goals landed in a foreign account scope. Demo-clear will no-op on those ids. Suspect account-scope write flapping; needs dev root-cause before SETTINGS-06 re-test.
+- **DEF-004 (S2, GOALS/LIFE-06):** an alien-shape goals key (`[]` array vs native `{}` map) silently freezes ALL goal writes — dialog closes as saved, zero storage writes, no error, no self-heal. Violates the rule-4 safe-parse pattern; reproduced 3× incl. fresh boot; writes resume after shape restore.
+- **DEF-001 (S3):** goals screen has no edit/delete UI; `useGoals.update/remove` exist unused. **DEF-002 (S4):** goal checkbox exposes no `aria-checked` on web.
+- **AUTH suite blocked** (9/10): Supabase gateway `100.107.7.52:54321` unreachable all session; app ran on cached session (AUTH-09 session-persistence **Pass**). Logout deliberately held — executing it would strand the run behind a login wall.
+- **GOALS-05 spacing regression (P1) Pass:** `gap-*` only, zero `space-*`; DOM measurements + screenshots in `output/qa/`.
+- Executor incident disclosed: mid-run storage overwrite wiped seeded goals (no backup) — recovered via re-seed; documented transparently in the run summary; contamination flagged in DEF-003 evidence.
+
+## 2026-09-17 (earlier) — QA documentation program built (execution pending)
+
+Stood up the formal manual-QA program: `QA-Plan.md` (charter: scope excludes Hindsight/cloud-memory, environment = Expo web on Chrome via playwriter.dev, one-case-at-a-time Excel workflow, status legend) and `docs/qa/` — `TEST_PLAN.md` (master index + status dashboard), 12 CSV case suites in `cases/` (AUTH 10, JOURNAL 12, CHECKINS 9, GOALS 7, MEMORY 10, IDENTITY 5, SETTINGS 10, THEME 12, PERFORMANCE 7, RESPONSIVE 8, LIFECYCLE 8, NEGATIVE 9 — **107 cases**), `DEFECTS.md` (defect log + severity guide), `results/README.md` (run-summary template), and `AI-HANDOFF-PROMPT.md` (self-contained executor prompt for a second AI: pre-flight gate, playwriter.dev loop, verbatim-recall evidence, dashboard upkeep). The four AGENTS.md pain-changelog bugs are embedded as permanent P1 regression cases (LIFECYCLE kill-mid-finish, GOALS spacing, THEME dark-mode sweep, MEMORY recall day-slip). Follow-up: run the executor prompt case-by-case; documentation-only phase, no app code touched.
+
+## 2026-09-16 (latest) — R2.6: the 400-atom cap was a storage bound in disguise, so the key got sharded first
+
+**This is R3's gate, not R3.** R3 is *entity/alias → temporal → prospection*, and three entries say do not
+start it until two things are settled: supersession's value measured on a real corpus, and finding 8
+(the atom cap) decided. This entry settles finding 8 — the second gate. The first is still unmet (R2S
+reports `superseded: 1` on a constructed pair, `0` on the R0 ledger), so **R3 itself has not started**.
+
+R2.5 left the cap as a gated decision: *raise the atom cap?* It read like a product call about how much
+history the store should keep. Measuring it first showed it was not — 400 was the largest value one
+AsyncStorage key could hold on Android, wearing a policy's clothes. The decision taken was **4000
+atoms, with the storage key sharded first**; this entry is the measurement, the sharding, and the two
+bugs the new tests caught on the way.
+
+### Why measurement came before the decision
+
+What 400 actually evicts, through the real write path (`saveJournalEntryMemories`, LLM extraction mocked
+to control density):
+
+| Extraction density | First eviction |
+|---|---|
+| 1 atom/entry (offline `buildJournalAtoms` fallback) | never — 372 live atoms after a full simulated year |
+| 3 atoms/entry (realistic LLM output) | **entry 134 (~4.4 months)** |
+| 5 atoms/entry (rich LLM output) | **entry 81 (~2.7 months)** |
+
+So the cap was not a ceiling on a distant future: a daily journaler on the normal LLM path starts losing
+their oldest memories inside one season, silently, on every write. And the space it was saving was
+almost nothing:
+
+| Cap | One AsyncStorage value | History at 3 atoms/entry |
+|---|---|---|
+| 400 (was) | 196 KB | 4.4 months |
+| 2000 | 980 KB | ~1.8 years |
+| 4000 | 1.96 MB–3.4 MB | ~3.7 years |
+
+Android's per-key ceiling is ~2 MB, so the honest reading of that table is: **the cap could not be
+raised without sharding, and it was never a product decision.** Two independent measurements of a
+4000-atom store put it past the ceiling — 1,911,589 characters for the sabotage-shaped store, 3,366,560
+for a realistic one (420-char bodies, 6 tags, 841 bytes/atom).
+
+### What shipped
+
+| Area | Change |
+|---|---|
+| Storage | `@rosebud_local_memory` is now a header index (`schemaVersion: 3`, `shardCount`, `atomCount` — **no atoms**); bodies live at `@rosebud_local_memory_shard:<0-7>`, FNV-1a over the atom key |
+| Cap | `MAX_MEMORY_ATOMS` 400 → 4000, with the reason for the number written next to it |
+| Migration | v1 raw maps and v2 envelopes at the index key still load, fold in *before* the shards (newer copy wins on conflict), and are rewritten as shards on the next save — so the crash window during migration cannot lose or resurrect an atom |
+| Writes | only the shard whose content changed; the header only when the atom count moves. Measured: 1 shard touched per single-atom write, and 0 when nothing changed |
+| Corruption | a shard that will not parse is preserved under the existing corrupt-backup key, its key dropped, and the loss announced — the other seven shards keep loading |
+| Restore | `importMemoryAtoms` writes a whole snapshot in one locked batch; `driveBackup.restoreMemorySnapshot` uses it and reports the atoms the store actually kept |
+| Backup | `exportMemoryBundle` / `importMemoryBundle` merge the shards for the local-backup item and re-shard on restore; `@rosebud_local_memory_shard:` joined the account-private key prefixes, so shards are claimed with the rest of an account's data on ownership confirmation |
+| Clear | `clearMemoryAtoms` removes the index and all eight shards |
+
+### Measured after
+
+```
+atoms stored           : 4000        shard keys: 8
+per-shard chars        : max 425011  avg 420820  total 3366560
+index chars            : 51
+batch seed (4000 atoms): 56ms        full read: 61ms
+export bundle          : 81ms, 3276KB -> import bundle 49ms
+upsert at full store   : 220.3ms each -> 881s for a 4000-atom restore
+legacy v2 -> shards    : read 44ms, write 152ms (one-time), 8 shards after
+```
+
+The 220 ms/atom line is the reason `importMemoryAtoms` exists: the drive-restore path used to loop
+`upsertMemoryAtom`, and at the *old* cap that was 400 × ~5 ms. At 4000 atoms a per-atom loop re-reads
+and re-serializes 3.4 MB once per atom — the same restore takes 56 ms batched.
+
+### Two bugs the new tests caught, and one write-amplification trap
+
+**`saveAtomBatch` reported atoms it had just evicted.** `pruneMemoryMap` returns a *new* map and never
+mutates its input, so the survival filter `merged.filter((atom) => Boolean(map[atom.id]))` was reading
+the pre-prune map. Reproduced by asserting the new batch return value at the cap: offered 4005, reported
+4005, kept 4000. Same shape as the rest of this sweep — a return value that disagrees with what was
+stored. Fixed by filtering against the pruned map.
+
+**Shard payloads were unreadable on the first attempt.** They carried the same `schemaVersion: 3` marker
+as the index, so `atomsFromPayload` classified every shard as a header and returned nothing: 21 existing
+tests went red with an empty store. The discriminator is now the shape (`shardCount` = index, `atoms` =
+payload), not the version.
+
+**Write amplification from a load-time backfill.** `migrateAtomProvenance` backfills provenance on load,
+so the loaded map never byte-matches the stored payload on the first save after a launch. Comparing raw
+bytes rewrote all eight shards (~3.4 MB) on the first write of every session, for no content change.
+Fixed by comparing canonical-to-canonical and tracking key presence separately:
+
+```
+[scratch shardDiff] raw-byte diff:  write1 shards touched: 8   write2: 1
+[scratch shardDiff] canonical diff: write1 shards touched: 1   write2: 1
+```
+
+### Sabotage evidence
+
+| Sabotage | Result |
+|---|---|
+| `LOCAL_MEMORY_SHARD_COUNT = 1` (the old single-key design) | `localMemorySharding` **1 of 7 red** — `keeps a full store spread across keys`: 1,911,589 chars against a 524,288 budget |
+| A corrupt shard aborts the load loop instead of losing only its own atoms | **1 of 7 red** — `survives one corrupt shard`: 53 atoms → 0 |
+| `clearMemoryAtoms` drops the shard removals | **1 of 7 red** — `clears every shard and the index`: 8 keys left behind |
+| Legacy payload applied *after* the shards | **1 of 7 red** — `folds a pre-shard payload in…`: title "Older" instead of "Newer" |
+| Every save rewrites every shard | **1 of 7 red** — `writes only the shard…`: 8 shards written instead of 1 |
+| Batch import filters on the unpruned map (the old code) | `localMemoryHardening` **1 of 10 red** — `reports how many atoms a batch import actually kept`: reported 4005, kept 4000 |
+
+Each was reverted and re-run green (17 tests across the two files).
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| `npx tsc --noEmit` | clean |
+| `npx eslint .` | 0 errors, 72 pre-existing warnings |
+| `npm run check:design` | PASSED (0 errors, 3 pre-existing size warnings) |
+| `npm test` | **1511 passed / 0 failed** (30 skipped, 288 suites) — up from 1503 |
+| R1/R2 metrics after the change | **identical**: hit-rate 16.7% → 83.3%, precision 0.167 → 0.433, threads 0 → 3, `reproducible: true` |
+| Suite time | `memoryBulkImport` 123 s → 5 s, `localMemoryHardening` 196 s → 2.4 s (batched seeding instead of 4000 locked writes) |
+
+New: `__tests__/services/memory/localMemorySharding.test.ts` (7) and one batch-report test in
+`localMemoryHardening.test.ts`. Updated for the sharded shape: the v1-migration and cap tests in
+`localMemoryHardening.test.ts`, `memoryBulkImport.test.ts` (batched seeding), the local-backup snapshot
+fixture, and plan09 QA13. `AGENTS.md` (storage-keys row, sharding paragraph, changelog line) and
+`memory.md` were corrected — both described the v2 single-key envelope that no longer exists.
+
+### R-series status
+
+R0–R2.6 are done. Finding 8 is decided by measurement above, which clears one of R3's two gates.
+
+**R3 has not started**, and should not: *entity/alias → temporal → prospection* is the largest phase and
+its own value is entirely unmeasured. The gate still standing is the real-restatement ledger — supersession
+prices at `superseded: 0` on the R0 ledger and `1` on a constructed pair, so "how often does a real user's
+journal restate itself" is still unknown. Building temporal reasoning on top of entity resolution whose
+value is unknown would be the exact move R2.5 warned against.
+
+**R4 and R5 are not defined anywhere in this checkout.** The R-plan they belong to —
+`.planning/context-retention/PLAN.md` (phases R0–R5, 334 lines) plus Fusion task `KB-001` — does not
+exist here; R0's recon correction records that already. Only R0–R3 were ever named in the handoff text
+(R0 metrics harness, R1 idle Dream trigger, R2 fading + supersession, R3 as above). There is no file,
+note, or commit in this repo that says what R4 or R5 are, so they cannot be scoped from the name without
+inventing work.
+
+## 2026-09-16 — R2.5: the last two open findings, and one that was not a bug at all
+
+R2.4 closed the silent-cap sweep and left two findings open as "not this bug class". Asked to finish the
+R-series rather than assume, I re-examined both against the actual code — and one of them is this bug
+class after all, while the third item on the list turned out to be priced and fine.
+
+### Finding 6 revisited: not a rare hash collision, a deterministic one
+
+The finding read: *"ids come from a 32-bit rolling hash of the first 400 chars... two distinct memories
+that collide would silently overwrite each other. Negligible at journal scale... Fixing it is a
+migration, not a patch."*
+
+Both halves of that were wrong. Reproduced with two memories that share a name, a description and their
+first 400 body characters:
+
+```
+[scratch collision] id A = projects/_tmp/Project/kiln-untitled-entry-i9c8ac.md
+[scratch collision] id B = projects/_tmp/Project/kiln-untitled-entry-i9c8ac.md
+[scratch collision] same id (collision) = true
+[scratch collision] total live files in store = 1
+[scratch collision] FIRST body still retrievable = false
+```
+
+The id is a hash of `type|name|description|body.slice(0, 400)`. Two entries that agree on those agree on
+the id **every time** — no probability involved. It is not rare, it is not "negligible at journal
+scale", and the trigger is the app's own naming: entries titled from the same topic with the same
+insight line produce identical headers routinely. And it is *silent*: `manifest[id] = header`, second
+write wins, first memory gone, return value as cheerful as ever. Same class as everything else in this
+sweep, and a worse consequence — it destroys data rather than hiding it.
+
+**Fix, and why it is not the migration the finding expected.** `idWithoutOverwriting` tries the base id
+first and only moves when that slot holds a *different* body, so every id already in a store keeps
+working and nothing is rewritten — no migration, no id churn. A slot holding a byte-identical body is
+reused, so re-staging the same memory stays idempotent instead of accumulating copies. Unreadable slots
+count as taken, so a failed body read can never license an overwrite. Both writers use it (`stageTmpMemory`
+and `promoteTmpRecord`, which had the identical flaw one layer later).
+
+Verified on both paths, and the guard is invisible when it is not needed:
+
+```
+[fix stage] distinct ids = true · live files = 2 (expect 2)
+[fix stage] FIRST present = true · SECOND present = true
+[fix stage] re-stage reused id = true          (idempotent, not accumulating)
+[fix promo] distinct ids = true · loaded records = 2 (expect 2)
+[fix promo] ALPHA survives = true · BETA survives = true
+```
+
+### Finding 8 revisited: the policy is fine, the silence was not
+
+The finding read: *"`MAX_MEMORY_ATOMS = 400` evicts the lowest-salience atoms on every write. That is a
+deliberate cap... (policy not bug)"*. The policy is a product decision and I did not touch it. Reading
+the function, though, it `return`s the surviving map and nothing else — no log, no count, no signal. A
+user's memory store simply stops growing at 400 and nothing anywhere says so. That is precisely the
+shape this whole sweep exists to kill, so I fixed the silence and left the bound alone, matching R2.3's
+precedent for the supersession window. The sibling `enforceProfileCap` (silently dropping profile atoms
+past 3) had the identical problem and got the identical treatment.
+
+### The item that was not a bug: `MAX_DREAM_FILES` and the backlog
+
+R2 finding 3 said `control-other-thread` misses because `MAX_DREAM_FILES = 20` caps a run, and that
+"draining the backlog over several idle windows is unpriced". Priced, finally — and the cap is honest:
+
+```
+[dream backlog] staged = 50
+[dream backlog] pass1 promoted=20 tmpRemaining=30
+[dream backlog] pass2 promoted=20 tmpRemaining=10
+[dream backlog] pass3 promoted=10 tmpRemaining=0
+[dream backlog] promoted into workload = 50 (expect 50)
+```
+
+Repeated runs drain it completely and lose nothing. The reason is the difference from `memory_flush`
+that R2.4 exposed: `listTmpFiles()` contains only *unpromoted* files, and promotion removes them from
+the head, so each window genuinely advances — and unlike every bound fixed in this sweep, this one
+already reported itself (`tmpRemaining`, and "N staged file(s) remaining" in the summary). Nothing to
+fix. It is now pinned by a test so it cannot quietly regress into the stall that `memory_flush` had.
+
+### What is left open, and why I did not "finish" it
+
+Two R0/R1 items remain and neither is this class, checked rather than assumed:
+
+- **The two finish-path extraction soft-fails** are deliberate fail-closed contracts — the AGENTS.md
+  doctrine is "callers must fail closed with no store write", `jsonCompletion` warns when it happens,
+  and `identityExtraction` `console.warn`s on both paths. A soft-fail that logs is a design choice, not
+  a silent bound. Changing it would mean writing a memory the extractor could not parse, which is worse.
+- **The identity-store split** (`get_identity` vs the offline user file) is an architecture question
+  about which store owns durable facts. It is unmeasured, it is not a bound that hides its effect, and
+  picking a winner is a design decision rather than a bug fix.
+- **R3 (entity/alias → temporal → prospection) stays not started.** Three prior entries say do not start
+  it until supersession's value is measured and finding 8 is decided; supersession still reports
+  `superseded: 0` on the R0 ledger by design, so that gate is not met. Starting it now would contradict
+  the measured recommendation with nothing new behind it.
+
+**R0–R2.5 are complete as far as measurement supports**; R3 was left as a gated decision at this point —
+the atom-cap question answered in the entry above, where measurement showed the cap was a storage bound
+rather than a policy.
+
+### Sabotage evidence
+
+| Sabotage | Result |
+|---|---|
+| `idWithoutOverwriting` returns the base id outright (the old behaviour) | `memoryFileCollisions` **2 of 4 red** — both collision tests; the idempotency and unique-id tests stayed green |
+| Eviction warning removed from `pruneMemoryMap` | `localMemoryHardening` **1 of 9 red** — the announcement test alone; the pre-existing cap test stayed green, proving the policy was untouched |
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| `npx tsc --noEmit` | clean |
+| `npx eslint .` | 0 errors, 72 pre-existing warnings |
+| `npm run check:design` | PASSED (0 errors, 3 pre-existing size warnings) |
+| `npm test` | **1503 passed / 0 failed** (30 skipped, 287 suites) — up from 1497 |
+| R2 metrics after all of the above | **identical**: hit-rate 16.7% → 83.3%, precision 0.167 → 0.433, threads 0 → 3, `reproducible: true` |
+
+New tests: `__tests__/services/memoryFileCollisions.test.ts` (4), plus one each in
+`localMemoryHardening.test.ts` (the eviction announcement) and `memoryDreamTrigger.test.ts` (the backlog
+drain). The scratch probes for the collision were folded in and deleted.
+
+### Findings (final state of the sweep)
+
+All ten silent bounds from the R2.4 inventory are fixed. Finding 6 is additionally **reclassified**:
+deterministic and frequent, not rare, and fixed without the migration it was thought to require. Finding
+8 is split — policy kept, silence fixed. R2's finding 3 is closed by measurement: not a bug.
+
+## 2026-09-16 — R2.4: two demonstrated bugs in the memory tools, and two more the sweep found
+
+R2.3 closed the *data layer* half of the silent-cap sweep. This is the tool half, in
+`services/ai/tools/memoryFileTools.ts`: two bounds that stopped the model from getting what it asked
+for and said nothing about it. Sweeping the file — and then the callers of the door the tool uses —
+turned up two more instances of the same shape.
+
+### The two demonstrated bugs, reproduced before touching anything
+
+Both were already demonstrated with scratch probes; both reproduced exactly as reported.
+
+**`memory_get` clipped every body at an unnamed `slice(0, 4000)`.** A 7200-character memory came back
+as 4077 characters — cut mid-sentence, with nothing in the result to distinguish "this is the whole
+file" from "this is the first 4000 characters":
+
+```
+[scratch body] stored chars      = 7200
+[scratch body] returned chars    = 4077
+[scratch body] clipped           = true
+[scratch body] says truncated    = false
+```
+
+The recall block (`memoryRetrieval.ts`) already had the right doctrine next door —
+`truncateBody` appends `…[truncated for recall budget]`. The tool was the one place that cut in
+silence, and it is the place the model goes to *verify* a memory, where a quiet cut does the most
+damage: the model answers as if it had read the whole thing.
+
+**`memory_flush` permanently stalled at 20 sessions.** It sliced the *examined* sessions to the newest
+20, so once those twenty were staged, every later call re-examined the same twenty, found them staged,
+and reported success:
+
+```
+[scratch flush] total completed entries = 25
+[scratch flush] pass1 = "Memory flush: staged 20 file(s); 0 session(s) already staged. …"
+[scratch flush] pass2 = "Memory flush: staged 0 file(s); 20 session(s) already staged. …"
+[scratch flush] pass3 = "Memory flush: staged 0 file(s); 20 session(s) already staged. …"
+[scratch flush] staged after pass1/2/3 = 20 20 20
+```
+
+Five entries were unreachable forever, and the return value said the tool had succeeded — the same
+"reports success while doing nothing" shape as finding 1, one layer up.
+
+### What shipped
+
+| Bound | Was | Now |
+|---|---|---|
+| `memory_get` per body | `slice(0, 4000)`, unnamed | clipped to the recall block's own per-file budget (`RECALL_FILE_MAX_CHARS`, 12000), with an inline `…[truncated: N more char(s)]` and a leading `clipped: N of M body(ies)` line |
+| `memory_get` per call | unbounded across 10 ids | bounded by the recall block's total (`RECALL_TOTAL_MAX_CHARS`, 30000), and the number clipped is stated |
+| `memory_flush` per call | budget spent on the newest 20 *examined* | budget spent on sessions actually *staged*; already-staged sessions cost nothing, so repeated calls walk the backlog down |
+| `memory_list` per call | `Math.min(50, …)`, unnamed | named `MEMORY_LIST_MAX_LIMIT`, announced when it bites, and `offset` named for the next page |
+| `memoryRetrieval.ts` thread scan | `listMemoryFiles({ limit: 200 })`, which the callee capped at 50 | `listMemoryHeadersForThread` — the uncapped door R2.3 built, same single manifest read |
+| `memoryFiles.ts` | `hasStagedSession` in a loop, one manifest parse per candidate | `listStagedSessionKeys()` — one read for the whole backlog scan |
+
+The caps did not disappear, and they should not have: a tool that feeds a prompt needs a ceiling. What
+changed is that every ceiling is now *named* and *announced* in the return value, so a caller (which in
+practice is a model) can tell a complete answer from a truncated one. Aligning `memory_get`'s per-body
+bound with `RECALL_FILE_MAX_CHARS` was the "consider" in the brief and it is the right answer: a body
+read through the tool is now the same body recall would have shown for that file, so the two paths
+cannot disagree about what a memory says.
+
+### Measured after the fixes (same probes)
+
+```
+[scratch body] stored chars = 7200 → returned 7277, clipped = false (under the 12000 cap)
+[scratch flush] staged after pass1/2/3 = 20 25 25   (was 20 20 20)
+```
+
+`memory_flush` on 25 entries now reports `5 session(s) still unstaged` after pass 1, stages those 5 on
+pass 2, and reports nothing remaining on pass 3. A backlog of 45 drains 20/20/5 over three calls
+instead of stalling at 20 forever.
+
+### The fourth instance, in recall's own selection path
+
+Sweeping the callers of `listMemoryFiles` — the door R2.3 found capped at 50 — turned up one more, and
+this one is on the recall path itself. `memoryRetrieval.ts` selected a thread's files with:
+
+```ts
+const manifest = await listMemoryFiles({ projectId: resolvedProjectId, limit: 200 });
+```
+
+`200` came back as **50**, silently — the R2.3 "two stacked fifties" shape again, in a file R2.3 did
+not touch. Reproduced against a store with 60 files in one thread:
+
+```
+[scratch recall] thread files actually in store = 60
+[scratch recall] listMemoryFiles({limit:200}) returned = 50
+[scratch recall] the 200 request silently capped = true
+```
+
+The consequence is the same one R2.3 fixed for supersession, and it lands on recall quality rather than
+memory hygiene: a thread file older than the newest fifty is **never a candidate** for ranking, so
+`rankMemoryFiles` cannot select it no matter how well it matches. Measured with a pinned-date needle
+(oldest of sixty in its thread, so provably outside the window) and the capped door restored:
+
+```
+Expected value: "projects/lighthouse/Project/lens-restoration.md"
+Received array: ["…shelf-note-58.md", "…shelf-note-57.md", "…shelf-note-56.md", "…shelf-note-55.md", "…shelf-note-54.md"]
+```
+
+The needle was invisible; recall returned the five newest unrelated shelf notes instead. This is a
+sharper demonstration of the bug class than the tool bugs, because it shows the cap changing an
+*answer* rather than a payload. It now reads through the uncapped door, and R2's metrics are unchanged
+by the fix (see Gates), because the R0 ledger's threads are all smaller than fifty — which is exactly
+why this survived five earlier passes.
+
+### Sabotage evidence (restoring the old code must turn a specific test red)
+
+Every row below was measured after all four fixes were in, so the counts are comparable and each
+mechanism is isolated by the tests that stay green. The first four rows sabotage the tool file and are
+counted against its 11 tests (7 read-path in `memoryFileTools.test.ts` + 4 flush in
+`memoryFlushBacklog.test.ts`); the last row sabotages recall and is counted against the 6 tests in
+`memoryRetrieval.test.ts`.
+
+| Sabotage | Result |
+|---|---|
+| Put `slice(0, 4000)` back in `clipBody` | **3 of 11 red** — the three clip tests; the list and flush tests all green |
+| Put the head-slice budget back in `stageUnstagedSessions` | **3 of 11 red** — the three backlog tests; the clip and list tests all green |
+| Exclude deprecated headers from `listStagedSessionKeys` | **1 of 11 red** — the promoted-then-superseded consistency test alone |
+| Return `memory_list` rows without the page notice | **1 of 11 red** — the ceiling-announcement test alone |
+| Put `listMemoryFiles({ limit: 200 })` back on the recall scan | **1 of 6 red** — the tail-window test alone |
+
+Each mechanism is load-bearing on its own: no sabotage turns everything red, each turns only the tests
+that claim *that* mechanism, and every sabotage was restored to all-green before the next one.
+
+### A bad comment of my own, worth recording
+
+The first version of this pass asserted, in a test and in a code comment, that promotion "leaves each
+staged source header behind as deprecated", so a promoted memory would look unstaged if
+`listStagedSessionKeys` skipped deprecated headers. Sabotaging exactly that turned **nothing** red.
+
+Measuring instead of assuming showed why: `promoteTmpRecord` spreads `...source` onto the new header,
+so the *live* promoted file keeps `sourceSessionKey` itself. The deprecated tmp original is not the
+carrier. The real invariant is narrower and needed a different test: supersession retires a promoted
+file **in place**, and for that session the deprecated header really is the only carrier of its key.
+The test now pins that case, and the sabotage turns exactly that one red. Same lesson as R2.3's bad
+assertion: an assertion that passes for the wrong reason is worse than no assertion.
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| `npx tsc --noEmit` | clean |
+| `npx eslint .` | 0 errors, 72 pre-existing warnings |
+| `npm run check:design` | PASSED (0 errors, 3 pre-existing size warnings) |
+| `npm test` | **1497 passed / 0 failed** (30 skipped, 286 suites) — up from 1485 |
+| R2 metrics after the fix | **identical**: hit-rate 16.7% → 83.3%, precision 0.167 → 0.433, supersession stale-selected 1 → 0, control 739 bytes |
+
+New tests: `__tests__/services/memory/memoryFileTools.test.ts` (7 — the `memory_get` clip and the
+`memory_list` page), `__tests__/services/memory/memoryFlushBacklog.test.ts` (4 — the flush drain), and
+one added to `__tests__/services/memoryRetrieval.test.ts` (the recall tail window). Split because the
+flush tests mock the journal/check-in stores and the read-path tests deliberately do not; all stay under
+the repo's 300-line test cap. The scratch probes that demonstrated the bugs
+(`.tmp/bodyClip.test.ts`, `.tmp/flushStall.test.ts`, `.tmp/recallCap.test.ts`) were folded into these
+and deleted.
+
+Unchanged metrics are the point, not an accident: the R0 ledger's threads are all under fifty files, so
+the recall fix cannot move them. It is also why the bug survived this long — a fixture too small to
+exercise the bound that was wrong. The new test uses a sixty-file thread for exactly that reason.
+
+### Findings (updated)
+
+The sweep's inventory of silent caps, complete as of this pass:
+
+1. `getMemoryRecordsByIds`'s unnamed ten-id cap — fixed R2.1.
+2. Dream's duplicate collapse on an unreadable body — fixed R2.1.
+3. Two orderings deterministic by accident — fixed R2.1.
+4. Supersession's per-thread manifest paging — fixed R2.2.
+5. `importMemoryFiles` slicing before validating — fixed R2.2.
+6. `SUPERSEDE_SCAN_LIMIT` behind `listMemoryFiles`'s own 50 cap — fixed R2.3.
+7. **`memory_get`'s unnamed 4000-char body clip — fixed R2.4.**
+8. **`memory_flush`'s examined-slice budget, which stalled the backlog at 20 — fixed R2.4.**
+9. **`memory_list`'s unnamed 50-row page ceiling — fixed R2.4.**
+10. **`memoryRetrieval`'s thread scan asking for 200 through a door capped at 50 — fixed R2.4.** The
+    same shape as 6, found by sweeping 6's callers rather than the file it was fixed in.
+
+Still open, and neither is this bug class: finding 6 of R2.2's list (the 32-bit hash-id collision, a
+migration) and finding 8 (`MAX_MEMORY_ATOMS` eviction policy, a product decision). Finding 8 remains
+the reason to pause before R3.
+
+Residual, stated plainly: `memory_flush` still stages at most 20 sessions per call, by design — the
+work is bounded so a tool call cannot stage an entire history in one turn. What changed is that the
+remainder is now *counted and reported* (`N session(s) still unstaged - call memory_flush again`), so
+the model knows to call again rather than believing the backlog is empty. The same is true of
+`memory_get`'s total budget: the last of ten long ids can arrive with nothing but its marker, and that
+is announced rather than silently blank.
+
+## 2026-09-16 — R2.3: two stacked fifties, and the window that was a lie
+
+R2.2 left finding 7 open: `SUPERSEDE_SCAN_LIMIT` bounded comparison to a thread's newest fifty files,
+so a thread that grew past that silently stopped being fully checked. Fixing it took two passes,
+because the first one changed nothing — and finding out why was worth more than the fix.
+
+### The blind spot, demonstrated before touching anything
+
+A restatement pair sitting at the *oldest* end of a thread, with unrelated memories captured after it:
+
+```
+[scratch scan] files=12  cap=50 superseded=1
+[scratch scan] files=50  cap=50 superseded=1
+[scratch scan] files=51  cap=50 superseded=0
+[scratch scan] files=62  cap=50 superseded=0
+[scratch scan] files=202 cap=50 superseded=0
+```
+
+One file past the window and the pair becomes permanently invisible — not delayed, not re-ranked.
+Nothing in `SupersedeOutcome` said so.
+
+### What a wider window actually costs
+
+My first attempt to measure this was invalid: pricing the pair sweep *through*
+`supersedeRestatedMemoriesInThread` produced six identical rows, because the 50 cap flattened every
+input before the sweep saw it. Measuring `restatementRatio` directly over a raw sweep gave the real
+curve (realistic ~28-token bodies):
+
+| files | comparisons | time |
+|---|---|---|
+| 50 | 1,225 | 2ms |
+| 200 | 19,900 | 17ms |
+| 400 | 79,800 | 103ms |
+| 3000 | 4,498,500 | 3.4s |
+
+400 is the largest window that stays comfortably inside an idle background pass. The window is now
+400, and — more to the point — it is **no longer silent**: `SupersedeOutcome` gained `truncated`, the
+threads that exceeded the window, and the pass `console.warn`s them.
+
+### The fix that changed nothing
+
+The tail test still failed after the widening. `Expected: 1, Received: 0`.
+
+`supersedeRestatedMemoriesInThread` read through
+`listMemoryFiles({ projectId, limit: SUPERSEDE_SCAN_LIMIT })` — and `listMemoryFiles` caps `limit` at
+50, because it feeds prompts and UI pages. **Two stacked fifties.** Asking for 400 came back as 50,
+silently, and the documented window was a lie about what the code did. Widening it from 50 to 400 had
+been a no-op through that door.
+
+This is finding 1's bug class a third time: an unnamed ceiling in a callee overriding the caller's
+explicit bound, with no signal in the return value. R2.1 fixed the version inside
+`getMemoryRecordsByIds`; R2.2 fixed the one that made export ship ten files. This is the same shape,
+one layer up.
+
+**Fix.** `memoryFiles` gains `listMemoryHeadersForThread(projectId)` — every non-deprecated header of
+one thread, newest capture first, uncapped, one manifest read. `listAllMemoryHeaders` exists because
+`listMemoryFiles` feeds prompts; this one exists because it also feeds *this*. The per-thread entry
+point now reads through the uncapped door, so the window means what it says.
+
+### And a guard that only half existed
+
+The `_tmp` backlog is promotion's territory: deprecating a staged file would remove it from
+`listTmpFiles` before Dream ever promoted it, silently dropping a memory instead of folding it into a
+thread. The whole-store pass always filtered `_tmp`; the per-thread door was never told. The filter
+now lives in `supersedeThreadHeaders`, which both entry points run, so the invariant cannot be
+half-applied again.
+
+### A bad assertion of my own, worth recording
+
+The tail test first asserted the live set through `listMemoryFiles({ projectId: 'desk', limit: 50 })`.
+The pair is the *oldest two of sixty-two*, so it sits outside every page that door can return — the
+assertion would have "confirmed" a supersession without ever looking at the records in question. It
+now asserts through the uncapped door and pins `toHaveLength(61)`, which also proves the door is
+uncapped. A capped read cannot verify a tail.
+
+### Sabotage
+
+| Sabotage | Result |
+|---|---|
+| per-thread entry point put back through `listMemoryFiles` | **1 red** — `catches a restatement at the tail of a thread longer than the old window`, `Expected: 1 / Received: 0` |
+| `_tmp` filter removed from `supersedeThreadHeaders` | **1 red** — `never supersedes the _tmp backlog, which promotion owns`, `Expected: 0 / Received: 1` |
+
+Both are single-test failures with the other ten green, so each mechanism is load-bearing on its own.
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| `npx tsc --noEmit` | clean |
+| `npx eslint .` | 0 errors, 72 pre-existing warnings |
+| `npm run check:design` | PASSED (0 errors, 3 pre-existing size warnings) |
+| `npm test` | **1485 passed / 0 failed** (30 skipped, 284 suites) — up from 1482 |
+| R2 metrics after the fix | **identical**: hit-rate 16.7% → 83.3%, precision 0.167 → 0.433, supersession stale-selected 1 → 0, `restated-topic` precision 0.500 → 1.000, control 739 → 739 bytes |
+
+### Findings (updated)
+
+7. **(fixed, R2.3)** `SUPERSEDE_SCAN_LIMIT` bounded comparison to a thread's newest fifty files, and
+   the per-thread entry point could not even reach fifty: `listMemoryFiles` capped its own `limit` at
+   50, so the documented window was unreachable through that door. The window is now 400, the door is
+   uncapped, and threads past the window are reported through `truncated` rather than skipped in
+   silence.
+
+Residual, stated plainly: a restatement arriving more than 400 memories after the original is still
+never caught. A window moves the horizon; it does not remove it. What changed is that the horizon is
+now visible in the return value instead of invisible in the code.
+
+Findings 6 (hash-id collision, a migration) and 8 (`MAX_MEMORY_ATOMS` eviction policy, a product
+decision) remain open, and 8 is still the reason to pause before R3.
+
+## 2026-09-16 — R2.2: the backup path, and what supersession actually costs
+
+R2.1 closed with one finding marked *"open, now load-bearing"*: supersession loads up to
+`SUPERSEDE_SCAN_LIMIT` bodies per thread on every Dream run, and until R2.1 that was quietly capped at
+ten. Measuring it was the point of this pass. Two of the three things that turned up were not what I
+was looking for.
+
+### Finding #5, measured: the pass was quadratic in the store's own shape
+
+Storage work per pass, counted through a recording adapter (offline, `usedLlm:false`, nothing to
+supersede — so this is the cost of *finding nothing*):
+
+| threads | files | manifest reads | body reads | time |
+|---|---|---|---|---|
+| 5 | 125 | 11 | 125 | 10ms |
+| 40 | 1000 | 81 | 1000 | 426ms |
+| 100 | 5000 | 201 | 5000 | 2325ms |
+| 200 | 5000 | 401 | 5000 | 4053ms |
+
+Body reads were already optimal — exactly one per file. The cost was `manifest reads = 2 × threads + 1`:
+`supersedeRestatedMemories` paged the manifest once per thread (`listMemoryFiles`), and then
+`getMemoryRecordsByIds` re-read it again to resolve the ids it had just been handed. At 200 threads
+that is 401 full parses of a 5000-entry manifest.
+
+The tell is the last two rows: **same 5000 files, double the threads, nearly double the time.** A
+journal that split into more topics got slower without storing a single extra memory.
+
+**Fix.** One manifest read per pass, grouped in memory, then a body loader that takes the headers the
+caller already holds. Two additions to `memoryFiles` — the module that owns both the manifest and the
+body keys: `listAllMemoryHeaders()` (`listMemoryFiles` caps `limit` at 50 because it feeds prompts and
+UI pages, so a batch pass needs its own door) and `getMemoryRecordsForHeaders(headers)`.
+
+| threads | files | manifest reads | time | speed-up |
+|---|---|---|---|---|
+| 40 | 1000 | 81 → **1** | 426ms → **27ms** | 15.8× |
+| 100 | 5000 | 201 → **1** | 2325ms → **105ms** | 22.1× |
+| 200 | 5000 | 401 → **1** | 4053ms → **133ms** | 30.5× |
+
+Body reads stay at exactly one per file, and the thread-count term is gone: 100 vs 200 threads over the
+same 5000 files is now 105ms vs 133ms, not 2325ms vs 4053ms.
+
+The bound is pinned as **storage work, not wall time**, so the test cannot go flaky on a busy machine:
+one manifest read and `threads × per_thread` body reads whatever the thread count. Reverting to the
+per-thread path turns it red at **13 reads instead of 1**.
+
+### Two more instances of R2.1's bug class, in the backup path
+
+R2.1 fixed `getMemoryRecordsByIds`'s unnamed ten-id cap. Asking "who else hands this a list longer than
+ten?" found the backup path carrying the same shape twice:
+
+1. **Export shipped ten files.** `buildMemorySnapshot` paginates the manifest 50 at a time with the
+   comment "so large file sets export fully" — then passed every page to a function that kept ten. A
+   500-file store exported ten files. (Fixed in R2.1 by removing the cap; now pinned by
+   *exports every file, not just the first ten*.)
+2. **Restore refused more than a thousand files and blamed the data.** `importMemoryFiles` sliced to
+   1000 *before* comparing lengths, so the size guard and the validity guard were the same branch: a
+   backup of 1001+ perfectly valid files threw `Backup contains invalid memory file records`.
+   Unreachable while export was capped at ten, and a live ceiling the moment export was fixed. Now
+   validation and batching are separate — validate everything, write in batches of 1000 — so the
+   ceiling is gone and the corruption message means corruption again.
+
+### A finding I retracted
+
+`restoreMemorySnapshot` loops `raw.atoms.slice(0, 400)`, which looked like a third instance. It is not.
+`upsertMemoryAtom` prunes the store to `MAX_MEMORY_ATOMS` (400) on every write, so a real snapshot can
+never exceed it and the slice is redundant rather than lossy. Seeding 500 atoms and finding 400 in the
+store is the eviction policy working, not data going missing.
+
+What was worth keeping is the duplicated literal: restore now references `MAX_MEMORY_ATOMS` instead of
+a second hardcoded 400, so raising the store cap cannot leave restore silently truncating. The test
+asserts the relationship between the two bounds rather than a truncation that does not happen.
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| `npx tsc --noEmit` | clean |
+| `npx eslint .` | 0 errors, 72 pre-existing warnings |
+| `npm run check:design` | PASSED (0 errors, 3 pre-existing size warnings) |
+| `npm test` | **1482 passed / 0 failed** (30 skipped, 284 suites) — up from 1476 / 283 |
+| R2 metrics after the refactor | **identical**: hit-rate 16.7% → 83.3%, precision 0.167 → 0.433, supersession 1 / 1 thread, stale selected 1 → 0, control intact |
+
+### Findings (updated)
+
+1. **(fixed, R2.1)** The unnamed `slice(0, 10)` in `getMemoryRecordsByIds`.
+2. **(fixed, R2.1)** Dream's duplicate collapse treated an unreadable body as a duplicate.
+3. **(fixed, R2.1)** Two orderings were deterministic by accident rather than by design.
+4. **(fixed, R2.2)** Supersession paged the manifest once per thread — measured at 4.1s and 401
+   manifest parses for 200 threads over 5000 files, degrading with thread count at constant file count.
+   Now one read, 133ms.
+5. **(fixed, R2.2)** `importMemoryFiles` sliced before validating, so a >1000-file backup could not be
+   restored and reported corruption.
+6. **(open)** Ids come from a 32-bit rolling hash of the first 400 chars, and the manifest is keyed by
+   id with a plain `manifest[id] = header`. Two distinct memories that collide would silently overwrite
+   each other. Negligible at journal scale, but it is silent data loss with no guard. Fixing it is a
+   migration, not a patch.
+7. **(open)** `SUPERSEDE_SCAN_LIMIT` bounds comparison to the newest fifty files of a thread. A thread
+   that grows past that silently stops being fully checked.
+8. **(open, policy not bug)** `MAX_MEMORY_ATOMS = 400` evicts the lowest-salience atoms on every write.
+   That is a deliberate cap, but it means local atoms stop growing at 400 regardless of how much the
+   user writes — worth a product decision before R3 builds temporal reasoning on top of them.
+
+### What this does and does not establish
+
+Supersession is fast enough for the idle trigger now, and its cost no longer grows with how finely a
+journal is divided into topics. The backup path round-trips any size this app can produce. Neither of
+those says anything about recall *quality*: R2's quality numbers are unchanged, because none of this
+pass was about quality.
+
+R3 (entity/alias → temporal → prospection) is still deferred, and finding 8 is a reason to pause on it:
+temporal reasoning over an atom store that stops at 400 is a smaller idea than it sounds.
+
+## 2026-09-16 — R2.1: pricing supersession, and the body-load cap that was starving Dream
+
+R2 closed with two things unfinished and said so: supersession was proven *safe* and proven to fire,
+but **unpriced** (the R0 ledger's distractors are distinct entries, so it reports zero there by
+design), and the ledger's own orderings still inherited the wall clock, so byte-level numbers moved
+between runs. Doing the second one surfaced a real bug that had nothing to do with either.
+
+### The find: an unnamed `slice(0, 10)` was capping every body load
+
+`getMemoryRecordsByIds` truncated its input to ten ids — no name, no option, no signal in the return
+value. Three callers had already bounded their own input and were being silently starved:
+
+| Caller | Asked for | Got | Consequence |
+|---|---|---|---|
+| `memoryDream.ts` | 20 candidates | 10 bodies | the other ten arrived as `''`, all hashed alike, and the per-thread duplicate collapse kept **one per thread** — so a Dream pass promoted **13 files instead of 20** and deferred seven for no reason |
+| `memorySupersession.ts` (mine, from R2) | up to 50 per thread | 10 | supersession only ever compared the newest ten files of a thread |
+| `backup/driveBackup.ts` | every file, after paginating the manifest "so large file sets export fully" | 10 | **the backup exported ten files regardless of how many existed** |
+
+Measured, not inferred: staging the ledger's twenty dream candidates and counting what Dream actually
+received gave `bodiesLoaded=10 emptyBodies=10`, and `10 + one empty-body survivor per thread (3) = 13`
+— exactly the `promoted: 13` the R1 probe had recorded. R2's write-up blamed that number on wall-clock
+jitter in `listTmpFiles`. That diagnosis was wrong (see *The R1 byte claim, corrected* below).
+
+### What shipped
+
+| File | Change |
+|---|---|
+| `services/memory/memoryFiles.ts` | The cap is gone. `getMemoryRecordsByIds(ids, { limit })` loads what it was asked for; bounding a request is now the caller's explicit decision, because only the caller knows how big a prompt or bundle it is willing to build. |
+| `services/memory/memoryFiles.ts` | Ordering is by **capture date**, never the wall clock: `listTmpFiles` oldest-first (this decides which files Dream's `MAX_DREAM_FILES` slice promotes) and `listMemoryFiles` newest-first (the recall recency fallback), both tie-broken by id so neither rests on manifest key order. |
+| `services/memory/memoryDream.ts` | Asks for `MAX_DREAM_FILES` bodies. The duplicate collapse compares **bodies exactly** instead of a 31-bit hash, and never collapses on a body that failed to load — a staged file always has a non-empty body (`stageTmpMemory` throws otherwise), so `''` can only mean the read failed, never "duplicate". |
+| `services/memory/memorySupersession.ts` | Asks for `SUPERSEDE_SCAN_LIMIT` bodies. |
+| `services/backup/driveBackup.ts` | Asks for `all.length` bodies — the pagination it already does is now honoured. |
+| `services/ai/tools/memoryFileTools.ts` | The one place a cap *is* a real safety property keeps one: `memory_get` bounds itself at ten bodies and now **says so** in its output rather than dropping ids quietly. |
+| `probes/shared/recallLedger.ts` | The ledger pins its own capture dates (`ledgerCapturedAt`), so the fixture stops inheriting the clock. |
+
+### Sabotage evidence (restoring the old code must turn a specific test red)
+
+| Sabotage | Result |
+|---|---|
+| Put `slice(0, 10)` back | `memoryRecordLoad` **4/4 red** — 15 ids → 10 records; an explicit `limit: 5` returned 10 (the cap ran *first*, so a *smaller* limit was impossible); Dream promoted **11**; two unreadable bodies collapsed to **1** |
+| Order `listTmpFiles` / `listMemoryFiles` by `updatedAt` again | `memoryFiles` **2/7 red** |
+| Make supersession a no-op | `r2SupersessionDelta` **3/4 red** |
+| Loosen `SUPERSEDE_RESTATEMENT_RATIO` 0.9 → 0.3 | **2/4 red** — and see *Why the control is the whole point* |
+
+### The R1 byte claim, corrected
+
+R2's write-up blamed the unstable prompt-byte numbers on `listTmpFiles` ordering. Measuring before
+changing anything is what showed that was wrong: seeding the ledger three times printed the **same
+file sequence and the same promoted set** every time (13, identical across all three runs). The backlog
+order was never jittery — staging is sequential, so timestamp ties fell back to stable-sort insertion
+order, which is deterministic by accident rather than by design.
+
+The real cause was the **selection rule's tie-break**. The pre-R2 rule sorted by raw token count and
+broke ties on `updatedAt`, so millisecond differences between runs reordered equally-scoring files and
+changed which five got selected. R2's `rankMemoryFiles` replaced that with score → capture day → id, and
+pinning the ledger's capture dates finished the job. Bytes are now **identical across three runs**:
+**6475 → 5630**. The R1 entry's "6941 → 5216" was clock-dependent; it should be read as indicative only,
+and the direction (Dream reduces recall bytes) is what survived.
+
+### Supersession, finally priced
+
+Priced on a **separate store** (`probes/shared/restatementScenario.ts`), because adding restatement
+pairs to the R0 ledger would perturb the frozen probe set and break comparability with every earlier
+number. It holds a real restatement pair (`desk_setup`: the same memory captured twice, the newer a
+superset of the older) and a **control** (`training_log`: two genuinely different memories that share
+vocabulary *and* sentence shape). Both control bodies carry 20+ tokens on purpose — supersession
+refuses to judge shorter bodies (`SUPERSEDE_MIN_BODY_TOKENS`), so a short control would pass for the
+wrong reason. Measured ratios: the pair is `1.000` containment, the control is `0.400`.
+
+Same-store A/B: before = seeded into formal threads with no Dream pass; after = the same store with
+exactly one supersession pass.
+
+| metric | before | after |
+|---|---|---|
+| stale copies selected | 1 | **0** |
+| mean precision | 0.500 | **0.750** |
+| `restated-topic` precision | 0.500 | **1.000** |
+| recalled context chars (both probes) | 1613 | **1292** |
+| `restated-topic` context chars | 874 | **553** (−36.8%) |
+| live files in priced threads | 4 | 3 |
+| control thread intact | — | **true** |
+
+The survivor answered before *and* after (`hit` true → true), the stale copy is `deprecated` with
+`supersededBy` pointing at the file that survived, plus `supersededAt` and the reason, and its bytes
+stay readable through `includeDeprecated` for audit. The control probe's context is byte-identical
+before and after (739 → 739) — the pass touched exactly one file.
+
+### Why the control is the whole point
+
+Loosening the criterion from *restatement* (≥90% containment) to *similarity* (0.3) makes **every
+headline number better**:
+
+| metric | restatement (0.9) | similarity (0.3) |
+|---|---|---|
+| superseded | 1 | 2 |
+| stale copies selected | 0 | 0 |
+| mean precision | 0.750 | **1.000** |
+| recalled context chars | 1292 | **1010** |
+| live files in priced threads | 3 | **2** |
+| control intact | true | **false** |
+
+A supersession pass that over-fires deletes a real memory and *scores better while doing it*. That is
+why the pricing probe ships with a control thread and asserts it survives, and why the loosened run is
+2/4 red instead of 4/4 green.
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| `npx tsc --noEmit` | clean |
+| `npx eslint .` | 0 errors, 72 pre-existing warnings |
+| `npm run check:design` | PASSED (0 errors, 3 pre-existing size warnings) |
+| `npm test` | **1476 passed / 0 failed** (30 skipped, 283 suites) — up from 1465 / 281, i.e. +11 tests in 2 new suites |
+| R0/R1/R2 metrics after all of the above | **unchanged**: hit-rate 16.7% → 83.3%, precision 0.167 → 0.433, threads 0 → 3, `reproducible: true` |
+
+The cap fix is a pure correctness gain: Dream now drains its full twenty instead of thirteen
+(`tmpRemaining` 34 → 27), and not one headline metric moved, because the needle was already inside the
+first twenty either way. That is worth stating plainly rather than dressing up as an improvement.
+
+### Findings
+
+1. **(fixed)** The unnamed `slice(0, 10)` in `getMemoryRecordsByIds` — three victims, one of them the
+   backup path, which was silently exporting ten files no matter how many existed.
+2. **(fixed)** Dream's duplicate collapse treated an unreadable body as a duplicate, so every file it
+   failed to load looked like every other file it failed to load.
+3. **(fixed)** Two orderings (`listTmpFiles` backlog, `listMemoryFiles` recency) were deterministic by
+   accident (stable sort + manifest key order) rather than by design.
+4. **(open)** Ids are derived from a 32-bit rolling hash of the first 400 chars (`hashText` in
+   `stageTmpMemory` and `promoteTmpRecord`), and the manifest is keyed by id with a plain
+   `manifest[id] = header`. Two distinct memories that collide there would silently overwrite each
+   other. At journal scale the birthday probability is negligible, but the failure mode is silent data
+   loss with no guard. Not fixed: changing id derivation is a migration, not a patch.
+5. **(open, now load-bearing)** Supersession loads up to `SUPERSEDE_SCAN_LIMIT` (50) bodies **per
+   thread** on every Dream run, and until this pass it was quietly capped at ten. The cost is real and
+   currently unmeasured — worth timing on a store with many threads before R3 builds on it.
+6. **(open)** `SUPERSEDE_SCAN_LIMIT` bounds comparison to the newest fifty files of a thread. A thread
+   that grows past that silently stops being fully checked.
+
+### What this does and does not establish
+
+Supersession is now priced on a **constructed** restatement pair, not on real journal data — the
+mechanism, the audit trail and the control are all verified, but "how often does a real user's journal
+restate itself" is still unknown. R3 (entity/alias → temporal → prospection) stays deferred: it should
+be built on a corpus whose numbers no longer move between runs, which is now true, but its own value is
+still unmeasured and it is the largest phase yet.
+
+## 2026-09-16 — R2: fading + supersession (selection over a growing corpus), priced on the R0 ledger
+
+R1's own numbers said where the problem moved to: promotion lifted hit-rate 16.7% → 66.7% but
+`precision-topical` stayed a miss and precision only reached 0.400 — recall quality was now
+*selection* over an accumulating formal corpus. R2 attacks that with the two mechanisms the R1
+hand-off named, and prices each on the same fixed ledger.
+
+### First: R1 verification (as asked, before touching anything)
+
+| Gate | Result |
+|---|---|
+| `npx tsc --noEmit` | clean |
+| `npx eslint` on the R1 files | 0 errors |
+| `npm run check:design` | PASSED (0 errors, 3 pre-existing size warnings) |
+| R1 suites | `memoryDreamTrigger` 7/7 · `dreamDelta` 2/2 · `recallMetrics` offline 3/3 (1 live skipped) |
+
+R1's headline delta **reproduced exactly**: hit-rate 16.7% → 66.7%, precision 0.167 → 0.400,
+formal threads 0 → 3, `precision-topical` still `false`. The sabotage claim also holds: putting an
+`await` back between the gate check and the slot reservation turns **only** the single-flight test
+red (the two callers stop sharing a run — `first` = 0 promoted vs `second` = 3 — and `runs` 1 → 2);
+restored → 7/7 green.
+
+**One claim did not reproduce.** The R1 table's "memory-search prompt bytes 6941 → 5216" is not
+stable: three reruns of the same probe gave before/after medians of 6813→5701, 5622→5090 and
+7168→5931. The cause is real and worth naming (see *Findings* below): the pre-Dream phase and the
+recency fallback are ordered by wall-clock `updatedAt`, and Dream's promotion set is chosen from
+`listTmpFiles()` ordered by the same jittery clock. Hit-rate and precision were stable across all
+runs; only byte-level numbers moved.
+
+### What shipped
+
+| File | Lines | Role |
+|---|---|---|
+| `services/memory/memoryFade.ts` | 96 | **Fading.** Replaces raw token counting with the repo's ONE shared relevance baseline (`keywordRanking.scoreKeywordRecency`: keyword overlap 0.7 + recency 0.3). Fades by **capture date** (Dream rewrites `updatedAt` at promotion, so consolidation dates are useless) and floors recency to a **day** so millisecond staging jitter cannot reorder. Ties break score → capture day → id, never a clock read. |
+| `services/memory/memorySupersession.ts` | 141 | **Supersession.** A newer file that *restates* an older one in the same thread deprecates it, with `supersededBy` / `supersededAt` / `supersedeReason` audit — the identity profile's doctrine ("supersede by invalidating prior values, never silent wipe"). Criterion is the **body**, never the header (see below). |
+| `services/memory/memoryFiles.ts` | +40 | Optional `capturedAt` on `StageMemoryInput` (callers that know the memory's real date); supersession audit fields on the frontmatter; `deprecateRecord(id, audit)`. |
+| `services/memory/memoryRetrieval.ts` | −8/+3 | Thread selection now calls `rankMemoryFiles` instead of counting tokens and tie-breaking on `updatedAt`. |
+| `services/memory/memoryDream.ts` | +14 | Runs the supersession pass after promotion, so it rides R1's idle trigger (no new scheduling) and reports `superseded` in `DreamOutcome`. |
+| `probes/r2_recallDelta.ts` (400) + `__tests__/probes/r2RecallDelta.test.ts` (79) | | Prices R2 on the fixed R0 ledger, including a **same-store A/B** of the old vs new selection rule. |
+| `__tests__/services/memory/memoryFade.test.ts` (146) · `memorySupersession.test.ts` (200) | | Unit level, including the false-positive guard against the real fixture. |
+
+### R2 delta on the R0 ledger (offline, `usedLlm:false`, stable over 3 identical runs)
+
+```
+[R2 metrics] {"hitRate":[0.1667,0.8333],"precision":[0.1667,0.4333],"threads":[0,3],"superseded":0,"reproducible":true}
+```
+
+| metric | R0 baseline | R1 (after Dream) | **R2** |
+|---|---|---|---|
+| hit-rate | 83.3% (unstaged ledger) | 66.7% | **83.3%** (5/6) |
+| precision | 0.567 | 0.400 | **0.433** |
+| `precision-topical` | miss (5 distractors, 0 expected) | still miss | **hit** (needle rank 0, 4 distractors) |
+| thread selection reproducible | no | no | **yes** |
+
+### The fading evidence that matters (same store, two rules, one manifest)
+
+For every probe that resolves to a thread, both the pre-R2 rule and the faded rule run over the
+**same** promoted manifest, so promotion jitter cannot explain the delta:
+
+| probe | thread | legacy hit | legacy rank | faded hit | faded rank |
+|---|---|---|---|---|---|
+| `needle-thread` | fountain-pens | true | 0 | true | 0 |
+| `needle-echo` | fountain-pens | true | 0 | true | 0 |
+| `precision-topical` | fountain-pens | **false** | **null** | **true** | **0** |
+| `needle-list-only` | early-journal | true | 0 | true | 0 |
+
+The mechanism, measured rather than asserted: `overlapRatio` counts matching **occurrences**, so a
+templated description that repeats one query word saturates the ratio. Reproduced at unit level —
+`"Fountain pen and ink notes about nib notes, stationery, and nibs."` scores 1.0 against
+`"Any notes about pens and ink lately?"` (the word `notes` three times) and ties the needle, which
+matched two *distinct* query terms. Deduplicating header tokens restores the ordering (needle 0.765
+vs distractors 0.532). The shared `overlapRatio` is deliberately left alone: it also ranks memory
+atoms and session digests, whose behaviour R2 has not measured.
+
+### Supersession: why it reports zero here, and why that is the right answer
+
+`superseded: 0` on the ledger — **on purpose**. The ledger's 15 near-topic distractors share
+templated headers (15 files, only 5 distinct descriptions) and their shared filler vocabulary pushes
+genuinely different entries to **0.62 body Jaccard (measured)**. Any similarity rule would therefore
+supersede real memories. R2 fires only on **restatement** — the older body's distinct tokens are
+≥ 90% contained in the newer one's — which the ledger never exhibits. Unit scenarios prove both
+directions: a restatement pair and a 3-link chain collapse to their newest member with the audit
+pointer written, while the ledger pass removes **nothing** (asserted: every live thread's id list is
+byte-identical before and after, and no record gains `deprecated`).
+
+Consequence stated plainly: **supersession's value is not measured on this ledger.** It is proven
+safe and proven to fire on restatement, and it is wired into the pass that R1 already triggers — but
+its recall delta needs a ledger with real duplicate pairs before anyone claims one. That is a
+follow-up, not a shipped number.
+
+### Findings NOT fixed in R2 (each measured, each needs its own phase)
+
+1. **Dream's promotion set is not reproducible.** `listTmpFiles()` orders by wall-clock `updatedAt`
+   and `MAX_DREAM_FILES = 20` slices it, so *which* backlog files get promoted depends on
+   millisecond jitter. Measured: fountain-pens ends up with **10 of its 15 distractors, and which
+   10 changes between runs** (run 1: 8,9,10,6,7 · run 2: 10,8,9,1,2). Fixing it means giving the
+   ledger explicit capture dates and ordering by them — which changes what gets promoted, so it
+   needs an R0 re-baseline, not a quiet patch.
+2. **The recency fallback still orders by raw `updatedAt`** (same root cause). R2 only made the
+   thread-resolved path reproducible.
+3. **`control-other-thread` still misses** — `marathon_training` is still in `_tmp` after one pass,
+   because of the same `MAX_DREAM_FILES` cap R1 flagged. Draining the backlog over several idle
+   windows is unpriced.
+4. **`keywordRanking.overlapRatio` counts occurrences** (see above). Untouched by design.
+
+### Gates
+
+`npx tsc --noEmit` clean · `npm run lint` **0 errors** (72 pre-existing warnings) · `npm run
+check:design` PASSED (0 errors, 3 pre-existing size warnings) · `npm test` **1465 passed / 0 failed**
+(30 skipped, 281 suites; 11 suites skipped).
+
+Artifacts `probes/artifacts/r2-recall-delta.{json,md}` written (gitignored by repo convention, so
+the numbers are mirrored above). `probes/r0_dreamDelta.ts` now notes that its after-phase uses R2's
+selection — its `after` column is the R1+R2 state, not R1 alone.
+
+### Follow-ups / next-phase proposal
+
+- **R2's own unfinished business is the ledger, not the code**: a ledger with real restatement pairs
+  (and explicit capture dates) is what would price supersession and kill finding 1. Cheap, and it
+  makes every later phase's numbers reproducible — recommend doing this before R3.
+- Do **not** start R3 (entity/alias → temporal → prospection) yet: supersession's value is still
+  unmeasured and R3's is entirely unmeasured.
+- Still open from R0/R1: the identity-store split (`get_identity` vs the offline user file), the two
+  finish-path extraction soft-fails, and the LLM-planner stall on a blackholed gateway.
+
+## 2026-09-16 — R1: idle Dream trigger (consolidation no longer waits for the model to ask)
+
+`memory_dream` was reachable **only** when the model called the tool (`services/ai/tools/memoryFileTools.ts`), so every finished entry staged a `projects/_tmp/...` file that sat unconsolidated until the user happened to ask a question that made the model dream. R1 runs the same `runMemoryDream` on its own, under three rules — measured, not asserted.
+
+### What shipped
+| File | Lines | Role |
+|---|---|---|
+| `services/ai/chatTurnActivity.ts` | 46 | Module-level in-flight turn counter for the shared engine: `beginChatTurn` / `endChatTurn` / `isChatTurnInFlight` / `subscribeChatTurnIdle`. One counter covers both chat surfaces (rule 5). |
+| `services/memory/memoryDreamTrigger.ts` | 180 | The gate: single-flight (synchronous slot reservation — an `await` between check and reserve let two callers both pass), never during a streaming turn, foreground only (timer cleared on background), `DREAM_MIN_STAGED_FILES = 3`, `DREAM_IDLE_DELAY_MS = 45_000`. Soft-fail; exposes `getDreamTriggerState()` / `subscribeDreamOutcomes` for telemetry. |
+| `hooks/memory/useIdleDreamTrigger.ts` | 47 | Host hook: AppState foreground/background, `subscribeMemoryChanges` (the same edge digest UI already uses), `subscribeChatTurnIdle`; event-driven, never a polling loop. |
+| `services/ai/ai.ts` | +4 | `beginChatTurn()` at the top of `streamChat`, `endChatTurn()` in a `finally` so the counter unwinds on the error path too. |
+| `app/_layout.tsx` | +3 | Mounts `useIdleDreamTrigger(Boolean(auth.user?.id))` next to the existing `scheduleMemoryRollupsOnAppOpen`. |
+| `probes/r0_dreamDelta.ts` (187) + `__tests__/probes/dreamDelta.test.ts` (59) | | Prices R1 on the R0 ledger: same probes before/after a real promotion pass. |
+| `__tests__/services/memory/memoryDreamTrigger.test.ts` | 154 | Single-flight, turn-in-flight skip, background skip, below-threshold skip, no-backlog, outcome telemetry, error soft-fail. |
+
+### R1 delta on the R0 ledger (offline, no LLM plan — `usedLlm:false`)
+```
+[R1 delta] {"stagedFiles":47,"dream":{"promoted":13,"threads":["fountain-pens","early-journal","work"],"tmpRemaining":34,"summary":"Dream (offline plan): promoted 13 file(s) into 3 thread(s) (fountain-pens, early-journal, work); 34 staged file(s) remaining.","usedLlm":false}}
+```
+| metric | before Dream | after Dream |
+|---|---|---|
+| hit-rate | **16.7%** | **66.7%** |
+| precision | **0.167** | **0.400** |
+| memory-search prompt bytes | 6941 | 5216 |
+| threads visible to retrieval | **0** | **3** |
+
+Per probe: `needle-thread` false→true · `needle-echo` false→true · `needle-list-only` false→true (selected 5→1) · `route-user` true→true · `control-other-thread` false→false · `precision-topical` **still false** (the R0 finding stands: header-only scoring keeps losing the needle to same-thread distractors — promotion does not fix selection quality).
+
+### Live app verification — `playwriter` CLI (headless), Expo web `:8081`, demo data suppressed
+**Environment correction first: OmniRoute was DOWN for this run.** `tailscale status` shows the gateway host `cachyos-x8664` / `100.107.7.52` `offline, last seen 12h ago`; it also hosts Supabase `:54321` and Hindsight `:8787`, so the whole "UP" leg of the matrix was unavailable. Supabase/Hindsight were request-blocked in the browser anyway, and the model legs failed soft (`AI Error: Failed to fetch: Could not connect to AI provider at http://100.107.7.52:20128/v1/chat/completions`). Traps worth remembering: `HTTP_PROXY=http://127.0.0.1:8118` is set in this shell, so **curl lies** — `curl http://100.107.7.52:20128/v1/models` returns `405` in 0.8 ms through the local proxy while `curl --noproxy '*'` times out. Judge reachability with `--noproxy '*'` + `tailscale status`, not bare curl.
+
+Sequence (fresh offline account, `demo_data_seeded=true`, supabase/hindsight/agent routes aborted, journal renders, **0 uncaught page errors**):
+
+1. **Threshold gate, live.** Finish one entry through the real product path → `activeTmp=1`. No interaction for 70 s (polled every 10 s) → `activeTmp=1, promoted=0` the whole window. A single staged file does **not** trigger a run, exactly as `DREAM_MIN_STAGED_FILES` says.
+2. **Positive path, live.** Finish entries two and three (real finish path each time, `AI title generation failed, using fallback Error: Entry title timed out after 8000ms`; staged `projects/_tmp/Project/general-r1-live-probe-entry-{one,two,three}-*.md`) → `activeTmp=3`. No interaction at all, polled every 10 s:
+   ```
+   t+10s  tmp=3  promoted=0
+   ...
+   t+80s  tmp=3  promoted=0
+   t+90s  tmp=3  promoted=3   bodyKeys 3 -> 6
+   ```
+   Promotion is a **deprecation**, not a delete: the three `_tmp` manifest records flip to `deprecated:true` (so `listTmpFiles()` sees an empty backlog) and three new files appear at `projects/general/Project/general-r1-live-probe-entry-*.md`. Verbatim body of one promoted file:
+   ```
+   ## Current Stage
+   R1 live probe entry six. The studio is quiet enough now that I can hear the kiln ticking as it cools, and I let myself be done with the week instead of starting one more batch.
+
+   ## Notes
+   - Written 2026-09-16: Untitled Entry
+   ```
+3. **Never during a streaming turn, live.** Three fresh staged files (`activeTmp=3`), then a send whose deadline (45 s after the last finish) lands inside the turn. The turn was held open ~90 s (`ERR_CONNECTION_TIMED_OUT` on the blackholed gateway), polled every 10 s: `activeTmp=3, promoted=3` at t+10/20/30/40/50/60/70/80, unchanged **immediately after the turn ended at t+90s**. Nothing consolidated mid-turn.
+4. **Deferred, not dropped.** The moment the turn ended, its idle listener re-armed the deadline; with the gateway fast-failing (route fulfilled `503`) the run landed in **~40 s**: `activeTmp 3 → 0`, `promoted 3 → 6`. Same evidence that the turn counter unwinds on the error path — all six entries of this run were failing turns.
+
+### Finding worth its own future phase (NOT fixed in R1)
+When the gateway is unreachable but not fast-failing (blackholed, the current state of this box), the run's **LLM planner stalls ~85 s** before falling back to the deterministic offline plan: in step 2 the deadline fired at ~t+45 s but promotion only appeared between t+80 s and t+90 s. It is invisible to the user (single-flight, never during a turn, never blocking chat) but it means a Dream attempt can sit occupied for that long. A short planner timeout, or skipping the LLM plan when the gateway is known-down, is the cheap fix — it needs its own measurement before it ships.
+
+### Sabotage evidence (unit level — the rerun that proves the gate is load-bearing)
+Re-introduced the original check-then-`await` race in `maybeRunIdleDream` (read the gate, then await storage before reserving) → **only** the single-flight test went red (`runs 1 → 2`), the other six stayed green; restored the synchronous reservation → 7/7 green. The full `memoryDreamTrigger` suite is also what proves the turn/background/threshold skips, and the live step 3 above is the same invariant observed in the app.
+
+### Gates
+`npx tsc --noEmit` clean · `npx eslint` on the touched files 0 errors · `npm run check:design` PASSED (0 errors, 3 pre-existing size warnings) · `npm test` **1450 passed / 0 failed** (30 skipped, 278 suites; no `psql` failures this run) · harness re-run after the live work: `__tests__/probes/dreamDelta.test.ts` + `__tests__/probes/recallMetrics.test.ts` 5 passed / 1 skipped.
+
+### Follow-ups / next-phase proposal
+- **Proposed next: R2 (supersession + fading via the existing deprecated frontmatter), gated on R0 metrics only.** Measured justification from R1: promotion moved hit-rate 16.7% → 66.7% but `precision-topical` is still a miss and precision is only 0.400, and 34 of 47 staged files are still in `_tmp` after one pass — the recall problem is now *selection* over a growing formal corpus, which is exactly what supersession/fading touches. Do **not** start R3 (entity/alias → temporal → prospection) yet; its value is unmeasured and may be correctly rejected.
+- R1 leaves the LLM-planner stall above as its own candidate fix, plus one design question: `MAX_DREAM_FILES` caps a run, so a large backlog needs repeated idle windows — worth pricing before anyone assumes one pass drains everything.
+- Still open from R0: header-only scoring in `memoryRetrieval.ts` (the topical probe), the identity-store split (`get_identity` vs the offline user file), and the two finish-path extraction soft-fails.
+- Baseline artifacts under `probes/artifacts/` remain gitignored, so the numbers are mirrored in this file.
+
+## 2026-09-15 — R0: recall measurement harness, first baseline (no behaviour change)
+
+Goal of R0 was numbers, not features: a seeded ledger + planted needles + a fixed probe set, measured through the **real** offline recall path, so every later phase can be priced against a baseline instead of an opinion. R0 ships no product behaviour.
+
+### Recon correction (matters for whoever picks up the next phase)
+The handoff described `.planning/context-retention/PLAN.md` (phases R0–R5, 334 lines) and a Fusion board task `KB-001`. **Neither exists in this checkout.** `.planning/` contains `debug/` and `offline-memory/` only (the latter = the 2026-09-12 offline-memory rework, marked DONE), no file anywhere mentions `context-retention`, no `KB-001` string exists, and the guard test is at `__tests__/backend-local-only.test.ts` (not `tests/`). So R0 was implemented from the handoff text itself, on top of the repo's existing probe culture (`probes/README.md`: E1–E7), not from a plan file. The old root `PLAN.md` cloud-memory architecture stayed untouched.
+
+### What shipped
+| File | Lines | Role |
+|---|---|---|
+| `probes/shared/recallLedger.ts` | 276 | Seeded ledger derived from the deterministic 365-entry fixture: 1 thread needle (token `zephyr-quill-8137`), 15 near-topic distractors **in the same thread**, 1 list-only needle, 29 filler files across 6 threads, 1 `user`/global identity file; plus the fixed 7-probe set. |
+| `probes/r0_recallMetrics.ts` | 470 | Seeds via the real staging API, runs each probe through `retrieveMemory` + the real `memory_search` tool, runs live tool-enabled agent turns, computes the six metrics, writes the artifact. |
+| `__tests__/probes/recallMetrics.test.ts` | 110 | Offline ledger guards (always run) + the `PROBE_LLM=1` live baseline run. |
+
+Metrics: hit-rate (expected memory surfaced in the selection), precision (selected ∩ expected ÷ selected), grounding (live reply carries the expected literal fact), prompt bytes (utf8 of the memory-search output entering the turn), retrieval latency (`retrieveMemory`), whole-turn latency (tool-enabled agent turn). Latency uses `performance.now()` — a first `Date.now()` pass reported a 0 ms median for in-memory recall, which is resolution loss, not speed.
+
+### Baseline — harness run (offline path, Hindsight + Supabase unreachable, OmniRoute up, model `merge/deepseek/deepseek-v4-flash-0731`)
+Ledger: 47 files / 8 threads. Hindsight reachable `false`, Supabase reachable `false`.
+
+| metric | value |
+|---|---|
+| hit-rate | **83.3%** (5/6 expectation probes) |
+| precision | **0.567** (6 rows) |
+| grounding | **66.7%** (2/3 live probes whose recalled context carried the fact) |
+| prompt bytes | median **5702**, p95 **6527**, max 6527, total 25406 |
+| retrieval latency | median **0 ms**, p95 **1 ms**, max **1 ms** (samples 0,0,1,0,0,1,1) |
+| whole-turn latency (harness) | median **2518 ms**, p95 **3001 ms** (2199 / 2518 / 3001) |
+| route accuracy (context) | 7/7 |
+
+Verbatim live replies (token must appear, not be paraphrased):
+- `needle-echo` — “Yes — I found it in my offline memory. From your entry *\"Cataloguing the fountain pens\"* (dated 2026-09-15): > While labeling the box I invented a catalog code for the rarest piece: **zephyr-quill-8137**.”
+- `needle-thread` — “Here's what I have from your notes — from the project file on the fountain pens: > \"…I invented a catalog code for the rarest piece: zephyr-quill-8137…\"”
+- `route-user` (the grounding miss) — “I don't have that yet — I checked my on-device profile and there's nothing saved: no name, no pronouns.”
+
+### Two real findings the baseline exposes (NOT fixed here — R0 changes no behaviour)
+1. **Topical phrasing loses the needle to header-only scoring.** `precision-topical` (“Any notes about pens and ink lately?”) resolved the right thread but selected **5 distractors, 0 expected files** (`hit=false`), which is what drags precision to 0.567. Cause is structural and cited in code: `memoryRetrieval.ts` selection scores only `header.name + header.description`, and bodies are never scored. Same-thread distractors that happen to repeat query tokens outrank the file the user meant.
+2. **Identity questions never reach the user memory file.** `route-user` retrieves the file correctly offline (`hit=true`, context carried `Sig`/`he/him`) but the live turn called **`get_identity`** and answered “nothing saved”. Measured, not inferred: the probe records tool names off the agent activity stream (`get_identity` vs `memory_search+search_history`). The offline file store and the always-on identity profile are two stores, and the model picks the empty one.
+
+Also observed live in the app (logged, not investigated): `AI memory extraction failed: Memory atom extraction returned no atoms` and `Identity LLM extraction failed after retries: Identity extraction returned unparseable or invalid JSON` on the finish path — both soft-fail, entry still saved.
+
+### Sabotage evidence (metric must respond, not print a constant)
+Made the thread needle header-unmatchable (name + description stripped of query tokens, body still holding the token) → `hit-rate` **83.3% → 50.0%** (3/6; all three needle probes flipped to `hit=false`, 5 distractors selected). Restored → **83.3%** again. Harness guards also fail loudly if the seeded needle body loses the token.
+
+### Live app verification (browser only, demo data cleared first)
+Supabase `:54321` refused, Hindsight `:8787` refused, OmniRoute `:20128` up, Expo web `:8081`, model `merge/deepseek/deepseek-v4-flash-0731`.
+- Offline boot on `/today`: renders (journal + nav present, 285 body chars), **0 uncaught page errors**; the only resource error is Supabase `ERR_CONNECTION_REFUSED` and one `Hindsight gateway /v1/memory/rebuild unavailable: Failed to fetch` warning. Journal unaffected.
+- Real finish path staged a memory file: `projects/_tmp/Project/general-copper-lighthouse-november-marathon-proud-heart-10ysg9.md` + manifest + day digest.
+- Recall turn in the app (2 samples): **26 523 ms** and **26 169 ms** wall-clock, `[tools] agent_tool_shortlist {branch: memory}`, 3 rounds, `real.prompt_tokens=5170`, `recall-context=154`. Verbatim: “Yes — one file, and it's a short one. Here's the whole thing, verbatim: Current Stage Tonight I finally told Mara about the copper lighthouse tattoo I've been hiding since the Reykjavik trip…”.
+- The 26 s in-app turn vs the 2.5 s harness turn is the gap worth naming: the harness measures one LLM turn over a recall result, the app measures the full product turn (scaffolding + 3 rounds + streaming). **Use the app number for user-perceived latency.**
+
+### Gates
+`npx tsc --noEmit` clean · `npm run lint` 0 errors (78 warnings; my files add none) · `npm run check:design` PASSED (0 errors, 3 pre-existing size warnings) · `npm test` **1441 passed / 0 failed** (30 skipped; the 2 `psql` failures documented on 2026-09-13 did not reproduce this run).
+
+### Follow-ups / next-phase proposal
+- **Next phase should be R1 (idle Dream trigger) only, and only after this baseline is accepted as the reference.** Measured justification: 47 files staged into `_tmp` + `listFormalProjectIds()` excludes `_tmp`, so recall for fresh entries depends on the recency fallback; the topical probe already shows selection quality is the weak link. Dream promotion is the cheapest lever on precision.
+- Baseline artifact is written to `probes/artifacts/r0-recall-baseline.{json,md}`, which is **gitignored** by repo convention (`probes/README.md`), so the numbers are mirrored above. Decide whether R0 baselines should be committed (e.g. under `docs/`) so phases can diff against a tracked reference.
+- Not addressed by R0: `memory_search` header-only scoring (finding 1), identity-store split (finding 2), and the two finish-path extraction soft-fails. Each needs its own phase and its own measurement.
+- The repo's E2E harnesses remain Playwright (`scripts/e2e/pw-memory-recall-offline.mjs`); this run's browser work used the `playwriter` CLI instead. Worth one deliberate migration decision rather than two parallel browser stacks.
+
 ## 2026-09-15 (latest) — Memory-plan archaeology recovered + context-retention deep plan
 
 The memory architecture went through **three eras** and the documents for the first two
@@ -1493,3 +2574,34 @@ calls) with source-ratio telemetry now explicit per turn.
   > did surface from long-term memory was a note about your grandfather's
   > brass compass from a windowsill trip back in November 2024 — but that
   > doesn't seem to connect to journaling at all […]
+
+## 2026-09-17 - QA run 2 (Buffy): five defects fixed, tracker at 83/107 executed
+
+- Fixed and live-verified DEF-005 (Stop control through the whole chat stack), DEF-006 (authored date on entry detail), DEF-007 (unsent composer draft autosaved and restored), DEF-009 (web confirm primitive - `Alert.alert` is a no-op under react-native-web) and DEF-010 (export journal JSON now downloads on web).
+- New primitives: `components/ui/webConfirm.ts` and `components/ui/webDownload.ts`, wired into CustomModelSettingsSection, MemoryHubScreen, app/intentions/detail, app/happiness-recipe, hooks/personas/usePersonaSettingsActions and hooks/journal/useJournalExport.
+- Gates: 293 suites / 1533 tests green, `tsc` clean, 0 lint errors, `check:design` PASSED.
+- QA tracker moved to 58 Pass / 6 Fail / 18 Blocked / 1 N/A / 24 Untested (of 107); the TEST_PLAN dashboard is regenerated from the CSVs and run 2 is written up in `docs/qa/results/2026-09-17-run2.md`.
+- Opened DEF-011 (Clear History is a silent no-op: the clear stalls on the dead Supabase auth refresh, the account lease aborts so the local phase never runs, and only `Alert.alert` reports it) and DEF-012 (Restore local backup writes nothing back even though the payload is healthy). Both need a local-first fix.
+- Evidence for DEF-011: zero `Storage.setItem`/`removeItem` calls during the clear, byte-identical key dumps on two runs, and a request trace showing `ERR_CONNECTION_REFUSED` on `/auth/v1/token`.
+
+## 2026-09-17 - QA run 3: all defects fixed; destructive local actions no longer depend on the network
+
+**Fixed (each with a live re-verification and/or a guard test)**
+
+- DEF-008: entry-detail edit + delete (tombstones atoms, session digest, day digest, staged memory files).
+- DEF-010: web download for the journal JSON export (`Share.share` is a no-op on web).
+- DEF-011: `clearAllEntries` is local-first - the local deletes run before the best-effort remote delete, and a failed remote delete can no longer abort the wipe. The historical account-switch contract is preserved (the lease is still asserted at the end; a real switch is reported, never silently successful).
+- DEF-012: local backup create/restore run through the same recovery and report every outcome.
+- New `services/account/accountOperationRecovery.ts`: retries a local step once when the account lease was aborted under it, only while the same account stays pinned (refuses up front for a different account; passes through when no account is pinned).
+- `useClearJournalHistory` runs each of the 14 groups as its own recoverable operation and returns `failedSteps`; `hooks/settings/useDataManagementActions.ts` (new) surfaces every outcome through `notifyUser` (window.alert on web) instead of a dead `Alert.alert`. `app/(tabs)/settings.tsx` shrank 494 -> 408 lines.
+- DEF-013 filed: the demo seed shows no progress and looks frozen for minutes (S4, no data loss).
+
+**QA infrastructure**
+
+- `scripts/qa/pw.sh` self-heals dropped/404 playwriter sessions; `pwlib.js` gained `signInIfNeeded` / `seedDemoDataIfEmpty` / `storageSnapshot` / `expandSection` / `captureDialogs`; the Supabase stub now mints restart-safe tokens (a restart used to 400 every refresh and abort the seed mid-write).
+- Environment finding: `HTTP_PROXY=http://127.0.0.1:8118` in the shell means the tailnet gateway IP is not reachable from the browser - QA now runs against `http://localhost:54321`.
+- `eslint.config.js` now declares the playwriter/stub globals for `scripts/qa/**` (the QA scripts had introduced 11 lint errors).
+
+**Gates:** `npm test` 297 suites / 1560 tests green · `tsc --noEmit` clean · `lint` 0 errors · `check:design` PASSED.
+
+**Tracker:** dashboard regenerated (107 cases: 78 Pass / 0 Fail / 9 Blocked / 1 N/A / 19 Untested); run summary in `docs/qa/results/2026-09-17-run3.md`.

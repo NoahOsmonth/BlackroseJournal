@@ -15,6 +15,7 @@ import type { AccountStorageAdapter } from '@/services/account/accountScopedStor
 import {
     assertAccountOperationActive,
     getActiveAccountId,
+    requireActiveAccountId,
     registerAccountTeardown,
     runAccountBoundOperation,
 } from '@/services/account/accountRuntime';
@@ -562,9 +563,20 @@ export function clearDemoData(): Promise<boolean> {
 async function seedDemoDataForAccount(
     storage: AccountStorageAdapter,
     context: AccountOperationContext,
+    seedAccountId: string,
 ): Promise<void> {
+    // Verify before AND after every data-class write that the record owner
+    // still matches the pinned seed account; an auth re-bind aborts the run
+    // instead of silently scattering rows (DEF-003).
+    const verifySeedTarget = (): void => {
+        assertAccountOperationActive(context);
+        if (getActiveAccountId() !== seedAccountId) {
+            throw new Error('Active account changed during seed; aborting to prevent cross-scope writes.');
+        }
+    };
+
     await clearDemoDataForAccount(storage, context);
-    assertAccountOperationActive(context);
+    verifySeedTarget();
 
     const record = emptyRecord();
     const sourceIds = new Set<string>();
@@ -592,13 +604,13 @@ async function seedDemoDataForAccount(
         record.journalEntryIds.push(entry.id);
         sourceIds.add(entry.id);
         await saveJournalEntryMemories(entry);
-        assertAccountOperationActive(context);
+        verifySeedTarget();
         await upsertJournalDayDigest(entry);
         await saveSeedRecord(record, storage, context); // incremental — clear must work even if later steps hang
     }
 
     for (const seed of INTENTION_SEED) {
-        assertAccountOperationActive(context);
+        verifySeedTarget();
         const intention = await createIntention({
             title: seed.title,
             description: seed.description,
@@ -611,7 +623,7 @@ async function seedDemoDataForAccount(
         for (const checkIn of seed.checkIns) {
             const createdAt = daysAgo(checkIn.daysBack);
             const idSeed = `c_${seed.title}_${checkIn.daysBack}_${checkIn.type}`;
-            assertAccountOperationActive(context);
+            verifySeedTarget();
             // Write-ahead: createCheckIn stages a memory file from the row id, so
             // record the id first. A kill mid-check-in then leaves an id whose row
             // never existed (deleteCheckIn is a no-op), never a staged file that
@@ -619,7 +631,7 @@ async function seedDemoDataForAccount(
             const checkInId = `checkin_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
             record.checkInIds.push(checkInId);
             await saveSeedRecord(record, storage, context);
-            assertAccountOperationActive(context);
+            verifySeedTarget();
             const saved = await createCheckIn({
                 id: checkInId,
                 intentionId: intention.id,
@@ -632,12 +644,12 @@ async function seedDemoDataForAccount(
                 updatedAt: createdAt,
                 messages: [msg('user', checkIn.userText, createdAt, idSeed)],
             });
-            assertAccountOperationActive(context);
+            verifySeedTarget();
             // createCheckIn already saves memories + day digest for completed.
             sourceIds.add(saved.id);
 
             const dateKey = dateKeyDaysAgo(checkIn.daysBack);
-            assertAccountOperationActive(context);
+            verifySeedTarget();
             const g = await createGoal({
                 title: `${seed.title} — ${checkIn.type} check-in`,
                 type: 'goal',
@@ -646,7 +658,7 @@ async function seedDemoDataForAccount(
                 createdAt,
                 updatedAt: createdAt,
             });
-            assertAccountOperationActive(context);
+            verifySeedTarget();
             record.goalIds.push(g.id);
             await saveSeedRecord(record, storage, context);
         }
@@ -655,7 +667,7 @@ async function seedDemoDataForAccount(
             const createdAt = daysAgo(goal.daysBack);
             const dateKey = dateKeyDaysAgo(goal.daysBack);
             if (goal.type === 'habit') {
-                assertAccountOperationActive(context);
+                verifySeedTarget();
                 const g = await createGoal({
                     title: goal.title,
                     type: 'habit',
@@ -664,10 +676,10 @@ async function seedDemoDataForAccount(
                     createdAt,
                     updatedAt: createdAt,
                 });
-                assertAccountOperationActive(context);
+                verifySeedTarget();
                 record.goalIds.push(g.id);
             } else {
-                assertAccountOperationActive(context);
+                verifySeedTarget();
                 const goalItem = await createGoal({
                     title: goal.title,
                     type: 'goal',
@@ -676,9 +688,9 @@ async function seedDemoDataForAccount(
                     createdAt,
                     updatedAt: createdAt,
                 });
-                assertAccountOperationActive(context);
+                verifySeedTarget();
                 await updateGoal(goalItem.id, { completed: true });
-                assertAccountOperationActive(context);
+                verifySeedTarget();
                 record.goalIds.push(goalItem.id);
             }
             await saveSeedRecord(record, storage, context);
@@ -686,13 +698,13 @@ async function seedDemoDataForAccount(
     }
 
     for (const note of MEMORY_NOTES) {
-        assertAccountOperationActive(context);
+        verifySeedTarget();
         const atom = await saveManualMemoryNote(note);
-        assertAccountOperationActive(context);
+        verifySeedTarget();
         record.memoryAtomIds.push(atom.id);
         await saveSeedRecord(record, storage, context);
     }
-    assertAccountOperationActive(context);
+    verifySeedTarget();
     const generated = await saveGeneratedMemoryNote(
         'Recurring theme: the user returns to calm mornings, movement, and honest communication as what regulates them.'
     );
@@ -713,9 +725,22 @@ async function seedDemoDataForAccount(
 }
 
 export function seedDemoData(): Promise<void> {
-    return runAccountBoundOperation('seed-demo', (context) => enqueueSeedOperation(() => (
-        seedDemoDataForAccount(getStorageForAccount(context.accountId), context)
-    )));
+    return runAccountBoundOperation('seed-demo', (context) => enqueueSeedOperation(async () => {
+        assertAccountOperationActive(context);
+        // Pin the seed to the account its record will live under. Inner
+        // service calls (createEntry/createCheckIn/createGoal/...) take their
+        // own leases from the live global; if auth re-binds mid-seed (offline
+        // retry loop), un-pinned writes scatter across scopes (DEF-003).
+        const seedAccountId = requireActiveAccountId();
+        if (context.accountId !== seedAccountId) {
+            throw new Error('Seed account context mismatch before seeding.');
+        }
+        await seedDemoDataForAccount(
+            getStorageForAccount(context.accountId),
+            context,
+            seedAccountId,
+        );
+    }));
 }
 
 const BULK_TOPICS = ['work', 'sleep', 'family', 'exercise', 'food', 'mood'] as const;
@@ -864,7 +889,7 @@ export function seedDemoDataIfFirstLaunch(): Promise<boolean> {
                     return false;
                 }
 
-                await seedDemoDataForAccount(storage, context);
+                await seedDemoDataForAccount(storage, context, requireActiveAccountId());
                 assertAccountOperationActive(context);
                 return true;
             } catch (error) {

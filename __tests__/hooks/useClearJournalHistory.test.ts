@@ -66,6 +66,7 @@ import {
     createSavedInsight,
 } from '../../services/saved-insights/savedInsightsStorage';
 import { activateAccount, clearActiveAccount } from '../../services/account/accountRuntime';
+import * as journalStorage from '../../services/journal/journalStorage';
 import * as hindsightClient from '../../services/memory/hindsight/hindsightClient';
 
 describe('useClearJournalHistory', () => {
@@ -135,5 +136,48 @@ describe('useClearJournalHistory', () => {
         expect(await loadCachedInsights('2026-W01')).toBeNull();
         expect(await listSavedInsights()).toEqual([]);
         expect(remoteClear).toHaveBeenCalledWith('clear-history-user');
+    });
+
+    it('survives a transient account-lease abort mid-wipe and reports no failed steps (DEF-011)', async () => {
+        jest.spyOn(hindsightClient, 'hindsightClear').mockResolvedValue(false);
+        await createEntry({
+            title: 'Entry before the gateway died',
+            status: 'completed',
+            messages: [{ id: 'm1', role: 'user', content: 'Hello', timestamp: 1 }],
+        });
+
+        // A dead auth gateway aborts an in-flight account lease exactly once.
+        const realClear = journalStorage.clearAllEntries;
+        const flaky = jest.spyOn(journalStorage, 'clearAllEntries')
+            .mockRejectedValueOnce(new Error('Account operation was aborted.'))
+            .mockImplementation(realClear);
+
+        const { result } = renderHook(() => useClearJournalHistory());
+
+        let outcome: { failedSteps: string[] } | undefined;
+        await act(async () => {
+            outcome = await result.current.clearAll();
+        });
+
+        expect(outcome?.failedSteps).toEqual([]);
+        expect(flaky).toHaveBeenCalledTimes(2);
+        expect(await listEntries()).toEqual([]);
+        flaky.mockRestore();
+    });
+
+    it('names the groups it could not clear instead of failing silently', async () => {
+        jest.spyOn(hindsightClient, 'hindsightClear').mockResolvedValue(false);
+        const hardFailure = jest.spyOn(journalStorage, 'clearAllEntries')
+            .mockRejectedValue(new Error('Disk is full'));
+
+        const { result } = renderHook(() => useClearJournalHistory());
+
+        let outcome: { failedSteps: string[] } | undefined;
+        await act(async () => {
+            outcome = await result.current.clearAll();
+        });
+
+        expect(outcome?.failedSteps).toEqual(['journal entries']);
+        hardFailure.mockRestore();
     });
 });

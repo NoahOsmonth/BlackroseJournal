@@ -1,5 +1,6 @@
 import {
     ChatAccumulator,
+    ChatAbortedError,
     ChatUsage,
     ParsedSseChunk,
     SimulatedStreamingOptions,
@@ -140,8 +141,11 @@ export async function readStreamResponse(
     },
     onChunk: StreamingCallback,
     onComplete: CompleteCallback,
-    onUsage?: StreamUsageCallback
+    onUsage?: StreamUsageCallback | { signal?: AbortSignal }
 ): Promise<ChatUsage | null> {
+    const options = typeof onUsage === 'object' && onUsage !== null ? onUsage : undefined;
+    const usageCallback = typeof onUsage === 'function' ? onUsage : undefined;
+    const signal = options?.signal;
     const reader = body.getReader();
     const decoder = new TextDecoder('utf-8');
     const accumulator: ChatAccumulator = { content: '', reasoning: '', usage: null };
@@ -149,12 +153,16 @@ export async function readStreamResponse(
 
     const finish = (): ChatUsage | null => {
         const usage = accumulator.usage ?? null;
-        onUsage?.(usage);
+        usageCallback?.(usage);
         return usage;
     };
 
     try {
         while (true) {
+            if (signal?.aborted) {
+                void reader.cancel?.('Chat generation was stopped by the user.');
+                throw new ChatAbortedError();
+            }
             const { done, value } = await reader.read();
             buffer = decodeStreamChunk(decoder, value, buffer);
             const { lines, remainder } = splitStreamBuffer(buffer);

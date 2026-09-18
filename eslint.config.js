@@ -12,14 +12,18 @@ module.exports = defineConfig([
   {
     // Playwriter snippets are evaluated by the Playwriter CLI, which injects this
     // sandbox API. They are not standalone ES modules.
-    files: ['scripts/e2e/**/*.mjs'],
+    files: ['scripts/e2e/**/*.mjs', 'scripts/qa/**/*.js', 'scripts/qa/**/*.mjs'],
     languageOptions: {
       globals: {
         state: 'writable',
+        page: 'writable',
         context: 'readonly',
         snapshot: 'readonly',
         getLatestLogs: 'readonly',
         importModule: 'readonly',
+        Buffer: 'readonly',
+        process: 'readonly',
+        console: 'readonly',
       },
     },
   },

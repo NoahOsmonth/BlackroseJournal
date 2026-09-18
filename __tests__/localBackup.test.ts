@@ -105,7 +105,27 @@ describe('localBackup', () => {
         mockStore.set(getAccountScopedStorageKey('@journal_entries'), '{"entry-1":{"title":"Morning"}}');
         mockStore.set(getAccountScopedStorageKey('@goals'), '{"goal-1":{"title":"Walk"}}');
         mockStore.set(getAccountScopedStorageKey('@ai_response_feedback'), '{"feedback-1":{"value":"up"}}');
-        mockStore.set(getAccountScopedStorageKey('@rosebud_local_memory'), '{"memory-1":{"title":"Rest"}}');
+        // A pre-shard v2 payload at the memory key: the backup must fold it in and
+        // carry the atoms, not just the header that replaces it at runtime.
+        mockStore.set(getAccountScopedStorageKey('@rosebud_local_memory'), JSON.stringify({
+            schemaVersion: 2,
+            atoms: {
+                'journal:episodic:memory-1': {
+                    id: 'journal:episodic:memory-1',
+                    layer: 'episodic',
+                    source: 'journal',
+                    sourceId: 'memory-1',
+                    title: 'Rest',
+                    content: 'Rest well.',
+                    tags: [],
+                    salience: 0.5,
+                    confidence: 0.5,
+                    createdAt: 1,
+                    updatedAt: 1,
+                    accessCount: 0,
+                },
+            },
+        }));
         mockStore.set(getAccountScopedStorageKey('@blackrose_custom_ai_provider'), '{"enabled":true}');
         mockStore.set('@blackrose_color_theme', '{"schemaVersion":1}');
 

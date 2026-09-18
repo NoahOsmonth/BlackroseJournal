@@ -11,6 +11,8 @@ interface GoalItem {
     readonly completed: boolean;
     /** Trailing meta, e.g. "4 day streak". */
     readonly meta?: string;
+    /** Row type drives the edit sheet's copy. */
+    readonly type: 'goal' | 'habit';
 }
 
 interface GoalGroupProps {
@@ -18,6 +20,8 @@ interface GoalGroupProps {
     readonly items: readonly GoalItem[];
     readonly emptyMessage: string;
     readonly onToggle: (id: string) => void;
+    /** Long-press opens the edit/delete sheet (DEF-001). */
+    readonly onLongPressItem?: (item: GoalItem) => void;
 }
 
 const HAIRLINE = 'border-hairline-light dark:border-hairline-dark';
@@ -27,7 +31,7 @@ const HAIRLINE = 'border-hairline-light dark:border-hairline-dark';
  * — the concept's goal/habit list. A completed box fills with sage; the label
  * stays in ink either way.
  */
-function GoalGroup({ label, items, emptyMessage, onToggle }: GoalGroupProps) {
+function GoalGroup({ label, items, emptyMessage, onToggle, onLongPressItem }: GoalGroupProps) {
     const isDark = useColorScheme() === 'dark';
     const emptyColor = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
     const checkColor = isDark ? BLACKROSE_PALETTE.dark.bg : BLACKROSE_PALETTE.light.surface;
@@ -51,9 +55,15 @@ function GoalGroup({ label, items, emptyMessage, onToggle }: GoalGroupProps) {
                         <Pressable
                             key={item.id}
                             onPress={() => onToggle(item.id)}
+                            onLongPress={onLongPressItem ? () => onLongPressItem(item) : undefined}
                             accessibilityRole="checkbox"
                             accessibilityState={{ checked: item.completed }}
+                            // RNW Pressable forwards props to View, but a
+                            // ref-forwarding path can drop host props — pass
+                            // the ARIA attribute through explicitly too (DEF-002).
+                            aria-checked={item.completed}
                             accessibilityLabel={item.title}
+                            accessibilityHint={onLongPressItem ? 'Double-tap and hold to edit or delete' : undefined}
                             className={`min-h-14 flex-row items-center gap-3.5 px-4 py-3 ${
                                 index > 0 ? `border-t ${HAIRLINE}` : ''
                             }`}

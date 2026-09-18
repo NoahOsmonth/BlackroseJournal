@@ -33,6 +33,10 @@ interface InlineTypingInputProps {
   disabled?: boolean;
   placeholder?: string;
   onTextChange?: (text: string) => void;
+  /** When true the composer renders a Stop control (generation in flight). */
+  isStreaming?: boolean;
+  /** Called when the user taps Stop while `isStreaming`. */
+  onStop?: () => void;
 }
 
 /**
@@ -40,7 +44,7 @@ interface InlineTypingInputProps {
  * send control — no filled brand button, no fake caret block.
  */
 export const InlineTypingInput = forwardRef<InlineTypingInputRef, InlineTypingInputProps>(
-  ({ onSubmit, disabled = false, placeholder = "Write what's true…", onTextChange }, ref) => {
+  ({ onSubmit, disabled = false, placeholder = "Write what's true…", onTextChange, isStreaming = false, onStop }, ref) => {
     const [text, setText] = useState('');
     const [isFocused, setIsFocused] = useState(false);
     const inputRef = useRef<TextInput>(null);
@@ -153,7 +157,21 @@ export const InlineTypingInput = forwardRef<InlineTypingInputRef, InlineTypingIn
             ) : null}
           </View>
 
-          <View className="flex-row items-center justify-end">
+          <View className="flex-row items-center justify-end gap-2">
+            {isStreaming && onStop ? (
+              <Pressable
+                onPress={onStop}
+                className="h-6 items-center justify-center rounded-full px-2.5"
+                accessibilityRole="button"
+                accessibilityLabel="Stop generating"
+                hitSlop={8}
+                style={({ pressed }) => [
+                  { backgroundColor: sendFill, opacity: pressed ? 0.75 : 1 },
+                ]}
+              >
+                <MaterialIcons name="stop" size={13} color={sendGlyph} />
+              </Pressable>
+            ) : null}
             {/* Concept: a solid bone disc with the paper plane knocked out —
                 always figured, so the send affordance never disappears. */}
             <Pressable

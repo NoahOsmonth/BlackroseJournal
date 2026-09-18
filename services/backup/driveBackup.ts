@@ -2,8 +2,8 @@ import { applyIdentityPatch, getIdentityProfile } from '@/services/memory/identi
 import type { IdentityProfile } from '@/services/memory/identityProfile.types';
 import { importMemoryFiles, listMemoryFiles, getMemoryRecordsByIds } from '@/services/memory/memoryFiles';
 import type { MemoryFileImportRecord } from '@/services/memory/memoryFiles';
-import { listMemoryAtoms, upsertMemoryAtom } from '@/services/memory/localMemory';
-import type { LocalMemoryAtom } from '@/services/memory/localMemory.types';
+import { importMemoryAtoms, listMemoryAtoms, MAX_MEMORY_ATOMS } from '@/services/memory/localMemory';
+import type { LocalMemoryAtom, LocalMemoryAtomInput } from '@/services/memory/localMemory.types';
 
 /**
  * Google Drive backup for the offline memory subsystem (Wave 3).
@@ -69,7 +69,7 @@ export async function buildMemorySnapshot(): Promise<DriveMemorySnapshot> {
         offset += page.length;
         if (page.length < 50) break;
     }
-    const records = await getMemoryRecordsByIds(all.map((h) => h.id));
+    const records = await getMemoryRecordsByIds(all.map((h) => h.id), { limit: all.length });
     return {
         formatVersion: DRIVE_BACKUP_FORMAT,
         exportedAt: new Date().toISOString(),
@@ -115,14 +115,17 @@ export async function restoreMemorySnapshot(raw: unknown): Promise<DriveRestoreR
         });
         identityRestored = true;
     }
-    let restoredAtoms = 0;
-    for (const atom of raw.atoms.slice(0, 400)) {
+    // Bounded by the store's own cap, not a second literal: `MAX_MEMORY_ATOMS` is
+    // what the store keeps, so a real snapshot never exceeds it and the two
+    // numbers cannot drift apart unnoticed.
+    const accepted: LocalMemoryAtomInput[] = [];
+    for (const atom of raw.atoms.slice(0, MAX_MEMORY_ATOMS)) {
         if (typeof atom !== 'object' || atom === null) continue;
         const a = atom as Partial<LocalMemoryAtom>;
         if (typeof a.layer !== 'string' || typeof a.source !== 'string'
             || typeof a.sourceId !== 'string' || typeof a.title !== 'string'
             || typeof a.content !== 'string') continue;
-        await upsertMemoryAtom({
+        accepted.push({
             layer: a.layer,
             source: a.source,
             sourceId: a.sourceId,
@@ -136,8 +139,10 @@ export async function restoreMemorySnapshot(raw: unknown): Promise<DriveRestoreR
             ...(typeof a.createdAt === 'number' ? { createdAt: a.createdAt } : {}),
             ...('eventDate' in a && (typeof a.eventDate === 'string' || a.eventDate === null) ? { eventDate: a.eventDate } : {}),
         });
-        restoredAtoms += 1;
     }
+    // One locked write for the whole snapshot. Per-atom upserts would re-read and
+    // re-serialize the entire store once per atom — 4000 atoms, 4000 round trips.
+    const restoredAtoms = await importMemoryAtoms(accepted);
     const { imported, skipped } = await importMemoryFiles(raw.files);
     return { identityRestored, restoredAtoms, importedFiles: imported, skippedFiles: skipped };
 }

@@ -15,6 +15,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingStatus } from '@/components/ui/LoadingStatus';
 import { StaggerEntranceItem } from '@/components/ui/StaggerEntrance';
 import { WreathMark } from '@/components/intentions/WreathMark';
+import { webConfirm } from '@/components/ui/webConfirm';
 
 const SERIF = { fontFamily: 'PlayfairDisplayRegular' };
 
@@ -63,22 +64,21 @@ export default function IntentionDetailScreen() {
 
     const handleDelete = () => {
         if (!intentionId) return;
-        Alert.alert(
-            'Delete intention',
-            'This will remove the intention and its check-ins from this device.',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: async () => {
-                        await remove(intentionId);
-                        setMoreVisible(false);
-                        goBack();
-                    },
-                },
-            ]
-        );
+        const runDelete = async () => {
+            await remove(intentionId);
+            setMoreVisible(false);
+            goBack();
+        };
+        const message = 'This will remove the intention and its check-ins from this device.';
+        const confirmed = webConfirm(message);
+        if (confirmed !== null) {
+            if (confirmed) void runDelete();
+            return;
+        }
+        Alert.alert('Delete intention', message, [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Delete', style: 'destructive', onPress: runDelete },
+        ]);
     };
 
     if (isLoading) {

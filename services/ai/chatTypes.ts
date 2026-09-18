@@ -51,6 +51,22 @@ export interface StreamChatOptions {
     capability?: ToolCapability;
     /** Optional context window override for this stream turn. */
     contextWindow?: number;
+    /** Abort signal: aborting cancels the in-flight request / agent turn. */
+    signal?: AbortSignal;
+}
+
+/** Raised when a chat turn is cancelled via an AbortSignal (user Stop). */
+export class ChatAbortedError extends Error {
+    constructor() {
+        super('Chat generation was stopped by the user.');
+        this.name = 'ChatAbortedError';
+    }
+}
+
+export function isChatAbortedError(error: unknown): error is ChatAbortedError {
+    return error instanceof ChatAbortedError
+        || (error instanceof Error && error.name === 'AbortError')
+        || (error instanceof Error && error.message.includes('stopped by the user'));
 }
 
 export interface ChatUsage {

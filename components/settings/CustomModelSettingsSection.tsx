@@ -6,6 +6,7 @@ import { ChatModelPickerSheet } from '@/components/ai/ChatModelPickerSheet';
 import { FreeOnlyPill } from '@/components/ai/FreeModelBadge';
 import { LoadingBar } from '@/components/ui/LoadingBar';
 import { AnimatedSwitch } from '@/components/ui/AnimatedSwitch';
+import { webConfirm } from '@/components/ui/webConfirm';
 import type { UseCustomAiModelsReturn } from '@/hooks/settings/useCustomAiModels';
 import { BLACKROSE_PALETTE } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -105,9 +106,15 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
 
     const handleFreeOnlyToggle = (value: boolean) => {
         if (!value) {
+            const message = 'Paid models can incur provider charges. Blackrose defaults to free models only.';
+            const confirmed = webConfirm(`${message} Show all models?`);
+            if (confirmed !== null) {
+                if (confirmed) void setFreeOnly(false);
+                return;
+            }
             Alert.alert(
                 'Show paid models?',
-                'Paid models can incur provider charges. Blackrose defaults to free models only.',
+                message,
                 [
                     { text: 'Keep free', style: 'cancel' },
                     {

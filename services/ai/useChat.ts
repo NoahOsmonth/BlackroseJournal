@@ -51,6 +51,8 @@ export function useChat() {
     const systemPromptRef = useRef<string | undefined>(undefined);
     const conversationIdRef = useRef<string>(generateConversationId());
     const generationRef = useRef<GenerationSettings>(DEFAULT_GENERATION);
+    /** Active generation's abort controller — stopGeneration aborts it. */
+    const abortRef = useRef<AbortController | null>(null);
 
     const setMessages = useCallback((messages: Message[], systemPrompt?: string) => {
         messagesRef.current = messages;
@@ -92,25 +94,32 @@ export function useChat() {
                 }
                 : undefined;
 
-            await streamChat(
-                messagesRef.current,
-                onChunk,
-                (fullContent, fullReasoning) =>
-                    appendAssistantMessage(
-                        messagesRef,
-                        fullContent,
-                        fullReasoning,
-                        onComplete,
-                        collectedActivity
-                    ),
-                onError,
-                {
-                    systemPrompt: basePrompt,
-                    conversationId: conversationIdRef.current,
-                    generation: generationRef.current,
-                    ...(activityListener ? { onAgentActivity: activityListener } : {}),
-                }
-            );
+            const controller = new AbortController();
+            abortRef.current = controller;
+            try {
+                await streamChat(
+                    messagesRef.current,
+                    onChunk,
+                    (fullContent, fullReasoning) =>
+                        appendAssistantMessage(
+                            messagesRef,
+                            fullContent,
+                            fullReasoning,
+                            onComplete,
+                            collectedActivity
+                        ),
+                    onError,
+                    {
+                        systemPrompt: basePrompt,
+                        conversationId: conversationIdRef.current,
+                        generation: generationRef.current,
+                        signal: controller.signal,
+                        ...(activityListener ? { onAgentActivity: activityListener } : {}),
+                    }
+                );
+            } finally {
+                abortRef.current = null;
+            }
         },
         []
     );
@@ -202,6 +211,12 @@ export function useChat() {
         systemPromptRef.current = undefined;
     }, []);
 
+    /** Aborts the active generation (user Stop). No-op when idle. */
+    const stopGeneration = useCallback(() => {
+        abortRef.current?.abort();
+        abortRef.current = null;
+    }, []);
+
     return {
         sendMessage,
         sendInitialPrompt,
@@ -211,5 +226,6 @@ export function useChat() {
         setSystemPrompt,
         setGenerationSettings,
         clearMessages,
+        stopGeneration,
     };
 }

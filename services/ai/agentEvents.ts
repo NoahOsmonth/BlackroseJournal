@@ -30,6 +30,7 @@ export interface AgentToolCallSnapshot {
 /** Why the agent loop stopped (or how it was cut short). */
 export type AgentStopReason =
     | 'complete'                // last turn: no tools, a real answer
+    | 'cancelled'               // user Stop: turn abandoned by AbortSignal
     | 'promised_more_timeout'   // kept saying "one sec" until the promise cap
     | 'max_rounds'
     | 'token_budget'

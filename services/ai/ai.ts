@@ -9,13 +9,16 @@ import { AGENT_TURN_TOKEN_BUDGET, runAgentTurnWithTools, ToolsUnsupportedError }
 import {
     buildChatPayload,
     ChatAccumulator,
+    ChatAbortedError,
     CompleteCallback,
     ErrorCallback,
+    isChatAbortedError,
     Message,
     resolveStreamOptions,
     StreamChatOptions,
     StreamingCallback,
 } from './chatTypes';
+import { beginChatTurn, endChatTurn } from './chatTurnActivity';
 import {
     compactConversationIfNeeded,
     DEFAULT_COMPACT_CONTEXT_WINDOW,
@@ -54,9 +57,16 @@ import {
 
 export {
     CompleteCallback,
-    ErrorCallback, Message, StreamChatOptions, StreamingCallback
+    ErrorCallback, isChatAbortedError, Message, StreamChatOptions, StreamingCallback
 } from './chatTypes';
 export type { ChatAccumulator } from './chatTypes';
+
+/** Throws ChatAbortedError when the caller aborted the turn; swallows transport abort noise. */
+export function throwIfUserAborted(signal?: AbortSignal): void {
+    if (signal?.aborted) {
+        throw new ChatAbortedError();
+    }
+}
 export type {
     AgentActivityEvent,
     AgentActivityListener,
@@ -141,6 +151,7 @@ export async function streamChat(
     options?: string | StreamChatOptions
 ): Promise<void> {
     try {
+        beginChatTurn();
         const resolved = resolveStreamOptions(options);
         let systemPrompt = resolved.systemPrompt || THERAPIST_SYSTEM_PROMPT;
         const runtime = await resolveLocalAiRuntime();
@@ -208,6 +219,7 @@ export async function streamChat(
                         ...(resolved.onAgentActivity
                             ? { onActivity: resolved.onAgentActivity }
                             : {}),
+                        ...(resolved.signal ? { signal: resolved.signal } : {}),
                     });
                     lastUsage = agentResult.usage ?? null;
                     logPromptBudget(attachRealUsage(preLedger, lastUsage));
@@ -224,6 +236,7 @@ export async function streamChat(
                     // Never surface tool pseudo-code the model wrote instead of calling tools.
                     const safeContent = stripToolCallSyntax(agentResult.content).trim();
                     if (safeContent) {
+                        throwIfUserAborted(resolved.signal);
                         await emitSimulatedStreaming(
                             { content: safeContent, reasoning: agentResult.reasoning },
                             onChunk
@@ -244,6 +257,10 @@ export async function streamChat(
                         return;
                     }
                 } catch (error) {
+                    // User Stop must never fall back into a fresh stream request.
+                    if (isChatAbortedError(error)) {
+                        throw error;
+                    }
                     if (error instanceof ToolsUnsupportedError) {
                         markToolsUnsupported(activeModelId);
                         logToolTelemetry('tools_unsupported', { model: activeModelId });
@@ -293,8 +310,9 @@ export async function streamChat(
         };
 
         const xhrResult = await streamChatWithXhr(
-            streamPayload, onChunk, safeOnComplete
+            streamPayload, onChunk, safeOnComplete, resolved.signal
         ).catch((error) => {
+            throwIfUserAborted(resolved.signal);
             console.warn('XMLHttpRequest streaming fallback failed:', error);
             return { ok: false as const, usage: null };
         });
@@ -303,23 +321,30 @@ export async function streamChat(
             return;
         }
 
-        const response = await fetchChatCompletion(streamPayload);
+        const response = await fetchChatCompletion(streamPayload, resolved.signal);
+        throwIfUserAborted(resolved.signal);
         const streamingAvailable = hasReadableStream(response.body)
             && (response.headers.get('content-type') || '').includes('text/event-stream');
         if (!response.ok) {
             throw await buildResponseError(response, 'AI request failed', streamingAvailable);
         }
         if (streamingAvailable && response.body) {
-            const streamUsage = await readStreamResponse(response.body, onChunk, safeOnComplete);
+            const streamUsage = await readStreamResponse(response.body, onChunk, safeOnComplete, {
+                ...(resolved.signal ? { signal: resolved.signal } : {}),
+            });
             logStreamBudget(streamUsage);
             return;
         }
+        throwIfUserAborted(resolved.signal);
         const fallbackResult = await readNonStreamingResponse(response);
         logStreamBudget(fallbackResult.usage ?? null);
         await emitSimulatedStreaming(fallbackResult, onChunk);
         safeOnComplete(fallbackResult.content, fallbackResult.reasoning);
     } catch (error) {
         onError(normalizeUnknownError(error));
+    } finally {
+        // Deferred background work (idle Dream) waits for this to reach zero.
+        endChatTurn();
     }
 }
 

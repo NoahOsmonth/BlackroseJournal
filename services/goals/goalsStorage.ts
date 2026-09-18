@@ -39,7 +39,10 @@ async function loadGoalsMap(storage: AccountStorageAdapter): Promise<Record<stri
     if (!json) return {};
     try {
         const parsed = JSON.parse(json) as unknown;
-        return parsed && typeof parsed === 'object'
+        // Array.isArray guard: an array passes `typeof === 'object'`, but
+        // `map[id] = goal` on an array sets a dropped-on-stringify expando —
+        // every subsequent write silently vanishes (DEF-004).
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
             ? parsed as Record<string, GoalItem>
             : {};
     } catch {

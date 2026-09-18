@@ -16,11 +16,14 @@ jest.mock('@/services/memory/memoryAtomExtraction', () => ({
 
 import {
     LOCAL_MEMORY_CORRUPT_BACKUP_KEY,
+    LOCAL_MEMORY_SHARD_COUNT,
+    LOCAL_MEMORY_SHARD_KEY_PREFIX,
     LOCAL_MEMORY_STORAGE_KEY,
     MAX_MEMORY_ATOMS,
     buildLocalMemoryContext,
     clearMemoryAtoms,
     deleteMemoryAtom,
+    importMemoryAtoms,
     listMemoryAtoms,
     resetMemoryStorageAdapter,
     retrieveLocalMemories,
@@ -30,6 +33,7 @@ import {
     subscribeMemoryChanges,
     upsertMemoryAtom,
 } from '@/services/memory/localMemory';
+import type { LocalMemoryAtom, LocalMemoryAtomInput } from '@/services/memory/localMemory.types';
 import type { JournalEntry } from '@/services/journal/journalStorage.types';
 
 interface InMemoryAdapter {
@@ -57,6 +61,27 @@ function createInMemoryAdapter(): InMemoryAdapter {
             store.delete(key);
         },
     };
+}
+
+/** Atoms as they sit in storage — shard keys only, never through the service. */
+function storedAtoms(adapter: InMemoryAdapter): LocalMemoryAtom[] {
+    const atoms: LocalMemoryAtom[] = [];
+    for (let index = 0; index < LOCAL_MEMORY_SHARD_COUNT; index += 1) {
+        const raw = adapter.store.get(`${LOCAL_MEMORY_SHARD_KEY_PREFIX}${String(index)}`);
+        if (!raw) continue;
+        atoms.push(...Object.values(JSON.parse(raw).atoms as Record<string, LocalMemoryAtom>));
+    }
+    return atoms;
+}
+
+function atomBatch(count: number, prefix: string): LocalMemoryAtomInput[] {
+    return Array.from({ length: count }, (_, index) => ({
+        layer: 'episodic' as const,
+        source: 'journal' as const,
+        sourceId: `${prefix}_${String(index)}`,
+        title: `${prefix} ${String(index)}`,
+        content: 'content',
+    }));
 }
 
 function buildJournalEntry(overrides: Partial<JournalEntry> = {}): JournalEntry {
@@ -106,7 +131,7 @@ describe('localMemory hardening', () => {
         expect(adapter.store.has(LOCAL_MEMORY_STORAGE_KEY)).toBe(false);
     });
 
-    it('migrates a v1 raw atom map into the v2 envelope on first write', async () => {
+    it('migrates a v1 raw atom map into sharded storage on the first write', async () => {
         const v1Atom = {
             id: 'journal:episodic:legacy-1',
             layer: 'episodic',
@@ -135,10 +160,15 @@ describe('localMemory hardening', () => {
             content: 'Fresh content',
         });
 
-        const raw = adapter.store.get(LOCAL_MEMORY_STORAGE_KEY);
-        const envelope = JSON.parse(raw!);
-        expect(envelope.schemaVersion).toBe(2);
-        expect(Object.keys(envelope.atoms)).toHaveLength(2);
+        // The single-value payload is gone: the index is a header only, and both
+        // atoms live in shard keys.
+        const index = JSON.parse(adapter.store.get(LOCAL_MEMORY_STORAGE_KEY)!);
+        expect(index.schemaVersion).toBe(3);
+        expect(index.shardCount).toBe(LOCAL_MEMORY_SHARD_COUNT);
+        expect(index.atomCount).toBe(2);
+        expect(index.atoms).toBeUndefined();
+        expect(storedAtoms(adapter).map((atom) => atom.title).sort())
+            .toEqual(['Fresh', 'Legacy']);
     });
 
     it('drops invalid atoms but keeps valid ones when loading v1 data', async () => {
@@ -192,31 +222,46 @@ describe('localMemory hardening', () => {
 
     it('caps the atom map at MAX_MEMORY_ATOMS and protects manual notes', async () => {
         const overflow = MAX_MEMORY_ATOMS + 25;
-        for (let i = 0; i < overflow; i += 1) {
-            await upsertMemoryAtom({
-                layer: 'episodic',
-                source: 'journal',
-                sourceId: `j_${i}`,
-                title: `Journal ${i}`,
-                content: 'content',
-            });
-        }
+        await importMemoryAtoms(atomBatch(overflow, 'j'));
 
         let atoms = await listMemoryAtoms();
-        expect(atoms.length).toBeLessThanOrEqual(MAX_MEMORY_ATOMS);
+        expect(atoms).toHaveLength(MAX_MEMORY_ATOMS);
 
         const manual = await saveManualMemoryNote('keep me');
-        for (let i = 0; i < 50; i += 1) {
-            await upsertMemoryAtom({
-                layer: 'episodic',
-                source: 'journal',
-                sourceId: `j_post_${i}`,
-                title: `Post ${i}`,
-                content: 'content',
-            });
-        }
+        await importMemoryAtoms(atomBatch(50, 'j_post'));
         atoms = await listMemoryAtoms();
         expect(atoms.find((atom) => atom.id === manual.id)).toBeDefined();
+    });
+
+    it('reports how many atoms a batch import actually kept', async () => {
+        await expect(importMemoryAtoms(atomBatch(3, 'kept'))).resolves.toBe(3);
+        await expect(importMemoryAtoms([])).resolves.toBe(0);
+        // Past the cap the return value is the kept count, not the offered count.
+        await expect(importMemoryAtoms(atomBatch(MAX_MEMORY_ATOMS + 5, 'cap')))
+            .resolves.toBe(MAX_MEMORY_ATOMS);
+    });
+
+    it('announces the eviction instead of shrinking the store in silence (R2.5)', async () => {
+        const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+        try {
+            await importMemoryAtoms(atomBatch(5, 'quiet'));
+            expect(warn.mock.calls.some(([msg]) => String(msg).includes('evicted'))).toBe(false);
+
+            // Fill to exactly the cap, then push ten past it.
+            await importMemoryAtoms(atomBatch(MAX_MEMORY_ATOMS - 5, 'fill'));
+            expect(warn.mock.calls.some(([msg]) => String(msg).includes('evicted'))).toBe(false);
+            await importMemoryAtoms(atomBatch(10, 'loud'));
+
+            // The cap is intended; the *silence* is what this pins. Before the fix
+            // atoms disappeared past the cap with no log, no count, no return value.
+            const eviction = warn.mock.calls.map(([msg]) => String(msg)).find((m) => m.includes('evicted'));
+            expect(eviction).toBeDefined();
+            expect(eviction).toContain(String(MAX_MEMORY_ATOMS));
+            expect(eviction).toMatch(/evicted \d+ lowest-salience atom\(s\)/);
+            expect(await listMemoryAtoms()).toHaveLength(MAX_MEMORY_ATOMS);
+        } finally {
+            warn.mockRestore();
+        }
     });
 
     it('notifies subscribers on mutation but not on access bookkeeping', async () => {
