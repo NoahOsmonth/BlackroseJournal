@@ -1,5 +1,5 @@
 /**
- * Wall-clock timing instrumentation (Task 8 of the hindsight integration plan).
+ * Wall-clock timing instrumentation for the agent loop.
  * Sibling of agentLoop.test.ts (which is already over the 300-line test cap);
  * mirrors its fixture conventions: mock fetchDirectChatCompletion at the
  * transport boundary and executeToolCalls at the tools boundary.

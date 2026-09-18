@@ -101,10 +101,10 @@ describe('composeSystemPrompt', () => {
     });
 
     it('tool-only long-term recall: the tools policy is the only recall driver in the prompt', () => {
-        // The send path no longer awaits Hindsight and screens no longer inject a
-        // reactive recall block; the AI fetches long-term memory via recall_memory.
+        // Screens no longer inject a reactive recall block; the AI fetches
+        // long-term memory on demand via the offline memory_search tool.
         const out = FLOWS.freeform.buildSystemPrompt(withClock({}));
-        expect(out).toContain('recall_memory');
+        expect(out).toContain('memory_search');
         expect(out).toContain('be curious about it');
         expect(out).not.toContain('useHindsightRecallContext');
     });

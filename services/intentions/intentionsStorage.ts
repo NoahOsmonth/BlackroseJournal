@@ -1,6 +1,6 @@
 /**
  * Intentions storage service
- * Handles local persistence + remote sync for intentions and check-ins.
+ * Handles local-only persistence for intentions and check-ins.
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -12,22 +12,10 @@ import {
     IntentionCreateInput,
     IntentionUpdateInput,
 } from './intentionsStorage.types';
-import {
-    fetchRemoteCheckIns,
-    fetchRemoteIntentions,
-    mergeCheckIns,
-    mergeIntentions,
-    pushCheckIns,
-    pushIntentions,
-    queueCheckInDelete,
-    queueCheckInUpsert,
-    queueIntentionDelete,
-    queueIntentionUpsert,
-} from './intentionsRemote';
 import { upsertCheckInDayDigest } from '../memory/dayDigestStorage';
 import { extractIdentityFromSessionTranscript } from '../memory/identityExtraction';
-import { retainCheckInToHindsight } from '../memory/hindsight/hindsightRetain';
 import { saveIntentionCheckInMemories } from '../memory/localMemory';
+import { isDeterministicMemoryExtractionForced } from '../memory/memoryAtomExtraction';
 import { stageCheckInMemoryFiles } from '../memory/memoryStage';
 import { buildAndSaveSessionDigest } from '../memory/sessionDigestBuild';
 import {
@@ -45,13 +33,6 @@ import {
 const INTENTIONS_KEY = '@intentions';
 const CHECKINS_KEY = '@intention_checkins';
 
-let hasPulledIntentions = false;
-let hasPushedIntentions = false;
-let hasPulledCheckIns = false;
-let hasPushedCheckIns = false;
-
-let intentionsSyncPromise: Promise<void> | null = null;
-let checkInsSyncPromise: Promise<void> | null = null;
 let mutationQueue: Promise<void> = Promise.resolve();
 
 function generateId(prefix: string): string {
@@ -88,108 +69,9 @@ function withMutationLock<T>(operation: () => Promise<T>): Promise<T> {
     return result;
 }
 
-async function syncIntentionsFromRemoteIfNeeded(
-    storage: AccountStorageAdapter,
-    context: AccountOperationContext,
-): Promise<void> {
-    if (intentionsSyncPromise) {
-        return intentionsSyncPromise;
-    }
-
-    intentionsSyncPromise = (async () => {
-        const local = await loadMap<Intention>(storage, INTENTIONS_KEY);
-        assertAccountOperationActive(context);
-        const hasLocal = Object.keys(local).length > 0;
-
-        if (!hasLocal && !hasPulledIntentions) {
-            const remote = await fetchRemoteIntentions(context);
-            assertAccountOperationActive(context);
-            if (remote) {
-                hasPulledIntentions = true;
-                await withMutationLock(async () => {
-                    assertAccountOperationActive(context);
-                    const latest = await loadMap<Intention>(storage, INTENTIONS_KEY);
-                    assertAccountOperationActive(context);
-                    await saveMap(storage, INTENTIONS_KEY, mergeIntentions(latest, remote));
-                    assertAccountOperationActive(context);
-                });
-            }
-        }
-
-        if (hasLocal && !hasPushedIntentions) {
-            try {
-                const pushed = await pushIntentions(Object.values(local), context);
-                assertAccountOperationActive(context);
-                if (pushed) {
-                    hasPushedIntentions = true;
-                }
-            } catch (error) {
-                if (context.signal.aborted) throw error;
-                console.warn('Failed to push intentions:', error);
-            }
-        }
-    })();
-
-    try {
-        await intentionsSyncPromise;
-    } finally {
-        intentionsSyncPromise = null;
-    }
-}
-
-async function syncCheckInsFromRemoteIfNeeded(
-    storage: AccountStorageAdapter,
-    context: AccountOperationContext,
-): Promise<void> {
-    if (checkInsSyncPromise) {
-        return checkInsSyncPromise;
-    }
-
-    checkInsSyncPromise = (async () => {
-        const local = await loadMap<IntentionCheckIn>(storage, CHECKINS_KEY);
-        assertAccountOperationActive(context);
-        const hasLocal = Object.keys(local).length > 0;
-
-        if (!hasLocal && !hasPulledCheckIns) {
-            const remote = await fetchRemoteCheckIns(context);
-            assertAccountOperationActive(context);
-            if (remote) {
-                hasPulledCheckIns = true;
-                await withMutationLock(async () => {
-                    assertAccountOperationActive(context);
-                    const latest = await loadMap<IntentionCheckIn>(storage, CHECKINS_KEY);
-                    assertAccountOperationActive(context);
-                    await saveMap(storage, CHECKINS_KEY, mergeCheckIns(latest, remote));
-                    assertAccountOperationActive(context);
-                });
-            }
-        }
-
-        if (hasLocal && !hasPushedCheckIns) {
-            try {
-                const pushed = await pushCheckIns(Object.values(local), context);
-                assertAccountOperationActive(context);
-                if (pushed) {
-                    hasPushedCheckIns = true;
-                }
-            } catch (error) {
-                if (context.signal.aborted) throw error;
-                console.warn('Failed to push check-ins:', error);
-            }
-        }
-    })();
-
-    try {
-        await checkInsSyncPromise;
-    } finally {
-        checkInsSyncPromise = null;
-    }
-}
-
 export function listIntentions(): Promise<Intention[]> {
     return runAccountBoundOperation('intentions-list', async (context) => {
         const storage = getStorageForAccount(context.accountId);
-        await syncIntentionsFromRemoteIfNeeded(storage, context);
         assertAccountOperationActive(context);
         const map = await loadMap<Intention>(storage, INTENTIONS_KEY);
         assertAccountOperationActive(context);
@@ -200,40 +82,11 @@ export function listIntentions(): Promise<Intention[]> {
 export function getIntention(id: string): Promise<Intention | null> {
     return runAccountBoundOperation('intentions-get', async (context) => {
         const storage = getStorageForAccount(context.accountId);
-        await syncIntentionsFromRemoteIfNeeded(storage, context);
         assertAccountOperationActive(context);
         const map = await loadMap<Intention>(storage, INTENTIONS_KEY);
         assertAccountOperationActive(context);
         return map[id] ?? null;
     });
-}
-
-async function queueIntentionUpsertForAccount(
-    intention: Intention,
-    context: AccountOperationContext,
-): Promise<void> {
-    try {
-        assertAccountOperationActive(context);
-        await queueIntentionUpsert(intention, context);
-        assertAccountOperationActive(context);
-    } catch (error) {
-        if (context.signal.aborted) throw error;
-        console.warn('Failed to queue intention sync:', error);
-    }
-}
-
-async function queueIntentionDeleteForAccount(
-    id: string,
-    context: AccountOperationContext,
-): Promise<void> {
-    try {
-        assertAccountOperationActive(context);
-        await queueIntentionDelete(id, context);
-        assertAccountOperationActive(context);
-    } catch (error) {
-        if (context.signal.aborted) throw error;
-        console.warn('Failed to queue intention delete:', error);
-    }
 }
 
 export function createIntention(input: IntentionCreateInput): Promise<Intention> {
@@ -261,7 +114,6 @@ export function createIntention(input: IntentionCreateInput): Promise<Intention>
             assertAccountOperationActive(context);
         });
         assertAccountOperationActive(context);
-        await queueIntentionUpsertForAccount(intention, context);
         return intention;
     });
 }
@@ -291,7 +143,6 @@ export function updateIntention(
         assertAccountOperationActive(context);
         if (!updated) return null;
 
-        await queueIntentionUpsertForAccount(updated, context);
         return updated;
     });
 }
@@ -316,7 +167,6 @@ export function deleteIntention(id: string): Promise<boolean> {
         assertAccountOperationActive(context);
         if (!deleted) return false;
 
-        await queueIntentionDeleteForAccount(id, context);
         return true;
     });
 }
@@ -324,7 +174,6 @@ export function deleteIntention(id: string): Promise<boolean> {
 export function listCheckIns(): Promise<IntentionCheckIn[]> {
     return runAccountBoundOperation('check-ins-list', async (context) => {
         const storage = getStorageForAccount(context.accountId);
-        await syncCheckInsFromRemoteIfNeeded(storage, context);
         assertAccountOperationActive(context);
         const map = await loadMap<IntentionCheckIn>(storage, CHECKINS_KEY);
         assertAccountOperationActive(context);
@@ -335,7 +184,6 @@ export function listCheckIns(): Promise<IntentionCheckIn[]> {
 export function getCheckIn(id: string): Promise<IntentionCheckIn | null> {
     return runAccountBoundOperation('check-ins-get', async (context) => {
         const storage = getStorageForAccount(context.accountId);
-        await syncCheckInsFromRemoteIfNeeded(storage, context);
         assertAccountOperationActive(context);
         const map = await loadMap<IntentionCheckIn>(storage, CHECKINS_KEY);
         assertAccountOperationActive(context);
@@ -356,34 +204,6 @@ export async function listCheckInDrafts(): Promise<IntentionCheckIn[]> {
 export async function listCompletedCheckIns(): Promise<IntentionCheckIn[]> {
     const list = await listCheckIns();
     return list.filter((item) => item.status === 'completed');
-}
-
-async function queueCheckInUpsertForAccount(
-    checkIn: IntentionCheckIn,
-    context: AccountOperationContext,
-): Promise<void> {
-    try {
-        assertAccountOperationActive(context);
-        await queueCheckInUpsert(checkIn, context);
-        assertAccountOperationActive(context);
-    } catch (error) {
-        if (context.signal.aborted) throw error;
-        console.warn('Failed to queue check-in sync:', error);
-    }
-}
-
-async function queueCheckInDeleteForAccount(
-    id: string,
-    context: AccountOperationContext,
-): Promise<void> {
-    try {
-        assertAccountOperationActive(context);
-        await queueCheckInDelete(id, context);
-        assertAccountOperationActive(context);
-    } catch (error) {
-        if (context.signal.aborted) throw error;
-        console.warn('Failed to queue check-in delete:', error);
-    }
 }
 
 async function runCompletedCheckInSideEffects(
@@ -412,6 +232,14 @@ async function runCompletedCheckInSideEffects(
         .filter((m) => m.role === 'user')
         .map((m) => m.content);
 
+    // Deterministic scope (dev demo seed): no provider call for memory work, so
+    // the two AI side effects below are skipped rather than fired and abandoned.
+    // That keeps a seeded store reproducible and stops ~12 background requests
+    // from competing with the seed's own writes (DEF-013).
+    if (isDeterministicMemoryExtractionForced()) {
+        return;
+    }
+
     // These remain fire-and-forget, but each call acquires its own account lease
     // synchronously and therefore is cancelled by the same account switch.
     try {
@@ -429,9 +257,6 @@ async function runCompletedCheckInSideEffects(
             console.warn('Failed to build session digest for check-in:', error);
         });
         assertAccountOperationActive(context);
-        void retainCheckInToHindsight(checkIn).catch((error) => {
-            console.warn('Hindsight retain failed (check-in):', error);
-        });
     } catch (error) {
         if (context.signal.aborted) throw error;
         console.warn('Failed to start check-in side effects:', error);
@@ -473,7 +298,6 @@ export function createCheckIn(
             assertAccountOperationActive(context);
         });
         assertAccountOperationActive(context);
-        await queueCheckInUpsertForAccount(checkIn, context);
 
         if (checkIn.status === 'completed') {
             await runCompletedCheckInSideEffects(checkIn, context);
@@ -511,9 +335,8 @@ export function updateCheckIn(
         if (!result) return null;
 
         const { existing, next: updated } = result;
-        await queueCheckInUpsertForAccount(updated, context);
-        // Only run the heavy Finish side-effects (memory/identity/session-digest/
-        // Hindsight retain) on the draft → completed TRANSITION. Re-running them on
+        // Only run the heavy Finish side-effects (memory/identity/session-digest)
+        // on the draft → completed TRANSITION. Re-running them on
         // every update of an already-completed check-in would duplicate retains,
         // re-extract identity, and re-build the session digest for routine edits.
         if (updated.status === 'completed' && existing.status !== 'completed') {
@@ -539,7 +362,6 @@ export function deleteCheckIn(id: string): Promise<boolean> {
         assertAccountOperationActive(context);
         if (!deleted) return false;
 
-        await queueCheckInDeleteForAccount(id, context);
         return true;
     });
 }
@@ -547,16 +369,11 @@ export function deleteCheckIn(id: string): Promise<boolean> {
 export function clearAllIntentions(): Promise<void> {
     return runAccountBoundOperation('intentions-clear', async (context) => {
         const storage = getStorageForAccount(context.accountId);
-        const ids = await withMutationLock(async () => {
-            assertAccountOperationActive(context);
-            const map = await loadMap<Intention>(storage, INTENTIONS_KEY);
+        await withMutationLock(async () => {
             assertAccountOperationActive(context);
             await storage.removeItem(INTENTIONS_KEY);
             assertAccountOperationActive(context);
-            return Object.keys(map);
         });
-        assertAccountOperationActive(context);
-        await Promise.all(ids.map((id) => queueIntentionDeleteForAccount(id, context)));
         assertAccountOperationActive(context);
     });
 }
@@ -564,16 +381,11 @@ export function clearAllIntentions(): Promise<void> {
 export function clearAllCheckIns(): Promise<void> {
     return runAccountBoundOperation('check-ins-clear', async (context) => {
         const storage = getStorageForAccount(context.accountId);
-        const ids = await withMutationLock(async () => {
-            assertAccountOperationActive(context);
-            const map = await loadMap<IntentionCheckIn>(storage, CHECKINS_KEY);
+        await withMutationLock(async () => {
             assertAccountOperationActive(context);
             await storage.removeItem(CHECKINS_KEY);
             assertAccountOperationActive(context);
-            return Object.keys(map);
         });
-        assertAccountOperationActive(context);
-        await Promise.all(ids.map((id) => queueCheckInDeleteForAccount(id, context)));
         assertAccountOperationActive(context);
     });
 }
@@ -656,14 +468,4 @@ export function importCheckInsSnapshot(
 
 registerAccountTeardown(async () => {
     await mutationQueue;
-    await Promise.all([
-        intentionsSyncPromise?.catch(() => undefined),
-        checkInsSyncPromise?.catch(() => undefined),
-    ]);
-    hasPulledIntentions = false;
-    hasPushedIntentions = false;
-    hasPulledCheckIns = false;
-    hasPushedCheckIns = false;
-    intentionsSyncPromise = null;
-    checkInsSyncPromise = null;
 });

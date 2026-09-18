@@ -1,19 +1,5 @@
 /* eslint-disable import/first */
 
-jest.mock('../../../services/journal/journalRemote', () => ({
-    JOURNAL_TABLE: 'journal_entries',
-    deleteRemoteJournalEntries: jest.fn(() => Promise.resolve(true)),
-    fetchRemoteJournalEntries: jest.fn(() => Promise.resolve(null)),
-    mergeEntries: jest.fn((local: object, remote: object[]) => ({ ...local, ...remote })),
-    pushJournalEntries: jest.fn(() => Promise.resolve(false)),
-    queueJournalEntryDelete: jest.fn(() => Promise.resolve()),
-    queueJournalEntryUpsert: jest.fn(() => Promise.resolve()),
-}));
-
-jest.mock('../../../services/supabase/syncQueue', () => ({
-    removeSyncTasksForTable: jest.fn(() => Promise.resolve()),
-}));
-
 jest.mock('../../../services/memory/dayDigestStorage', () => ({
     upsertJournalDayDigest: jest.fn(async () => undefined),
 }));
@@ -26,10 +12,6 @@ jest.mock('../../../services/memory/localMemory', () => ({
 jest.mock('../../../services/memory/sessionDigestBuild', () => ({
     buildAndSaveSessionDigest: jest.fn(async () => undefined),
 }));
-jest.mock('../../../services/memory/hindsight/hindsightRetain', () => ({
-    retainJournalEntryToHindsight: jest.fn(async () => true),
-}));
-
 import {
     clearAllEntries,
     createEntry,
@@ -42,7 +24,6 @@ import {
 } from '../../../services/journal/journalStorage';
 import { runJournalFinishSideEffects } from '../../../services/journal/journalFinishSideEffects';
 import type { StorageAdapter } from '../../../services/journal/journalStorage.types';
-import { fetchRemoteJournalEntries, deleteRemoteJournalEntries } from '../../../services/journal/journalRemote';
 import { activateAccount, clearActiveAccount } from '../../../services/account/accountRuntime';
 import { getAccountScopedStorageKeyForAccount } from '../../../services/account/accountScopedStorage';
 
@@ -118,37 +99,6 @@ describe('journal account-switch races', () => {
         expect(values.has(getAccountScopedStorageKeyForAccount('@journal_entries', 'account-b'))).toBe(false);
     });
 
-    it('rejects a stale remote list instead of saving or returning its rows after switching', async () => {
-        const remote = deferred<ReturnType<typeof completedEntry>[]>();
-        jest.mocked(fetchRemoteJournalEntries).mockReturnValue(remote.promise);
-        await activateAccount('account-a');
-
-        const pending = listEntries();
-        while (jest.mocked(fetchRemoteJournalEntries).mock.calls.length === 0) await Promise.resolve();
-        const switching = activateAccount('account-b');
-        remote.resolve([completedEntry()]);
-
-        await expect(pending).rejects.toThrow('Account operation was aborted');
-        await switching;
-        expect(values.has(getAccountScopedStorageKeyForAccount('@journal_entries', 'account-b'))).toBe(false);
-    });
-
-    it('rejects a clear whose remote delete resumes after switching instead of clearing B', async () => {
-        const release = deferred<void>();
-        await activateAccount('account-a');
-        await createEntry({ status: 'completed', messages: [], title: 'A only' });
-        jest.mocked(deleteRemoteJournalEntries).mockReturnValueOnce(release.promise.then(() => true));
-
-        const pending = clearAllEntries();
-        while (jest.mocked(deleteRemoteJournalEntries).mock.calls.length === 0) await Promise.resolve();
-        const switching = activateAccount('account-b');
-        release.resolve();
-
-        await expect(pending).rejects.toThrow('Account operation was aborted');
-        await switching;
-        expect(values.has(getAccountScopedStorageKeyForAccount('@journal_entries', 'account-b'))).toBe(false);
-    });
-
     it('rejects an import that completes after switching instead of reporting success to B', async () => {
         const release = deferred<void>();
         const setStarted = deferred<void>();
@@ -197,13 +147,6 @@ describe('journal account-switch races', () => {
 
         await expect(pending).rejects.toThrow('Account operation was aborted');
         await switching;
-    });
-
-    it('keeps ordinary remote failures soft for list reads', async () => {
-        jest.mocked(fetchRemoteJournalEntries).mockRejectedValueOnce(new Error('offline'));
-        await activateAccount('account-a');
-
-        await expect(listEntries()).resolves.toEqual([]);
     });
 
     it('stops finish side effects after the account lease is aborted', async () => {

@@ -151,7 +151,7 @@ describe('looksLikeToolDump', () => {
     it('detects {"name": "X"} JSON format with newer tool names', () => {
         expect(looksLikeToolDump('{"name": "get_identity"}')).toBe(true);
         expect(looksLikeToolDump('{"name": "update_identity", "arguments": {}}')).toBe(true);
-        expect(looksLikeToolDump('{"name": "recall_memory", "query": "wedding"}')).toBe(true);
+        expect(looksLikeToolDump('{"name": "memory_search", "query": "wedding"}')).toBe(true);
     });
 
     it('detects tool-named XML tag dumps (glm 5.3 shape)', () => {

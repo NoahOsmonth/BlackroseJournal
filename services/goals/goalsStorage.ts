@@ -6,13 +6,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GoalCreateInput, GoalItem, GoalUpdateInput } from './goalsStorage.types';
 import { getLocalDateKey } from '@/utils/date';
 import {
-    fetchRemoteGoals,
-    mergeGoals,
-    pushGoals,
-    queueGoalDelete,
-    queueGoalUpsert,
-} from './goalsRemote';
-import {
     AccountStorageAdapter,
     claimLegacyStorageKey,
     getStorageForAccount,
@@ -25,9 +18,6 @@ import {
 } from '@/services/account/accountRuntime';
 
 const GOALS_KEY = '@goals';
-let hasPulledRemote = false;
-let hasPushedLocal = false;
-let syncPromise: Promise<void> | null = null;
 let mutationQueue: Promise<void> = Promise.resolve();
 
 function generateId(): string {
@@ -83,58 +73,9 @@ export function notifyGoalsChanges(): void {
     });
 }
 
-async function syncFromRemoteIfNeeded(
-    storage: AccountStorageAdapter,
-    context: AccountOperationContext,
-): Promise<void> {
-    if (syncPromise) {
-        return syncPromise;
-    }
-
-    syncPromise = (async () => {
-        const local = await loadGoalsMap(storage);
-        assertAccountOperationActive(context);
-        const hasLocal = Object.keys(local).length > 0;
-
-        if (!hasLocal && !hasPulledRemote) {
-            const remote = await fetchRemoteGoals();
-            assertAccountOperationActive(context);
-            if (remote) {
-                hasPulledRemote = true;
-                await withMutationLock(async () => {
-                    const latest = await loadGoalsMap(storage);
-                    assertAccountOperationActive(context);
-                    await saveGoalsMap(storage, mergeGoals(latest, remote));
-                    assertAccountOperationActive(context);
-                });
-            }
-        }
-
-        if (hasLocal && !hasPushedLocal) {
-            try {
-                const pushed = await pushGoals(Object.values(local));
-                assertAccountOperationActive(context);
-                if (pushed) {
-                    hasPushedLocal = true;
-                }
-            } catch (error) {
-                if (context.signal.aborted) throw error;
-                console.warn('Failed to push goals:', error);
-            }
-        }
-    })();
-
-    try {
-        await syncPromise;
-    } finally {
-        syncPromise = null;
-    }
-}
-
 export function listGoals(): Promise<GoalItem[]> {
     return runAccountBoundOperation('goals-list', async (context) => {
         const storage = getStorageForAccount(context.accountId);
-        await syncFromRemoteIfNeeded(storage, context);
         assertAccountOperationActive(context);
         const map = await loadGoalsMap(storage);
         assertAccountOperationActive(context);
@@ -145,26 +86,11 @@ export function listGoals(): Promise<GoalItem[]> {
 export function getGoal(id: string): Promise<GoalItem | null> {
     return runAccountBoundOperation('goals-get', async (context) => {
         const storage = getStorageForAccount(context.accountId);
-        await syncFromRemoteIfNeeded(storage, context);
         assertAccountOperationActive(context);
         const map = await loadGoalsMap(storage);
         assertAccountOperationActive(context);
         return map[id] ?? null;
     });
-}
-
-async function queueGoalUpsertForAccount(
-    goal: GoalItem,
-    context: AccountOperationContext,
-): Promise<void> {
-    try {
-        assertAccountOperationActive(context);
-        await queueGoalUpsert(goal);
-        assertAccountOperationActive(context);
-    } catch (error) {
-        if (context.signal.aborted) throw error;
-        console.warn('Failed to queue goal sync:', error);
-    }
 }
 
 export function createGoal(input: GoalCreateInput): Promise<GoalItem> {
@@ -196,7 +122,6 @@ export function createGoal(input: GoalCreateInput): Promise<GoalItem> {
             await saveGoalsMap(storage, map);
         });
         assertAccountOperationActive(context);
-        await queueGoalUpsertForAccount(goal, context);
         notifyGoalsChanges();
         return goal;
     });
@@ -225,24 +150,9 @@ export function updateGoal(
         });
         assertAccountOperationActive(context);
         if (!updated) return null;
-        await queueGoalUpsertForAccount(updated, context);
         notifyGoalsChanges();
         return updated;
     });
-}
-
-async function queueGoalDeleteForAccount(
-    id: string,
-    context: AccountOperationContext,
-): Promise<void> {
-    try {
-        assertAccountOperationActive(context);
-        await queueGoalDelete(id);
-        assertAccountOperationActive(context);
-    } catch (error) {
-        if (context.signal.aborted) throw error;
-        console.warn('Failed to queue goal sync:', error);
-    }
 }
 
 export function deleteGoal(id: string): Promise<boolean> {
@@ -258,7 +168,6 @@ export function deleteGoal(id: string): Promise<boolean> {
         });
         assertAccountOperationActive(context);
         if (!deleted) return false;
-        await queueGoalDeleteForAccount(id, context);
         notifyGoalsChanges();
         return true;
     });
@@ -294,7 +203,6 @@ export function toggleGoalCompletion(
         });
         assertAccountOperationActive(context);
         if (!updated) return null;
-        await queueGoalUpsertForAccount(updated, context);
         notifyGoalsChanges();
         return updated;
     });
@@ -326,7 +234,6 @@ export function markIntentionGoalComplete(
             await saveGoalsMap(storage, map);
         });
         assertAccountOperationActive(context);
-        await queueGoalUpsertForAccount(goal, context);
         notifyGoalsChanges();
         return goal;
     });
@@ -345,14 +252,10 @@ export async function listHabits(): Promise<GoalItem[]> {
 export function clearAllGoals(): Promise<void> {
     return runAccountBoundOperation('goals-clear', async (context) => {
         const storage = getStorageForAccount(context.accountId);
-        const ids = await withMutationLock(async () => {
-            const map = await loadGoalsMap(storage);
+        await withMutationLock(async () => {
             assertAccountOperationActive(context);
             await storage.removeItem(GOALS_KEY);
-            return Object.keys(map);
         });
-        assertAccountOperationActive(context);
-        await Promise.all(ids.map((id) => queueGoalDeleteForAccount(id, context)));
         assertAccountOperationActive(context);
         notifyGoalsChanges();
     });
@@ -409,10 +312,4 @@ export async function importGoalsForAccount(
 
 registerAccountTeardown(async () => {
     await mutationQueue;
-    if (syncPromise) {
-        await syncPromise.catch(() => undefined);
-    }
-    hasPulledRemote = false;
-    hasPushedLocal = false;
-    syncPromise = null;
 });

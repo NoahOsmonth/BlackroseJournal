@@ -17,11 +17,6 @@ jest.mock('../../../services/journal/journalStorage', () => ({
     hasLegacyJournalEntries: jest.fn(async () => false),
     migrateLegacyJournalEntriesToActiveAccount: jest.fn(async () => undefined),
 }));
-jest.mock('../../../services/supabase/syncQueue', () => ({
-    hasLegacySyncQueue: jest.fn(async () => false),
-    migrateLegacySyncQueueToActiveAccount: jest.fn(async () => undefined),
-}));
-
 import {
     activateAccount,
     clearActiveAccount,
@@ -41,7 +36,6 @@ import {
 } from '../../../services/journal/journalStorage';
 import { migrateLegacyGoalsToActiveAccount } from '../../../services/goals/goalsStorage';
 import { migrateLegacyIntentionsToActiveAccount } from '../../../services/intentions/intentionsStorage';
-import { migrateLegacySyncQueueToActiveAccount } from '../../../services/supabase/syncQueue';
 
 function deferred() {
     let resolve!: () => void;
@@ -99,6 +93,5 @@ describe('legacy data ownership account races', () => {
         expect(jest.mocked(migrateLegacyIntentionsToActiveAccount)).not.toHaveBeenCalled();
         expect(jest.mocked(claimLegacyStorageKey)).not.toHaveBeenCalled();
         expect(jest.mocked(claimLegacyStoragePrefix)).not.toHaveBeenCalled();
-        expect(jest.mocked(migrateLegacySyncQueueToActiveAccount)).not.toHaveBeenCalled();
     });
 });

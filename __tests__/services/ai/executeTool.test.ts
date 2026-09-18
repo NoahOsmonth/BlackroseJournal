@@ -1,5 +1,5 @@
 /**
- * Per-tool execution timeout (Task 9 of the hindsight integration plan).
+ * Per-tool execution timeout.
  * Pins the production change: executeToolCall(call, opts?: { timeoutMs })
  * races the handler against a deadline and returns an isError ToolResult
  * instead of hanging the agent loop.

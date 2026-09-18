@@ -1,15 +1,16 @@
 # Rosebud Memory Implementation Notes
 
-## Long-Term Memory (Hindsight)
+> **2026-09-18 — local-only.** Hindsight, Supabase, and the managed AI gateway
+> were removed. Memory is now entirely on-device (`services/memory/`, no
+> `hindsight/` directory); recall is the offline `memory_search` tool. Sections
+> below that describe Hindsight or Supabase are historical context only.
 
-Long-term memory is **Hindsight** (vectorize-io, local Docker container) —
-see `.planning/archive/docs/superpowers/plans/2026-08-18-hindsight-integration.md`
-for the historical integration plan (the original path was deleted on 2026-08-18
-by `88845b1`; recovered into `.planning/archive/`) and
-`services/memory/hindsight/` for the client. Every
-completed journal entry / check-in fires a fire-and-forget retain; recall is
-**tool-driven**: the AI calls the `recall_memory` agent tool on demand — the send
-path never awaits Hindsight and no always-on recall block is injected. Gemini is
+## Long-Term Memory (formerly Hindsight)
+
+Long-term memory is **fully on-device** — `services/memory/` (memory atoms,
+memory files, digests, rollups, identity). Recall is **tool-driven**: the AI
+calls the offline `memory_search` agent tool on demand — the send path never
+awaits recall and no always-on recall block is injected. Gemini is
 embeddings-only (768-dim); all LLM work is OpenRouter. Everything is soft-fail.
 
 The earlier custom cloud-memory platform (`LOCAL → MIRROR → SHADOW → CLOUD`)

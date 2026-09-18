@@ -576,8 +576,8 @@ export function useChatOrchestration({
         const tempStreamingId = beginStreaming();
 
         try {
-            // Long-term recall is tool-driven: the AI calls `recall_memory` on demand
-            // mid-reply via the agent loop. The send path never awaits Hindsight —
+            // Long-term recall is tool-driven: the AI calls `memory_search` on demand
+            // mid-reply via the agent loop. The send path never awaits recall —
             // sends stay instant, and long-term context arrives only when the AI is
             // curious enough to fetch it.
             await sendMessage(

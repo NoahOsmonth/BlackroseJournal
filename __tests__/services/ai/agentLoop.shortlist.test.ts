@@ -175,6 +175,6 @@ describe('runAgentTurnWithTools — refused mutating re-request', () => {
         const firstRequest = fetchMock.mock.calls[0][0] as {
             tools?: { function: { name: string } }[];
         };
-        expect((firstRequest.tools ?? []).map((t) => t.function.name)).toHaveLength(16);
+        expect((firstRequest.tools ?? []).map((t) => t.function.name)).toHaveLength(15);
     });
 });

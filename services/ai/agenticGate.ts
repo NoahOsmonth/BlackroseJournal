@@ -81,7 +81,7 @@ export function hasPriorToolContext(messages: readonly Message[]): boolean {
     return false;
 }
 
-/** Long-term-memory cues: the recall_memory + search_history subset serves these. */
+/** Long-term-memory cues: the memory_search + search_history subset serves these. */
 const LONG_TERM_RECALL_RE =
     /\b(remember when|recall|back then|used to|long ago|old (times|days|pattern)|childhood|years ago|first (told|mentioned|wrote|talked|met|chat|conversation|entry|session))\b/i;
 
@@ -111,7 +111,6 @@ const ALL_HISTORY_TOOL_NAMES = [
     'get_conversation',
     'search_history',
     ...MEMORY_FILE_TOOLS,
-    'recall_memory',
     'get_identity',
     'update_identity',
     'list_goals',
@@ -199,7 +198,7 @@ export function selectToolShortlist(
     const branches: ToolShortlist['branch'][] = [];
 
     if (LONG_TERM_RECALL_RE.test(text)) {
-        for (const name of ['get_clock', 'memory_search', 'recall_memory', 'search_history', 'list_recent_days', 'get_day', 'get_conversation']) {
+        for (const name of ['get_clock', 'memory_search', 'search_history', 'list_recent_days', 'get_day', 'get_conversation']) {
             names.add(name);
         }
         branches.push('remember-when');

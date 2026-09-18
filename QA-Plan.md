@@ -13,7 +13,6 @@ The tracker lives in `docs/qa/cases/` as one CSV per suite (opens directly in Ex
 ## 2. Scope
 
 **In scope (app features, local-only):**
-- Auth (login / signup / password recovery) — local Supabase dev stack
 - Journal (compose, stream, drafts, finish, detail, reflection)
 - Check-ins & intentions (morning, evening, intention chat)
 - Goals
@@ -26,9 +25,10 @@ The tracker lives in `docs/qa/cases/` as one CSV per suite (opens directly in Ex
 - Negative & accessibility
 
 **Explicitly out of scope (per product decision):**
-- ❌ Hindsight long-term memory service (not exercised; soft-fail must not block any case)
+- ❌ Auth — **retired 2026-09-18**: the app has no sign-in/sign-up/password-recovery surface (`app/(auth)/` deleted) and a device-local account id instead. The 10 `AUTH.csv` cases are superseded and moved out of the active set to `docs/qa/cases/retired/AUTH.csv` (history only); `THEME-07` was retired with them.
+- ❌ Hindsight long-term memory service — **removed 2026-09-18** (there is no remote memory tier at all)
 - ❌ Cloud-memory platform (abandoned — never resurrect)
-- ❌ Backend AI proxy (device-direct path is the product; backend cases are N/A)
+- ❌ Backend AI proxy — **removed 2026-09-18** (device-direct path is the only path)
 
 ## 3. Environment
 
@@ -37,7 +37,7 @@ The tracker lives in `docs/qa/cases/` as one CSV per suite (opens directly in Ex
 | App under test | Expo web build (`npx expo start --web` / running dev server) |
 | Browser | User's own Chrome, driven by **playwriter.dev** (repo skill: `.agents/skills/playwriter/SKILL.md`) |
 | Base URL | `http://localhost:8081` (adjust if the dev server picks another port) |
-| Auth | Local Supabase dev stack for login/signup cases; a seeded, non-expired session may bootstrap offline cases |
+| Auth | None — the app mints a device-local account id on first launch, so every case starts already "signed in" |
 | Data state | **Cleared demo data before any memory/recall case** (AGENTS.md rule 8) |
 | Color schemes | Every visual case is run **light AND dark** |
 | Pre-flight gate | `npm test`, `npx tsc --noEmit`, `npm run lint`, `npm run check:design` — all green before execution begins |
@@ -46,19 +46,19 @@ The tracker lives in `docs/qa/cases/` as one CSV per suite (opens directly in Ex
 
 | # | Suite | CSV | Cases | Automatable via playwriter.dev |
 |---|---|---|---|---|
-| 01 | AUTH | `docs/qa/cases/AUTH.csv` | 10 | Mostly yes |
+| 01 | ~~AUTH~~ (retired 2026-09-18 — no auth surface) | `docs/qa/cases/retired/AUTH.csv` | ~~10~~ | n/a |
 | 02 | JOURNAL | `docs/qa/cases/JOURNAL.csv` | 12 | Web yes; haptics manual |
 | 03 | CHECKINS | `docs/qa/cases/CHECKINS.csv` | 9 | Mostly yes |
 | 04 | GOALS | `docs/qa/cases/GOALS.csv` | 7 | Mostly yes |
 | 05 | MEMORY | `docs/qa/cases/MEMORY.csv` | 10 | Recall yes (cleared demo) |
 | 06 | IDENTITY | `docs/qa/cases/IDENTITY.csv` | 5 | Mostly yes |
 | 07 | SETTINGS | `docs/qa/cases/SETTINGS.csv` | 10 | Mostly yes |
-| 08 | THEME | `docs/qa/cases/THEME.csv` | 12 | Screenshot compare yes |
+| 08 | THEME | `docs/qa/cases/THEME.csv` | 12 (11 active — THEME-07 retired) | Screenshot compare yes |
 | 09 | PERFORMANCE | `docs/qa/cases/PERFORMANCE.csv` | 7 | Timings yes; battery manual |
 | 10 | RESPONSIVE | `docs/qa/cases/RESPONSIVE.csv` | 8 | Viewport emulation yes |
 | 11 | LIFECYCLE | `docs/qa/cases/LIFECYCLE.csv` | 8 | Web partial; kill/offline manual |
 | 12 | NEGATIVE | `docs/qa/cases/NEGATIVE.csv` | 9 | Mostly yes |
-| — | **Total** | | **107** | |
+| — | **Total** | | **97 active** (107 historical) | |
 
 ## 5. Execution workflow (one-by-one, Excel style)
 

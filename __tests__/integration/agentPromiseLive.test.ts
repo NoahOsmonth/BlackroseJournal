@@ -8,8 +8,7 @@
  * asserts that whatever the model does, the reply the user sees is NEVER a lone
  * status line when tools ran on the model side.
  *
- * The ONLY stub is hindsightRecall (external local Docker service) at the module
- * boundary; recall hits are seeded so recall_memory results are verifiable.
+ * No external service stubs are required: memory recall is fully offline.
  *
  * Per AGENTS.md rule 7 this is the live gate for the loop change; rule 8 says
  * memory/recall E2E must run against cleared demo data — the harness installs
@@ -48,13 +47,6 @@ import {
     setIdentityStorageAdapter,
 } from '../../services/memory/identityProfile';
 import { addLocalDays, getLocalDateKey } from '../../utils/date';
-
-jest.mock('../../services/memory/hindsight/hindsightClient', () => ({
-    hindsightRecall: jest.fn(async () => []),
-    subscribeHindsightChanges: jest.fn(() => () => undefined),
-    notifyHindsightChanged: jest.fn(),
-    hindsightHealth: jest.fn(async () => false),
-}));
 
 const describeMaybe = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
 

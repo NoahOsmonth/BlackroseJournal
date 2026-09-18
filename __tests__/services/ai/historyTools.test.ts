@@ -137,14 +137,14 @@ describe('history tools + intent detection', () => {
 });
 
 describe('HISTORY_TOOLS_POLICY — tool-only long-term recall', () => {
-    // Long-term recall is no longer injected automatically: the send path never
-    // awaits Hindsight, so the curiosity nudge is the only recall driver for
-    // free models that are lazy about tools.
-    it('keeps the recall_memory curiosity nudge load-bearing', () => {
-        expect(HISTORY_TOOLS_POLICY).toContain('recall_memory');
+    // Long-term recall is fully offline via memory_search; the curiosity nudge
+    // remains the only recall driver for free models that are lazy about tools.
+    it('keeps the memory_search curiosity nudge load-bearing', () => {
+        expect(HISTORY_TOOLS_POLICY).toContain('memory_search');
         expect(HISTORY_TOOLS_POLICY).toContain('be curious about it');
         expect(HISTORY_TOOLS_POLICY).toContain('"remember when\u2026"');
         expect(HISTORY_TOOLS_POLICY).toContain('one call costs nothing');
+        expect(HISTORY_TOOLS_POLICY).not.toContain('recall_memory');
     });
 
     it('stays within the prompt budget', () => {

@@ -21,9 +21,13 @@ interface DataManagementSectionProps {
     readonly onSeedBulkProbe?: () => void;
     /** Dev-only: remove tracked seed IDs only. */
     readonly onClearDemoData?: () => void;
+    /** Dev-only: row progress while a demo seed runs. */
+    readonly seedProgress?: { readonly completed: number; readonly total: number } | null;
     readonly showDemoSeedControls?: boolean;
     readonly onClearHistory: () => void;
     readonly embedded?: boolean;
+    /** True while any data operation (incl. a demo seed) is in flight. */
+    readonly isSeeding?: boolean;
 }
 
 const HAIRLINE = 'border-hairline-light dark:border-hairline-dark';
@@ -85,9 +89,11 @@ export function DataManagementSection({
     onSeedDemoData,
     onSeedBulkProbe,
     onClearDemoData,
+    seedProgress = null,
     showDemoSeedControls = false,
     onClearHistory,
     embedded = false,
+    isSeeding = false,
 }: DataManagementSectionProps) {
     const latestLabel = latestBackup ? `Latest: ${latestBackup.name}` : 'No local backup yet';
     const showSeed = showDemoSeedControls && typeof onSeedDemoData === 'function';
@@ -134,8 +140,10 @@ export function DataManagementSection({
             {showSeed ? (
                 <SettingsRow
                     label="Seed demo data"
-                    detail="Dev only. Adds sample journals/intentions without wiping real rows; replaces prior seed."
-                    disabled={isBusy}
+                    detail={seedProgress
+                        ? `Seeding… ${seedProgress.completed}/${seedProgress.total} rows`
+                        : 'Dev only. Adds sample journals/intentions without wiping real rows; replaces prior seed.'}
+                    disabled={isBusy || isSeeding}
                     onPress={onSeedDemoData}
                 />
             ) : null}

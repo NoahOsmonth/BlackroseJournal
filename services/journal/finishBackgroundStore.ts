@@ -2,10 +2,10 @@
  * In-memory status store for background finish side effects.
  *
  * After Finish, the entry is saved and the user navigates to reflection
- * immediately. Analysis, memory atoms, day digest, identity, session digest
- * and Hindsight retain keep running in the background; this store lets the
- * reflection / memory / insights screens show a thin "Updating memories…"
- * banner and refresh when each step settles.
+ * immediately. Analysis, memory atoms, day digest, identity and session digest
+ * keep running in the background; this store lets the reflection / memory /
+ * insights screens show a thin "Updating memories…" banner and refresh when
+ * each step settles.
  *
  * No storage key — this is ephemeral UI state, not persisted data.
  */
@@ -15,8 +15,7 @@ export type FinishBackgroundStep =
     | 'memories'
     | 'digest'
     | 'identity'
-    | 'sessionDigest'
-    | 'hindsight';
+    | 'sessionDigest';
 
 export const FINISH_BACKGROUND_STEPS: readonly FinishBackgroundStep[] = [
     'analysis',
@@ -24,7 +23,6 @@ export const FINISH_BACKGROUND_STEPS: readonly FinishBackgroundStep[] = [
     'digest',
     'identity',
     'sessionDigest',
-    'hindsight',
 ];
 
 export interface FinishBackgroundStatus {

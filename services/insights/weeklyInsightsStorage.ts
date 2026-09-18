@@ -11,11 +11,6 @@ import {
     registerAccountTeardown,
     runAccountBoundOperation,
 } from '@/services/account/accountRuntime';
-import {
-    deleteRemoteWeeklyInsights,
-    loadRemoteWeeklyInsights,
-    saveRemoteWeeklyInsights,
-} from './weeklyInsightsRemote';
 
 const STORAGE_KEY = '@weekly_insights_cache';
 let mutationQueue: Promise<void> = Promise.resolve();
@@ -87,20 +82,6 @@ async function loadCachedInsightsForAccount(
         const json = await storage.getItem(STORAGE_KEY);
         assertAccountOperationActive(context);
         if (!json) {
-            const remote = await loadRemoteWeeklyInsights(weekKey);
-            assertAccountOperationActive(context);
-            if (remote) {
-                const cache: CachedWeeklyInsights = {
-                    weekKey: remote.weekKey,
-                    insights: remote.insights,
-                    cachedAt: remote.cachedAt,
-                    entryCount: remote.entryCount,
-                    contentHash: remote.contentHash,
-                };
-                await storage.setItem(STORAGE_KEY, JSON.stringify(cache));
-                assertAccountOperationActive(context);
-                return cache;
-            }
             return null;
         }
 
@@ -114,21 +95,6 @@ async function loadCachedInsightsForAccount(
         }
         if (cache.weekKey === weekKey) {
             return cache;
-        }
-
-        const remote = await loadRemoteWeeklyInsights(weekKey);
-        assertAccountOperationActive(context);
-        if (remote) {
-            const synced: CachedWeeklyInsights = {
-                weekKey: remote.weekKey,
-                insights: remote.insights,
-                cachedAt: remote.cachedAt,
-                entryCount: remote.entryCount,
-                contentHash: remote.contentHash,
-            };
-            await storage.setItem(STORAGE_KEY, JSON.stringify(synced));
-            assertAccountOperationActive(context);
-            return synced;
         }
 
         return null;
@@ -166,13 +132,6 @@ async function saveCachedInsightsForAccount(
         };
         await storage.setItem(STORAGE_KEY, JSON.stringify(cache));
         assertAccountOperationActive(context);
-        try {
-            await saveRemoteWeeklyInsights(weekKey, insights, entryCount, contentHash);
-            assertAccountOperationActive(context);
-        } catch (error) {
-            if (context.signal.aborted) throw error;
-            console.error('Failed to sync remote insights:', error);
-        }
     } catch (error) {
         if (context.signal.aborted) throw error;
         console.error('Failed to save cached insights:', error);
@@ -222,13 +181,6 @@ async function clearCachedInsightsForAccount(
     try {
         await storage.removeItem(STORAGE_KEY);
         assertAccountOperationActive(context);
-        try {
-            await deleteRemoteWeeklyInsights(getCurrentWeekKey());
-            assertAccountOperationActive(context);
-        } catch (error) {
-            if (context.signal.aborted) throw error;
-            console.error('Failed to clear remote insights:', error);
-        }
     } catch (error) {
         console.error('Failed to clear cached insights:', error);
         throw error;

@@ -28,8 +28,6 @@ import {
     identitySettingsSummary,
     memorySummary,
 } from '@/components/settings';
-import { useAuthSession } from '@/hooks/auth/useAuthSession';
-import { useAuthActions } from '@/hooks/auth/useAuthActions';
 import { useIdentityProfile } from '@/hooks/memory/useIdentityProfile';
 import { useLocalMemories } from '@/hooks/memory/useLocalMemories';
 import { useCustomAiModels } from '@/hooks/settings/useCustomAiModels';
@@ -45,7 +43,6 @@ import {
     isDemoSeedEnabled,
     markDemoDataSeeded,
 } from '@/services/seed/seedDemoData';
-import { SettingsSkeleton } from '@/components/settings/SettingsSkeleton';
 
 export default function SettingsScreen() {
     const router = useRouter();
@@ -60,8 +57,6 @@ export default function SettingsScreen() {
         applyColorThemeEdit,
         resetColorTheme,
     } = useThemeSettings();
-    const { user, isLoading: isAuthLoading } = useAuthSession();
-    const { signOut } = useAuthActions();
     const {
         latestBackup,
         isBusy,
@@ -76,11 +71,13 @@ export default function SettingsScreen() {
     const generation = useGenerationSettings();
     const { goToTab } = useTabNavigation();
     const { exportAsJson, shareJson } = useJournalExport();
-    const { seed: seedDemoData, seedBulk: seedBulkProbe } = useSeedDemoData();
-    const [isSigningOut, setIsSigningOut] = useState(false);
+    const {
+        seed: seedDemoData,
+        seedBulk: seedBulkProbe,
+        isSeeding,
+        seedProgress,
+    } = useSeedDemoData();
     const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set());
-
-    const isLoading = isAuthLoading;
 
     const toggleSection = useCallback((id: string) => {
         setExpandedIds((prev) => {
@@ -102,7 +99,7 @@ export default function SettingsScreen() {
         data: dataManagementSummary(Boolean(latestBackup)),
         identity: identitySettingsSummary(identity.profile),
         memory: memorySummary(memory.atoms.length),
-        account: accountSummary(user?.email ?? null),
+        account: accountSummary(),
         about: aboutSummary(),
     }), [
         theme,
@@ -113,7 +110,6 @@ export default function SettingsScreen() {
         latestBackup,
         identity.profile,
         memory.atoms.length,
-        user?.email,
     ]);
 
     const handleTabPress = (tab: 'today' | 'explore' | 'entries' | 'settings' | 'insights') => {
@@ -156,9 +152,11 @@ export default function SettingsScreen() {
                         await seedDemoData();
                         await markDemoDataSeeded();
                         goToTab('entries');
-                        Alert.alert('Demo data added', 'Sample content ready to explore.');
+                        // notifyUser, not Alert.alert: Alert is a no-op on web, and a
+                        // silent finish is what made the seed look frozen (DEF-013).
+                        notifyUser('Demo data added', 'Sample content ready to explore.');
                     } catch (error) {
-                        Alert.alert('Error', error instanceof Error ? error.message : 'Seed failed.');
+                        notifyUser('Seed failed', error instanceof Error ? error.message : 'Seed failed.');
                     }
                 })();
             },
@@ -175,9 +173,9 @@ export default function SettingsScreen() {
                         const n = await seedBulkProbe(365);
                         await markDemoDataSeeded();
                         goToTab('entries');
-                        Alert.alert('Bulk probe seeded', `${n} entries + digests.`);
+                        notifyUser('Bulk probe seeded', `${n} entries + digests.`);
                     } catch (error) {
-                        Alert.alert('Error', error instanceof Error ? error.message : 'Bulk seed failed.');
+                        notifyUser('Bulk seed failed', error instanceof Error ? error.message : 'Bulk seed failed.');
                     }
                 })();
             },
@@ -193,38 +191,18 @@ export default function SettingsScreen() {
                     try {
                         await clearDemoData();
                         goToTab('entries');
-                        Alert.alert('Demo cleared', 'Seed rows removed; your real data is intact.');
+                        notifyUser('Demo cleared', 'Seed rows removed; your real data is intact.');
                     } catch (error) {
-                        Alert.alert('Error', error instanceof Error ? error.message : 'Clear failed.');
+                        notifyUser('Clear failed', error instanceof Error ? error.message : 'Clear failed.');
                     }
                 })();
             },
         );
     };
 
-    const handleSignOut = async () => {
-        if (isSigningOut) {
-            return;
-        }
-
-        setIsSigningOut(true);
-        try {
-            await signOut();
-            Alert.alert('Signed out', 'You have been signed out successfully.');
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Failed to sign out.';
-            Alert.alert('Error', message);
-        } finally {
-            setIsSigningOut(false);
-        }
-    };
-
     return (
         <ScreenContainer edges="top" className="relative">
-            {isLoading ? (
-                <SettingsSkeleton />
-            ) : (
-                <ScrollView
+            <ScrollView
                     className="flex-1"
                     contentContainerStyle={{
                         paddingHorizontal: 24,
@@ -321,6 +299,8 @@ export default function SettingsScreen() {
                         onSeedDemoData={handleSeedDemoData}
                         onSeedBulkProbe={handleSeedBulkProbe}
                         onClearDemoData={handleClearDemoData}
+                        seedProgress={seedProgress}
+                        isSeeding={isSeeding}
                         onClearHistory={handleClearHistory}
                         embedded
                     />
@@ -369,16 +349,7 @@ export default function SettingsScreen() {
                     expanded={expandedIds.has('account')}
                     onToggle={toggleSection}
                 >
-                    <AccountSettingsSection
-                        email={user?.email ?? null}
-                        isAuthLoading={isAuthLoading}
-                        isSigningOut={isSigningOut}
-                        onSignOut={handleSignOut}
-                        onSignIn={() => router.push('/login')}
-                        onCreateAccount={() => router.push('/signup')}
-                        onForgotPassword={() => router.push('/forgot-password')}
-                        embedded
-                    />
+                    <AccountSettingsSection embedded />
                 </SettingsAccordionSection>
 
                 <SettingsAccordionSection
@@ -396,7 +367,6 @@ export default function SettingsScreen() {
                     />
                 </SettingsAccordionSection>
             </ScrollView>
-        )}
 
         <BottomNav
             activeTab="settings"

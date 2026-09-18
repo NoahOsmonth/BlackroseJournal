@@ -1,5 +1,69 @@
 # PROGRESS — Optimization + Bug Hunt (2026-09-02)
 
+## 2026-09-18 (later) — DEF-013: the demo seed waited on 28 AI calls, so it looked frozen
+
+The last open QA defect. Seeding demo data wrote its 31 rows but appeared hung for
+minutes: the seed **awaited one AI atom-extraction round-trip per journal entry and per
+check-in**, and every check-in additionally fired fire-and-forget identity + session-digest
+requests. 28 provider requests, none of them visible to the user, each either slow or
+waiting out a timeout.
+
+- **Fix:** a new `runWithDeterministicMemoryExtraction` scope in
+  `memoryAtomExtraction.ts`. Inside it `extractMemoryAtoms` returns `[]` without touching the
+  provider, so every memory path takes the deterministic builder it already had
+  (`buildJournalAtoms` / `buildIntentionCheckInAtoms`), and `runCompletedCheckInSideEffects`
+  skips its AI side effects. The seed runs the whole batch inside the scope. The demo dataset
+  ships its own `analysis` (insight/quote/mood/topics) — exactly what the deterministic
+  extractor reads — so nothing about the demo store got thinner, and the journal seed never
+  built session digests either, so the store is now uniformly digest-free (and reproducible,
+  which matters for the probe suites).
+- **Progress:** `seedDemoData({ onProgress })` reports one step per row (25 steps). The
+  Settings row shows `Seeding… n/25 rows` and refuses a second press. Seed/bulk/clear outcomes
+  moved from `Alert.alert` (a no-op on web — the DEF-009 family) to `notifyUser`, which was
+  hiding the completion message that should have said the seed finished.
+- **Measured:** with a 200 ms stand-in provider, the seed made **28 provider calls in
+  2262 ms** before the scope and **0 calls in 50 ms** after (scratch harness, deleted).
+  Against a real gateway at seconds-per-call that is the difference between a demo and a
+  hang.
+- **Tests:** 1309 green. New `seedDemoDeterministic.test.ts` (no provider call even with keys
+  present, progress ends exactly at the stated total, full dataset still written), 3 scope
+  cases in `memoryAtomExtraction.test.ts`, a progress-row case in
+  `DataManagementSection.test.tsx`. Sabotage-verified. The step-count formula was wrong on the
+  first pass (31 vs the 25 rows actually reported) — the "ends at the total" assertion is what
+  caught it, which is why it exists.
+- **Status:** `Fixed (pending re-test)` — SETTINGS-05 needs a live re-run.
+
+## 2026-09-18 — Local-only build: Hindsight, Supabase and the managed gateway removed
+
+Three remote tiers were deleted outright (decision: no auth, delete fully, remove the
+managed gateway): **Hindsight** (`services/memory/hindsight/` + all retain/recall callers
++ the `recall_memory` tool), **Supabase** (auth, app-data remote sync, `services/supabase/`,
+the eight `*Remote.ts` services, `EXPO_PUBLIC_DATA_PROVIDER`/`dataProvider.ts`, `supabase/`),
+and the **managed AI gateway** (`backend/`, `packages/ai-control-plane-contracts`,
+`managedTransport`/`managedCatalog`, control-plane scripts). BYOK device-direct transport is
+the only chat path.
+
+- **Account identity replaced, not migrated:** `services/auth/localAccount.ts` mints one
+device-local id on first launch and reuses it forever. It reads through the existing
+`accountRegistry`, so data written under a previous Supabase user id stays readable with zero
+migration. No sign-in/sign-up/password screens (`app/(auth)/` deleted), `useAuthActions().signOut`
+is a compatibility no-op, and the Settings Account section now describes on-device storage
+instead of offering dead actions.
+- **Memory features are untouched in count, local in storage:** memory atoms, memory files,
+day/session digests, rollups, identity, Dream consolidation and `memory_search` all still run
+on AsyncStorage; only the remote fallback disappeared. Finishing an entry no longer fires any
+network retain.
+- **Dead tool cleaned up while removing the layer:** `recall_memory` was still listed in
+`agenticGate`'s catalog/shortlist, `executeTool`'s unknown-tool message and `toolUiMeta` — the
+loop filtered it out silently, so the shortlist quietly contained a name with no definition.
+Removed everywhere, and the text-tool regex now derives from `TOOL_NAMES` so it cannot drift again.
+- **Tests:** 1302 green (was 1573; the deleted files were Hindsight/Supabase/remote-sync suites
+and their obsolete race cases). Stale mocks, env allowlist entries (`EXPO_PUBLIC_SUPABASE_ANON_KEY`)
+and comments removed; `envBundleSafety` now allows only the provider key.
+- **E2E probe rewritten:** `scripts/e2e/pw-memory-recall-offline.mjs` no longer seeds a Supabase
+session or blocks per-host — it blocks *everything* except the chat provider and reports any
+other outbound host as a leak, so the offline-boot gate now also proves there is no hidden remote call.
+
 ## 2026-09-17 — QA Run 1 executed: 18 cases dispositioned, 4 defects (2×S2)
 
 Executed the QA program live (playwriter.dev → user's Chrome, Expo web :8081, commit `478b56d`). Pre-flight gate green (1511 jest tests, tsc, lint, design). Results: **5 Pass / 3 Fail / 10 Blocked** (full detail: `docs/qa/results/2026-09-17-run1.md`; tracker updated in `docs/qa/cases/*.csv` + dashboard).

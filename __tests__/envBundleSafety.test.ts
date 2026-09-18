@@ -18,9 +18,9 @@ const ENV_FILE_GLOB = '**/.env*';
 
 /**
  * Vars that this project intentionally exposes to the client bundle.
- * Supabase's anon key is public by design. The NanoGPT key is explicitly
- * allowed only because this repo is now configured for a local phone build
- * with direct on-device AI calls and no backend agent.
+ * The NanoGPT key is explicitly allowed only because this repo is now
+ * configured for a local phone build with direct on-device AI calls and no
+ * backend agent (and no remote auth or memory service).
  *
  * Keep this list tight. If you add an entry, document WHY it is safe to
  * ship in the mobile bundle (e.g., a third-party service's public
@@ -28,7 +28,6 @@ const ENV_FILE_GLOB = '**/.env*';
  */
 const KNOWN_PUBLIC_EXPO_VARS: ReadonlySet<string> = new Set([
     'EXPO_PUBLIC_NANO_GPT_API_KEY',
-    'EXPO_PUBLIC_SUPABASE_ANON_KEY',
 ]);
 
 function findEnvFiles(): string[] {
@@ -119,7 +118,7 @@ describe('envBundleSafety — no EXPO_PUBLIC_* secrets in committed env files', 
         // be flagged. The ESLint rule would not match these either.
         const safe = [
             'EXPO_PUBLIC_NANO_GPT_API_BASE_URL=https://nano-gpt.com/api/v1',
-            'EXPO_PUBLIC_SUPABASE_URL=https://example.supabase.co',
+            'EXPO_PUBLIC_NANO_GPT_MODEL=merge/deepseek/deepseek-v4-flash-0731',
         ];
         for (const sample of safe) {
             expect(FORBIDDEN_ENV_PATTERN.test(sample)).toBe(false);

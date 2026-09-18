@@ -22,13 +22,6 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
     },
 }));
 
-jest.mock('../../../services/goals/goalsRemote', () => ({
-    fetchRemoteGoals: jest.fn(async () => null),
-    mergeGoals: jest.fn((local: object) => local),
-    pushGoals: jest.fn(async () => false),
-    queueGoalDelete: jest.fn(async () => undefined),
-    queueGoalUpsert: jest.fn(async () => undefined),
-}));
 
 import { activateAccount, clearActiveAccount } from '../../../services/account/accountRuntime';
 import { getAccountScopedStorageKeyForAccount } from '../../../services/account/accountScopedStorage';

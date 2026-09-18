@@ -1,5 +1,5 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack, useSegments } from 'expo-router';
+import { Stack } from 'expo-router';
 import { TransitionProvider } from 'expo-transition-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -18,7 +18,6 @@ import '@/components/theme/nativewindAnimated';
 
 import { AppErrorBoundary } from '@/components/system/AppErrorBoundary';
 import { LegacyDataOwnershipGate } from '@/components/auth/LegacyDataOwnershipGate';
-import { SupabaseStatusBanner } from '@/components/system/SupabaseStatusBanner';
 import { AppColorThemeProvider } from '@/components/theme/AppColorThemeProvider';
 import { LoadingBar } from '@/components/ui/LoadingBar';
 import { SkeletonProvider } from '@/components/ui/SkeletonProvider';
@@ -50,7 +49,6 @@ export default function RootLayout() {
     const auth = useAuthSession();
     // R1: consolidate staged memory files on idle (never mid-turn, never backgrounded).
     useIdleDreamTrigger(Boolean(auth.user?.id));
-    const segments = useSegments();
     const colorScheme = useColorScheme();
     const [appReady, setAppReady] = useState(false);
 
@@ -116,36 +114,26 @@ export default function RootLayout() {
                 <AppColorThemeProvider>
                 <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
                     <AppErrorBoundary>
-                        <SupabaseStatusBanner />
-                        <LegacyDataOwnershipGate
-                            accountId={auth.user?.id ?? null}
-                            enabled={segments[0] !== '(auth)'}
-                        >
-                            <TransitionProvider key={auth.user?.id ?? 'signed-out'}>
+                        <LegacyDataOwnershipGate accountId={auth.user?.id ?? null}>
+                            <TransitionProvider key={auth.user?.id ?? 'local'}>
                                 <Stack screenOptions={{ headerShown: false }}>
-                                    <Stack.Screen name="(auth)" />
-                                    <Stack.Protected
-                                        key={auth.user?.id ?? 'signed-out'}
-                                        guard={auth.isAuthenticated}
-                                    >
-                                        <Stack.Screen name="index" />
-                                        <Stack.Screen name="(tabs)" />
-                                        <Stack.Screen name="chat" />
-                                        <Stack.Screen name="drafts" />
-                                        <Stack.Screen name="saved-insights" />
-                                        <Stack.Screen name="goals" />
-                                        <Stack.Screen name="entry-detail" />
-                                        <Stack.Screen name="checkin-detail" />
-                                        <Stack.Screen name="entry-reflection" />
-                                        <Stack.Screen name="suggestions" />
-                                        <Stack.Screen name="streak-view" />
-                                        <Stack.Screen name="streak-haiku" options={{ presentation: 'modal' }} />
-                                        <Stack.Screen name="ask-rosebud" />
-                                        <Stack.Screen name="memory-graph" />
-                                        <Stack.Screen name="happiness-recipe" />
-                                        <Stack.Screen name="rewards" />
-                                        <Stack.Screen name="persona/generate" />
-                                    </Stack.Protected>
+                                    <Stack.Screen name="index" />
+                                    <Stack.Screen name="(tabs)" />
+                                    <Stack.Screen name="chat" />
+                                    <Stack.Screen name="drafts" />
+                                    <Stack.Screen name="saved-insights" />
+                                    <Stack.Screen name="goals" />
+                                    <Stack.Screen name="entry-detail" />
+                                    <Stack.Screen name="checkin-detail" />
+                                    <Stack.Screen name="entry-reflection" />
+                                    <Stack.Screen name="suggestions" />
+                                    <Stack.Screen name="streak-view" />
+                                    <Stack.Screen name="streak-haiku" options={{ presentation: 'modal' }} />
+                                    <Stack.Screen name="ask-rosebud" />
+                                    <Stack.Screen name="memory-graph" />
+                                    <Stack.Screen name="happiness-recipe" />
+                                    <Stack.Screen name="rewards" />
+                                    <Stack.Screen name="persona/generate" />
                                 </Stack>
                                 <WoltTransitionManager />
                             </TransitionProvider>

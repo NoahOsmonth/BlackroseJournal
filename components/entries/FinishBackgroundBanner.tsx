@@ -6,7 +6,7 @@ const AUTO_HIDE_MS = 4000;
 
 /**
  * Thin status bar shown under headers while finish side effects (analysis,
- * memory atoms, day digest, identity, session digest, Hindsight) run in the
+ * memory atoms, day digest, identity, session digest) run in the
  * background after Finish. Auto-hides a few seconds after the run settles.
  */
 export function FinishBackgroundBanner() {

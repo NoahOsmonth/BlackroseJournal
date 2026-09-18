@@ -138,15 +138,6 @@ export const TOOL_UI_META: Record<string, ToolUiMeta> = {
         iconName: 'bedtime',
         formatArgsPreview: () => '—',
     },
-    recall_memory: {
-        label: 'Searching long-term memory',
-        iconName: 'psychology',
-        formatArgsPreview: (args) => {
-            const query = firstPreviewArg(args, ['query']);
-            if (!query) return 'memory';
-            return truncatePreview(query, 40);
-        },
-    },
     get_identity: {
         label: 'Reading your profile',
         iconName: 'person',

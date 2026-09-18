@@ -1,8 +1,4 @@
-import type { AuthSessionLike } from '@/services/auth/authBootstrap';
-import {
-    getAuthCoordinatorSnapshot,
-    subscribeAuthCoordinator,
-} from '@/services/auth/authCoordinator';
+import { localAccountStore } from '@/services/auth/localAccount';
 import { useSyncExternalStore } from 'react';
 
 interface AuthUserState {
@@ -11,31 +7,29 @@ interface AuthUserState {
 }
 
 export interface AuthSessionState {
-    readonly session: AuthSessionLike | null;
     readonly user: AuthUserState | null;
-    readonly isAnonymous: boolean;
     readonly isAuthenticated: boolean;
-    readonly isOffline: boolean;
     readonly isLoading: boolean;
 }
 
+/**
+ * Auth session backed by the device-local account (no remote auth). The shape
+ * mirrors the previous Supabase-backed hook so call sites stay unchanged.
+ */
 export function useAuthSession(): AuthSessionState {
-    const { authState, isLoading } = useSyncExternalStore(
-        subscribeAuthCoordinator,
-        getAuthCoordinatorSnapshot,
-        getAuthCoordinatorSnapshot,
+    const state = useSyncExternalStore(
+        localAccountStore.subscribe,
+        localAccountStore.getSnapshot,
+        localAccountStore.getSnapshot,
     );
 
-    const user = authState.account
-        ? { id: authState.account.id, email: authState.account.email }
+    const user = state.account
+        ? { id: state.account.id, email: state.account.email }
         : null;
 
     return {
-        session: authState.session,
         user,
-        isAnonymous: false,
-        isAuthenticated: authState.status !== 'signed-out',
-        isOffline: authState.status === 'offline',
-        isLoading,
+        isAuthenticated: state.status === 'authenticated',
+        isLoading: state.status === 'loading',
     };
 }

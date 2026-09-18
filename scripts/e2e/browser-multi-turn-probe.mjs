@@ -148,7 +148,7 @@ async function main() {
 
   page.on('console', (msg) => {
     const t = msg.text();
-    if (/error|warn|429|504|Hindsight|recall|tool/i.test(t)) {
+    if (/error|warn|429|504|memory|recall|tool/i.test(t)) {
       log(`[console:${msg.type()}] ${t.slice(0, 500)}`);
     }
   });

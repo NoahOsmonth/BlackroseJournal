@@ -19,6 +19,39 @@ import type {
     LocalMemorySource,
 } from './localMemory.types';
 
+/**
+ * Nested depth of `runWithDeterministicMemoryExtraction` scopes.
+ *
+ * Inside one, no provider call is made for memory work at all: callers fall
+ * straight through to their deterministic builders (`buildJournalAtoms`,
+ * `buildIntentionCheckInAtoms`), and callers that would otherwise fire AI side
+ * effects (identity extraction, session digests) skip them. The dev demo seed
+ * uses this (DEF-013) — its 11 serial extractions made a 31-row seed look
+ * frozen for minutes on a slow or unreachable provider, and the seed's
+ * hand-written `analysis` (insight/quote/mood/topics) already gives the
+ * deterministic path everything the LLM would have been asked for.
+ */
+let deterministicExtractionDepth = 0;
+
+/**
+ * Run `fn` with AI memory extraction disabled: every memory-save path inside
+ * the scope uses its deterministic fallback, which makes the work local,
+ * reproducible and network-free.
+ */
+export async function runWithDeterministicMemoryExtraction<T>(fn: () => Promise<T>): Promise<T> {
+    deterministicExtractionDepth += 1;
+    try {
+        return await fn();
+    } finally {
+        deterministicExtractionDepth -= 1;
+    }
+}
+
+/** True while a `runWithDeterministicMemoryExtraction` scope is active. */
+export function isDeterministicMemoryExtractionForced(): boolean {
+    return deterministicExtractionDepth > 0;
+}
+
 const LAYERS: readonly LocalMemoryLayer[] = [
     'episodic',
     'semantic',
@@ -249,6 +282,11 @@ async function requestExtraction(ctx: MemoryExtractionContext): Promise<LocalMem
 export async function extractMemoryAtoms(
     ctx: MemoryExtractionContext
 ): Promise<LocalMemoryAtomInput[]> {
+    // Deterministic scope: skip the provider entirely rather than paying a
+    // round-trip whose result the caller would replace with its fallback anyway.
+    if (deterministicExtractionDepth > 0) {
+        return [];
+    }
     try {
         return await requestExtraction(ctx);
     } catch (error) {

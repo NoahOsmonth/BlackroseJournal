@@ -21,10 +21,6 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
     },
 }));
 
-jest.mock('@/services/settings/userSettingsRemote', () => ({
-    loadRemoteUserSettings: jest.fn().mockResolvedValue(null),
-    saveRemoteUserSettings: jest.fn().mockResolvedValue(undefined),
-}));
 
 describe('useThemeSettings', () => {
     beforeEach(() => {

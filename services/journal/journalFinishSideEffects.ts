@@ -20,7 +20,6 @@ import {
 } from '@/services/account/accountRuntime';
 import { generateEntryAnalysis } from '@/services/ai';
 import { upsertJournalDayDigest } from '@/services/memory/dayDigestStorage';
-import { retainJournalEntryToHindsight } from '@/services/memory/hindsight/hindsightRetain';
 import { extractIdentityFromSessionTranscript } from '@/services/memory/identityExtraction';
 import { saveJournalEntryMemories } from '@/services/memory/localMemory';
 import { stageJournalEntryMemoryFiles } from '@/services/memory/memoryStage';
@@ -181,20 +180,6 @@ async function runJournalFinishSideEffectsForAccount(
         context,
     );
 
-    // Fire-and-forget — never block Finish navigation on Hindsight being down.
-    // The lease check prevents a queued retain from starting after a switch;
-    // a retain already handed to the network has no result callback here.
-    assertAccountOperationActive(context);
-    void Promise.resolve()
-        .then(() => {
-            assertAccountOperationActive(context);
-            return retainJournalEntryToHindsight(savedEntry);
-        })
-        .catch((error: unknown) => {
-            if (!context.signal.aborted) {
-                console.warn('Hindsight retain failed (journal):', error);
-            }
-        });
 }
 
 export function runJournalFinishSideEffects(savedEntry: JournalEntry): Promise<void> {
@@ -271,25 +256,6 @@ export function runJournalFinishBackground(
                     runBackgroundStep(runId, step, label, operation, context)
                 )),
             );
-
-            // Hindsight retain is soft-fail and never blocks navigation (the
-            // caller fires the whole background run without awaiting it), but
-            // the run's promise waits for it so the banner reflects true
-            // completion. The lease check prevents a queued retain from
-            // starting after a switch.
-            try {
-                assertAccountOperationActive(context);
-                await withTimeout(
-                    retainJournalEntryToHindsight(savedEntry),
-                    STEP_TIMEOUT_MS,
-                );
-                settleFinishBackground(runId, 'hindsight');
-            } catch (error: unknown) {
-                if (!context.signal.aborted) {
-                    console.warn('Hindsight retain failed (journal):', error);
-                }
-                settleFinishBackground(runId, 'hindsight', errorMessage(error));
-            }
         },
     );
 

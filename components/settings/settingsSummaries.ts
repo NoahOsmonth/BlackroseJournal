@@ -74,19 +74,9 @@ export function memorySummary(atomCount: number): string {
 /** Re-export view helper so Settings can summarize without importing services. */
 export { identitySettingsSummary } from '@/services/memory/identityProfileView';
 
-export function accountSummary(email: string | null): string {
-    if (!email) {
-        return 'Signed out';
-    }
-    if (email.length <= 28) {
-        return email;
-    }
-    const [local, domain] = email.split('@');
-    if (!domain) {
-        return `${email.slice(0, 25)}…`;
-    }
-    const shortLocal = local.length > 10 ? `${local.slice(0, 8)}…` : local;
-    return `${shortLocal}@${domain}`;
+/** Local-only build: there is no account state to summarize. */
+export function accountSummary(): string {
+    return 'On this device';
 }
 
 export function aboutSummary(): string {

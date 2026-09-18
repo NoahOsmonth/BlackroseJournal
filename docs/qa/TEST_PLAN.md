@@ -1,13 +1,14 @@
 # Blackrose QA — Master Test Plan
 
 > **Tracker:** the CSVs in [`cases/`](cases/) are the source of truth (open in Excel).
+> **Retired cases** live in [`cases/retired/`](cases/retired/) and are excluded from the counts below.
 > **Charter:** [`../../QA-Plan.md`](../../QA-Plan.md) · **Defects:** [`DEFECTS.md`](DEFECTS.md) · **Executor prompt:** [`AI-HANDOFF-PROMPT.md`](AI-HANDOFF-PROMPT.md)
 
 ## Execution status dashboard
 
 | Suite | CSV | Cases | Pass | Fail | Blocked | N/A | Untested |
 |---|---|---|---|---|---|---|---|
-| AUTH | [cases/AUTH.csv](cases/AUTH.csv) | 10 | 10 | 0 | 0 | 0 | 0 |
+| ~~AUTH~~ (retired 2026-09-18 — no auth surface) | [cases/retired/AUTH.csv](cases/retired/AUTH.csv) | ~~10~~ | — | — | — | — | — |
 | CHECKINS | [cases/CHECKINS.csv](cases/CHECKINS.csv) | 9 | 6 | 0 | 0 | 0 | 3 |
 | GOALS | [cases/GOALS.csv](cases/GOALS.csv) | 7 | 6 | 0 | 1 | 0 | 0 |
 | IDENTITY | [cases/IDENTITY.csv](cases/IDENTITY.csv) | 5 | 4 | 0 | 0 | 1 | 0 |
@@ -18,9 +19,10 @@
 | PERFORMANCE | [cases/PERFORMANCE.csv](cases/PERFORMANCE.csv) | 7 | 4 | 0 | 1 | 0 | 2 |
 | RESPONSIVE | [cases/RESPONSIVE.csv](cases/RESPONSIVE.csv) | 8 | 8 | 0 | 0 | 0 | 0 |
 | SETTINGS | [cases/SETTINGS.csv](cases/SETTINGS.csv) | 10 | 6 | 0 | 1 | 0 | 3 |
-| THEME | [cases/THEME.csv](cases/THEME.csv) | 12 | 12 | 0 | 0 | 0 | 0 |
-| **Total** | | **107** | **83** | **0** | **4** | **1** | **19** |
-*Executed: 88 of 107 — 83 Pass / 0 Fail / 4 Blocked / 1 N/A / 19 Untested (run 3, 2026-09-17; all 13 defects closed except the S4 DEF-013).*
+| THEME | [cases/THEME.csv](cases/THEME.csv) | 12 | 11 | 0 | 0 | 1 | 0 |
+| **Total** | | **97** | **72** | **0** | **4** | **2** | **19** |
+*Executed: 77 of 97 — 72 Pass / 0 Fail / 4 Blocked / 1 N/A / 19 Untested (run 3, 2026-09-17; all 13 defects closed except the S4 DEF-013).*
+*Scope change 2026-09-18: the 10 AUTH cases retired and THEME-07 retired with them (the local-only refactor removed every auth surface and the remote tiers) — 107 → 97 active cases. AUTH is preserved at `cases/retired/AUTH.csv`; THEME-07 stays as a `Retired` row so its ID is never reused.*
 
 ## Case ID convention
 

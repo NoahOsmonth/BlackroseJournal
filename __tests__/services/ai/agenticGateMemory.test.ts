@@ -33,11 +33,11 @@ describe('memory shortlist branch', () => {
         expect(short.names).toContain('memory_dream');
     });
 
-    it('remember-when leads with offline memory_search before Hindsight recall', () => {
+    it('remember-when leads with the offline memory file search', () => {
         const short = selectToolShortlist('remember when I first mentioned running?');
         expect(short.branch).toBe('remember-when');
         expect(short.names).toContain('memory_search');
-        expect(short.names).toContain('recall_memory');
+        expect(short.names).toContain('search_history');
     });
 
     it('history-days branch carries offline file search alongside digests', () => {

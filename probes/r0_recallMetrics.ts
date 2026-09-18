@@ -110,7 +110,6 @@ export interface R0Baseline {
     model: string;
     providerBaseUrl: string;
     live: boolean;
-    offlineChecks: { hindsightBaseUrl: string; hindsightReachable: boolean; supabaseReachable: boolean };
     ledger: {
         files: number;
         needleIds: readonly string[];
@@ -187,15 +186,6 @@ function expectedIdsFor(probe: RecallProbe, ledger: SeededRecallLedger): string[
         pool.filter((file) => file.role === role && file.id).forEach((file) => ids.add(file.id!));
     }
     return [...ids];
-}
-
-async function reachable(url: string, timeoutMs = 1500): Promise<boolean> {
-    try {
-        await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
-        return true;
-    } catch {
-        return false;
-    }
 }
 
 function escapeRegExp(value: string): string {
@@ -395,7 +385,7 @@ export async function runR0RecallMetrics(
     }
     notes.push('Metrics are a baseline only: no floors are asserted, and the probe set is never tuned between runs.');
     notes.push('Grounding counts only live probes whose recalled context actually carried the expected fact (a recall miss is a hit-rate result, not a grounding miss).');
-    notes.push('Recall path under test is offline-only; Hindsight/Supabase reachability is recorded for context, never required.');
+    notes.push('Recall path under test is offline-only; no network reachability is required.');
 
     const baseline: R0Baseline = {
         phase: 'R0',
@@ -403,11 +393,6 @@ export async function runR0RecallMetrics(
         model: env?.model ?? '(offline — no model)',
         providerBaseUrl: env?.apiBaseUrl ?? '(offline)',
         live,
-        offlineChecks: {
-            hindsightBaseUrl: process.env.EXPO_PUBLIC_AGENT_BASE_URL ?? 'http://localhost:8787',
-            hindsightReachable: await reachable(process.env.EXPO_PUBLIC_AGENT_BASE_URL ?? 'http://localhost:8787'),
-            supabaseReachable: await reachable(process.env.EXPO_PUBLIC_SUPABASE_URL ?? 'http://localhost:54321'),
-        },
         ledger: {
             files: ledger.files.length,
             needleIds: ledger.needleIds,
@@ -436,8 +421,6 @@ export function formatBaselineMarkdown(baseline: R0Baseline): string {
         `- measured: ${baseline.measuredAt}`,
         `- model: ${baseline.model} @ ${baseline.providerBaseUrl}`,
         `- live (PROBE_LLM): ${baseline.live}`,
-        `- Hindsight reachable: ${baseline.offlineChecks.hindsightReachable} (${baseline.offlineChecks.hindsightBaseUrl})`,
-        `- Supabase reachable: ${baseline.offlineChecks.supabaseReachable}`,
         `- ledger: ${baseline.ledger.files} files across ${baseline.ledger.formalThreadIds.length} threads (seed ${baseline.ledger.seedMs}ms)`,
         '',
         '## Six metrics',

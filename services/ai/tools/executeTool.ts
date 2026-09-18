@@ -201,7 +201,8 @@ function fatalUnknownTool(name: string, id: string): ToolResult {
         name,
         content: truncate(
             `Error: unknown tool "${name}". Available: get_clock, list_recent_days, get_day, `
-            + 'get_conversation, search_history, recall_memory, get_identity, update_identity, '
+            + 'get_conversation, search_history, memory_search, memory_list, memory_get, '
+            + 'get_identity, update_identity, '
             + 'list_goals, create_goal.'
         ),
         isError: true,

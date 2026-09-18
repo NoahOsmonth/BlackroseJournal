@@ -1,6 +1,6 @@
 /**
  * Journal Storage Service
- * Handles persistence of journal entries using AsyncStorage
+ * Handles local-only persistence of journal entries using AsyncStorage
  * Designed with dependency injection for testability
  */
 
@@ -11,16 +11,6 @@ import {
     JournalEntryUpdateInput,
     StorageAdapter,
 } from './journalStorage.types';
-import { removeSyncTasksForTable } from '@/services/supabase/syncQueue';
-import {
-    deleteRemoteJournalEntries,
-    fetchRemoteJournalEntries,
-    JOURNAL_TABLE,
-    mergeEntries,
-    pushJournalEntries,
-    queueJournalEntryDelete,
-    queueJournalEntryUpsert,
-} from './journalRemote';
 import {
     AccountStorageAdapter,
     claimLegacyStorageKey,
@@ -37,22 +27,14 @@ const STORAGE_KEY = '@journal_entries';
 
 // Default to AsyncStorage, but allow injection for testing.
 let storageAdapter: StorageAdapter = AsyncStorage;
-let hasPulledRemote = false;
-let hasPushedLocal = false;
-let remoteSyncPromise: Promise<void> | null = null;
-let remoteSyncAccountId: string | null = null;
 let mutationQueue: Promise<void> = Promise.resolve();
 
 export function setStorageAdapter(adapter: StorageAdapter): void {
     storageAdapter = adapter;
-    hasPulledRemote = false;
-    hasPushedLocal = false;
 }
 
 export function resetStorageAdapter(): void {
     storageAdapter = AsyncStorage;
-    hasPulledRemote = false;
-    hasPushedLocal = false;
 }
 
 function generateId(): string {
@@ -96,105 +78,11 @@ function withMutationLock<T>(operation: () => Promise<T>): Promise<T> {
     return result;
 }
 
-async function syncFromRemoteIfNeeded(
-    storage: AccountStorageAdapter,
-    context: AccountOperationContext,
-): Promise<void> {
-    assertAccountOperationActive(context);
-    if (remoteSyncPromise && remoteSyncAccountId === context.accountId) {
-        await remoteSyncPromise;
-        assertAccountOperationActive(context);
-        return;
-    }
-
-    const syncAccountId = context.accountId;
-    const syncPromise = (async () => {
-        const entries = await getAllEntriesMap(storage, context);
-        const hasLocal = Object.keys(entries).length > 0;
-
-        if (!hasLocal && !hasPulledRemote) {
-            let remoteEntries: JournalEntry[] | null = null;
-            try {
-                remoteEntries = await fetchRemoteJournalEntries();
-                assertAccountOperationActive(context);
-            } catch (error) {
-                if (context.signal.aborted) throw error;
-                console.warn('Failed to fetch remote journal entries:', error);
-            }
-
-            if (remoteEntries !== null) {
-                await withMutationLock(async () => {
-                    assertAccountOperationActive(context);
-                    const latestEntries = await getAllEntriesMap(storage, context);
-                    const merged = mergeEntries(latestEntries, remoteEntries);
-                    await saveAllEntries(storage, merged, context);
-                });
-                assertAccountOperationActive(context);
-                hasPulledRemote = true;
-            }
-        }
-
-        if (hasLocal && !hasPushedLocal) {
-            try {
-                assertAccountOperationActive(context);
-                const pushed = await pushJournalEntries(Object.values(entries));
-                assertAccountOperationActive(context);
-                if (pushed) {
-                    hasPushedLocal = true;
-                }
-            } catch (error) {
-                if (context.signal.aborted) throw error;
-                console.warn('Failed to push journal entries:', error);
-            }
-        }
-    })();
-
-    remoteSyncPromise = syncPromise;
-    remoteSyncAccountId = syncAccountId;
-    try {
-        await syncPromise;
-    } finally {
-        if (remoteSyncPromise === syncPromise) {
-            remoteSyncPromise = null;
-            remoteSyncAccountId = null;
-        }
-    }
-}
-
-async function queueJournalEntryUpsertForAccount(
-    entry: JournalEntry,
-    context: AccountOperationContext,
-): Promise<void> {
-    try {
-        assertAccountOperationActive(context);
-        await queueJournalEntryUpsert(entry);
-        assertAccountOperationActive(context);
-    } catch (error) {
-        if (context.signal.aborted) throw error;
-        console.warn('Failed to queue journal entry sync:', error);
-    }
-}
-
-async function queueJournalEntryDeleteForAccount(
-    entryId: string,
-    context: AccountOperationContext,
-): Promise<void> {
-    try {
-        assertAccountOperationActive(context);
-        await queueJournalEntryDelete(entryId);
-        assertAccountOperationActive(context);
-    } catch (error) {
-        if (context.signal.aborted) throw error;
-        console.warn('Failed to queue journal entry delete:', error);
-    }
-}
-
 async function listEntriesForAccount(
     status: 'draft' | 'completed' | undefined,
     storage: AccountStorageAdapter,
     context: AccountOperationContext,
 ): Promise<JournalEntry[]> {
-    await syncFromRemoteIfNeeded(storage, context);
     assertAccountOperationActive(context);
     const entries = await getAllEntriesMap(storage, context);
     let list = Object.values(entries);
@@ -240,8 +128,6 @@ export function createEntry(input: JournalEntryCreateInput): Promise<JournalEntr
             await saveAllEntries(storage, entries, context);
         });
         assertAccountOperationActive(context);
-        await queueJournalEntryUpsertForAccount(entry, context);
-        assertAccountOperationActive(context);
         return entry;
     });
 }
@@ -252,7 +138,6 @@ export function createEntry(input: JournalEntryCreateInput): Promise<JournalEntr
 export function getEntry(id: string): Promise<JournalEntry | null> {
     return runAccountBoundOperation('journal-get', async (context) => {
         const storage = getStorageForAccount(context.accountId);
-        await syncFromRemoteIfNeeded(storage, context);
         const entries = await getAllEntriesMap(storage, context);
         assertAccountOperationActive(context);
         return entries[id] || null;
@@ -286,9 +171,6 @@ export function updateEntry(
         });
 
         assertAccountOperationActive(context);
-        if (!updated) return null;
-        await queueJournalEntryUpsertForAccount(updated, context);
-        assertAccountOperationActive(context);
         return updated;
     });
 }
@@ -309,10 +191,7 @@ export function deleteEntry(id: string): Promise<boolean> {
         });
 
         assertAccountOperationActive(context);
-        if (!deleted) return false;
-        await queueJournalEntryDeleteForAccount(id, context);
-        assertAccountOperationActive(context);
-        return true;
+        return deleted;
     });
 }
 
@@ -351,40 +230,9 @@ export function clearAllEntries(): Promise<void> {
         const storage = getStorageForAccount(context.accountId);
         await withMutationLock(async () => {
             assertAccountOperationActive(context);
-            const entries = await getAllEntriesMap(storage, context);
-            const entryIds = Object.keys(entries);
-
-            // LOCAL FIRST (DEF-011). The wipe is a device-local action; it must
-            // finish even when the remote gateway is unreachable, because the
-            // auth refresh it triggers can abort this lease mid-transaction.
-            // Everything below the local phase is best-effort cleanup.
-            await Promise.all(entryIds.map((entryId) => (
-                queueJournalEntryDeleteForAccount(entryId, context)
-            )));
-            assertAccountOperationActive(context);
 
             await storage.removeItem(STORAGE_KEY);
             assertAccountOperationActive(context);
-
-            try {
-                await removeSyncTasksForTable(JOURNAL_TABLE);
-            } catch (error) {
-                if (context.signal.aborted) throw error;
-                console.warn('Failed to remove pending journal sync tasks:', error);
-            }
-
-            hasPulledRemote = false;
-            hasPushedLocal = false;
-
-            if (entryIds.length > 0) {
-                try {
-                    await deleteRemoteJournalEntries(entryIds);
-                } catch (error) {
-                    // Gateway down: the local data is already gone, so a failed
-                    // remote delete must not fail the wipe.
-                    console.warn('Failed to delete remote journal entries:', error);
-                }
-            }
 
             // Account isolation contract (kept deliberately): a real account
             // switch pauses and aborts this lease, and the caller must learn
@@ -465,11 +313,4 @@ export async function importJournalEntriesForAccount(
 
 registerAccountTeardown(async () => {
     await mutationQueue;
-    if (remoteSyncPromise) {
-        await remoteSyncPromise.catch(() => undefined);
-    }
-    hasPulledRemote = false;
-    hasPushedLocal = false;
-    remoteSyncPromise = null;
-    remoteSyncAccountId = null;
 });

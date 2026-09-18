@@ -83,7 +83,6 @@ function settledRun(entryId: string, runId = 'finish-run-1'): FinishBackgroundSt
             digest: true,
             identity: true,
             sessionDigest: true,
-            hindsight: true,
         },
     };
 }

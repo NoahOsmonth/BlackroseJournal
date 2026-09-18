@@ -17,18 +17,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
     },
 }));
 
-jest.mock('../../services/goals/goalsRemote', () => ({
-    fetchRemoteGoals: jest.fn(() => Promise.resolve(null)),
-    mergeGoals: jest.fn((local: object) => local),
-    pushGoals: jest.fn(() => Promise.resolve(false)),
-    queueGoalDelete: jest.fn(() => Promise.resolve()),
-    queueGoalUpsert: jest.fn(() => Promise.resolve()),
-}));
 
-jest.mock('../../services/supabase/syncQueue', () => ({
-    enqueueSyncTask: jest.fn(() => Promise.resolve()),
-    removeSyncTasksForTable: jest.fn(() => Promise.resolve()),
-}));
 
 import { renderHook, act, waitFor, cleanup } from '@testing-library/react-native';
 import { useGoalsContext } from '../../hooks/goals/useGoalsContext';

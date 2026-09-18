@@ -61,7 +61,7 @@ export async function streamChatWithXhr(
     try {
         prepared = await prepareAiChatRequest(payload);
         if (preparationLease.signal.aborted) {
-            throw new Error('Managed AI request was cancelled by an account switch.');
+            throw new Error('AI request was cancelled by an account switch.');
         }
     } catch (error) {
         preparationLease.release();
@@ -102,11 +102,7 @@ export async function streamChatWithXhr(
             try {
                 xhr.abort();
             } finally {
-                settle(() => reject(new Error(
-                    prepared.mode === 'managed'
-                        ? 'Managed AI request was cancelled by an account switch.'
-                        : 'AI request was cancelled by an account switch.'
-                )));
+                settle(() => reject(new Error('AI request was cancelled by an account switch.')));
             }
         };
         // User Stop: abort the request; the caller distinguishes it via callerSignal.aborted.
@@ -134,7 +130,7 @@ export async function streamChatWithXhr(
             const lines = buffer.split('\n');
             buffer = lines.pop() || '';
             for (const line of lines) {
-                const parsed = parseAiSseLine(line, prepared.mode);
+                const parsed = parseAiSseLine(line);
                 if (!parsed) continue;
                 if (parsed.error) {
                     settle(() => reject(parsed.error));
@@ -179,11 +175,7 @@ export async function streamChatWithXhr(
             settle(() => reject(new Error('AI request failed using XMLHttpRequest streaming fallback.')));
         };
         xhr.onabort = () => {
-            settle(() => reject(new Error(
-                prepared.mode === 'managed'
-                    ? 'Managed AI request was cancelled by an account switch.'
-                    : 'AI request was cancelled by an account switch.'
-            )));
+            settle(() => reject(new Error('AI request was cancelled by an account switch.')));
         };
         accountLease.signal.addEventListener('abort', abortForAccountSwitch, { once: true });
         try {

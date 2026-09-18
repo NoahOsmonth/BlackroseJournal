@@ -204,9 +204,9 @@ describe('useChatOrchestration initialPrompt + flow', () => {
 });
 
 describe('useChatOrchestration — tool-only long-term recall', () => {
-    // The send path no longer awaits Hindsight. Long-term memory is fetched only
-    // when the AI calls `recall_memory` mid-reply via the agent loop.
-    it('sends immediately without awaiting any Hindsight recall resolution', async () => {
+    // The send path never awaits recall. Long-term memory is fetched only when
+    // the AI calls `memory_search` mid-reply via the agent loop.
+    it('sends immediately without awaiting any recall resolution', async () => {
         let exposed: HookResult | null = null;
 
         function Harness() {

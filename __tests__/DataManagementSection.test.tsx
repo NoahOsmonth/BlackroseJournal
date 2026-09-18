@@ -70,4 +70,33 @@ describe('DataManagementSection', () => {
         expect(onCreateBackup).toHaveBeenCalledTimes(1);
         expect(onRestoreLatestBackup).toHaveBeenCalledTimes(1);
     });
+
+    /**
+     * DEF-013: the seed row must show real progress instead of looking frozen,
+     * and must not accept a second press while it runs.
+     */
+    it('replaces the seed detail with row progress while seeding', () => {
+        const onSeedDemoData = jest.fn();
+        const { getByText, queryByText } = render(
+            <DataManagementSection
+                latestBackup={null}
+                isBusy={false}
+                onCreateBackup={jest.fn()}
+                onRestoreLatestBackup={jest.fn()}
+                onExportJournalJson={jest.fn()}
+                onClearHistory={jest.fn()}
+                showDemoSeedControls
+                onSeedDemoData={onSeedDemoData}
+                seedProgress={{ completed: 7, total: 25 }}
+                isSeeding
+            />
+        );
+
+        expect(getByText('Seeding… 7/25 rows')).toBeTruthy();
+        // The idle description is gone while the seed runs (regex: the row text is long).
+        expect(queryByText(/replaces prior seed/)).toBeNull();
+
+        fireEvent.press(getByText('Seed demo data'));
+        expect(onSeedDemoData).not.toHaveBeenCalled();
+    });
 });

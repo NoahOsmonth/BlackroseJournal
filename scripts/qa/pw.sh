@@ -7,7 +7,7 @@
 #      disappear when Chrome exits.
 # Both are handled here: if the session id is missing or a run fails, we create
 # a fresh session and retry the identical script. Scripts must therefore be
-# self-sufficient (sign in / seed as needed) - see pwlib.js.
+# self-sufficient (boot the local account / seed as needed) - see pwlib.js.
 set -u
 file="$1"
 timeout_ms="${PW_TIMEOUT:-240000}"

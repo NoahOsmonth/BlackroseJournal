@@ -17,18 +17,6 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
     },
 }));
 
-jest.mock('../../../services/intentions/intentionsRemote', () => ({
-    fetchRemoteCheckIns: jest.fn(() => Promise.resolve(null)),
-    fetchRemoteIntentions: jest.fn(() => Promise.resolve(null)),
-    mergeCheckIns: jest.fn((local: object) => local),
-    mergeIntentions: jest.fn((local: object) => local),
-    pushCheckIns: jest.fn(() => Promise.resolve(false)),
-    pushIntentions: jest.fn(() => Promise.resolve(false)),
-    queueCheckInDelete: jest.fn(() => Promise.resolve()),
-    queueCheckInUpsert: jest.fn(() => Promise.resolve()),
-    queueIntentionDelete: jest.fn(() => Promise.resolve()),
-    queueIntentionUpsert: jest.fn(() => Promise.resolve()),
-}));
 
 jest.mock('../../../services/memory/sessionDigestBuild', () => ({
     buildAndSaveSessionDigest: jest.fn(async () => null),
@@ -38,10 +26,6 @@ jest.mock('../../../services/memory/identityExtraction', () => ({
     extractIdentityFromSessionTranscript: jest.fn(async () => null),
 }));
 
-jest.mock('../../../services/memory/hindsight/hindsightRetain', () => ({
-    retainCheckInToHindsight: jest.fn(async () => true),
-}));
-
 import {
     createCheckIn,
     updateCheckIn,
@@ -49,7 +33,7 @@ import {
     listCheckIns,
     migrateLegacyIntentionsToActiveAccount,
 } from '../../../services/intentions/intentionsStorage';
-import { retainCheckInToHindsight } from '../../../services/memory/hindsight/hindsightRetain';
+import { buildAndSaveSessionDigest } from '../../../services/memory/sessionDigestBuild';
 import {
     listMemoryAtoms,
     resetMemoryStorageAdapter,
@@ -58,8 +42,8 @@ import {
 import type { StorageAdapter } from '../../../services/journal/journalStorage.types';
 import { activateAccount, clearActiveAccount } from '../../../services/account/accountRuntime';
 
-const mockedRetain = retainCheckInToHindsight as jest.MockedFunction<
-    typeof retainCheckInToHindsight
+const mockedDigest = buildAndSaveSessionDigest as jest.MockedFunction<
+    typeof buildAndSaveSessionDigest
 >;
 
 function createMemoryAdapter(): StorageAdapter {
@@ -81,7 +65,7 @@ describe('intentionsStorage', () => {
     beforeEach(async () => {
         mockAsyncStorageStore.clear();
         setMemoryStorageAdapter(createMemoryAdapter());
-        mockedRetain.mockClear();
+        mockedDigest.mockClear();
         // Clear the direct AI key so a live .env EXPO_PUBLIC_NANO_GPT_API_KEY
         // cannot make saveIntentionCheckInMemories hit the real AI provider
         // (extractCheckInMemoryAtoms is not mocked here) and hang the suite.
@@ -152,7 +136,7 @@ describe('intentionsStorage', () => {
         expect(atoms.some((atom) => atom.source === 'intention')).toBe(true);
     });
 
-    it('retains a completed check-in to hindsight on create', async () => {
+    it('runs completed side effects when a completed check-in is created', async () => {
         await createCheckIn({
             type: 'morning',
             title: 'Morning check-in',
@@ -162,10 +146,10 @@ describe('intentionsStorage', () => {
             messages: [],
         });
 
-        expect(mockedRetain).toHaveBeenCalledTimes(1);
+        expect(mockedDigest).toHaveBeenCalledTimes(1);
     });
 
-    it('does not retain draft check-ins', async () => {
+    it('does not run side effects for draft check-ins', async () => {
         await createCheckIn({
             type: 'evening',
             title: 'Evening draft',
@@ -175,10 +159,10 @@ describe('intentionsStorage', () => {
             messages: [],
         });
 
-        expect(mockedRetain).not.toHaveBeenCalled();
+        expect(mockedDigest).not.toHaveBeenCalled();
     });
 
-    it('retains when a draft is updated to completed', async () => {
+    it('runs side effects when a draft is updated to completed', async () => {
         const draft = await createCheckIn({
             type: 'intention',
             title: 'Intention draft',
@@ -193,7 +177,7 @@ describe('intentionsStorage', () => {
             messages: [],
         });
 
-        expect(mockedRetain).toHaveBeenCalledTimes(1);
+        expect(mockedDigest).toHaveBeenCalledTimes(1);
     });
 
     it('does not re-run completed side effects when editing an already-completed check-in', async () => {
@@ -205,23 +189,23 @@ describe('intentionsStorage', () => {
             status: 'completed',
             messages: [],
         });
-        expect(mockedRetain).toHaveBeenCalledTimes(1);
+        expect(mockedDigest).toHaveBeenCalledTimes(1);
 
-        // A routine edit of a completed check-in must not re-retain to
-        // hindsight, re-extract identity, or re-build the session digest.
+        // A routine edit of a completed check-in must not re-build the session
+        // digest or re-extract identity.
         await updateCheckIn(created.id, {
             title: 'Morning check-in (edited)',
             mood: 'Calm',
         });
 
-        expect(mockedRetain).toHaveBeenCalledTimes(1);
+        expect(mockedDigest).toHaveBeenCalledTimes(1);
 
         // Editing a different field while still completed stays quiet too,
-        // but a completed→draft transition is fine and no new retain fires.
+        // and a completed→draft transition fires no new side effects.
         await updateCheckIn(created.id, {
             status: 'draft',
         });
-        expect(mockedRetain).toHaveBeenCalledTimes(1);
+        expect(mockedDigest).toHaveBeenCalledTimes(1);
     });
 
     it('clears all check-ins', async () => {

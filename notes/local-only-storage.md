@@ -1,23 +1,34 @@
 # Local-Only Storage
 
-Core journal data is local-only by default. Remote Supabase data sync is preserved
-in the codebase, but it is bypassed unless explicitly enabled.
+All app data is local-only. There is no remote data sync, no account server,
+and no memory gateway: every write goes to AsyncStorage on the device.
 
-## Provider Switch
+## Identity
 
-The active data provider is resolved in `services/data/dataProvider.ts`.
+The app uses a **device-local account** (`services/auth/localAccount.ts`).
 
-- Default: `local`
-- Enable remote sync: set `EXPO_PUBLIC_DATA_PROVIDER=remote`
-- Alternative remote flag: set `EXPO_PUBLIC_ENABLE_REMOTE_DATA_SYNC=true`
+- First launch mints a stable local account id and remembers it in the account
+  registry (`@blackrose_account_registry`).
+- Later launches re-activate the remembered account.
+- The registry already remembered the last account from earlier builds, so data
+  written under a previous account id stays readable with no migration.
 
-Auth screens can still use Supabase directly, but normal app data sync calls go
-through `ensureSupabaseSession()` and the sync queue, both of which no-op while
-the data provider is local.
+Storage keys are account-scoped: `@blackrose_account:v1:<accountId>:<key>`.
+Legacy unscoped keys (pre-`@blackrose_account` installs) are claimed by the
+one-time migration gate (`components/auth/LegacyDataOwnershipGate.tsx`).
 
-`EXPO_PUBLIC_DATA_PROVIDER` does not affect AI memory. Long-term recall is
-Hindsight-backed (`services/memory/hindsight/`), a separate layer from legacy
-app-data sync; it is soft-fail and offline-safe.
+## AI Transport
+
+Only the device-direct (BYOK) transport exists. `services/ai/aiTransport.ts`
+talks straight to the configured OpenAI-compatible provider
+(`EXPO_PUBLIC_NANO_GPT_*`); there is no managed gateway fallback.
+
+## Memory
+
+Long-term memory is entirely on-device (`services/memory/`): memory atoms,
+day digests, session digests, rollups, memory files, and the identity profile.
+Recall is lexical and offline (`memoryRetrieval.ts`) — no embeddings, no
+network, no external bank.
 
 ## Legacy Time Provenance
 

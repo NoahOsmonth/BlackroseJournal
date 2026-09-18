@@ -46,13 +46,6 @@ import {
 } from '../../services/memory/identityProfile';
 import { addLocalDays } from '../../utils/date';
 
-jest.mock('../../services/memory/hindsight/hindsightClient', () => ({
-    hindsightRecall: jest.fn(async () => []),
-    subscribeHindsightChanges: jest.fn(() => () => undefined),
-    notifyHindsightChanged: jest.fn(),
-    hindsightHealth: jest.fn(async () => false),
-}));
-
 const describeMaybe = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
 
 /** Default tier A model proven routable on this gateway (native tool_calls). */

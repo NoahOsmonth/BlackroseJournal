@@ -10,6 +10,7 @@ import {
     shouldEnableHistoryTools,
 } from '../../../services/ai/agenticGate';
 import type { Message } from '../../../services/ai/chatTypes';
+import { HISTORY_TOOL_DEFINITIONS } from '../../../services/ai/tools/definitions';
 
 function userMessage(content: string): Message {
     return { id: `u-${content.length}`, role: 'user', content, timestamp: Date.now() };
@@ -97,10 +98,10 @@ describe('resolveHistoryToolsBranch — branch precedence', () => {
 });
 
 describe('selectToolShortlist — per-turn spec subset', () => {
-    it('remember-when serves recall_memory + search_history', () => {
+    it('remember-when serves memory_search + search_history', () => {
         const short = selectToolShortlist('remember when I first mentioned Maya?');
         expect(short.branch).toBe('remember-when');
-        expect(short.names).toEqual(expect.arrayContaining(['recall_memory', 'search_history']));
+        expect(short.names).toEqual(expect.arrayContaining(['memory_search', 'search_history']));
         expect(short.names).not.toContain('create_goal');
     });
 
@@ -133,7 +134,8 @@ describe('selectToolShortlist — per-turn spec subset', () => {
     it('unmatched turns fall back to the full catalog', () => {
         const short = selectToolShortlist('hello there friend');
         expect(short.branch).toBe('all-fallback');
-        expect(short.names).toHaveLength(16);
+        // Derived from the registry so adding/removing a tool cannot drift here.
+        expect(short.names).toHaveLength(HISTORY_TOOL_DEFINITIONS.length);
     });
 
     it('combined intents union both subsets', () => {

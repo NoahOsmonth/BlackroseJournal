@@ -14,8 +14,6 @@ import { clearAllEntries } from '@/services/journal/journalStorage';
 import { clearAllCheckIns } from '@/services/intentions/intentionsStorage';
 import { getActiveAccountId } from '@/services/account/accountRuntime';
 import { runLocalOperationWithAccountRecovery } from '@/services/account/accountOperationRecovery';
-import { hindsightClear } from '@/services/memory/hindsight/hindsightClient';
-import { clearHindsightRebuildState } from '@/services/memory/hindsight/hindsightRebuild';
 
 export interface ClearJournalHistoryResult {
     /**
@@ -56,7 +54,6 @@ export function useClearJournalHistory(): UseClearJournalHistoryReturn {
                 ['chat sessions', removeAllChatSessions],
                 ['weekly insights', clearCachedInsights],
                 ['saved insights', clearSavedInsights],
-                ['hindsight rebuild state', clearHindsightRebuildState],
             ];
 
             for (const [label, step] of steps) {
@@ -66,12 +63,6 @@ export function useClearJournalHistory(): UseClearJournalHistoryReturn {
                     failedSteps.push(label);
                     console.warn(`Clear history step failed: ${label}`, error);
                 }
-            }
-
-            if (accountId) {
-                void hindsightClear(accountId).catch((error) => {
-                    console.warn('Remote Hindsight clear unavailable:', error);
-                });
             }
 
             return { failedSteps };

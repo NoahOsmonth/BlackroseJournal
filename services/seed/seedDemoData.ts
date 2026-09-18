@@ -56,6 +56,7 @@ import {
     saveManualMemoryNote,
 } from '@/services/memory/localMemory';
 import { deleteMemoryFilesBySourceSessions } from '@/services/memory/memoryFiles';
+import { runWithDeterministicMemoryExtraction } from '@/services/memory/memoryAtomExtraction';
 const DAY_MS = 86_400_000;
 
 /** Flag + tracked seed IDs (deterministic clear — no content matching). */
@@ -399,6 +400,35 @@ const INTENTION_SEED: readonly SeedIntention[] = [
     },
 ];
 
+/**
+ * Steps a full demo seed reports, one per row: journals + intentions +
+ * check-ins (a check-in reports once, together with the goal it creates) +
+ * the seeded goals + memory notes + the generated theme note.
+ *
+ * Kept in sync with the `reportStep()` calls in `seedDemoDataForAccount`; the
+ * seed's own tests assert the last reported step equals this number, so a
+ * dropped or doubled report fails loudly instead of the counter quietly
+ * finishing short (DEF-013).
+ */
+export function demoSeedStepCount(): number {
+    return JOURNAL_SEED.length
+        + INTENTION_SEED.length
+        + INTENTION_SEED.reduce((total, seed) => total + seed.checkIns.length, 0)
+        + INTENTION_SEED.reduce((total, seed) => total + seed.goals.length, 0)
+        + MEMORY_NOTES.length
+        + 1;
+}
+
+export interface DemoSeedProgress {
+    readonly completed: number;
+    readonly total: number;
+}
+
+export interface DemoSeedOptions {
+    /** Called once per seeded row so the UI can show real progress. */
+    readonly onProgress?: (progress: DemoSeedProgress) => void;
+}
+
 const MEMORY_NOTES: readonly string[] = [
     'User feels most grounded during slow, phone-free mornings.',
     'Movement (running or walking) is the user’s most reliable mood regulator.',
@@ -564,7 +594,14 @@ async function seedDemoDataForAccount(
     storage: AccountStorageAdapter,
     context: AccountOperationContext,
     seedAccountId: string,
+    options: DemoSeedOptions = {},
 ): Promise<void> {
+    const total = demoSeedStepCount();
+    let completed = 0;
+    const reportStep = (): void => {
+        completed += 1;
+        options.onProgress?.({ completed, total });
+    };
     // Verify before AND after every data-class write that the record owner
     // still matches the pinned seed account; an auth re-bind aborts the run
     // instead of silently scattering rows (DEF-003).
@@ -607,6 +644,7 @@ async function seedDemoDataForAccount(
         verifySeedTarget();
         await upsertJournalDayDigest(entry);
         await saveSeedRecord(record, storage, context); // incremental — clear must work even if later steps hang
+        reportStep();
     }
 
     for (const seed of INTENTION_SEED) {
@@ -619,6 +657,7 @@ async function seedDemoDataForAccount(
         });
         assertAccountOperationActive(context);
         record.intentionIds.push(intention.id);
+        reportStep();
 
         for (const checkIn of seed.checkIns) {
             const createdAt = daysAgo(checkIn.daysBack);
@@ -661,6 +700,7 @@ async function seedDemoDataForAccount(
             verifySeedTarget();
             record.goalIds.push(g.id);
             await saveSeedRecord(record, storage, context);
+            reportStep();
         }
 
         for (const goal of seed.goals) {
@@ -694,6 +734,7 @@ async function seedDemoDataForAccount(
                 record.goalIds.push(goalItem.id);
             }
             await saveSeedRecord(record, storage, context);
+            reportStep();
         }
     }
 
@@ -703,6 +744,7 @@ async function seedDemoDataForAccount(
         verifySeedTarget();
         record.memoryAtomIds.push(atom.id);
         await saveSeedRecord(record, storage, context);
+        reportStep();
     }
     verifySeedTarget();
     const generated = await saveGeneratedMemoryNote(
@@ -712,6 +754,7 @@ async function seedDemoDataForAccount(
     if (generated) {
         record.memoryAtomIds.push(generated.id);
     }
+    reportStep();
 
     // Capture atoms produced by journal/check-in memory pipelines.
     const linked = await atomsLinkedToSources(sourceIds, context);
@@ -724,7 +767,7 @@ async function seedDemoDataForAccount(
     await saveSeedRecord(record, storage, context);
 }
 
-export function seedDemoData(): Promise<void> {
+export function seedDemoData(options: DemoSeedOptions = {}): Promise<void> {
     return runAccountBoundOperation('seed-demo', (context) => enqueueSeedOperation(async () => {
         assertAccountOperationActive(context);
         // Pin the seed to the account its record will live under. Inner
@@ -735,11 +778,15 @@ export function seedDemoData(): Promise<void> {
         if (context.accountId !== seedAccountId) {
             throw new Error('Seed account context mismatch before seeding.');
         }
-        await seedDemoDataForAccount(
+        // Deterministic memory for seeded rows (DEF-013): the demo dataset ships
+        // its own analysis, and skipping ~11 provider round-trips is what makes
+        // the seed finish in seconds instead of looking frozen for minutes.
+        await runWithDeterministicMemoryExtraction(() => seedDemoDataForAccount(
             getStorageForAccount(context.accountId),
             context,
             seedAccountId,
-        );
+            options,
+        ));
     }));
 }
 

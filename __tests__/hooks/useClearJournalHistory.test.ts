@@ -17,33 +17,8 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
     },
 }));
 
-jest.mock('../../services/journal/journalRemote', () => ({
-    JOURNAL_TABLE: 'journal_entries',
-    deleteRemoteJournalEntries: jest.fn(() => Promise.resolve(true)),
-    fetchRemoteJournalEntries: jest.fn(() => Promise.resolve(null)),
-    mergeEntries: jest.fn((local: object) => local),
-    pushJournalEntries: jest.fn(() => Promise.resolve(false)),
-    queueJournalEntryDelete: jest.fn(() => Promise.resolve()),
-    queueJournalEntryUpsert: jest.fn(() => Promise.resolve()),
-}));
 
-jest.mock('../../services/supabase/syncQueue', () => ({
-    removeSyncTasksForTable: jest.fn(() => Promise.resolve()),
-    enqueueSyncTask: jest.fn(() => Promise.resolve()),
-}));
 
-jest.mock('../../services/intentions/intentionsRemote', () => ({
-    fetchRemoteCheckIns: jest.fn(() => Promise.resolve(null)),
-    fetchRemoteIntentions: jest.fn(() => Promise.resolve(null)),
-    mergeCheckIns: jest.fn((local: object) => local),
-    mergeIntentions: jest.fn((local: object) => local),
-    pushCheckIns: jest.fn(() => Promise.resolve(false)),
-    pushIntentions: jest.fn(() => Promise.resolve(false)),
-    queueCheckInDelete: jest.fn(() => Promise.resolve()),
-    queueCheckInUpsert: jest.fn(() => Promise.resolve()),
-    queueIntentionDelete: jest.fn(() => Promise.resolve()),
-    queueIntentionUpsert: jest.fn(() => Promise.resolve()),
-}));
 
 import { renderHook, act, waitFor } from '@testing-library/react-native';
 import { useClearJournalHistory } from '../../hooks/journal/useClearJournalHistory';
@@ -67,7 +42,6 @@ import {
 } from '../../services/saved-insights/savedInsightsStorage';
 import { activateAccount, clearActiveAccount } from '../../services/account/accountRuntime';
 import * as journalStorage from '../../services/journal/journalStorage';
-import * as hindsightClient from '../../services/memory/hindsight/hindsightClient';
 
 describe('useClearJournalHistory', () => {
     beforeEach(async () => {
@@ -85,7 +59,6 @@ describe('useClearJournalHistory', () => {
     });
 
     it('clears journal entries, intention check-ins, memories, chat sessions, insights, and saved insights', async () => {
-        const remoteClear = jest.spyOn(hindsightClient, 'hindsightClear').mockResolvedValue(false);
         await createEntry({
             title: 'Journal entry',
             status: 'completed',
@@ -135,11 +108,9 @@ describe('useClearJournalHistory', () => {
         expect(await loadSessions()).toEqual([]);
         expect(await loadCachedInsights('2026-W01')).toBeNull();
         expect(await listSavedInsights()).toEqual([]);
-        expect(remoteClear).toHaveBeenCalledWith('clear-history-user');
     });
 
     it('survives a transient account-lease abort mid-wipe and reports no failed steps (DEF-011)', async () => {
-        jest.spyOn(hindsightClient, 'hindsightClear').mockResolvedValue(false);
         await createEntry({
             title: 'Entry before the gateway died',
             status: 'completed',
@@ -166,7 +137,6 @@ describe('useClearJournalHistory', () => {
     });
 
     it('names the groups it could not clear instead of failing silently', async () => {
-        jest.spyOn(hindsightClient, 'hindsightClear').mockResolvedValue(false);
         const hardFailure = jest.spyOn(journalStorage, 'clearAllEntries')
             .mockRejectedValue(new Error('Disk is full'));
 

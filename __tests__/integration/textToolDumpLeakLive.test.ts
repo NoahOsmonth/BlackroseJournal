@@ -50,17 +50,10 @@ import {
 } from '../../services/memory/identityProfile';
 import { addLocalDays } from '../../utils/date';
 
-jest.mock('../../services/memory/hindsight/hindsightClient', () => ({
-    hindsightRecall: jest.fn(async () => []),
-    subscribeHindsightChanges: jest.fn(() => () => undefined),
-    notifyHindsightChanged: jest.fn(),
-    hindsightHealth: jest.fn(async () => false),
-}));
-
 const describeMaybe = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
 
 /** Any `<tool_name …>` shape: the leak form this probe exists to prevent. */
-const TAG_DUMP_RE = /<\/?(get_clock|list_recent_days|get_day|get_conversation|search_history|recall_memory|get_identity|update_identity)\b/i;
+const TAG_DUMP_RE = /<\/?(get_clock|list_recent_days|get_day|get_conversation|search_history|get_identity|update_identity)\b/i;
 
 function readEnvFile(): Record<string, string> {
     const envPath = path.join(process.cwd(), '.env');

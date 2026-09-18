@@ -5,7 +5,6 @@ import {
     listRecentDaysTool,
     searchHistoryTool,
 } from './historyTools';
-import { recallMemoryToolHandler } from './hindsightTools';
 import { getIdentityTool, updateIdentityTool } from './identityTools';
 import { createGoalTool, listGoalsTool } from './goalsTools';
 import { memoryDreamTool, memoryFlushTool, memoryGetTool, memoryListTool, memoryOverviewTool, memorySearchTool } from './memoryFileTools';
@@ -18,7 +17,6 @@ const handlers: Record<string, ToolHandler> = {
     get_day: getDayTool,
     get_conversation: getConversationTool,
     search_history: searchHistoryTool,
-    recall_memory: recallMemoryToolHandler,
     memory_search: memorySearchTool,
     memory_list: memoryListTool,
     memory_get: memoryGetTool,

@@ -1,6 +1,6 @@
 # Design LLM probes (PR8-probe)
 
-**Not product sign-off.** These suites answer design what-ifs with live OpenRouter data.
+**Not product sign-off.** These suites answer design what-ifs against the local memory store, with live chat-provider data when `PROBE_LLM=1`.
 
 ## Rules
 
@@ -21,12 +21,13 @@ npx jest --runInBand __tests__/probes --forceExit
 $env:PROBE_LLM='1'
 npx jest --runInBand __tests__/probes/liveBattery.test.ts --forceExit
 
-# E6 memory quality at 1mo/3mo/6mo/1yr (needs populated bank + running Hindsight container)
-$env:HINDSIGHT_BASE_URL='http://localhost:8888'
-node scripts/hindsight/populate-memory.mjs
+# R0/R2 recall metrics against the offline memory store
 $env:PROBE_LLM='1'
-npx jest --runInBand __tests__/probes/hindsightMemoryQuality.test.ts --forceExit
+npx jest --runInBand __tests__/probes/recallMetrics.test.ts --forceExit
 ```
+
+Probes are offline by construction (the local-only build has no Supabase or
+Hindsight); live runs only need the chat provider in `.env`.
 
 ## Experiments
 
@@ -37,5 +38,4 @@ npx jest --runInBand __tests__/probes/hindsightMemoryQuality.test.ts --forceExit
 | E3 | Embedding rank of semantic needle across 365 entries |
 | E4 | Trigger coverage for `shouldEnableHistoryTools` |
 | E5 | Would a 1.5k-token capsule alone include the needle? |
-| E6 | Memory quality: hit-rates at 1mo/3mo/6mo/1yr + reflect groundedness |
 | E7 | Speed acceptance: recall / tool round / full turn / first-token budgets vs targets |

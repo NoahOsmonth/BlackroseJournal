@@ -5,12 +5,14 @@ import { activateAccount, getActiveAccountId } from './accountRuntime';
  *
  * WHAT WENT WRONG (docs/qa/DEFECTS.md DEF-011 / DEF-012): a destructive
  * device-local action (Clear History, Restore local backup) ran inside one
- * long account lease. A step in that lease reached for the remote gateway,
- * the auth refresh failed against an unreachable Supabase, the auth
- * coordinator re-bound the account, and `quiesceAccountOperations` aborted
- * every in-flight lease. The local deletes therefore never ran, and the only
- * error channel was `Alert.alert` - a no-op on web - so the wipe looked
- * "silent".
+ * long account lease. A step in that lease reached for a remote gateway, the
+ * auth refresh failed against an unreachable auth host, the auth coordinator
+ * re-bound the account, and `quiesceAccountOperations` aborted every in-flight
+ * lease. The local deletes therefore never ran, and the only error channel was
+ * `Alert.alert` - a no-op on web - so the wipe looked "silent". (The remote
+ * gateway and the remote auth host were both removed on 2026-09-18; the
+ * account binding they used to race with is now device-local, so the lease
+ * retry below stays as cheap insurance rather than a live failure mode.)
  *
  * The doctrine these helpers encode: a device-local write must not be
  * defeated by an unreachable network. Local work runs first, and a transient

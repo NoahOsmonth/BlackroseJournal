@@ -11,7 +11,6 @@ import {
     type ColorThemePresetId,
     type ColorThemeSlot,
 } from '@/constants/theme';
-import { loadRemoteUserSettings, saveRemoteUserSettings } from '@/services/settings/userSettingsRemote';
 import { loadStoredColorTheme, saveStoredColorTheme } from '@/services/theme/colorThemeStorage';
 
 export type ThemePreference = 'light' | 'dark' | 'system';
@@ -119,31 +118,6 @@ export function useThemeSettings() {
                     colorTheme: storedColorTheme,
                     emojiStyle: hasLocalEmoji ? savedEmoji : sharedSettingsState.emojiStyle,
                 });
-
-                const remote = await loadRemoteUserSettings();
-                if (remote) {
-                    if (!hasLocalTheme && remote.theme) {
-                        const didApplyRemote = applyTheme(remote.theme);
-                        if (didApplyRemote) {
-                            publishSettings({ theme: remote.theme });
-                            await AsyncStorage.setItem(THEME_PREFERENCE_STORAGE_KEY, remote.theme);
-                        }
-                    }
-
-                    if (!hasLocalEmoji && remote.emojiStyle) {
-                        publishSettings({ emojiStyle: remote.emojiStyle });
-                        await AsyncStorage.setItem(EMOJI_PREFERENCE_STORAGE_KEY, remote.emojiStyle);
-                    }
-                } else if (hasLocalTheme || hasLocalEmoji) {
-                    try {
-                        await saveRemoteUserSettings({
-                            theme: hasLocalTheme ? nextTheme : undefined,
-                            emojiStyle: hasLocalEmoji ? savedEmoji : undefined,
-                        });
-                    } catch (error) {
-                        console.error('Failed to seed remote settings', error);
-                    }
-                }
             } catch (error) {
                 console.error('Failed to load settings', error);
             } finally {
@@ -167,15 +141,6 @@ export function useThemeSettings() {
             } catch (error) {
                 console.error('Failed to save theme preference', error);
             }
-
-            try {
-                await saveRemoteUserSettings({
-                    theme: newTheme,
-                    emojiStyle: sharedSettingsState.emojiStyle,
-                });
-            } catch (error) {
-                console.error('Failed to sync theme preference', error);
-            }
         },
         [applyTheme]
     );
@@ -186,15 +151,6 @@ export function useThemeSettings() {
             await AsyncStorage.setItem(EMOJI_PREFERENCE_STORAGE_KEY, newStyle);
         } catch (error) {
             console.error('Failed to save emoji preference', error);
-        }
-
-        try {
-            await saveRemoteUserSettings({
-                theme: sharedSettingsState.theme,
-                emojiStyle: newStyle,
-            });
-        } catch (error) {
-            console.error('Failed to sync emoji preference', error);
         }
     }, []);
 

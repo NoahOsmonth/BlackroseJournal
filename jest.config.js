@@ -3,7 +3,6 @@ module.exports = {
     setupFilesAfterEnv: ["<rootDir>/jest.setup.js"],
     testPathIgnorePatterns: [
         "/node_modules/",
-        "/backend/",
         "/__tests__/mocks/",
     ],
     modulePathIgnorePatterns: [

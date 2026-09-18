@@ -10,6 +10,7 @@ import {
     shouldEnableHistoryTools,
 } from '../../../services/ai/agenticGate';
 import type { Message } from '../../../services/ai/chatTypes';
+import { HISTORY_TOOL_DEFINITIONS } from '../../../services/ai/tools/definitions';
 import type { ToolCapability } from '../../../services/ai/tools/toolCapability';
 
 const nativeCap: ToolCapability = {
@@ -189,7 +190,8 @@ describe('resolveHistoryToolsBranch — Pi-style tool cues & follow-ups', () => 
     it('selectToolShortlist on explicit tool cues provides all tools', () => {
         const short = selectToolShortlist('try to do more tool calling');
         expect(short.branch).toBe('all-fallback');
-        expect(short.names).toHaveLength(16);
+        // Derived from the registry so adding/removing a tool cannot drift here.
+        expect(short.names).toHaveLength(HISTORY_TOOL_DEFINITIONS.length);
     });
 
     it('handles the exact 5-turn user sequence without ever dropping tools', () => {

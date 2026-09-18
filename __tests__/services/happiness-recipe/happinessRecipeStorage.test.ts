@@ -15,11 +15,6 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
     },
 }));
 
-jest.mock('../../../services/happiness-recipe/happinessRecipeRemote', () => ({
-    loadRemoteRecipeItems: jest.fn(async () => null),
-    queueRecipeItemUpsert: jest.fn(async () => undefined),
-    queueRecipeItemDelete: jest.fn(async () => undefined),
-}));
 
 import { activateAccount, clearActiveAccount } from '../../../services/account/accountRuntime';
 import {
@@ -35,15 +30,6 @@ import {
     updateRecipeItem,
 } from '../../../services/happiness-recipe/happinessRecipeStorage';
 import type { RecipeItem } from '../../../services/happiness-recipe/happinessRecipeStorage.types';
-
-const remote = () => {
-    const mod = jest.requireMock<{
-        loadRemoteRecipeItems: jest.Mock;
-        queueRecipeItemUpsert: jest.Mock;
-        queueRecipeItemDelete: jest.Mock;
-    }>('../../../services/happiness-recipe/happinessRecipeRemote');
-    return mod;
-};
 
 const STORAGE_KEY = '@happiness_recipe_items';
 
@@ -85,7 +71,6 @@ describe('happiness recipe storage', () => {
         expect(item.text).toBe('Drink water');
         expect(item.completed).toBe(false);
         expect(await loadRecipeItems()).toEqual([item]);
-        expect(remote().queueRecipeItemUpsert).toHaveBeenCalledWith(item);
     });
 
     it('dedupes habit items case- and whitespace-insensitively', async () => {
@@ -154,7 +139,6 @@ describe('happiness recipe storage', () => {
         expect(await deleteRecipeItem(item.id)).toBe(true);
         expect(await loadRecipeItems()).toHaveLength(0);
         expect(await deleteRecipeItem(item.id)).toBe(false);
-        expect(remote().queueRecipeItemDelete).toHaveBeenCalledWith(item.id);
     });
 
     it('falls back to an empty list for unparseable or structurally corrupt payloads', async () => {
@@ -185,28 +169,18 @@ describe('happiness recipe storage', () => {
         expect(await loadRecipeItems()).toEqual([]);
     });
 
-    it('hydrates storage from remote items on first load', async () => {
-        const remoteItem: RecipeItem = {
-            id: 'remote-1',
-            type: 'ingredient',
-            text: 'Synced item',
-            completed: false,
-            createdAt: '2026-09-01T00:00:00.000Z',
-            updatedAt: '2026-09-01T00:00:00.000Z',
-        };
-        remote().loadRemoteRecipeItems.mockResolvedValueOnce([remoteItem]);
+    it('keeps items on disk across reloads', async () => {
+        const item = await addRecipeItem('ingredient', 'Persisted item');
 
-        expect(await loadRecipeItems()).toEqual([remoteItem]);
-        // Persisted locally after the remote read.
-        expect(storedItemsFor('user-a')).toEqual([remoteItem]);
+        expect(storedItemsFor('user-a')).toEqual([item]);
+        expect(await loadRecipeItems()).toEqual([item]);
     });
 
-    it('clears local items and queues remote deletes', async () => {
-        const item = await addRecipeItem('ingredient', 'Drink water');
+    it('clears local items', async () => {
+        await addRecipeItem('ingredient', 'Drink water');
         await clearAllRecipeItems();
 
         expect(await loadRecipeItems()).toEqual([]);
         expect(storedItemsFor('user-a')).toEqual([]);
-        expect(remote().queueRecipeItemDelete).toHaveBeenCalledWith(item.id);
     });
 });

@@ -7,7 +7,7 @@ module.exports = defineConfig([
   {
     // `.pi/**` is the installed agent harness (own runtime, own lint rules) —
     // linting it with this config produced 1445 bogus errors.
-    ignores: ['dist/*', 'dist-prod/*', 'backend/dist/**', '.agents/**', '.superpowers/**', 'supabase/.temp/**', '.worktrees/**', '.pi/**'],
+    ignores: ['dist/*', 'dist-prod/*', '.agents/**', '.superpowers/**', '.worktrees/**', '.pi/**'],
   },
   {
     // Playwriter snippets are evaluated by the Playwriter CLI, which injects this

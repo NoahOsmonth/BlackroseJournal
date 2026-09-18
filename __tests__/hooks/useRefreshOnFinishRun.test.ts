@@ -7,17 +7,24 @@ import { FINISH_BACKGROUND_STEPS } from '../../services/journal/finishBackground
 
 const mockStatus: { current: FinishBackgroundStatus | null } = { current: null };
 
-jest.mock('../../hooks/journal/useFinishBackgroundStatus', () => ({
-    useFinishBackgroundStatus: () => {
-        const status = mockStatus.current;
-        const settled = status ? Object.keys(status.done).length : 0;
-        return {
-            status,
-            isRunning: status !== null && settled < 6,
-            isDone: status !== null && settled >= 6,
-        };
-    },
-}));
+jest.mock('../../hooks/journal/useFinishBackgroundStatus', () => {
+    // Read the real step list inside the factory: mock factories may not
+    // close over out-of-scope imports.
+    const { FINISH_BACKGROUND_STEPS: STEPS } = jest.requireActual(
+        '../../services/journal/finishBackgroundStore'
+    ) as typeof import('../../services/journal/finishBackgroundStore');
+    return {
+        useFinishBackgroundStatus: () => {
+            const status = mockStatus.current;
+            const settled = status ? Object.keys(status.done).length : 0;
+            return {
+                status,
+                isRunning: status !== null && settled < STEPS.length,
+                isDone: status !== null && settled >= STEPS.length,
+            };
+        },
+    };
+});
 
 function settledRun(entryId: string, runId: string): FinishBackgroundStatus {
     const done = Object.fromEntries(

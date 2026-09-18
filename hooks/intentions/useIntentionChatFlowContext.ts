@@ -46,7 +46,7 @@ export function useIntentionChatFlowContext({
     });
     const { context: recentDaysContext } = useRecentDaysContext({ days: 3 });
     const { context: identityContext } = useIdentityContext();
-    // Long-term recall is tool-driven (recall_memory); no reactive Hindsight hook here.
+    // Long-term recall is tool-driven (memory_search); all memory is local.
 
     const flow = useMemo(
         () => (isRefineMode ? flowForCheckInType('intentionRefine') : flowForCheckInType(checkInType)),

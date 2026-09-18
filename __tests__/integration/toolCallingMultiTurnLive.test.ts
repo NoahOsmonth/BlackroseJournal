@@ -3,10 +3,10 @@
  * Real OmniRoute model + real Rosebud freeform prompt weave + real agent loop +
  * real tool validate/execute pipeline over real seeded on-device digests.
  *
- * The ONLY stub is hindsightRecall (external local Docker service) at the module
- * boundary; recall hits are seeded so recall_memory results can be verified by
- * needle-echo in the reply. Nothing else is mocked: the spy on executeToolCalls
- * logs and calls through to the real handlers.
+ * Nothing is stubbed at the recall boundary anymore: long-term recall runs on
+ * the real offline memory files, so tool results can be verified by needle-echo
+ * in the reply. Nothing is mocked either: the spy on executeToolCalls logs and
+ * calls through to the real handlers.
  *
  * Per turn we assert the RIGHT tool fired with the RIGHT arguments, and that the
  * final reply is grounded in the tool results (no loop narration leaked).
@@ -37,7 +37,6 @@ import {
     setDayDigestStorageAdapter,
     upsertJournalDayDigest,
 } from '../../services/memory/dayDigestStorage';
-import { hindsightRecall } from '../../services/memory/hindsight/hindsightClient';
 import {
     clearIdentityProfile,
     resetIdentityStorageAdapter,
@@ -45,19 +44,7 @@ import {
 } from '../../services/memory/identityProfile';
 import { addLocalDays, getLocalDateKey } from '../../utils/date';
 
-jest.mock('../../services/memory/hindsight/hindsightClient', () => ({
-    hindsightRecall: jest.fn(),
-    subscribeHindsightChanges: jest.fn(() => () => undefined),
-    notifyHindsightChanged: jest.fn(),
-    hindsightHealth: jest.fn(async () => false),
-}));
-
-const mockedRecall = hindsightRecall as jest.MockedFunction<typeof hindsightRecall>;
 const describeMaybe = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
-
-/** Distinct needle proving recall_memory results actually reached the reply. */
-const NEEDLE_MEMORY =
-    'your grandmother\u2019s blue enamel teapot from the Lisbon trip (Written 2024-11-02)';
 
 function readEnvFile(): Record<string, string> {
     const envPath = path.join(process.cwd(), '.env');
@@ -268,15 +255,6 @@ describeMaybe('integration: 4-turn tool-calling accuracy (RUN_INTEGRATION_TESTS=
         setDayDigestStorageAdapter(memoryAdapter());
         setIdentityStorageAdapter(memoryAdapter());
         setStorageAdapter(memoryAdapter());
-        mockedRecall.mockReset();
-        mockedRecall.mockResolvedValue([
-            {
-                content: NEEDLE_MEMORY,
-                similarity: 0.93,
-                timestamp: Date.parse('2024-11-02T12:00:00'),
-                documentId: 'journal_entry:seed-1',
-            },
-        ]);
     });
 
     afterEach(async () => {
@@ -411,41 +389,8 @@ describeMaybe('integration: 4-turn tool-calling accuracy (RUN_INTEGRATION_TESTS=
         });
         await cooldownForGateway();
 
-        // ---- Turn 3: long-term recall — must call recall_memory and echo needle.
-        const probe3: TurnProbe = {
-            toolCalls: [],
-            toolResults: [],
-            reply: '',
-            usedTools: false,
-            rounds: 0,
-            toolCallSource: 'none',
-        };
-        history.push({
-            id: 'u3',
-            role: 'user',
-            content:
-                'Remember when I first started journaling here? What older memories keep echoing for you?',
-            timestamp: Date.now() + 4,
-        });
-
-        await retryForAssertion('turn-3 recall_memory', async () => {
-            probe3.toolCalls = [];
-            probe3.toolResults = [];
-            await runTurn('turn-3', probe3, await buildPrompt(), history);
-            const recalls = probe3.toolCalls.filter((c) => c.name === 'recall_memory');
-            expect(recalls.length).toBeGreaterThan(0);
-            expect(mockedRecall.mock.calls.length).toBeGreaterThan(0);
-            const needleDelivered = probe3.toolResults.some(
-                (r) => r.name === 'recall_memory' && !r.isError && r.full.includes('teapot')
-            );
-            expect(needleDelivered).toBe(true);
-            expect(probe3.reply.toLowerCase()).toMatch(/teapot|lisbon|grandmother/);
-            expect(probe3.reply).not.toMatch(/\brecall_memory\b|\btool_call\b/);
-        });
-        await cooldownForGateway();
-
         // ---- Turn 4: "very first chat" — must use list_recent_days(order=oldest)
-        // ---- (or recall_memory) and must NOT invent an older conversation: with
+        // ---- and must NOT invent an older conversation: with
         // ---- only one seeded session on the device, the only honest answer is
         // ---- that the seeded entry IS the earliest one.
         const probe4: TurnProbe = {

@@ -9,6 +9,8 @@ import { resetJsonCompletionStateForTests } from '../../../services/ai/jsonCompl
 import {
     extractCheckInMemoryAtoms,
     extractJournalMemoryAtoms,
+    isDeterministicMemoryExtractionForced,
+    runWithDeterministicMemoryExtraction,
 } from '../../../services/memory/memoryAtomExtraction';
 import type { JournalEntry } from '../../../services/journal/journalStorage.types';
 import type { IntentionCheckIn } from '../../../services/intentions/intentionsStorage.types';
@@ -160,5 +162,41 @@ describe('memoryAtomExtraction', () => {
         expect(atoms[0].title).toContain('walk');
         expect(mockFetch.mock.calls[0][0].response_format).toEqual({ type: 'json_object' });
         expect(mockFetch.mock.calls[1][0].response_format).toBeUndefined();
+    });
+
+    /**
+     * Deterministic scope (used by the dev demo seed, DEF-013): callers take
+     * their local fallback and the provider is never asked.
+     * Break by: removing the depth check from extractMemoryAtoms — the
+     * "asks the provider" pair below then stops being the only difference.
+     */
+    it('skips the provider entirely inside a deterministic scope', async () => {
+        const atoms = await runWithDeterministicMemoryExtraction(async () => {
+            expect(isDeterministicMemoryExtractionForced()).toBe(true);
+            return extractJournalMemoryAtoms(journal);
+        });
+
+        expect(atoms).toEqual([]);
+        expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('asks the provider again once the deterministic scope exits', async () => {
+        await runWithDeterministicMemoryExtraction(async () => undefined);
+
+        expect(isDeterministicMemoryExtractionForced()).toBe(false);
+        mockFetch.mockResolvedValueOnce(jsonResponse({
+            choices: [{ message: { content: JSON.stringify({ atoms: [] }) } }],
+        }));
+        await extractJournalMemoryAtoms(journal);
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('restores the previous depth even when the scope throws', async () => {
+        await expect(
+            runWithDeterministicMemoryExtraction(async () => {
+                throw new Error('boom');
+            }),
+        ).rejects.toThrow('boom');
+        expect(isDeterministicMemoryExtractionForced()).toBe(false);
     });
 });

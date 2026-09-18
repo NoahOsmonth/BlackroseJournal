@@ -12,18 +12,11 @@ import {
 } from '@/services/account/accountRuntime';
 
 import { HappinessRecipeState, RecipeItem, RecipeItemType } from './happinessRecipeStorage.types';
-import {
-    loadRemoteRecipeItems,
-    queueRecipeItemDelete,
-    queueRecipeItemUpsert,
-} from './happinessRecipeRemote';
 
 const STORAGE_KEY = '@happiness_recipe_items';
-let hasSeededRemote = false;
 let mutationQueue: Promise<void> = Promise.resolve();
 
 registerAccountTeardown(() => {
-    hasSeededRemote = false;
     mutationQueue = Promise.resolve();
 });
 
@@ -31,24 +24,6 @@ function enqueueMutation<T>(operation: () => Promise<T>): Promise<T> {
     const result = mutationQueue.then(operation, operation);
     mutationQueue = result.then(() => undefined, () => undefined);
     return result;
-}
-
-async function seedRemoteItems(
-    items: RecipeItem[],
-    context: AccountOperationContext,
-): Promise<void> {
-    if (hasSeededRemote || items.length === 0) {
-        return;
-    }
-
-    try {
-        await Promise.all(items.map((item) => queueRecipeItemUpsert(item)));
-        assertAccountOperationActive(context);
-        hasSeededRemote = true;
-    } catch (error) {
-        if (context.signal.aborted) throw error;
-        console.error('Failed to seed remote recipe items:', error);
-    }
 }
 
 /**
@@ -70,15 +45,7 @@ async function loadRecipeItemsForAccount(
                 state = { items: [] };
             }
             const items = state.items;
-            await seedRemoteItems(items, context);
             return items;
-        }
-        const remoteItems = await loadRemoteRecipeItems();
-        assertAccountOperationActive(context);
-        if (remoteItems) {
-            await saveRecipeItems(storage, remoteItems);
-            assertAccountOperationActive(context);
-            return remoteItems;
         }
         return [];
     } catch (error) {
@@ -152,13 +119,6 @@ async function addRecipeItemForAccount(
     items.push(newItem);
     await saveRecipeItems(storage, items);
     assertAccountOperationActive(context);
-    try {
-        await queueRecipeItemUpsert(newItem);
-        assertAccountOperationActive(context);
-    } catch (error) {
-        if (context.signal.aborted) throw error;
-        console.error('Failed to queue recipe item sync:', error);
-    }
     return newItem;
 }
 
@@ -202,13 +162,6 @@ async function updateRecipeItemForAccount(
     items[index] = updatedItem;
     await saveRecipeItems(storage, items);
     assertAccountOperationActive(context);
-    try {
-        await queueRecipeItemUpsert(updatedItem);
-        assertAccountOperationActive(context);
-    } catch (error) {
-        if (context.signal.aborted) throw error;
-        console.error('Failed to queue recipe item sync:', error);
-    }
     return updatedItem;
 }
 
@@ -244,13 +197,6 @@ async function deleteRecipeItemForAccount(
 
     await saveRecipeItems(storage, filteredItems);
     assertAccountOperationActive(context);
-    try {
-        await queueRecipeItemDelete(id);
-        assertAccountOperationActive(context);
-    } catch (error) {
-        if (context.signal.aborted) throw error;
-        console.error('Failed to queue recipe item delete:', error);
-    }
     return true;
 }
 
@@ -284,16 +230,6 @@ export function toggleRecipeItemCompletion(id: string): Promise<RecipeItem | nul
 export function clearAllRecipeItems(): Promise<void> {
     return runAccountBoundOperation('happiness-recipe-clear', (context) => enqueueMutation(async () => {
     const storage = getStorageForAccount(context.accountId);
-    const items = await loadRecipeItemsForAccount(storage, context);
-    assertAccountOperationActive(context);
-    await Promise.all(items.map(async (item) => {
-        try {
-            await queueRecipeItemDelete(item.id);
-        } catch (error) {
-            console.error('Failed to queue recipe item delete:', error);
-        }
-    }));
-    assertAccountOperationActive(context);
     await storage.removeItem(STORAGE_KEY);
     assertAccountOperationActive(context);
     }));

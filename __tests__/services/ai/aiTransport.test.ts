@@ -1,28 +1,20 @@
 /* eslint-disable import/first */
 
-jest.mock('../../../services/ai/customModels', () => ({
-    loadCustomAiProviderSettings: jest.fn(),
-}));
 jest.mock('../../../services/ai/directTransport', () => ({
     fetchDirectChatCompletion: jest.fn(),
     prepareDirectChatRequest: jest.fn(),
 }));
-jest.mock('../../../services/ai/managedTransport', () => ({
-    fetchManagedChatCompletion: jest.fn(),
-    prepareManagedChatRequest: jest.fn(),
-}));
 
-import { loadCustomAiProviderSettings } from '../../../services/ai/customModels';
 import { activateAccount, clearActiveAccount } from '../../../services/account/accountRuntime';
 import {
     fetchDirectChatCompletion,
     prepareDirectChatRequest,
 } from '../../../services/ai/directTransport';
 import {
-    fetchManagedChatCompletion,
-    prepareManagedChatRequest,
-} from '../../../services/ai/managedTransport';
-import { fetchAiChatCompletion, prepareAiChatRequest } from '../../../services/ai/aiTransport';
+    fetchAiChatCompletion,
+    getAiTransportMode,
+    prepareAiChatRequest,
+} from '../../../services/ai/aiTransport';
 
 const payload = { model: 'client-model', messages: [{ role: 'user', content: 'Hello' }], stream: false };
 
@@ -33,69 +25,37 @@ function deferred<T>() {
 }
 
 describe('aiTransport mode boundary', () => {
-    const KEY = 'EXPO_PUBLIC_NANO_GPT_API_KEY';
-    let keySnapshot: string | undefined;
-
     beforeEach(() => {
         jest.clearAllMocks();
-        keySnapshot = process.env[KEY];
-        delete process.env[KEY];
     });
 
-    afterEach(() => {
-        if (keySnapshot === undefined) delete process.env[KEY];
-        else process.env[KEY] = keySnapshot;
+    it('always reports the direct transport (BYOK-only)', async () => {
+        await expect(getAiTransportMode()).resolves.toBe('byok');
     });
 
-    it('uses only the managed gateway when BYOK is off and no direct key is configured', async () => {
-        jest.mocked(loadCustomAiProviderSettings).mockResolvedValue({ enabled: false } as never);
-        jest.mocked(fetchManagedChatCompletion).mockResolvedValue(new Response('{}'));
-
-        await fetchAiChatCompletion(payload);
-
-        expect(fetchManagedChatCompletion).toHaveBeenCalledWith(payload, undefined);
-        expect(fetchDirectChatCompletion).not.toHaveBeenCalled();
-    });
-
-    it('uses the direct transport by default when a direct API key is configured', async () => {
-        process.env.EXPO_PUBLIC_NANO_GPT_API_KEY = 'sk-env-direct';
-        jest.mocked(loadCustomAiProviderSettings).mockResolvedValue({ enabled: false } as never);
+    it('always uses the direct transport for chat completions', async () => {
         jest.mocked(fetchDirectChatCompletion).mockResolvedValue(new Response('{}'));
 
         await fetchAiChatCompletion(payload);
 
         expect(fetchDirectChatCompletion).toHaveBeenCalledWith(payload, undefined);
-        expect(fetchManagedChatCompletion).not.toHaveBeenCalled();
     });
 
-    it('uses only the direct custom provider while BYOK is on', async () => {
-        jest.mocked(loadCustomAiProviderSettings).mockResolvedValue({ enabled: true } as never);
-        jest.mocked(fetchDirectChatCompletion).mockResolvedValue(new Response('{}'));
-
-        await fetchAiChatCompletion(payload);
-
-        expect(fetchDirectChatCompletion).toHaveBeenCalledWith(payload, undefined);
-        expect(fetchManagedChatCompletion).not.toHaveBeenCalled();
-    });
-
-    it('prepares XHR against the selected mode without crossing transports', async () => {
-        jest.mocked(loadCustomAiProviderSettings).mockResolvedValue({ enabled: false } as never);
-        jest.mocked(prepareManagedChatRequest).mockResolvedValue({ url: 'managed' } as never);
+    it('prepares XHR against the direct transport', async () => {
+        jest.mocked(prepareDirectChatRequest).mockResolvedValue({ url: 'direct' } as never);
 
         await expect(prepareAiChatRequest(payload)).resolves.toEqual({
-            mode: 'managed', request: { url: 'managed' },
+            mode: 'byok', request: { url: 'direct' },
         });
-        expect(prepareDirectChatRequest).not.toHaveBeenCalled();
     });
 
-    it('does not route an account A prompt after mode resolution is interrupted by a switch to B', async () => {
+    it('cancels an in-flight fetch when the account switches mid-request', async () => {
         await clearActiveAccount();
         await activateAccount('account-a');
-        const modeReadStarted = deferred<void>();
-        const settings = deferred<{ enabled: boolean }>();
-        jest.mocked(loadCustomAiProviderSettings).mockImplementation(() => {
-            modeReadStarted.resolve();
-            return settings.promise as never;
+        const release = deferred<void>();
+        jest.mocked(fetchDirectChatCompletion).mockImplementation(async () => {
+            await release.promise;
+            return new Response('{}');
         });
 
         try {
@@ -103,14 +63,12 @@ describe('aiTransport mode boundary', () => {
                 ...payload,
                 messages: [{ role: 'user', content: 'private account A prompt' }],
             });
-            await modeReadStarted.promise;
+            await Promise.resolve();
             const switching = activateAccount('account-b');
-            settings.resolve({ enabled: true });
+            release.resolve();
             await switching;
 
             await expect(pending).rejects.toThrow('AI request was cancelled by an account switch.');
-            expect(fetchDirectChatCompletion).not.toHaveBeenCalled();
-            expect(fetchManagedChatCompletion).not.toHaveBeenCalled();
         } finally {
             await clearActiveAccount();
         }

@@ -2,9 +2,6 @@
   "name": "blackrosejournal",
   "version": "0.0.1",
   "private": true,
-  "workspaces": [
-    "packages/*"
-  ],
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
@@ -17,9 +14,7 @@
     "test": "npm run test:run",
     "test:run": "jest --runInBand",
     "test:run:verbose": "npm run test:run -- --verbose",
-    "test:control-plane-live": "node scripts/control-plane/live-probe.js",
     "check:design": "node scripts/check-design-limits.js",
-    "check:legacy-shim": "node scripts/check-legacy-shim.js",
     "reset-project": "node scripts/reset-project.js"
   },
   "dependencies": {
@@ -32,7 +27,6 @@
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
-    "@supabase/supabase-js": "^2.50.1",
     "expo": "~54.0.35",
     "expo-asset": "~12.0.13",
     "expo-background-fetch": "~14.0.9",
@@ -80,7 +74,6 @@
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
     "react-test-renderer": "19.1.0",
-    "supabase": "^2.72.8",
     "tailwindcss": "^3.4.19",
     "typescript": "~5.9.2"
   }

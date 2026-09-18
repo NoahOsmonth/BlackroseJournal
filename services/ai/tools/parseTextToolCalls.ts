@@ -448,7 +448,9 @@ export function looksLikeToolDump(content: string): boolean {
     const markerHit = markers.some((m) => lower.includes(m));
     const fnHit = new RegExp(`\\b(${TOOL_NAME_RE})\\s*\\(`, 'i').test(text);
     const tagHit = new RegExp(`<\\s*/?(?:${TOOL_NAME_RE})\\b`, 'i').test(text);
-    const jsonHit = /"(?:name|tool|function)"\s*:\s*"(get_clock|list_recent_days|get_day|get_conversation|search_history|recall_memory|get_identity|update_identity)"/.test(text);
+    // Derived from TOOL_NAMES so the JSON shape check can never drift from the
+    // registered tool list again (it previously hard-coded a stale subset).
+    const jsonHit = new RegExp(`"(?:name|tool|function)"\\s*:\\s*"(${TOOL_NAME_RE})"`).test(text);
 
     if (!(markerHit || fnHit || tagHit || jsonHit)) return false;
 

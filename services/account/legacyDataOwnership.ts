@@ -19,10 +19,6 @@ import {
     hasLegacyJournalEntries,
     migrateLegacyJournalEntriesToActiveAccount,
 } from '@/services/journal/journalStorage';
-import {
-    hasLegacySyncQueue,
-    migrateLegacySyncQueueToActiveAccount,
-} from '@/services/supabase/syncQueue';
 
 const ACCOUNT_PRIVATE_EXACT_KEYS = [
     '@happiness_recipe_items',
@@ -47,7 +43,6 @@ const ACCOUNT_PRIVATE_EXACT_KEYS = [
     '@demo_data_seed_record',
     '@demo_data_seeded',
     '@blackrose_local_backups',
-    '@blackrose_hindsight_rebuild',
     '@blackrose_memory_manifest',
 ] as const;
 
@@ -67,7 +62,6 @@ export function hasUnclaimedLegacyData(): Promise<boolean> {
             hasLegacyGoals(),
             hasLegacyIntentions(),
             hasLegacyStorage(ACCOUNT_PRIVATE_EXACT_KEYS, ACCOUNT_PRIVATE_KEY_PREFIXES),
-            hasLegacySyncQueue(),
         ]);
         assertAccountOperationActive(context);
         return results.some(Boolean);
@@ -97,8 +91,6 @@ export function confirmLegacyDataOwnership(accountId: string): Promise<void> {
             await claimLegacyStoragePrefix(prefix);
             assertAccountOperationActive(context);
         }
-        assertAccountOperationActive(context);
-        await migrateLegacySyncQueueToActiveAccount();
         assertAccountOperationActive(context);
     });
 }

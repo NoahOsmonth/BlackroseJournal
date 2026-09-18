@@ -17,40 +17,9 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
     },
 }));
 
-jest.mock('../../../services/supabase/syncQueue', () => ({
-    removeSyncTasksForTable: jest.fn(() => Promise.resolve()),
-}));
 
-jest.mock('../../../services/journal/journalRemote', () => ({
-    JOURNAL_TABLE: 'journal_entries',
-    deleteRemoteJournalEntries: jest.fn(() => Promise.resolve(true)),
-    fetchRemoteJournalEntries: jest.fn(() => Promise.resolve(null)),
-    mergeEntries: jest.fn((local: object) => local),
-    pushJournalEntries: jest.fn(() => Promise.resolve(false)),
-    queueJournalEntryDelete: jest.fn(() => Promise.resolve()),
-    queueJournalEntryUpsert: jest.fn(() => Promise.resolve()),
-}));
 
-jest.mock('../../../services/intentions/intentionsRemote', () => ({
-    fetchRemoteCheckIns: jest.fn(() => Promise.resolve(null)),
-    fetchRemoteIntentions: jest.fn(() => Promise.resolve(null)),
-    mergeCheckIns: jest.fn((local: object) => local),
-    mergeIntentions: jest.fn((local: object) => local),
-    pushCheckIns: jest.fn(() => Promise.resolve(false)),
-    pushIntentions: jest.fn(() => Promise.resolve(false)),
-    queueCheckInDelete: jest.fn(() => Promise.resolve()),
-    queueCheckInUpsert: jest.fn(() => Promise.resolve()),
-    queueIntentionDelete: jest.fn(() => Promise.resolve()),
-    queueIntentionUpsert: jest.fn(() => Promise.resolve()),
-}));
 
-jest.mock('../../../services/goals/goalsRemote', () => ({
-    fetchRemoteGoals: jest.fn(() => Promise.resolve(null)),
-    mergeGoals: jest.fn((local: object) => local),
-    pushGoals: jest.fn(() => Promise.resolve(false)),
-    queueGoalDelete: jest.fn(() => Promise.resolve()),
-    queueGoalUpsert: jest.fn(() => Promise.resolve()),
-}));
 
 import {
     DEMO_SEED_RECORD_KEY,

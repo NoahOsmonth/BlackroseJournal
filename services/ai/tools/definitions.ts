@@ -177,21 +177,6 @@ export const HISTORY_TOOL_DEFINITIONS: ToolDefinition[] = [
         execClass: 'mutating',
     },
     {
-        name: 'recall_memory',
-        description:
-            'Query the long-term memory bank (Hindsight) as a FALLBACK when offline memory_search has nothing — prefer memory_search first (fully offline). Use for older echoes across past months. Do NOT use for recent days — use get_day or list_recent_days.',
-        parameters: {
-            type: 'object',
-            properties: {
-                query: { type: 'string', description: 'Topic or question to recall from long-term memory.' },
-                limit: { type: 'number', description: 'Max recollections (1\u201310, default 6).' },
-            },
-            required: ['query'],
-            additionalProperties: false,
-        },
-        execClass: 'pure',
-    },
-    {
         name: 'get_identity',
         description:
             'Read the on-device always-on identity profile (preferred name, pronouns, key people, durable facts). Use the injected Identity block when present; call this to re-check after an update. Do NOT call it to discover new facts about the user — ask them. No arguments.',
@@ -304,7 +289,7 @@ export function toOpenAiToolSpecs(definitions: readonly ToolDefinition[] = HISTO
 export const HISTORY_TOOLS_POLICY = [
     '## On-device tools — use freely (proactive)',
     'Tools run on the phone.',
-    'Decision: get_clock (never invent time) → memory_search (offline file recall — be curious about it, a "remember when…" echo — one call costs nothing) → list_recent_days → get_day → get_conversation for exact words. memory_search first, memory_get exact ids. search_history: themes; recall_memory: Hindsight FALLBACK only.',
+    'Decision: get_clock (never invent time) → memory_search (offline file recall — be curious about it, a "remember when…" echo — one call costs nothing) → list_recent_days → get_day → get_conversation for exact words. memory_search first, memory_get exact ids. search_history: themes.',
     'Good: "work last week?" → get_clock, memory_search, get_day. Bad: answer from memory.',
     'Identity/goals (update_identity, list_goals): stated or explicit requests only; never invent.',
     'STOP: never invent results; empty → say so. Never fake tool syntax. Status text OK only with tool_calls same turn — never end on "one sec" / "let me pull that up": call tools or answer fully. Past chat: get_day then get_conversation (not only get_clock). Use ## Identity name.',

@@ -78,9 +78,9 @@ describe('validateAndRepairToolCall', () => {
         });
     });
 
-    it('repairs recall alias → query for recall_memory', () => {
+    it('repairs recall alias → query for memory_search', () => {
         const out = validateAndRepairToolCall(
-            { id: '1', name: 'recall_memory', arguments: '{"recall":"wedding"}' },
+            { id: '1', name: 'memory_search', arguments: '{"recall":"wedding"}' },
             'text'
         );
         expect(out).not.toBeNull();
@@ -88,10 +88,10 @@ describe('validateAndRepairToolCall', () => {
         expect(out!.repaired).toBe(true);
     });
 
-    it('rejects recall_memory without query', () => {
+    it('rejects memory_search without query', () => {
         expect(
             validateAndRepairToolCall(
-                { id: '1', name: 'recall_memory', arguments: '{}' },
+                { id: '1', name: 'memory_search', arguments: '{}' },
                 'structured'
             )
         ).toBeNull();

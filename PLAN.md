@@ -12,14 +12,14 @@ and none of it is executable.
 The architecture that actually replaced it is the offline-first on-device memory
 system — see [`.planning/offline-memory/PLAN.md`](.planning/offline-memory/PLAN.md)
 (done 2026-09-12) and `services/memory/memoryFiles.ts` + `memoryRetrieval.ts`.
-Hindsight is the fallback tier, not long-term memory. See AGENTS.md rules 9–12.
+That store is now the **only** long-term tier: Hindsight, Supabase and the
+managed AI gateway were all removed on 2026-09-18. See AGENTS.md rules 9–12.
 
 The deleted cloud-memory documents were recovered for reference only and live in
 [`.planning/archive/`](.planning/archive/README.md). They are **not** approved
 and must not be implemented: AGENTS.md forbids resurrecting the platform or its
 storage keys (`@rosebud_cloud_memory_mirror_outbox`,
-`@rosebud_memory_dataset_binding`), enforced by
-`__tests__/backend-local-only.test.ts`. Mine them for requirements and
+`@rosebud_memory_dataset_binding`). Mine them for requirements and
 invariants only.
 
 ## Goal

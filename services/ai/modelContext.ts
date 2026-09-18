@@ -1,6 +1,4 @@
 import { getResolvedDirectConfig, type ResolvedDirectConfig } from './directConfig';
-import { getAiTransportMode } from './aiTransport';
-import { getManagedModelSelection, loadManagedCatalogSnapshot } from './managedCatalog';
 import { accountScopedStorage } from '@/services/account/accountScopedStorage';
 import { runAccountBoundOperation } from '@/services/account/accountRuntime';
 import {
@@ -20,7 +18,7 @@ export interface ModelContextInfo {
     model: string;
     contextWindow: number;
     source: ContextWindowSource;
-    providerSource: ResolvedDirectConfig['source'] | 'managed';
+    providerSource: ResolvedDirectConfig['source'];
 }
 
 interface CachedModelContext {
@@ -122,21 +120,8 @@ export async function clearModelContextCache(): Promise<void> {
 export async function detectActiveModelContextWindow(
     options: { forceRefresh?: boolean } = {}
 ): Promise<ModelContextInfo> {
-    return runAccountBoundOperation('model-context', async ({ signal }) => {
-    if (await getAiTransportMode() === 'managed') {
-        const snapshot = await loadManagedCatalogSnapshot();
-        const selection = getManagedModelSelection(snapshot.catalog, snapshot.preference);
-        if (!selection.model || selection.availability === 'unavailable') {
-            throw new Error('Choose an available managed AI model before chatting.');
-        }
-        return {
-            model: selection.model.publicModelId,
-            contextWindow: selection.model.contextWindow,
-            source: 'api',
-            providerSource: 'managed',
-        };
-    }
-    const config = await getResolvedDirectConfig();
+    return runAccountBoundOperation('model-context', async () => {
+        const config = await getResolvedDirectConfig();
     if (config.source === 'custom' && config.contextWindow) {
         return {
             model: config.model,
@@ -151,7 +136,6 @@ export async function detectActiveModelContextWindow(
     if (cached && !options.forceRefresh) return toInfo(config, cached);
 
     const detected = await fetchDefaultContext(config).catch(() => fallbackContext(config.model));
-    if (signal.aborted) throw new Error('Model context request cancelled by an account switch.');
     await saveCache(key, detected);
     return toInfo(config, detected);
     });

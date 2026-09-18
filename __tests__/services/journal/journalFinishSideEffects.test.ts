@@ -12,9 +12,6 @@ jest.mock('../../../services/memory/localMemory', () => ({
 jest.mock('../../../services/memory/sessionDigestBuild', () => ({
     buildAndSaveSessionDigest: jest.fn(async () => undefined),
 }));
-jest.mock('../../../services/memory/hindsight/hindsightRetain', () => ({
-    retainJournalEntryToHindsight: jest.fn(async () => true),
-}));
 jest.mock('../../../services/ai', () => ({
     generateEntryAnalysis: jest.fn(async () => ({
         insight: 'insight',
@@ -33,10 +30,10 @@ import {
 } from '../../../services/journal/finishBackgroundStore';
 import { runJournalFinishBackground, runJournalFinishSideEffects } from '../../../services/journal/journalFinishSideEffects';
 import type { JournalEntry } from '../../../services/journal/journalStorage.types';
-import { retainJournalEntryToHindsight } from '../../../services/memory/hindsight/hindsightRetain';
+import { buildAndSaveSessionDigest } from '../../../services/memory/sessionDigestBuild';
 
-const mockedRetain = retainJournalEntryToHindsight as jest.MockedFunction<
-    typeof retainJournalEntryToHindsight
+const mockedDigest = buildAndSaveSessionDigest as jest.MockedFunction<
+    typeof buildAndSaveSessionDigest
 >;
 
 function entry(overrides: Partial<JournalEntry> = {}): JournalEntry {
@@ -62,27 +59,22 @@ describe('runJournalFinishSideEffects', () => {
         jest.clearAllMocks();
     });
 
-    it('dispatches a background hindsight retain without blocking', async () => {
+    it('runs the local side effects to completion', async () => {
         const savedEntry = entry();
         await runJournalFinishSideEffects(savedEntry);
-        expect(mockedRetain).toHaveBeenCalledWith(savedEntry);
+        expect(mockedDigest).toHaveBeenCalledWith(expect.objectContaining({
+            sessionId: savedEntry.id,
+            sourceKind: 'journal_entry',
+        }));
     });
 
-    it('does not await the retain attempt (fire-and-forget)', async () => {
-        mockedRetain.mockReturnValueOnce(
-            new Promise(() => undefined) // never settles — would hang if awaited
-        );
-        await expect(runJournalFinishSideEffects(entry())).resolves.toBeUndefined();
-        expect(mockedRetain).toHaveBeenCalledTimes(1);
-    });
-
-    it('still retains when an earlier side effect fails', async () => {
+    it('still builds the session digest when an earlier side effect fails', async () => {
         const { saveJournalEntryMemories } = jest.requireMock('../../../services/memory/localMemory') as {
             saveJournalEntryMemories: jest.Mock;
         };
         saveJournalEntryMemories.mockRejectedValueOnce(new Error('boom'));
         await expect(runJournalFinishSideEffects(entry())).resolves.toBeUndefined();
-        expect(mockedRetain).toHaveBeenCalledTimes(1);
+        expect(mockedDigest).toHaveBeenCalledTimes(1);
     });
 });
 
@@ -110,7 +102,6 @@ describe('runJournalFinishBackground', () => {
             digest: true,
             identity: true,
             sessionDigest: true,
-            hindsight: true,
         });
     });
 
@@ -152,7 +143,6 @@ describe('runJournalFinishBackground', () => {
         expect(upsertJournalDayDigest).toHaveBeenCalledTimes(1);
         expect(extractIdentityFromSessionTranscript).toHaveBeenCalledTimes(1);
         expect(buildAndSaveSessionDigest).toHaveBeenCalledTimes(1);
-        expect(mockedRetain).toHaveBeenCalledTimes(1);
     });
 
     it('persists the generated analysis onto the saved entry', async () => {

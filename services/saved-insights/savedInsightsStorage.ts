@@ -14,24 +14,11 @@ import {
     SavedInsightCreateInput,
     SavedInsightUpdateInput,
 } from './savedInsightsStorage.types';
-import {
-    fetchRemoteSavedInsights,
-    mergeSavedInsights,
-    pushSavedInsights,
-    queueSavedInsightDelete,
-    queueSavedInsightUpsert,
-} from './savedInsightsRemote';
 
 const INSIGHTS_KEY = '@saved_insights';
-let hasPulledRemote = false;
-let hasPushedLocal = false;
-let syncPromise: Promise<void> | null = null;
 let mutationQueue: Promise<void> = Promise.resolve();
 
 registerAccountTeardown(() => {
-    hasPulledRemote = false;
-    hasPushedLocal = false;
-    syncPromise = null;
     mutationQueue = Promise.resolve();
 });
 
@@ -62,55 +49,9 @@ function enqueueMutation<T>(operation: () => Promise<T>): Promise<T> {
     return result;
 }
 
-async function syncFromRemoteIfNeeded(
-    storage: AccountStorageAdapter,
-    context: AccountOperationContext,
-): Promise<void> {
-    if (syncPromise) {
-        return syncPromise;
-    }
-
-    syncPromise = (async () => {
-        const local = await loadInsightsMap(storage);
-        assertAccountOperationActive(context);
-        const hasLocal = Object.keys(local).length > 0;
-
-        if (!hasLocal && !hasPulledRemote) {
-            const remote = await fetchRemoteSavedInsights();
-            assertAccountOperationActive(context);
-            if (remote) {
-                hasPulledRemote = true;
-                const merged = mergeSavedInsights(local, remote);
-                await saveInsightsMap(storage, merged);
-                assertAccountOperationActive(context);
-            }
-        }
-
-        if (hasLocal && !hasPushedLocal) {
-            try {
-                const pushed = await pushSavedInsights(Object.values(local));
-                assertAccountOperationActive(context);
-                if (pushed) {
-                    hasPushedLocal = true;
-                }
-            } catch (error) {
-                if (context.signal.aborted) throw error;
-                console.warn('Failed to push saved insights:', error);
-            }
-        }
-    })();
-
-    try {
-        await syncPromise;
-    } finally {
-        syncPromise = null;
-    }
-}
-
 export function listSavedInsights(): Promise<SavedInsight[]> {
     return runAccountBoundOperation('saved-insights-list', async (context) => {
         const storage = getStorageForAccount(context.accountId);
-        await syncFromRemoteIfNeeded(storage, context);
         assertAccountOperationActive(context);
         const map = await loadInsightsMap(storage);
         assertAccountOperationActive(context);
@@ -137,14 +78,6 @@ async function createSavedInsightForAccount(
     map[insight.id] = insight;
     await saveInsightsMap(storage, map);
     assertAccountOperationActive(context);
-
-    try {
-        await queueSavedInsightUpsert(insight);
-        assertAccountOperationActive(context);
-    } catch (error) {
-        if (context.signal.aborted) throw error;
-        console.warn('Failed to queue saved insight sync:', error);
-    }
 
     return insight;
 }
@@ -179,14 +112,6 @@ async function updateSavedInsightForAccount(
     await saveInsightsMap(storage, map);
     assertAccountOperationActive(context);
 
-    try {
-        await queueSavedInsightUpsert(updated);
-        assertAccountOperationActive(context);
-    } catch (error) {
-        if (context.signal.aborted) throw error;
-        console.warn('Failed to queue saved insight sync:', error);
-    }
-
     return updated;
 }
 
@@ -219,14 +144,6 @@ async function deleteSavedInsightForAccount(
     await saveInsightsMap(storage, map);
     assertAccountOperationActive(context);
 
-    try {
-        await queueSavedInsightDelete(id);
-        assertAccountOperationActive(context);
-    } catch (error) {
-        if (context.signal.aborted) throw error;
-        console.warn('Failed to queue saved insight delete:', error);
-    }
-
     return true;
 }
 
@@ -239,10 +156,6 @@ export function deleteSavedInsight(id: string): Promise<boolean> {
 export function clearSavedInsights(): Promise<void> {
     return runAccountBoundOperation('saved-insights-clear', (context) => enqueueMutation(async () => {
         const storage = getStorageForAccount(context.accountId);
-        const map = await loadInsightsMap(storage);
-        assertAccountOperationActive(context);
-        await Promise.all(Object.keys(map).map(async (id) => queueSavedInsightDelete(id)));
-        assertAccountOperationActive(context);
         await storage.removeItem(INSIGHTS_KEY);
         assertAccountOperationActive(context);
     }));

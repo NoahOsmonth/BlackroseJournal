@@ -1,6 +1,40 @@
 // Shared helpers for QA playwriter scripts (cat this before your script body).
-const ACC = '16cdd861-7cb2-4ce3-92b8-2a6d1f93a26f';
-const PRE = '@blackrose_account:v1:' + ACC + ':';
+// Storage keys are account-scoped: `@blackrose_account:v1:<accountId>:<key>`.
+// The account id is device-local (no auth since 2026-09-18): the app records the
+// active one in the account registry, so resolve it from there at runtime. A
+// hardcoded id would silently read zeros on a fresh headless session.
+const ACCOUNT_REGISTRY_KEY = '@blackrose_account_registry';
+const ACCOUNT_SCOPE_PREFIX = '@blackrose_account:v1:';
+
+/**
+ * Resolve the active account's storage prefix, or null when none exists yet.
+ *
+ * Preferred source is the account registry's rememberedAccountId (exactly what
+ * the app itself resolves). Falls back to the scope holding the most keys, since
+ * multi-account installs from earlier builds can carry several scopes.
+ */
+async function accountStoragePrefix() {
+  const p = globalThis.page || state.page;
+  return p.evaluate(({ registryKey, scopePrefix }) => {
+    let registry = null;
+    try { registry = JSON.parse(localStorage.getItem(registryKey) || 'null'); } catch { registry = null; }
+    const remembered = registry && registry.accounts
+      ? registry.accounts[registry.rememberedAccountId]
+      : null;
+    if (remembered && remembered.id) {
+      return scopePrefix + encodeURIComponent(remembered.id) + ':';
+    }
+    const counts = {};
+    for (const key of Object.keys(localStorage)) {
+      if (!key.startsWith(scopePrefix)) continue;
+      const rest = key.slice(scopePrefix.length);
+      const id = rest.slice(0, rest.indexOf(':'));
+      if (id) counts[id] = (counts[id] || 0) + 1;
+    }
+    const best = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+    return best ? scopePrefix + best + ':' : null;
+  }, { registryKey: ACCOUNT_REGISTRY_KEY, scopePrefix: ACCOUNT_SCOPE_PREFIX });
+}
 
 /**
  * Click an exact-text element reliably.
@@ -28,10 +62,15 @@ async function tapText(text, opts) {
  * Named `storageSnapshot`, NOT `snapshot`: playwriter's own headless runtime
  * exposes a built-in `snapshot(options)` and it wins the name, which made every
  * storage probe die with "Cannot destructure property 'page' of 'options'".
+ *
+ * The resolved `accountPrefix` is returned alongside the counts so a probe can
+ * tell "empty account" apart from "no account scope found" instead of trusting a
+ * silent row of zeros.
  */
 async function storageSnapshot() {
   const p = globalThis.page || state.page;
-  return p.evaluate((pre) => {
+  const accountPrefix = await accountStoragePrefix();
+  const snapshot = await p.evaluate((pre) => {
     const len = (k) => (localStorage.getItem(pre + k) || '').length;
     const count = (k) => {
       try {
@@ -60,7 +99,8 @@ async function storageSnapshot() {
       manifestBytes: len('blackrose_memory_manifest'),
       url: location.pathname,
     };
-  }, PRE);
+  }, accountPrefix || ACCOUNT_SCOPE_PREFIX);
+  return { accountPrefix, ...snapshot };
 }
 
 /** True when an exact-text leaf node is in the DOM. */
@@ -87,9 +127,6 @@ async function scrollClick(locator, waitMs) {
   await p.waitForTimeout(waitMs === undefined ? 600 : waitMs);
 }
 
-const QA_EMAIL = 'sigmundsarino@gmail.com';
-const QA_PASSWORD = 'qa-restore-123';
-
 /** Collect every browser dialog (confirm/alert) and auto-accept it. */
 function captureDialogs(p) {
   const dialogs = [];
@@ -101,35 +138,20 @@ function captureDialogs(p) {
 }
 
 /**
- * Sign in through the QA stub when the app is sitting on an auth screen.
+ * Boot the app and wait for its device-local account to be ready.
  *
- * Indicator-based, not URL-based: the app redirects between /login,
- * /forgot-password and /signup on its own, so a URL check both misfires and
- * misses. A freshly created headless session has an EMPTY localStorage, so
- * every script must call this before touching app state.
+ * There is no sign-in any more: the first launch mints an account id and every
+ * later launch reuses it, so a fresh headless session still has EMPTY storage
+ * but needs no credentials. Readiness = the account registry exists, which is
+ * the same signal `storageSnapshot()` depends on. Kept under the old name so
+ * existing QA scripts keep working.
  */
 async function signInIfNeeded() {
   const p = globalThis.page || state.page;
   await p.goto('http://localhost:8081/settings', { waitUntil: 'domcontentloaded' });
-  await p.waitForTimeout(5000);
-
-  const hasPasswordField = () => p.evaluate(() => !!document.querySelector('input[type="password"]'));
-  if (!(await hasPasswordField())) {
-    return 'signed-in';
-  }
-
-  await p.locator('input[type="email"]').first().fill(QA_EMAIL);
-  await p.locator('input[type="password"]').first().fill(QA_PASSWORD);
-  await p.getByText('Sign in', { exact: true }).first().click({ force: true });
-
-  for (let i = 0; i < 25; i += 1) {
-    await p.waitForTimeout(1000);
-    if (!(await hasPasswordField())) {
-      await p.waitForTimeout(1500);
-      return 'signed-in:' + p.url();
-    }
-  }
-  return 'sign-in-timeout:' + p.url();
+  await p.waitForTimeout(2000);
+  const prefix = await waitFor(() => accountStoragePrefix(), 30000);
+  return prefix ? 'local-account:' + prefix : 'local-account-timeout:' + p.url();
 }
 
 /** Poll an async predicate until it returns true (or the deadline passes). */

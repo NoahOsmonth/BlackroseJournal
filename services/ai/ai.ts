@@ -26,8 +26,6 @@ import {
 } from './conversationCompact';
 import { getKnownContextWindow } from './customModels';
 import { getResolvedDirectConfig } from './directConfig';
-import { getAiTransportMode } from './aiTransport';
-import { getManagedModelSelection, loadManagedCatalogSnapshot } from './managedCatalog';
 import { augmentSystemPromptForTurn } from './historyPrefetch';
 import {
     attachRealUsage,
@@ -50,7 +48,6 @@ import { stripToolCallSyntax } from './tools/parseTextToolCalls';
 import {
     logToolTelemetry,
     markToolsUnsupported,
-    resolveManagedToolCapability,
     resolveToolCapability,
     type ToolCapability,
 } from './tools/toolCapability';
@@ -99,25 +96,6 @@ interface LocalAiRuntime {
 
 /** Local-only runtime resolve — never waits on catalog/provider discovery during chat. */
 async function resolveLocalAiRuntime(): Promise<LocalAiRuntime> {
-    if (await getAiTransportMode() === 'managed') {
-        const snapshot = await loadManagedCatalogSnapshot();
-        const selection = getManagedModelSelection(snapshot.catalog, snapshot.preference);
-        if (selection.model && selection.availability !== 'unavailable') {
-            return {
-                contextWindow: selection.model.contextWindow,
-                modelId: selection.model.publicModelId,
-                capability: resolveManagedToolCapability(
-                    selection.model.publicModelId,
-                    selection.model.capabilities.tools
-                ),
-            };
-        }
-        return {
-            contextWindow: DEFAULT_COMPACT_CONTEXT_WINDOW,
-            modelId: 'managed-unselected',
-            capability: resolveManagedToolCapability('managed-unselected', false),
-        };
-    }
     try {
         const config = await getResolvedDirectConfig();
         if (config.contextWindow && config.contextWindow > 0) {

@@ -53,8 +53,7 @@ describe('settingsSummaries', () => {
             updatedAt: 1,
         })).toBe('Ren');
         expect(memorySummary(12)).toBe('12 memories');
-        expect(accountSummary(null)).toBe('Signed out');
-        expect(accountSummary('me@example.com')).toBe('me@example.com');
+        expect(accountSummary()).toBe('On this device');
         expect(dataManagementSummary(true)).toBe('Backup · Export');
         expect(aboutSummary()).toMatch(/^v/);
     });
