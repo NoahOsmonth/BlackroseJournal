@@ -26,6 +26,19 @@ import type { MemoryFileRecord } from './memoryFiles';
 /** Matches the atom's own 600-char trim, so every store holds the same text. */
 export const MAX_EXPLORE_NOTE_CHARS = 600;
 
+/**
+ * One clipped value, used by every store — and by the composer's preview, so
+ * what the writer sees filed is what actually gets filed. Clipping per store
+ * (or previewing from unclipped text) is how recall returns text, or themes,
+ * the writer never saw in that shape.
+ */
+export function clipNoteText(text: string): string {
+    const collapsed = text.trim().replace(/\s+/g, ' ');
+    return collapsed.length > MAX_EXPLORE_NOTE_CHARS
+        ? collapsed.slice(0, MAX_EXPLORE_NOTE_CHARS).trimEnd()
+        : collapsed;
+}
+
 export type ExploreNoteStore = 'atom' | 'file' | 'digest';
 
 export interface ExploreNoteFailure {
@@ -73,14 +86,13 @@ function messageOf(error: unknown): string {
 }
 
 export async function saveExploreNote(input: ExploreNoteInput): Promise<ExploreNoteResult> {
-    const collapsed = input.text.trim().replace(/\s+/g, ' ');
-    if (!collapsed) throw new Error('Note text is required.');
     // One clipped value, used by every store. Clipping per store is how the
     // atom ends up holding 600 chars while the entry holds 1200 — and then
-    // recall returns text the writer never saw in that shape.
-    const text = collapsed.length > MAX_EXPLORE_NOTE_CHARS
-        ? collapsed.slice(0, MAX_EXPLORE_NOTE_CHARS).trimEnd()
-        : collapsed;
+    // recall returns text the writer never saw in that shape. The composer's
+    // "Filed under" preview calls this same helper, so the themes it shows are
+    // derived from exactly the text below.
+    const text = clipNoteText(input.text);
+    if (!text) throw new Error('Note text is required.');
     const now = input.now ?? Date.now();
     const themes = extractTags(text);
     const title = deriveNoteTitle(text);
