@@ -11,7 +11,14 @@ import { runAccountBoundOperation } from '@/services/account/accountRuntime';
  * for winners. No embeddings, fully offline.
  */
 
-export type MemoryFileType = 'user' | 'feedback' | 'project';
+/**
+ * The one list. `isHeader` validates against it and the `memory_list` tool
+ * derives its accepted kinds from it, because both previously hardcoded their
+ * own copy: adding a type updated one and not the other, and the failure mode
+ * was silence (a header dropped on load, or a filter that returned everything).
+ */
+export const MEMORY_FILE_TYPES = ['user', 'feedback', 'project', 'note'] as const;
+export type MemoryFileType = (typeof MEMORY_FILE_TYPES)[number];
 export type MemoryFileScope = 'global' | 'project';
 
 export interface MemoryFileFrontmatter {
@@ -202,7 +209,8 @@ function isHeader(value: unknown): value is MemoryFileHeader {
         && typeof h.relativePath === 'string'
         && typeof h.name === 'string'
         && typeof h.description === 'string'
-        && (h.type === 'user' || h.type === 'feedback' || h.type === 'project')
+        && typeof h.type === 'string'
+        && (MEMORY_FILE_TYPES as readonly string[]).includes(h.type)
         && (h.scope === 'global' || h.scope === 'project')
         && typeof h.updatedAt === 'string';
 }
