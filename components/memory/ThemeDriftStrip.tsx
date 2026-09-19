@@ -46,6 +46,19 @@ function foldOffset(value: number, width: number): number {
     return wrapped < 0 ? wrapped + width : wrapped;
 }
 
+/**
+ * Distance between two offsets on the `[0, width)` wheel the content repeats on.
+ * A straight-line difference reads the strip's own wrap — a jump of exactly one
+ * run — as a reader's scroll, which would park the drift for the idle timeout
+ * every time it wrapped. On the circle the two sides of the seam are adjacent.
+ */
+export function circularDistance(a: number, b: number, width: number): number {
+    'worklet';
+    if (width <= 0) return Math.abs(a - b);
+    const direct = Math.abs(a - b) % width;
+    return Math.min(direct, width - direct);
+}
+
 interface ThemeDriftStripProps {
     themes: readonly string[];
     onThemePress: (theme: string) => void;
@@ -137,7 +150,7 @@ export function ThemeDriftStrip({ themes, onThemePress }: ThemeDriftStripProps) 
             const live = foldOffset(livePosition.value, width);
             // Only adopt a position the scroller really moved to. If `onScroll`
             // ever lagged, adopting blindly would jump the strip by a whole run.
-            if (width > 0 && Math.abs(live - lastDriven.value) > DIVERGENCE_EPSILON) {
+            if (width > 0 && circularDistance(live, lastDriven.value, width) > DIVERGENCE_EPSILON) {
                 offset.value = live;
                 lastDriven.value = live;
             }
@@ -158,10 +171,11 @@ export function ThemeDriftStrip({ themes, onThemePress }: ThemeDriftStripProps) 
 
         const width = runWidthValue.value;
         const live = foldOffset(livePosition.value, width);
-        // Compared folded, not raw: what we drive is always a folded offset, and
-        // `onScroll` reaches us a frame or so late, so a raw comparison would
-        // read our own wrap — a jump of a whole run — as a reader's scroll.
-        if (Math.abs(live - lastDriven.value) > DIVERGENCE_EPSILON) {
+        // Measured around the wheel, not across it: what we drive is always a
+        // folded offset and `onScroll` reaches us a frame or so late, so a
+        // straight line would read our own wrap — a jump of a whole run — as a
+        // reader's scroll and hold the drift for the idle timeout every cycle.
+        if (circularDistance(live, lastDriven.value, width) > DIVERGENCE_EPSILON) {
             // Someone else moved it — a native drag, a trackpad flick, a wheel.
             // Follow them instead of fighting, and hold the drift.
             offset.value = live;

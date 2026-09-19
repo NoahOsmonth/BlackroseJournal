@@ -1,11 +1,16 @@
 import React from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
-import { ThemeDriftStrip } from '../../components/memory/ThemeDriftStrip';
+import {
+    circularDistance,
+    ThemeDriftStrip,
+} from '../../components/memory/ThemeDriftStrip';
 
 const THEMES = ['mornings', 'calm', 'work'];
 /** The run rows' class; the 8px seam is the prototype's `.theme-run` gap. */
 const RUN_CLASS = 'flex-row items-baseline gap-2 pr-2';
+/** What one run renders, separators included. Every run must render exactly this. */
+const RUN_TEXT = ['Mornings', '·', 'Calm', '·', 'Work', '·'];
 
 /**
  * The rendered runs, host nodes only. A prop query in RNTL matches the
@@ -16,6 +21,22 @@ function runHosts() {
     return screen
         .UNSAFE_queryAllByProps({ className: RUN_CLASS })
         .filter((node) => typeof node.type === 'string');
+}
+
+type RunHost = ReturnType<typeof runHosts>[number];
+
+/**
+ * Every text leaf under a run, in render order. A raw walk of the instance tree
+ * rather than a query, so the separator's `aria-hidden` / `accessible={false}`
+ * cannot hide it from this assertion.
+ */
+function renderedText(run: RunHost): string[] {
+    const texts: string[] = [];
+    for (const child of run.children) {
+        if (typeof child === 'string') texts.push(child);
+        else texts.push(...renderedText(child));
+    }
+    return texts;
 }
 
 /** The scroller is the only host node carrying the scroll handlers. */
@@ -117,5 +138,54 @@ describe('ThemeDriftStrip', () => {
         // `accessible` is the one that stops iOS VoiceOver reading the dot
         // between every word. Pin both.
         expect(dots.every((dot) => dot.props.accessible === false)).toBe(true);
+    });
+
+    it('repeats the first run exactly, so the wrap has no seam', () => {
+        // The seamless wrap rests on every run rendering what run 0 renders: the
+        // offset is folded by one run's width, so a repeat that is one word or one
+        // separator different changes the measured width and puts a visible seam
+        // where the fold lands. Run 0 alone cannot catch that — assert the repeats
+        // render the same text, in the same order.
+        render(<ThemeDriftStrip themes={THEMES} onThemePress={jest.fn()} />);
+        const [firstRun, ...repeats] = runHosts();
+
+        expect(renderedText(firstRun!)).toEqual(RUN_TEXT);
+        expect(repeats.length).toBeGreaterThan(0);
+        for (const repeat of repeats) {
+            expect(renderedText(repeat)).toEqual(RUN_TEXT);
+        }
+    });
+});
+
+describe('circularDistance', () => {
+    // The strip's content repeats every `width`, so two offsets a whole run apart
+    // are the same place. All four cases below are about the seam: the metric has
+    // to read the strip's own wrap as stillness without going blind to a reader.
+
+    it('reads the strip\u2019s own wrap as no movement', () => {
+        // The wrap frame writes 0.156 while a one-frame-late `onScroll` still
+        // reports 299.9. Straight-line that is 299.744 — a false "a reader moved
+        // it", which parks the drift for the idle timeout on every wrap cycle.
+        expect(circularDistance(299.9, 0.156, 300)).toBeCloseTo(0.256, 9);
+        expect(circularDistance(299.9, 0.156, 300)).toBeLessThanOrEqual(1);
+        expect(circularDistance(0.156, 299.9, 300)).toBeCloseTo(0.256, 9);
+    });
+
+    it('still reads a reader\u2019s poke as movement', () => {
+        // 50px into the run: more than the epsilon whichever way it is measured.
+        expect(circularDistance(50, 0, 300)).toBe(50);
+        expect(circularDistance(50, 0, 300)).toBeGreaterThan(1);
+    });
+
+    it('reads a poke just short of a full run as the small move it is', () => {
+        // 5px short of the seam is 5px on the wheel, not 295px.
+        expect(circularDistance(295, 0, 300)).toBe(5);
+        expect(circularDistance(250, 0, 300)).toBe(50);
+    });
+
+    it('falls back to the straight line before a width is measured', () => {
+        // Pre-layout there is no wheel to measure on, and the fold is identity.
+        expect(circularDistance(250, 0, 0)).toBe(250);
+        expect(circularDistance(0, 3, -1)).toBe(3);
     });
 });
