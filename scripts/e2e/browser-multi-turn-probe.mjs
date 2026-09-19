@@ -276,7 +276,7 @@ async function main() {
       previousBody = settle.body;
 
       const errLike = /error|failed|rate limit|504|429|Something went wrong/i.test(reply);
-      const narrationLeak = /tool_call|recall_memory|get_day\(|list_recent_days/i.test(reply);
+      const narrationLeak = /tool_call|memory_search|get_day\(|list_recent_days/i.test(reply);
       const verbatimBoss = /The rework\. My boss keeps changing the requirements and I take it out on everyone\./.test(reply);
       const teapot = /teapot|enamel/i.test(reply);
       const honestFirst =

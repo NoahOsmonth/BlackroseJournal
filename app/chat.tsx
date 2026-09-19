@@ -102,7 +102,7 @@ export default function ChatScreen() {
     const { context: recentDaysContext } = useRecentDaysContext({ days: 3 });
     const { context: identityContext } = useIdentityContext();
     const { goalsContext } = useGoalsContext();
-    // Long-term recall is tool-driven: the AI calls `recall_memory` on demand.
+    // Long-term recall is tool-driven: the AI calls `memory_search` on demand.
     // No blocking per-turn recall and no reactive open-time recall — the prompt's
     // `## Relevant long-term context` slot stays empty unless the tool fills it.
     const flow = resolvedMode === 'continue' ? FLOWS.continue : FLOWS.freeform;

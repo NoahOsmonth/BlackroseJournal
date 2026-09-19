@@ -325,7 +325,7 @@ for (let i = 0; i < TURNS.length; i += 1) {
   const chain = toolChainSummary(netStart);
   const tel = agentTelemetry.slice(telStart);
   const dsmlLeak = /DSML|｜｜tool_calls|｜｜invoke/i.test(reply);
-  const narrationLeak = /tool_call|recall_memory|get_day\(|list_recent_days/i.test(reply) && !dsmlLeak;
+  const narrationLeak = /tool_call|memory_search|get_day\(|list_recent_days/i.test(reply) && !dsmlLeak;
   const verbatimBoss = /The rework\. My boss keeps changing the requirements and I take it out on everyone\./.test(reply);
 
   log(`elapsedMs=${settle.elapsedMs} timedOut=${settle.timedOut} sawThinking=${settle.sawThinking}`);
