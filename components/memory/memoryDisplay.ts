@@ -131,6 +131,14 @@ export function themesForText(text: string): string[] {
     return extractTags(text);
 }
 
+/**
+ * Same clip the write path applies before it derives themes. Re-exported from
+ * the pure `keywordRanking` module (never from `exploreNote`, whose value
+ * imports are the AsyncStorage write path) so the preview cannot promise a
+ * theme that falls past the 600-char cut and never reaches the file.
+ */
+export { clipNoteText } from '@/services/memory/keywordRanking';
+
 const LEDGER_MONTHS = [
     'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',

@@ -1,7 +1,7 @@
 import { createEntry } from '@/services/journal/journalStorage';
 import type { JournalEntry } from '@/services/journal/journalStorage.types';
 import { upsertJournalDayDigest } from './dayDigestStorage';
-import { extractTags } from './keywordRanking';
+import { clipNoteText, extractTags, MAX_NOTE_CHARS } from './keywordRanking';
 import { upsertMemoryAtom } from './localMemory';
 import type { LocalMemoryAtom } from './localMemory.types';
 import { stageUserNoteMemory } from './memoryFiles';
@@ -23,21 +23,12 @@ import type { MemoryFileRecord } from './memoryFiles';
  * and the words are still in Archive". That is the only acceptable direction.
  */
 
-/** Matches the atom's own 600-char trim, so every store holds the same text. */
-export const MAX_EXPLORE_NOTE_CHARS = 600;
-
 /**
- * One clipped value, used by every store — and by the composer's preview, so
- * what the writer sees filed is what actually gets filed. Clipping per store
- * (or previewing from unclipped text) is how recall returns text, or themes,
- * the writer never saw in that shape.
+ * The one clip length, owned by the pure `keywordRanking` module so the
+ * composer's preview can share it without importing this write path. Aliased
+ * here for callers that already reference the Explore-specific name.
  */
-export function clipNoteText(text: string): string {
-    const collapsed = text.trim().replace(/\s+/g, ' ');
-    return collapsed.length > MAX_EXPLORE_NOTE_CHARS
-        ? collapsed.slice(0, MAX_EXPLORE_NOTE_CHARS).trimEnd()
-        : collapsed;
-}
+export const MAX_EXPLORE_NOTE_CHARS = MAX_NOTE_CHARS;
 
 export type ExploreNoteStore = 'atom' | 'file' | 'digest';
 

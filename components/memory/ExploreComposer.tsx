@@ -3,8 +3,7 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { BLACKROSE_PALETTE } from '@/constants/theme';
-import { clipNoteText } from '@/services/memory/exploreNote';
-import { formatLedgerDate, themesForText } from './memoryDisplay';
+import { clipNoteText, formatLedgerDate, themesForText } from './memoryDisplay';
 
 interface ExploreComposerProps {
     value: string;

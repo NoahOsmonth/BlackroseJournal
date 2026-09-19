@@ -108,3 +108,24 @@ export function extractTags(text: string, seedTags: readonly string[] = []): str
     const ranked = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
     return uniqueValues([...seedTags, ...ranked.slice(0, 8).map(([token]) => token)]);
 }
+
+/**
+ * Matches the atom store's own 600-char trim, so every store holds the same
+ * text. Lives here (not in the write path) for the same reason `extractTags`
+ * does: the composer's preview must clip identically without pulling the
+ * AsyncStorage write path into the component graph.
+ */
+export const MAX_NOTE_CHARS = 600;
+
+/**
+ * One clipped value, used by every store — and by the composer's preview, so
+ * what the writer sees filed is what actually gets filed. Clipping per store
+ * (or previewing from unclipped text) is how recall returns text, or themes,
+ * the writer never saw in that shape.
+ */
+export function clipNoteText(text: string): string {
+    const collapsed = text.trim().replace(/\s+/g, ' ');
+    return collapsed.length > MAX_NOTE_CHARS
+        ? collapsed.slice(0, MAX_NOTE_CHARS).trimEnd()
+        : collapsed;
+}
