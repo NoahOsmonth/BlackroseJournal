@@ -19,15 +19,33 @@ import * as path from 'path';
 
 const ROOT = process.cwd();
 
-/** Modules a pure display component must never load, directly or transitively. */
+/**
+ * Modules a pure display component must never load, directly or transitively.
+ *
+ * The provider half of this list mirrors `LLM_MODULES` in
+ * `__tests__/services/exploreNoteImports.test.ts`. Naming only the two providers
+ * the write path happens to touch today left a direct
+ * `import { fetchDirectChatCompletion } from '@/services/ai/directTransport'` in
+ * the composer passing green — the guard would have caught the regression it was
+ * written for but not the class of regression it describes.
+ */
 const FORBIDDEN_MODULES = [
     'services/memory/exploreNote',
     'services/memory/localMemory',
     'services/memory/memoryFiles',
     'services/memory/dayDigestStorage',
     'services/memory/memoryAtomExtraction',
+    'services/memory/identityExtraction',
+    'services/memory/sessionDigestBuild',
+    'services/memory/memoryRollupBuild',
+    'services/memory/memoryDream',
     'services/journal/journalStorage',
+    'services/ai/directTransport',
+    'services/ai/streamingTransports',
+    'services/ai/modelContext',
+    'services/ai/customModels',
     'services/ai/jsonCompletion',
+    'services/ai/agentLoop',
     'services/ai/ai',
 ];
 
