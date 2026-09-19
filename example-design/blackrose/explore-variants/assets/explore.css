@@ -1,0 +1,774 @@
+/* ============================================================================
+   Blackrose — Explore / Threads (variant A · Index)
+   ----------------------------------------------------------------------------
+   Token source of truth: constants/blackrose.ts (locked palette) and
+   tailwind.config.js. Nothing here invents a color, radius or font.
+
+   Palette (light / dark)
+     bg        #F4F1EB / #0C0C0E
+     surface   #FFFDF9 / #151518
+     surface-2 #EDE8DF / #1A1A1E
+     hairline  #E2DCD2 / #2C2A26
+     text      #1C1917 / #EDE8E0
+     text-2    #6B6560 / #8A8580
+     accent    #5C564C / #C9C2B6
+
+   Layer families (memory graph palette)
+     bone  #5C564C / #C9C2B6   episodic, notes
+     sage  #4F6F52 / #7A9E7E   semantic, procedural
+     rose  #8A5F68 / #C4A0A6   profile, working
+
+   Radius scale: control 12 / card 16 / sheet 28.
+   Fonts: Playfair Display (titles, dates), Plus Jakarta Sans (body).
+
+   MOTION PHILOSOPHY
+   -----------------
+   One slow ambient motion, everything else brief and responsive. The drift of
+   the theme line is the only thing that loops, because it is the only thing
+   saying something a still image cannot: that this list is longer than the
+   frame. Every other animation is an arrival or an acknowledgement, under
+   400ms, and never repeats.
+   ========================================================================= */
+
+:root {
+  --bg: #f4f1eb;
+  --surface: #fffdf9;
+  --surface-2: #ede8df;
+  --hairline: #e2dcd2;
+  --text: #1c1917;
+  --text-2: #6b6560;
+  --accent: #5c564c;
+  --accent-strong: #1c1917;
+  --bone: #5c564c;
+  --sage: #4f6f52;
+  --rose: #8a5f68;
+  --scrim: rgba(28, 25, 23, 0.45);
+  --shadow-card: 0 1px 2px rgba(28, 25, 23, 0.04), 0 10px 26px -14px rgba(28, 25, 23, 0.22);
+  --shadow-lift: 0 2px 4px rgba(28, 25, 23, 0.05), 0 18px 40px -18px rgba(28, 25, 23, 0.28);
+  --radius-control: 12px;
+  --radius-card: 16px;
+  --radius-sheet: 28px;
+
+  /* Motion tokens — one place, so timings stay coherent. */
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-soft: cubic-bezier(0.33, 0.1, 0.2, 1);
+  --dur-fast: 180ms;
+  --dur-mid: 320ms;
+  --dur-slow: 520ms;
+  /* No --drift-duration: the theme strip drifts by driving scrollLeft in JS,
+     not by a CSS animation, so there is no duration token to keep in sync. */
+}
+
+.dark {
+  --bg: #0c0c0e;
+  --surface: #151518;
+  --surface-2: #1a1a1e;
+  --hairline: #2c2a26;
+  --text: #ede8e0;
+  --text-2: #8a8580;
+  --accent: #c9c2b6;
+  --accent-strong: #ede8e0;
+  --bone: #c9c2b6;
+  --sage: #7a9e7e;
+  --rose: #c4a0a6;
+  --scrim: rgba(0, 0, 0, 0.6);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 12px 30px -16px rgba(0, 0, 0, 0.8);
+  --shadow-lift: 0 2px 6px rgba(0, 0, 0, 0.55), 0 22px 48px -20px rgba(0, 0, 0, 0.9);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  min-height: 100dvh;
+  background: #26241f;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  color: var(--text);
+}
+.dark body {
+  background: #050506;
+}
+
+/* ---------------------------------------------------------------- phone frame */
+
+.phone {
+  position: relative;
+  width: 100%;
+  max-width: 26rem;
+  height: max(884px, 100dvh);
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.25rem 1.5rem 7.5rem;
+  scrollbar-width: none;
+}
+.scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---------------------------------------------------------------- typography */
+
+.serif {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-weight: 400;
+}
+.mono {
+  font-family: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.page-title {
+  margin: 0;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 2.5rem;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.page-sub {
+  margin: 0.35rem 0 0;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  color: var(--text-2);
+}
+.overline {
+  font-size: 0.625rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.material-symbols-rounded {
+  font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+  font-size: 22px;
+  line-height: 1;
+}
+
+/* -------------------------------------------------------------- theme chip */
+
+.theme-toggle {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+}
+
+.variant-overline {
+  display: block;
+  margin-bottom: 0.6rem;
+  font-size: 0.625rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  opacity: 0.85;
+}
+.variant-overline::before {
+  content: 'Variant ';
+  opacity: 0.6;
+}
+
+/* -------------------------------------------------------------- bottom dock */
+
+.dock {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 63px;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 0.75rem;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(18px);
+  border-top: 1px solid var(--hairline);
+  z-index: 30;
+}
+.dock-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  border: 0;
+  background: none;
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: 0.625rem;
+  cursor: pointer;
+}
+.dock-item[aria-current='page'] {
+  color: var(--text);
+}
+.fab {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--accent-strong);
+  color: var(--bg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+}
+
+/* ============================================================================
+   SHARED CONTENT PIECES
+   ========================================================================= */
+
+.portrait-about {
+  margin: 0;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.0625rem;
+  line-height: 1.62;
+  color: var(--text);
+}
+.portrait-meta {
+  margin: 0.75rem 0 0;
+  font-size: 0.75rem;
+  color: var(--text-2);
+}
+
+/* ------------------------------------------------------------- memory atoms */
+
+.atom-title {
+  margin: 0;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.1875rem;
+  line-height: 1.35;
+  color: var(--text);
+}
+.atom-body {
+  margin: 0.35rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.atom-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.6rem;
+  font-size: 0.8125rem;
+  color: var(--text-2);
+}
+.atom-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  background: var(--layer, var(--accent));
+}
+
+.layer-episodic { --layer: var(--bone); }
+.layer-semantic { --layer: var(--sage); }
+.layer-procedural { --layer: var(--sage); }
+.layer-profile { --layer: var(--rose); }
+.layer-working { --layer: var(--rose); }
+.layer-note { --layer: var(--bone); }
+
+.atom-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+/* Themes read as subjects, not hashtags — sentence case, no "#". They are
+   buttons because tapping one filters the list. */
+.atom-tag {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 0.6875rem;
+  letter-spacing: 0.02em;
+  color: var(--text-2);
+  cursor: pointer;
+  border-bottom: 1px solid transparent;
+  transition: color var(--dur-fast) ease, border-color var(--dur-fast) ease;
+}
+.atom-tag:hover {
+  color: var(--text);
+  border-bottom-color: var(--hairline);
+}
+
+.atom-source {
+  display: inline-block;
+  margin-top: 0.45rem;
+  font-size: 0.6875rem;
+  color: var(--text-2);
+  opacity: 0.85;
+}
+.atom-source em {
+  font-style: italic;
+  opacity: 0.95;
+}
+
+.atom-measures {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.9rem;
+  margin-top: 0.55rem;
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+}
+.atom-measure {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+/* A three-segment meter: filled segments are the confidence tier. */
+.meter {
+  display: inline-flex;
+  gap: 2px;
+}
+.meter i {
+  display: block;
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--hairline);
+}
+.meter i.on {
+  background: var(--accent);
+}
+
+/* Visually hidden but available to screen readers — the date column shows
+   "Sep / 19" visually, and this carries the full spoken label. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* -------------------------------------------------------------- search field */
+.search-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 1rem;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--hairline);
+}
+.search-icon {
+  font-size: 18px;
+  color: var(--text-2);
+  flex: 0 0 auto;
+}
+.search-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.7rem 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.9375rem;
+}
+.search-input::placeholder {
+  color: var(--text-2);
+}
+.search-input:focus {
+  outline: none;
+}
+.search-input::-webkit-search-cancel-button {
+  display: none;
+}
+
+/* ============================================================================
+   THE WRITING SURFACE
+   ----------------------------------------------------------------------------
+   The page's primary action: write freely, see how it will be filed, keep it.
+   It shares the ledger's date column, so today's line sits at the top of the
+   same column as every entry below — the metaphor made literal.
+   ========================================================================= */
+
+.write {
+  display: grid;
+  grid-template-columns: 2.5rem 1fr;
+  gap: 0 0.75rem;
+  align-items: start;
+  padding-bottom: 1.75rem;
+}
+
+.write-date {
+  padding-top: 0.15rem;
+}
+
+.write-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.write-label {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 0.625rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.write-input {
+  width: 100%;
+  min-height: 84px;
+  padding: 0.5rem 0.15rem;
+  border: 0;
+  border-bottom: 1px solid var(--hairline);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.0625rem;
+  line-height: 1.62;
+  /* No resize grip — a React Native TextInput has none, so the prototype should
+     not invent a desktop affordance. Height is driven by autoGrow() instead. */
+  resize: none;
+  overflow: hidden;
+  transition: border-color var(--dur-fast) ease;
+}
+.write-input::placeholder {
+  color: var(--text-2);
+}
+.write-input:focus {
+  outline: none;
+  border-bottom-color: var(--text);
+}
+
+/* The filing preview — the honest version of "Blackrose noticed". It states
+   what the local matcher found in YOUR words, and says so when it found
+   nothing, instead of generating an observation. */
+.write-filed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.5rem;
+}
+.write-filed[hidden] {
+  display: none;
+}
+.write-filed-label {
+  font-size: 0.625rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.write-theme {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  font-size: 0.75rem;
+  color: var(--text);
+  animation: theme-in var(--dur-mid) var(--ease-out) both;
+}
+.write-theme.is-none {
+  border-style: dashed;
+  border-radius: var(--radius-control);
+  color: var(--text-2);
+  font-size: 0.6875rem;
+}
+
+.write-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+/* The keep button is a real button, not an underlined link — it is the commit
+   action for the page, and it should look like one. */
+.write-keep {
+  padding: 0.55rem 1.1rem;
+  border-radius: var(--radius-control);
+  border: 1px solid transparent;
+  background: var(--accent-strong);
+  color: var(--bg);
+  font-family: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: opacity var(--dur-fast) ease, transform var(--dur-fast) var(--ease-out);
+}
+.write-keep:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.write-keep:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+.write-keep:not(:disabled):active {
+  transform: translateY(0) scale(0.985);
+}
+.write-privacy {
+  font-size: 0.75rem;
+  color: var(--text-2);
+}
+
+/* ============================================================================
+   MOTION
+   ----------------------------------------------------------------------------
+   One loop (the theme drift) plus short arrivals. Every animation is defined
+   once and reuses the shared easing tokens.
+   ========================================================================= */
+
+/* --- theme drift -----------------------------------------------------------
+   A horizontal strip of the portrait's themes. It is BOTH auto-drifting and
+   natively scrollable — you can swipe, drag, or trackpad it yourself.
+
+   Why it scrolls rather than transforms: an auto-drifting row is watchable but
+   not explorable. Making it a real scroll container gives the reader control,
+   and it is the honest affordance — the content genuinely is wider than the
+   frame. That also forces the mechanism: a `transform` animation and native
+   scroll cannot both own the offset, so the drift is applied to `scrollLeft`
+   instead (see the page script). One mechanism, one source of truth.
+
+   The drift is ambient, not insistent: it pauses the moment the reader touches
+   the strip — hover, focus, drag, or wheel — and only resumes after a few
+   seconds of quiet. A moving target is an unclickable one, and these are
+   buttons. */
+.theme-drift {
+  position: relative;
+  margin-top: 1rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+  /* Horizontal wheel/trackpad gestures drive the strip; vertical page scroll is
+     never hijacked. */
+  overscroll-behavior-x: contain;
+  cursor: grab;
+  /* Both edges dissolve, so words fade rather than clip against the gutter.
+     This mask is what keeps it from reading as a stock ticker. */
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 2.5rem, #000 calc(100% - 2.5rem), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 2.5rem, #000 calc(100% - 2.5rem), transparent 100%);
+}
+.theme-drift::-webkit-scrollbar {
+  display: none;
+}
+.theme-drift.is-dragging {
+  cursor: grabbing;
+  /* No text selection while dragging the strip. */
+  user-select: none;
+}
+
+.theme-track {
+  display: flex;
+  align-items: baseline;
+  /* No gap: each run supplies its own trailing spacing, so one run's width is
+     exactly the repeat distance the wrap uses. */
+  gap: 0;
+  width: max-content;
+}
+/* One full pass of the theme list, ending in a separator and padding so the
+   wrap distance is exact and the seam never shows a collision. */
+.theme-run {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding-right: 0.5rem;
+  white-space: nowrap;
+}
+
+.theme-word {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1rem;
+  font-style: italic;
+  color: var(--text);
+  cursor: pointer;
+  border-bottom: 1px solid transparent;
+  white-space: nowrap;
+  transition: border-color var(--dur-fast) ease;
+}
+.theme-word:hover,
+.theme-word:focus-visible {
+  border-bottom-color: var(--accent);
+}
+.theme-sep {
+  color: var(--text-2);
+  font-size: 0.8125rem;
+  opacity: 0.6;
+}
+
+@keyframes theme-in {
+  from { opacity: 0; transform: translateY(3px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+
+/* --- entry arrivals --------------------------------------------------------
+   Only entries that have NOT been rendered before carry `is-new`, so an
+   arrival plays once per memory and never again. Without that guard, every
+   keystroke in search would re-animate the entire list — which is the single
+   most annoying thing a page like this can do. */
+.entry.is-new {
+  animation: entry-in var(--dur-slow) var(--ease-soft) both;
+}
+@keyframes entry-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* A freshly kept line: a warm wash that fades. This is the page's most
+   important moment — you watch your own words become part of the archive. It
+   is driven by `pendingFreshId`, which is set on keep and consumed by the very
+   next render, so the mark belongs to that moment rather than to the memory. */
+.entry.is-fresh {
+  animation: entry-in var(--dur-slow) var(--ease-soft) both, fresh-wash 2.6s var(--ease-out) both;
+}
+@keyframes fresh-wash {
+  0% { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  70% { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+  100% { background: transparent; }
+}
+
+/* The composer's own rule responds to focus, so the page acknowledges that you
+   have started writing without any other chrome. */
+.write.is-active .write-input {
+  border-bottom-color: var(--text);
+}
+
+/* --- date markers ----------------------------------------------------------
+   The date column is the ledger's spine. Today's marker is inked; older days
+   carry a small rule, which draws itself in on arrival. */
+.entry-date {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.05rem;
+  padding-top: 1.4rem;
+  font-variant-numeric: tabular-nums;
+}
+.entry-date-month {
+  font-size: 0.625rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.entry-date-day {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.0625rem;
+  line-height: 1.1;
+  color: var(--text-2);
+}
+/* A day's first entry is inked and heavier; repeats of the same day are muted,
+   so the eye can find day boundaries while scrolling. */
+.entry-date.is-day-start .entry-date-day {
+  color: var(--text);
+}
+.entry-date.is-today .entry-date-day {
+  color: var(--text);
+}
+.entry-date.is-today::after {
+  content: '';
+  display: block;
+  width: 1.25rem;
+  height: 2px;
+  margin-top: 0.3rem;
+  border-radius: 2px;
+  background: var(--accent);
+  animation: rule-in var(--dur-slow) var(--ease-out) both;
+}
+/* Repeats of a day already shown above keep the day number but drop the month,
+   which is how a printed ledger handles continuation. */
+.entry-date.is-repeat .entry-date-month {
+  opacity: 0;
+}
+
+@keyframes rule-in {
+  from { transform: scaleX(0); transform-origin: left; }
+  to { transform: scaleX(1); transform-origin: left; }
+}
+
+/* --- results changing ------------------------------------------------------
+   When a filter or search changes the list, the new set fades in as a block.
+   A single quiet transition, not a per-item stagger — the list is a document,
+   not a dashboard. */
+.index-list {
+  transition: opacity var(--dur-mid) ease;
+}
+.index-list.is-refiltering {
+  opacity: 0;
+}
+
+/* --- dock ---------------------------------------------------------------- */
+
+.dock-item {
+  transition: color var(--dur-fast) ease;
+}
+.fab {
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+.fab:active {
+  transform: scale(0.94);
+}
+
+/* --- empty / no results -------------------------------------------------- */
+
+.no-results {
+  padding: 1.5rem 0.25rem;
+  font-size: 0.875rem;
+  color: var(--text-2);
+  animation: entry-in var(--dur-mid) var(--ease-soft) both;
+}
+
+/* --- reduced motion --------------------------------------------------------
+   Honour the OS setting: no looping drift, no arrivals, no washes. The page
+   must remain fully usable and readable with all motion off. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  /* The theme strip only loses its self-propulsion (the script checks this
+     query); it stays a normal scroll container, so nothing here may reflow
+     the track — wrapping the runs would break the periodic offset model. */
+}

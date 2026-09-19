@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Blackrose Explore — Index (Threads)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=Plus+Jakarta+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,300,0,0" rel="stylesheet" />
+<style>
+  /* ==========================================================================
+     Explore (Threads) — single-variant showcase.
+
+     One live phone frame of variant-a-index.html, beside the design notes.
+     The frame is a real iframe, so what you see is exactly what you get when
+     you open the file directly. The scheme toggle drives the frame; the reset
+     button restores its default state.
+     ========================================================================== */
+
+  :root {
+    --bg: #f4f1eb;
+    --surface: #fffdf9;
+    --surface-2: #ede8df;
+    --hairline: #e2dcd2;
+    --text: #1c1917;
+    --text-2: #6b6560;
+    --accent: #5c564c;
+  }
+  .dark {
+    --bg: #0c0c0e;
+    --surface: #151518;
+    --surface-2: #1a1a1e;
+    --hairline: #2c2a26;
+    --text: #ede8e0;
+    --text-2: #8a8580;
+    --accent: #c9c2b6;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+
+  .wrap {
+    padding: 2.5rem 2rem 4rem;
+    max-width: 96rem;
+    margin: 0 auto;
+  }
+
+  header {
+    display: flex;
+    align-items: flex-end;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--hairline);
+    margin-bottom: 2.5rem;
+  }
+  h1 {
+    margin: 0;
+    font-family: 'Playfair Display', Georgia, serif;
+    font-weight: 400;
+    font-size: 2.75rem;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+  }
+  .lede {
+    margin: 0.5rem 0 0;
+    max-width: 48rem;
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    color: var(--text-2);
+  }
+  .spacer { flex: 1 1 6rem; }
+  .controls { display: flex; gap: 0.5rem; align-items: center; }
+  button { font-family: inherit; cursor: pointer; }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0.9rem;
+    border-radius: 999px;
+    border: 1px solid var(--hairline);
+    background: var(--surface);
+    color: var(--text-2);
+    font-size: 0.6875rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .pill[aria-pressed='true'] {
+    color: var(--text);
+    border-color: var(--accent);
+  }
+
+  .stage {
+    display: grid;
+    grid-template-columns: minmax(21rem, 26rem) minmax(24rem, 1fr);
+    gap: 3.5rem;
+    align-items: start;
+  }
+  @media (max-width: 60rem) {
+    .stage { grid-template-columns: 1fr; gap: 2.5rem; }
+  }
+
+  .item { display: flex; flex-direction: column; gap: 0.9rem; position: sticky; top: 2rem; }
+  @media (max-width: 60rem) { .item { position: static; } }
+
+  .item-head { display: flex; align-items: baseline; gap: 0.6rem; }
+  .letter {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 1.75rem;
+    line-height: 1;
+    color: var(--accent);
+  }
+  .name {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 1.25rem;
+    color: var(--text);
+  }
+  .open {
+    margin-left: auto;
+    font-size: 0.625rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-2);
+    text-decoration: none;
+    border-bottom: 1px solid var(--hairline);
+    padding-bottom: 1px;
+  }
+  .open:hover { color: var(--text); border-color: var(--accent); }
+
+  .idea {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.55;
+    color: var(--text-2);
+  }
+  .idea b { color: var(--text); font-weight: 500; }
+
+  .frame {
+    position: relative;
+    height: 54rem;
+    border-radius: 18px;
+    overflow: hidden;
+    border: 1px solid var(--hairline);
+    background: var(--bg);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06), 0 24px 48px -28px rgba(0,0,0,0.45);
+  }
+  .frame iframe { width: 100%; height: 100%; border: 0; display: block; }
+
+  .note {
+    font-size: 0.8125rem;
+    line-height: 1.65;
+    color: var(--text-2);
+  }
+  .note h2 {
+    margin: 0 0 0.5rem;
+    font-family: 'Playfair Display', Georgia, serif;
+    font-weight: 400;
+    font-size: 1.375rem;
+    color: var(--text);
+  }
+  .note section { padding-bottom: 1.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--hairline); }
+  .note section:last-child { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }
+  .note b { color: var(--text); font-weight: 500; }
+  .note i { color: var(--text); }
+  .note code {
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 0.75rem;
+    padding: 0.1rem 0.3rem;
+    border-radius: 4px;
+    background: var(--surface-2);
+  }
+  .note ul { margin: 0.75rem 0 0; padding-left: 1.1rem; }
+  .note li { margin-bottom: 0.35rem; }
+  .note li:last-child { margin-bottom: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Explore — the Index</h1>
+      <p class="lede">
+        The Threads tab, where you write freely with no AI in the loop. The old page
+        was four identical bordered rectangles in a column — chips, segment, search,
+        then thirty atom cards — so every element had equal weight and nothing led;
+        and at its foot sat a fake AI panel whose "Blackrose noticed" block made zero
+        LLM calls. This rebuilds the page around a real writing surface as the
+        primary action. Everything is live: type and keep it, search, tap filters,
+        drag the theme strip, click a theme word.
+      </p>
+    </div>
+    <span class="spacer"></span>
+    <div class="controls">
+      <button type="button" class="pill" id="theme-btn" aria-pressed="false">
+        <span class="material-symbols-rounded" style="font-size:15px">contrast</span>
+        <span id="theme-label">Light</span>
+      </button>
+      <button type="button" class="pill" id="reset-btn">Reset state</button>
+    </div>
+  </header>
+
+  <div class="stage">
+    <div class="item">
+      <div class="item-head">
+        <span class="letter">A</span>
+        <span class="name">Index</span>
+        <a class="open" href="variant-a-index.html" target="_blank" rel="noopener">open &#8599;</a>
+      </div>
+      <p class="idea">
+        <b>No boxes at all.</b> Memories sit on a ruled column with a serif date in
+        the margin, like a printed ledger. Filters become one line of text with the
+        active word inked; search becomes a rule you write on. Writing opens the page
+        as a blank line — "New line" — and keeping it numbers it into the ledger.
+      </p>
+      <div class="frame"><iframe src="variant-a-index.html" title="Variant A — Index" loading="eager"></iframe></div>
+    </div>
+
+    <div class="note">
+      <section>
+        <h2>The writing surface</h2>
+        <p>
+          The old panel was
+          <code>Notes / [Add a private note…] / Save note / Refresh / BLACKROSE NOTICED /
+          "Themes settle around career pressure…" / Intention · Morning · Balance /
+          Keep this as a note</code>. It was a fake AI feature:
+        </p>
+        <ul>
+          <li><b>"Blackrose noticed" made zero LLM calls.</b> It is a string template
+            (<code>generateMemoryNoteSuggestion</code>, <code>services/memory/localMemory.ts</code>)
+            that concatenates 180 characters of your own memory text and wraps it in
+            canned therapy-speak — which is why it reads as three sentences jammed
+            together with no grammar.</li>
+          <li><b>It still says "Rosebud"</b> — the retired brand — and a test locks the
+            string in (<code>__tests__/services/localMemory.test.ts</code>).</li>
+          <li><b>"Refresh" was a no-op.</b> The suggestion is a pure function of the
+            atoms, and <code>refresh()</code> already reruns it on every change. Same
+            input, same string, forever.</li>
+          <li><b>"Keep this as a note" did nothing.</b> It saved at
+            <code>layer: 'note'</code>, which <code>topAtoms()</code> then filters out —
+            so keeping a suggestion could never influence the next one.</li>
+        </ul>
+        <p style="margin-top:0.75rem">
+          This page is where you write freely, with no AI in the loop. So the honest
+          replacement is a real writing surface that is <i>the page's primary action</i>
+          rather than a footnote below thirty cards. You write; a local matcher shows
+          how it will be filed; you keep it. The matcher is plain word-boundary
+          matching against a shared theme vocabulary — deterministic and predictable —
+          and when it recognises nothing it <i>says so</i> instead of generating an
+          observation. There is no Refresh because there is nothing to recompute, and
+          no "Keep this as a note" because this <b>is</b> the note.
+        </p>
+      </section>
+
+      <section>
+        <h2>The content model</h2>
+        <p>
+          The cards showed real extraction output:
+          <code>"Recurring theme: the user returns to calm mornings…"</code> with tags
+          <code>#recurring #theme #user</code>. Four failures, none of them layout:
+        </p>
+        <ul>
+          <li><b>Leaked machine prose.</b> "Recurring theme:" is the extraction prompt's
+            own vocabulary coming back out of the model. <code>memoryAtomExtraction.ts</code>
+            already forbids it; nothing validates the result, so it ships.</li>
+          <li><b>Third person.</b> "the user returns" — the app talks <i>about</i> the
+            writer <i>to</i> the writer, while the rest of the product says "What
+            Blackrose holds for you".</li>
+          <li><b>Title equals content.</b> Both fields carried identical text, so every
+            card spent two lines saying one thing. Here title is the claim and body is
+            the evidence, so they add rather than repeat.</li>
+          <li><b>Tags as artifacts.</b> <code>#recurring #theme #user</code> is
+            bookkeeping, not themes. Real themes are what the graph clusters on, so
+            they are set as words and drive the filters and the strip.</li>
+        </ul>
+        <p style="margin-top:0.75rem">
+          The cards also show three things the old card threw away even though the atom
+          already carried them: <b>provenance</b> ("from <i>A week that got away from
+          me</i>"), <b>confidence</b> as a word and a meter, and <b>recurrence</b>
+          ("returned 5×") from <code>accessCount</code>.
+        </p>
+      </section>
+
+      <section>
+        <h2>The dates</h2>
+        <p>
+          Each memory carries a serif date column in the margin — month over day. The
+          month is dropped on a repeat of a day already shown above it, which is how a
+          printed ledger handles continuation, so the eye reads one date per group
+          instead of a wall of repeated months. Today's date is inked and carries a
+          short rule beneath it.
+        </p>
+        <p style="margin-top:0.75rem">
+          These are <b>write</b> dates, never event dates — the clock doctrine. A
+          memory written on the 19th about a Tuesday in August is filed on the 19th.
+          The list header says "Written" for exactly that reason.
+        </p>
+      </section>
+
+      <section>
+        <h2>The drifting theme strip</h2>
+        <p>
+          The strip under the portrait drifts slowly, and it is also a normal scroll
+          container you can drag left and right. Those two cannot both own the offset,
+          so the drift drives <code>scrollLeft</code> rather than a transform — one
+          mechanism, and the reader keeps full control of it.
+        </p>
+        <p style="margin-top:0.75rem">
+          Seamlessness rests on the content being <b>periodic</b>: the track holds N
+          identical runs of the same words, so the offset
+          <code>scrollLeft + runWidth</code> renders exactly the same pixels as
+          <code>scrollLeft</code>. That makes the wrap invisible — and it means
+          normalising the offset after a manual scroll is invisible too. N is
+          computed, not hard-coded: we need <code>maxScroll &gt;= runWidth</code>, and
+          with a short theme list in a wide frame two runs are not enough, so the strip
+          could never reach its own wrap point and the drift would jam against the end.
+        </p>
+        <ul>
+          <li><b>Any interaction hands control over.</b> Hover, focus, wheel, touch or
+            drag pauses the drift; it resumes after a beat of quiet, resynced from the
+            DOM so it continues from wherever you left it.</li>
+          <li><b>Drag with a mouse only.</b> Touch and trackpad already scroll natively,
+            so the script fills the one gap the browser leaves on desktop. A few pixels
+            of slop keeps an unsteady click a click, and a drag that ends on a word does
+            not also fire that word's filter.</li>
+          <li><b>Hidden tabs do not drift</b> — it would burn cycles for nobody and
+            resume mid-word. Reduced motion keeps the strip fully scrollable; it only
+            loses the self-propulsion.</li>
+          <li><b>Measured after the fonts load.</b> A run measured in fallback metrics
+            would put the wrap distance in the wrong place and show a jump at the seam,
+            so the runs are re-measured once Playfair Display arrives.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Motion</h2>
+        <p>
+          Timings live in one place as tokens
+          (<code>--ease-out</code>, <code>--dur-fast</code> 180ms,
+          <code>--dur-mid</code> 320ms, <code>--dur-slow</code> 520ms). The list
+          animates only on arrival, never on every keystroke: a search re-filter fades
+          the whole set as one block rather than staggering items, because the list is a
+          document, not a dashboard. Keeping a memory gives it a one-shot arrival —
+          a short wash and a rise — and nothing loops.
+        </p>
+      </section>
+
+      <section>
+        <h2>Tokens</h2>
+        <p>
+          The locked palette (<code>constants/blackrose.ts</code>), the 12 / 16 / 28
+          radius scale, Playfair Display for titles and dates and Plus Jakarta Sans for
+          body, and the bone / sage / rose layer families from the memory graph.
+          Nothing here invents a token, and both schemes are painted — the strip, the
+          list and the composer each carry their dark values.
+        </p>
+      </section>
+
+      <section>
+        <h2>What shipping this requires</h2>
+        <p>
+          The layout and writing surface are contained in
+          <code>MemoryHubScreen.tsx</code>, <code>components/memory/*</code> and
+          <code>useLocalMemories</code>. Deleting the fake block means removing
+          <code>generateMemoryNoteSuggestion</code>, <code>saveGeneratedMemoryNote</code>,
+          <code>addGeneratedNote</code> and <code>refreshGeneratedNote</code>, plus the
+          test that asserts the "Rosebud" string. The content half needs post-model
+          validation in the extraction path: reject or repair a leading "Recurring
+          theme:" and any third-person "the user", enforce title ≠ content, and keep the
+          theme vocabulary small and shared. Provenance, confidence and recurrence are
+          already on <code>LocalMemoryAtom</code> — they only need to be rendered.
+        </p>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+  const frames = () => Array.from(document.querySelectorAll('.frame iframe'));
+
+  function broadcastTheme(dark) {
+    frames().forEach((f) => {
+      try {
+        f.contentDocument.documentElement.classList.toggle('dark', dark);
+        f.contentDocument.querySelectorAll('[data-theme-label]').forEach((el) => {
+          el.textContent = dark ? 'Dark' : 'Light';
+        });
+      } catch (e) {
+        /* same-origin only; ignore if opened from file:// with strict settings */
+      }
+    });
+  }
+
+  const themeBtn = document.getElementById('theme-btn');
+  const themeLabel = document.getElementById('theme-label');
+  let dark = false;
+
+  themeBtn.addEventListener('click', () => {
+    dark = !dark;
+    document.documentElement.classList.toggle('dark', dark);
+    themeBtn.setAttribute('aria-pressed', String(dark));
+    themeLabel.textContent = dark ? 'Dark' : 'Light';
+    broadcastTheme(dark);
+  });
+
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    frames().forEach((f) => {
+      try {
+        f.contentWindow.location.reload();
+      } catch (e) { /* ignore */ }
+    });
+  });
+
+  /* The frame finishes loading after this script runs — re-apply the scheme. */
+  frames().forEach((f) => f.addEventListener('load', () => broadcastTheme(dark)));
+</script>
+</body>
+</html>
