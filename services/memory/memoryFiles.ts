@@ -289,9 +289,12 @@ export async function stageTmpMemory(input: StageMemoryInput): Promise<MemoryFil
             capturedAt,
             ...(input.sourceSessionKey ? { sourceSessionKey: input.sourceSessionKey } : {}),
         };
+        // Body first, header second. An orphan body key is unreferenced and
+        // reclaimable; a header with no bytes is an unreachable memory, because
+        // every reader skips a missing body in silence.
+        await storageAdapter.setItem(bodyKey(id), body);
         manifest[id] = header;
         await saveManifest(manifest);
-        await storageAdapter.setItem(bodyKey(id), body);
         record = { ...header, content: body, preview: previewText(body, HEADER_PREVIEW_CHARS) };
     });
     // Assignment happens inside the locked task, so this is only undefined if the
@@ -463,7 +466,13 @@ export async function getMemoryRecordsByIds(
         const header = manifest[id];
         if (!header || header.deprecated) continue;
         const body = await storageAdapter.getItem(bodyKey(id));
-        if (typeof body !== 'string') continue;
+        if (typeof body !== 'string') {
+            // A header with no bytes is a memory nobody can read. Writes are
+            // body-first now, so this is either pre-fix data or a body removed
+            // out of band — either way it must not disappear in silence.
+            console.warn(`Memory file ${id} has a manifest header but no body; skipping.`);
+            continue;
+        }
         records.push({ ...header, content: body, preview: previewText(body, BODY_PREVIEW_CHARS) });
     }
     return records;
@@ -498,6 +507,26 @@ export async function listFormalProjectIds(): Promise<string[]> {
         ids.add(header.projectId);
     });
     return Array.from(ids).sort();
+}
+
+/**
+ * Manifest headers whose body key is missing — a memory that exists on paper and
+ * nowhere else. Every reader skips these silently, so without this they are
+ * invisible forever. Reporting only: the body is gone, so there is nothing to
+ * repair; the point is to stop the loss being silent.
+ *
+ * Writes are body-first, so a crash cannot create a new one of these.
+ */
+export async function findOrphanManifestHeaders(): Promise<MemoryFileHeader[]> {
+    return withFilesLock(async () => {
+        const manifest = await loadManifest();
+        const orphans: MemoryFileHeader[] = [];
+        for (const header of Object.values(manifest)) {
+            const body = await storageAdapter.getItem(bodyKey(header.id));
+            if (typeof body !== 'string') orphans.push(header);
+        }
+        return orphans;
+    });
 }
 
 /** All non-deprecated `_tmp` staged files awaiting Dream. */
@@ -609,8 +638,12 @@ export async function promoteTmpRecord(id: string, targetProjectId: string): Pro
         };
         manifest[newId] = header;
         manifest[id] = { ...source, deprecated: true, updatedAt: timestamp };
-        await saveManifest(manifest);
+        // Same ordering as staging, and here it also protects the source: the
+        // `_tmp` original is deprecated in this same manifest save, so a crash
+        // after the save but before the body write would retire the source while
+        // the promoted copy had no bytes — losing the memory outright.
         await storageAdapter.setItem(bodyKey(newId), body);
+        await saveManifest(manifest);
         return header;
     });
 }

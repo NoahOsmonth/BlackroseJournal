@@ -1,12 +1,15 @@
 import {
     clearMemoryFiles,
+    findOrphanManifestHeaders,
     getMemoryRecordsByIds,
     listMemoryFiles,
     listTmpFiles,
     MEMORY_FILE_BODY_PREFIX,
     MEMORY_FILES_MANIFEST_KEY,
+    promoteTmpRecord,
     resetMemoryFilesStorageAdapter,
     setMemoryFilesStorageAdapter,
+    stageTmpMemory,
     stageUserNoteMemory,
 } from '../../../services/memory/memoryFiles';
 
@@ -155,6 +158,123 @@ describe('stageUserNoteMemory', () => {
             const b = await stageUserNoteMemory({ text: 'Same words.', sourceEntryId: 'entry_b' });
             expect(a.id).not.toBe(b.id);
             await expect(listTmpFiles()).resolves.toHaveLength(2);
+        } finally {
+            await clearMemoryFiles();
+            resetMemoryFilesStorageAdapter();
+        }
+    });
+});
+
+describe('write ordering: body before header', () => {
+    it('leaves no dangling header when the manifest write fails during staging', async () => {
+        const adapter = createAdapter();
+        setMemoryFilesStorageAdapter(adapter);
+        try {
+            // Kill the app at the moment the manifest would have been saved.
+            const realSetItem = adapter.setItem.getMockImplementation()!;
+            adapter.setItem.mockImplementation(async (key: string, value: string) => {
+                if (key === MEMORY_FILES_MANIFEST_KEY) throw new Error('process killed');
+                await realSetItem(key, value);
+            });
+            await expect(stageTmpMemory({
+                type: 'project', name: 'Doomed', description: 'd', body: '## Current Stage\nx',
+            })).rejects.toThrow('process killed');
+            adapter.setItem.mockImplementation(realSetItem);
+
+            // The header never landed, so nothing references the orphan body.
+            await expect(findOrphanManifestHeaders()).resolves.toEqual([]);
+        } finally {
+            await clearMemoryFiles();
+            resetMemoryFilesStorageAdapter();
+        }
+    });
+
+    it('leaves no dangling header when the manifest write fails during promotion', async () => {
+        const adapter = createAdapter();
+        setMemoryFilesStorageAdapter(adapter);
+        try {
+            const staged = await stageTmpMemory({
+                type: 'project', name: 'Promote me', description: 'd',
+                body: '## Current Stage\ncontent worth keeping',
+            });
+            const realSetItem = adapter.setItem.getMockImplementation()!;
+            adapter.setItem.mockImplementation(async (key: string, value: string) => {
+                if (key === MEMORY_FILES_MANIFEST_KEY) throw new Error('process killed');
+                await realSetItem(key, value);
+            });
+            await expect(promoteTmpRecord(staged.id, 'work')).rejects.toThrow('process killed');
+            adapter.setItem.mockImplementation(realSetItem);
+
+            // The _tmp source is still live and still promotable — nothing was lost.
+            const headers = await listMemoryFiles({});
+            expect(headers.map((h) => h.id)).toEqual([staged.id]);
+            await expect(findOrphanManifestHeaders()).resolves.toEqual([]);
+        } finally {
+            await clearMemoryFiles();
+            resetMemoryFilesStorageAdapter();
+        }
+    });
+
+    it('reports a header whose body is missing', async () => {
+        const adapter = createAdapter();
+        setMemoryFilesStorageAdapter(adapter);
+        try {
+            const id = seedNoteHeader(adapter);
+            adapter.store.delete(`@blackrose_memory_file:${id}`);
+            const orphans = await findOrphanManifestHeaders();
+            expect(orphans.map((h) => h.id)).toEqual([id]);
+        } finally {
+            await clearMemoryFiles();
+            resetMemoryFilesStorageAdapter();
+        }
+    });
+
+    // The two tests above kill the process *instead of* the manifest save, so
+    // the manifest never lands under either ordering. The bug needs the kill to
+    // land *after* the manifest persists — that is the instant the header exists
+    // and the body never arrives, which is precisely what manifest-first allows.
+    it('leaves no dangling header when the process dies before the staged body lands', async () => {
+        const adapter = createAdapter();
+        setMemoryFilesStorageAdapter(adapter);
+        try {
+            const realSetItem = adapter.setItem.getMockImplementation()!;
+            adapter.setItem.mockImplementation(async (key: string, value: string) => {
+                if (key.startsWith(MEMORY_FILE_BODY_PREFIX)) throw new Error('process killed');
+                await realSetItem(key, value);
+            });
+            await expect(stageTmpMemory({
+                type: 'project', name: 'Doomed', description: 'd', body: '## Current Stage\nx',
+            })).rejects.toThrow('process killed');
+            adapter.setItem.mockImplementation(realSetItem);
+
+            await expect(findOrphanManifestHeaders()).resolves.toEqual([]);
+        } finally {
+            await clearMemoryFiles();
+            resetMemoryFilesStorageAdapter();
+        }
+    });
+
+    it('keeps the _tmp source live when the process dies before the promoted body lands', async () => {
+        const adapter = createAdapter();
+        setMemoryFilesStorageAdapter(adapter);
+        try {
+            const staged = await stageTmpMemory({
+                type: 'project', name: 'Promote me', description: 'd',
+                body: '## Current Stage\ncontent worth keeping',
+            });
+            const realSetItem = adapter.setItem.getMockImplementation()!;
+            adapter.setItem.mockImplementation(async (key: string, value: string) => {
+                if (key.startsWith(MEMORY_FILE_BODY_PREFIX)) throw new Error('process killed');
+                await realSetItem(key, value);
+            });
+            await expect(promoteTmpRecord(staged.id, 'work')).rejects.toThrow('process killed');
+            adapter.setItem.mockImplementation(realSetItem);
+
+            // Manifest-first deprecates the source in the save that precedes the
+            // body write, so a kill here retires the only copy that had bytes.
+            const headers = await listMemoryFiles({});
+            expect(headers.map((h) => h.id)).toEqual([staged.id]);
+            await expect(findOrphanManifestHeaders()).resolves.toEqual([]);
         } finally {
             await clearMemoryFiles();
             resetMemoryFilesStorageAdapter();
