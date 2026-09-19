@@ -3,7 +3,7 @@ import React from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
-import { BLACKROSE_PALETTE, MemoryLayerColors } from '@/constants/theme';
+import { BLACKROSE_PALETTE, memoryLayerShades } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { LocalMemoryAtom } from '@/services/memory/localMemory.types';
 import {
@@ -39,8 +39,12 @@ export function MemoryLedgerRow({
     showMonth,
 }: MemoryLedgerRowProps) {
     const isDark = useColorScheme() === 'dark';
+    const scheme = isDark ? 'dark' : 'light';
     const inkColor = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
-    const layerColor = MemoryLayerColors[atom.layer];
+    // Scheme-aware, unlike `MemoryLayerColors` which always resolves the dark
+    // family: the dark note shade on paper is 2.6:1, under the 3:1 non-text
+    // threshold, so the marker would read as a smudge in light mode.
+    const layerColor = memoryLayerShades(atom.layer, scheme).deep;
     const date = formatLedgerDate(atom.createdAt);
     const tags = atom.tags.slice(0, 3);
     const route = memoryAtomRoute(atom);
@@ -58,8 +62,12 @@ export function MemoryLedgerRow({
         <Pressable
             onPress={canOpen ? handlePress : undefined}
             disabled={!canOpen}
-            accessibilityRole={canOpen ? 'button' : undefined}
-            accessibilityLabel={canOpen ? `Open memory ${atom.title}` : atom.title}
+            testID="memory-ledger-row"
+            // `Pressable` is an accessibility element by default, which would
+            // group the delete and tag buttons into the row and make them
+            // unreachable to a screen reader. Opting out keeps them focusable;
+            // the title pressable below carries the row's own open action.
+            accessible={false}
             className="flex-row gap-4 py-4"
             style={({ pressed }) => [{ opacity: pressed && canOpen ? 0.92 : 1 }]}
         >
@@ -77,13 +85,21 @@ export function MemoryLedgerRow({
 
             <View className="min-w-0 flex-1 gap-2">
                 <View className="flex-row items-start justify-between gap-3">
-                    <Text
-                        className="min-w-0 flex-1 text-[18px] leading-6 text-text-light dark:text-text-dark"
-                        style={{ fontFamily: 'PlayfairDisplayRegular' }}
-                        numberOfLines={2}
+                    <Pressable
+                        onPress={canOpen ? handlePress : undefined}
+                        disabled={!canOpen}
+                        accessibilityRole={canOpen ? 'button' : undefined}
+                        accessibilityLabel={canOpen ? `Open memory ${atom.title}` : undefined}
+                        className="min-w-0 flex-1"
                     >
-                        {atom.title}
-                    </Text>
+                        <Text
+                            className="text-[18px] leading-6 text-text-light dark:text-text-dark"
+                            style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                            numberOfLines={2}
+                        >
+                            {atom.title}
+                        </Text>
+                    </Pressable>
                     <Pressable
                         onPress={() => onDelete(atom)}
                         className="h-8 w-8 items-center justify-center"
@@ -105,6 +121,7 @@ export function MemoryLedgerRow({
                 <View className="flex-row items-center gap-2">
                     <View
                         className="h-1.5 w-1.5 rounded-full"
+                        testID="memory-ledger-row-layer-dot"
                         style={{ backgroundColor: layerColor }}
                         accessibilityLabel={`${MEMORY_LAYER_LABELS[atom.layer]} memory marker`}
                     />
@@ -116,7 +133,7 @@ export function MemoryLedgerRow({
                     </Text>
                     {atom.accessCount > 0 ? (
                         <Text className="text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
-                            · {atom.accessCount} revisits
+                            · {atom.accessCount} {atom.accessCount === 1 ? 'revisit' : 'revisits'}
                         </Text>
                     ) : null}
                 </View>
