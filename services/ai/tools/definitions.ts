@@ -1,3 +1,4 @@
+import { MEMORY_FILE_TYPES } from '@/services/memory/memoryFiles';
 import type { OpenAiToolSpec, ToolDefinition } from './types';
 
 export const HISTORY_TOOL_DEFINITIONS: ToolDefinition[] = [
@@ -127,7 +128,7 @@ export const HISTORY_TOOL_DEFINITIONS: ToolDefinition[] = [
         parameters: {
             type: 'object',
             properties: {
-                kind: { type: 'string', enum: ['all', 'user', 'feedback', 'project'] },
+                kind: { type: 'string', enum: ['all', ...MEMORY_FILE_TYPES] },
                 query: { type: 'string', description: 'Optional search string.' },
                 projectId: { type: 'string', description: 'Optional thread id filter.' },
                 limit: { type: 'number', description: 'Max items (default 10).' },

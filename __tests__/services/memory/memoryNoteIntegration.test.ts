@@ -3,19 +3,26 @@
  *
  * `memoryNoteFiles.test.ts` covers the store itself (the type surviving a
  * manifest round-trip, `stageUserNoteMemory`, body-before-header write ordering).
- * This file covers how a note behaves in the machinery *around* the store —
- * starting with supersession (R2): a note is the writer's own words, so it is
- * never auto-deprecated as "restated by a newer memory in the same thread".
+ * This file covers how a note behaves in the machinery *around* the store:
+ *
+ * 1. Supersession (R2) — a note is the writer's own words, so it is never
+ *    auto-deprecated as "restated by a newer memory in the same thread".
+ * 2. `memory_list` kind coercion — the tool's accepted kinds are derived from
+ *    `MEMORY_FILE_TYPES`, so `{"kind":"note"}` filters to notes instead of
+ *    silently falling through to every kind.
  *
  * Split out rather than appended: the store file was already 283 of the 300-line
- * cap, and this concern is about a caller, not the store.
+ * cap, and these concerns are about the callers, not the store.
  */
+import { memoryListTool } from '../../../services/ai/tools/memoryFileTools';
 import {
     clearMemoryFiles,
     importMemoryFiles,
     listMemoryFiles,
     resetMemoryFilesStorageAdapter,
     setMemoryFilesStorageAdapter,
+    stageTmpMemory,
+    stageUserNoteMemory,
 } from '../../../services/memory/memoryFiles';
 import { supersedeRestatedMemoriesInThread } from '../../../services/memory/memorySupersession';
 
@@ -118,6 +125,46 @@ describe('supersession leaves notes alone', () => {
             expect(outcome.superseded).toBe(1);
             const live = await listMemoryFiles({});
             expect(live.map((h) => h.name)).toEqual(['Morning pattern']);
+        } finally {
+            await clearMemoryFiles();
+            resetMemoryFilesStorageAdapter();
+        }
+    });
+});
+
+describe('memory_list kind coercion', () => {
+    it('filters to notes for kind=note instead of silently returning everything', async () => {
+        const adapter = createAdapter();
+        setMemoryFilesStorageAdapter(adapter);
+        try {
+            await stageUserNoteMemory({ text: 'A note about the kiln.', sourceEntryId: 'e1' });
+            await stageTmpMemory({
+                type: 'project', name: 'Kiln', description: 'kiln project',
+                body: '## Current Stage\nkiln work', projectId: 'kiln',
+            });
+
+            const notes = await memoryListTool({ kind: 'note' });
+            expect(notes).toContain('[note]');
+            expect(notes).not.toContain('[project]');
+        } finally {
+            await clearMemoryFiles();
+            resetMemoryFilesStorageAdapter();
+        }
+    });
+
+    it('falls back to all kinds for an unrecognised kind', async () => {
+        const adapter = createAdapter();
+        setMemoryFilesStorageAdapter(adapter);
+        try {
+            await stageUserNoteMemory({ text: 'A note about the kiln.', sourceEntryId: 'e1' });
+            await stageTmpMemory({
+                type: 'project', name: 'Kiln', description: 'kiln project',
+                body: '## Current Stage\nkiln work', projectId: 'kiln',
+            });
+
+            const all = await memoryListTool({ kind: 'nonsense' });
+            expect(all).toContain('[note]');
+            expect(all).toContain('[project]');
         } finally {
             await clearMemoryFiles();
             resetMemoryFilesStorageAdapter();
