@@ -85,13 +85,12 @@ Custom `BottomNav` (not system tabs): Today · Explore · + FAB (chat) · Insigh
 | Archive/History | yes |
 | Insights | yes |
 | Threads/Graph | yes |
-| Graph node sheet | **needed** |
 | Drafts | yes |
 | Intention detail | yes — `generated/black-rose-intention-detail.png` |
 | Intention picker | yes — `generated/black-rose-intention-picker.png` |
 | Persona | yes — `generated/black-rose-persona.png` |
 | Settings | yes — `generated/black-rose-settings.png` |
-| Explore / Memory hub | yes — `generated/black-rose-memory-hub.png` |
+| Explore / Memory hub | **retired 2026-09-19** — see note below |
 | Goals & Habits | yes — `generated/black-rose-goals.png` |
 | Ask companion | yes — `generated/black-rose-ask.png` |
 | Entry reflection | yes — `generated/black-rose-entry-reflection.png` |
@@ -100,6 +99,20 @@ Custom `BottomNav` (not system tabs): Today · Explore · + FAB (chat) · Insigh
 | Graph node sheet | yes — `generated/black-rose-graph-node-sheet.png` |
 | Entry detail (read view) | optional next |
 | Light mode variants | optional later |
+
+### Explore / Memory hub concept retired (2026-09-19)
+
+`generated/black-rose-memory-hub.png` was **deleted**. It depicted the design being
+replaced: stacked bordered cards, a bordered four-segment layer control, and — at the
+foot — the fake "Add a private note…" panel whose "Blackrose noticed" block made zero
+LLM calls. The canned therapy-speak in its "About you" copy ("Themes settle around
+career pressure and quiet recovery") is that panel's own generated output.
+
+**The Explore/Threads design source is now `example-design/blackrose/explore-variants/`**
+(variant A, "Index"). Do not port from memory or from the retired PNG.
+`black-rose-threads.png` (the graph) is still current.
+
+Architecture companion: `docs/superpowers/specs/2026-09-19-explore-memory-architecture.html`.
 
 ### Live production capture note
 Expo web on `:8081` redirects most unauthenticated routes to `forgot-password`. Screenshots in `inventory/production/` only reliably captured intention-select/chat/edit, persona-new/advanced, signup, forgot-password. Authenticated screens were mapped from source (`app/`, `components/settings`, `components/memory-graph`, `components/memory`).

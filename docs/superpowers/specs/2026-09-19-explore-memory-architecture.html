@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Explore → Memory — Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+/* ============================================================================
+   Blackrose — Explore memory architecture.
+
+   One page, no dependencies. The stepper is the point: the flow has a fan-out
+   on write and a fan-in on read, and reading that as a static diagram hides the
+   two-store split that is the whole problem. Step through it instead.
+   ========================================================================== */
+
+:root {
+  --bg: #f4f1eb;
+  --surface: #fffdf9;
+  --surface-2: #ede8df;
+  --hairline: #e2dcd2;
+  --text: #1c1917;
+  --text-2: #6b6560;
+  --accent: #5c564c;
+  --sage: #4f6f52;
+  --rose: #8a5f68;
+  --warn: #9b6a1f;
+  --danger: #9b3a3a;
+  --ok: #4f6f52;
+  --shadow: 0 1px 2px rgba(28,25,23,0.04), 0 12px 30px -18px rgba(28,25,23,0.25);
+  --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  --serif: 'Playfair Display', Georgia, serif;
+  --sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+}
+.dark {
+  --bg: #0c0c0e;
+  --surface: #151518;
+  --surface-2: #1a1a1e;
+  --hairline: #2c2a26;
+  --text: #ede8e0;
+  --text-2: #8a8580;
+  --accent: #c9c2b6;
+  --sage: #7a9e7e;
+  --rose: #c4a0a6;
+  --warn: #d0a355;
+  --danger: #c97b7b;
+  --ok: #7a9e7e;
+  --shadow: 0 1px 2px rgba(0,0,0,0.5), 0 12px 30px -18px rgba(0,0,0,0.8);
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 5rem; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 78rem; margin: 0 auto; padding: 2rem 1.5rem 6rem; }
+
+/* --- top bar ------------------------------------------------------------- */
+.bar {
+  position: sticky; top: 0; z-index: 50;
+  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+  padding: 0.75rem 0; margin-bottom: 1.5rem;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--hairline);
+}
+.bar h1 {
+  margin: 0; font-family: var(--serif); font-weight: 400;
+  font-size: 1.125rem; letter-spacing: -0.01em; white-space: nowrap;
+}
+.bar .spacer { flex: 1 1 2rem; }
+.navlink {
+  font-size: 0.6875rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-2); text-decoration: none; padding: 0.25rem 0;
+  border-bottom: 1px solid transparent;
+}
+.navlink:hover { color: var(--text); border-bottom-color: var(--accent); }
+.btn {
+  font-family: inherit; font-size: 0.6875rem; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--text-2);
+  background: var(--surface); border: 1px solid var(--hairline);
+  border-radius: 999px; padding: 0.45rem 0.9rem; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 0.4rem;
+}
+.btn:hover { color: var(--text); border-color: var(--accent); }
+.btn[aria-pressed='true'] { color: var(--text); border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 500; }
+.btn.primary:hover { opacity: 0.88; }
+
+/* --- sections ------------------------------------------------------------ */
+section { margin-bottom: 3.5rem; }
+h2 {
+  margin: 0 0 0.35rem; font-family: var(--serif); font-weight: 400;
+  font-size: 1.75rem; letter-spacing: -0.015em;
+}
+h2 .num {
+  font-family: var(--mono); font-size: 0.8125rem; color: var(--text-2);
+  vertical-align: 0.35em; margin-right: 0.6rem; letter-spacing: 0;
+}
+h3 {
+  margin: 2rem 0 0.5rem; font-size: 0.8125rem; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-2);
+}
+.lede { margin: 0 0 1.5rem; color: var(--text-2); max-width: 62rem; }
+.lede b { color: var(--text); font-weight: 500; }
+p { margin: 0 0 0.85rem; }
+code {
+  font-family: var(--mono); font-size: 0.8125em;
+  background: var(--surface-2); padding: 0.1rem 0.35rem; border-radius: 4px;
+}
+a.inline { color: var(--text); text-decoration: underline; text-decoration-color: var(--hairline); }
+a.inline:hover { text-decoration-color: var(--accent); }
+
+/* --- legend -------------------------------------------------------------- */
+.legend {
+  display: flex; flex-wrap: wrap; gap: 0.4rem 1.25rem;
+  padding: 0.85rem 1rem; margin-bottom: 1.5rem;
+  border: 1px solid var(--hairline); border-radius: 12px;
+  background: var(--surface);
+  font-size: 0.75rem; color: var(--text-2);
+}
+.legend span { display: inline-flex; align-items: center; gap: 0.45rem; }
+.swatch { width: 14px; height: 10px; border-radius: 3px; flex: none; }
+.swatch.ui { background: var(--accent); }
+.swatch.store { background: transparent; border: 1.5px dashed var(--text-2); }
+.swatch.svc { background: transparent; border: 1.5px solid var(--sage); }
+.swatch.dead { background: var(--danger); }
+.swatch.future { background: transparent; border: 1.5px dashed var(--warn); }
+
+/* --- node primitives ----------------------------------------------------- */
+.node {
+  position: relative; border-radius: 12px; padding: 0.7rem 0.85rem;
+  background: var(--surface); border: 1px solid var(--hairline);
+  transition: border-color 220ms ease, box-shadow 220ms ease, opacity 220ms ease, transform 220ms ease;
+}
+.node .n-title {
+  font-family: var(--mono); font-size: 0.8125rem; font-weight: 500;
+  display: block; margin-bottom: 0.15rem; color: var(--text);
+}
+.node .n-sub { font-size: 0.6875rem; color: var(--text-2); line-height: 1.45; display: block; }
+.node.store { border-style: dashed; background: transparent; }
+.node.svc { border-color: color-mix(in srgb, var(--sage) 45%, var(--hairline)); }
+.node.ui { background: var(--surface-2); border-color: var(--accent); }
+.node.key { border-color: var(--accent); background: var(--surface); box-shadow: var(--shadow); }
+.node.bad { border-color: var(--danger); }
+.node.future { border-color: var(--warn); border-style: dashed; }
+.node .tag {
+  position: absolute; top: -0.5rem; right: 0.6rem;
+  font-family: var(--mono); font-size: 0.5625rem; letter-spacing: 0.06em;
+  text-transform: uppercase; padding: 0.1rem 0.4rem; border-radius: 999px;
+  background: var(--bg); border: 1px solid var(--hairline); color: var(--text-2);
+}
+.node .tag.bad { color: var(--danger); border-color: var(--danger); }
+.node .tag.future { color: var(--warn); border-color: var(--warn); }
+
+/* --- flow grid ----------------------------------------------------------- */
+.flow {
+  display: grid; gap: 0.6rem; align-items: stretch;
+  grid-template-columns: 1fr auto 1fr;
+}
+.flow .arrow-col {
+  display: flex; align-items: center; justify-content: center;
+  min-width: 3.25rem; color: var(--text-2); font-size: 1.125rem;
+}
+.flow.stack { grid-template-columns: 1fr; }
+
+/* vertical connector */
+.vconn {
+  display: flex; justify-content: center; align-items: center;
+  height: 2rem; color: var(--text-2); font-size: 1rem;
+}
+
+/* --- the split diagram --------------------------------------------------- */
+.split {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; align-items: start;
+}
+@media (max-width: 54rem) { .split { grid-template-columns: 1fr; } }
+.panel {
+  border: 1px solid var(--hairline); border-radius: 16px;
+  padding: 1.1rem; background: var(--surface);
+}
+.panel-title {
+  font-size: 0.6875rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-2); margin: 0 0 0.85rem;
+}
+.panel.broken { border-color: color-mix(in srgb, var(--danger) 45%, var(--hairline)); }
+.panel.fixed { border-color: color-mix(in srgb, var(--ok) 45%, var(--hairline)); }
+
+/* --- stepper ------------------------------------------------------------- */
+.stepper {
+  border: 1px solid var(--hairline); border-radius: 16px;
+  background: var(--surface); overflow: hidden; box-shadow: var(--shadow);
+}
+.stepper-head {
+  display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+  padding: 0.85rem 1.1rem; border-bottom: 1px solid var(--hairline);
+  background: var(--surface-2);
+}
+.stepper-head .step-label {
+  font-family: var(--mono); font-size: 0.75rem; color: var(--text-2);
+}
+.stepper-body { padding: 1.5rem 1.1rem 1.25rem; }
+.stepper-foot {
+  padding: 0.9rem 1.1rem; border-top: 1px solid var(--hairline);
+  background: var(--surface-2); min-height: 5.25rem;
+}
+.stepper-foot .sf-title {
+  font-family: var(--mono); font-size: 0.8125rem; font-weight: 500;
+  margin: 0 0 0.3rem;
+}
+.stepper-foot .sf-body { margin: 0; font-size: 0.875rem; color: var(--text-2); }
+.stepper-foot .sf-body b { color: var(--text); font-weight: 500; }
+
+/* dim everything not on the current step */
+.stepper [data-step] { opacity: 0.28; transition: opacity 260ms ease, border-color 260ms ease, box-shadow 260ms ease; }
+.stepper [data-step].on { opacity: 1; }
+.stepper [data-step].on.node { border-color: var(--accent); box-shadow: var(--shadow); }
+.stepper [data-step].on.node.store { border-color: var(--accent); }
+.stepper [data-step].on.arrow-col,
+.stepper [data-step].on.vconn { color: var(--accent); font-weight: 600; }
+.stepper [data-step].done { opacity: 0.62; }
+.stepper [data-step].done.arrow-col,
+.stepper [data-step].done.vconn { color: var(--ok); }
+
+/* --- write fan-out rows -------------------------------------------------- */
+.fanout { display: grid; gap: 0.5rem; }
+.fanout-row {
+  display: grid; grid-template-columns: 2.5rem 1.6rem 1fr; align-items: center; gap: 0.5rem;
+}
+.fanout-row .stem { font-family: var(--mono); font-size: 1rem; color: var(--text-2); text-align: center; }
+.fanout-row .br { font-family: var(--mono); font-size: 1rem; color: var(--text-2); text-align: center; }
+.fanout-note {
+  font-size: 0.6875rem; color: var(--text-2); margin-top: 0.35rem;
+  padding-left: 4.6rem;
+}
+
+/* --- tables -------------------------------------------------------------- */
+table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+th, td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--hairline); vertical-align: top; }
+th {
+  font-size: 0.6875rem; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-2); font-weight: 600; white-space: nowrap;
+}
+td code { font-size: 0.75rem; }
+tbody tr:last-child td { border-bottom: 0; }
+.tbl-wrap { border: 1px solid var(--hairline); border-radius: 16px; overflow: hidden; background: var(--surface); }
+
+/* --- spec cards ---------------------------------------------------------- */
+.specs { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); }
+.spec {
+  border: 1px solid var(--hairline); border-radius: 16px; padding: 1.1rem;
+  background: var(--surface); display: flex; flex-direction: column; gap: 0.6rem;
+}
+.spec.now { border-color: var(--accent); box-shadow: var(--shadow); }
+.spec-head { display: flex; align-items: baseline; gap: 0.55rem; }
+.spec-n {
+  font-family: var(--serif); font-size: 1.5rem; line-height: 1; color: var(--accent);
+}
+.spec-name { font-family: var(--serif); font-size: 1.0625rem; }
+.spec ul { margin: 0; padding-left: 1.05rem; font-size: 0.8125rem; color: var(--text-2); }
+.spec li { margin-bottom: 0.3rem; }
+.spec li:last-child { margin-bottom: 0; }
+.spec .state {
+  font-family: var(--mono); font-size: 0.625rem; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--text-2);
+  border-top: 1px solid var(--hairline); padding-top: 0.6rem; margin-top: auto;
+}
+.spec.now .state { color: var(--accent); }
+
+/* --- callout ------------------------------------------------------------- */
+.callout {
+  border-left: 2px solid var(--accent); padding: 0.15rem 0 0.15rem 1rem;
+  margin: 1.25rem 0; color: var(--text-2);
+}
+.callout b { color: var(--text); font-weight: 500; }
+.callout.warn { border-left-color: var(--warn); }
+.callout.danger { border-left-color: var(--danger); }
+.callout.ok { border-left-color: var(--ok); }
+
+ul.plain { margin: 0 0 0.85rem; padding-left: 1.1rem; color: var(--text-2); }
+ul.plain li { margin-bottom: 0.35rem; }
+ul.plain li:last-child { margin-bottom: 0; }
+ul.plain b { color: var(--text); font-weight: 500; }
+
+.kv { display: flex; gap: 0.5rem; font-size: 0.8125rem; }
+.kv .k { font-family: var(--mono); color: var(--text-2); min-width: 8rem; }
+
+.foot {
+  margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--hairline);
+  font-size: 0.8125rem; color: var(--text-2);
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="bar">
+    <h1>Explore → Memory</h1>
+    <a class="navlink" href="#problem">Problem</a>
+    <a class="navlink" href="#trace">Trace</a>
+    <a class="navlink" href="#recall">Recall</a>
+    <a class="navlink" href="#dream">Dream</a>
+    <a class="navlink" href="#specs">Specs</a>
+    <a class="navlink" href="#defects">Defects</a>
+    <span class="spacer"></span>
+    <button class="btn" id="theme-btn" aria-pressed="false">
+      <span id="theme-label">Light</span>
+    </button>
+  </div>
+
+  <section id="problem">
+    <h2><span class="num">01</span>The problem in one picture</h2>
+    <p class="lede">
+      The app has <b>two memory stores that never talk to each other</b>. The screen you write on
+      writes to one. The AI's search tool reads the other. So a note you write on Explore is
+      <b>passively visible but not searchable</b> — the AI might happen to have it in context, but it
+      can never go and look for it.
+    </p>
+
+    <div class="legend">
+      <span><i class="swatch ui"></i> UI surface</span>
+      <span><i class="swatch svc"></i> service</span>
+      <span><i class="swatch store"></i> storage key</span>
+      <span><i class="swatch dead"></i> broken / missing</span>
+      <span><i class="swatch future"></i> deferred to Dream</span>
+    </div>
+
+    <div class="split">
+      <div class="panel broken">
+        <p class="panel-title">Today — the split</p>
+        <div class="flow stack">
+          <div class="node ui">
+            <span class="n-title">Explore composer</span>
+            <span class="n-sub">Save note → <code>saveManualMemoryNote()</code></span>
+          </div>
+          <div class="vconn">↓</div>
+          <div class="node store">
+            <span class="n-title">@rosebud_local_memory_shard:*</span>
+            <span class="n-sub">8 shards + header index. Holds memory atoms.</span>
+          </div>
+        </div>
+
+        <div class="vconn" style="color:var(--danger);font-size:0.75rem;letter-spacing:0.1em;height:2.75rem">
+          ✕ &nbsp;NO PATH BETWEEN THEM
+        </div>
+
+        <div class="flow stack">
+          <div class="node bad">
+            <span class="n-title">memory_search</span>
+            <span class="n-sub">Reads memory files only</span>
+            <span class="tag bad">can't see the note</span>
+          </div>
+          <div class="vconn">↑</div>
+          <div class="node store">
+            <span class="n-title">@blackrose_memory_manifest</span>
+            <span class="n-sub">+ <code>@blackrose_memory_file:&lt;id&gt;</code> bodies</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel fixed">
+        <p class="panel-title">After — the bridge</p>
+        <div class="flow stack">
+          <div class="node ui">
+            <span class="n-title">Explore composer</span>
+            <span class="n-sub">Keep it → <code>saveExploreNote()</code></span>
+          </div>
+          <div class="vconn">↓</div>
+          <div class="node store">
+            <span class="n-title">@rosebud_local_memory_shard:*</span>
+            <span class="n-sub">atom — feeds the always-on capsule</span>
+          </div>
+          <div class="vconn" style="color:var(--ok)">↓</div>
+          <div class="node key">
+            <span class="n-title">@blackrose_memory_manifest</span>
+            <span class="n-sub">memory file, <code>type:'note'</code>, thread-hinted</span>
+            <span class="tag">new bridge</span>
+          </div>
+          <div class="vconn">↓</div>
+          <div class="node svc">
+            <span class="n-title">memory_search</span>
+            <span class="n-sub">Now finds it, and returns it verbatim</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout warn">
+      <b>Why the gap is invisible in testing.</b> The note <i>is</i> readable two other ways — it lands in
+      the capsule injected into every chat turn, and <code>search_history</code> can reach it. So recall
+      <i>feels</i> like it works. It's only the dedicated search tool, the one the system prompt tells the
+      model to prefer, that is blind to it. <code>memory_overview</code> would even report
+      <code>userFiles: 0</code>.
+    </div>
+  </section>
+
+  <section id="trace">
+    <h2><span class="num">02</span>Trace one note, start to finish</h2>
+    <p class="lede">
+      Step through what happens when you type on Explore and press <b>Keep it</b>. The fan-out is the
+      important shape: <b>one write becomes four stores</b>, and everything that fires at that moment is
+      local and deterministic — no model is called.
+    </p>
+
+    <div class="stepper" id="stepper">
+      <div class="stepper-head">
+        <button class="btn primary" id="play-btn">Play</button>
+        <button class="btn" id="step-btn">Next step</button>
+        <button class="btn" id="reset-btn">Reset</button>
+        <span class="step-label" id="step-label">Step 0 of 9</span>
+      </div>
+
+      <div class="stepper-body">
+        <!-- the write fan-out -->
+        <div class="flow" style="grid-template-columns:1fr">
+          <div class="node ui" data-step="1">
+            <span class="n-title">Explore — "Keep it"</span>
+            <span class="n-sub">Your text, plus the theme words the local matcher recognised</span>
+          </div>
+        </div>
+
+        <div class="vconn" data-step="1">↓</div>
+
+        <div class="flow" style="grid-template-columns:1fr">
+          <div class="node svc" data-step="2">
+            <span class="n-title">saveExploreNote(text)</span>
+            <span class="n-sub">One service function owns all four writes — mirrors how <code>journalFinishSideEffects</code> owns the chat-finish path</span>
+          </div>
+        </div>
+
+        <div class="vconn" data-step="2">↓</div>
+
+        <div class="fanout">
+          <div class="fanout-row" data-step="3">
+            <span class="stem">├─→</span><span class="br"></span>
+            <div class="node store">
+              <span class="n-title">memory atom</span>
+              <span class="n-sub">Reaches the capsule that is injected into every chat turn. <b>Already works today.</b></span>
+            </div>
+          </div>
+          <div class="fanout-row" data-step="4">
+            <span class="stem">├─→</span><span class="br"></span>
+            <div class="node key">
+              <span class="n-title">memory file</span>
+              <span class="n-sub">Staged to <code>_tmp</code> as <code>type:'note'</code>, description carries <code>Thread hint &lt;slug&gt;.</code> so Dream files it beside journal memories of the same subject</span>
+              <span class="tag">the bridge</span>
+            </div>
+          </div>
+          <div class="fanout-row" data-step="5">
+            <span class="stem">├─→</span><span class="br"></span>
+            <div class="node store">
+              <span class="n-title">journal entry</span>
+              <span class="n-sub">A real completed entry, so it appears in Archive / History and <code>get_conversation</code> can read it. Tagged "Written on Threads".</span>
+            </div>
+          </div>
+          <div class="fanout-row" data-step="6">
+            <span class="stem">└─→</span><span class="br"></span>
+            <div class="node store">
+              <span class="n-title">day digest</span>
+              <span class="n-sub">Built from <i>your</i> words — no model analysis exists at this moment, so none is invented</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="vconn" data-step="7" style="height:2.5rem">↓</div>
+
+        <div class="flow" style="grid-template-columns:1fr">
+          <div class="node future" data-step="7">
+            <span class="n-title">Deferred — no model runs now</span>
+            <span class="n-sub">Identity extraction and session digests are skipped at write time. The page promised no AI, and it keeps that promise.</span>
+            <span class="tag future">later</span>
+          </div>
+        </div>
+
+        <div class="vconn" data-step="8" style="height:2.5rem">↓</div>
+
+        <div class="flow" style="grid-template-columns:1fr">
+          <div class="node svc" data-step="8">
+            <span class="n-title">Dream — when the app is idle</span>
+            <span class="n-sub">Consolidates the staged note into a formal thread. <b>This is where topic recall starts working</b>, and where the deferred identity/session work happens.</span>
+          </div>
+        </div>
+
+        <div class="vconn" data-step="9" style="height:2.5rem">↓</div>
+
+        <div class="flow" style="grid-template-columns:1fr">
+          <div class="node key" data-step="9">
+            <span class="n-title">memory_search("work") → finds it</span>
+            <span class="n-sub">Thread shortlist resolves, the note is ranked, and it comes back <b>verbatim</b> — never paraphrased into a claim about you.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="stepper-foot">
+        <p class="sf-title" id="sf-title">Ready</p>
+        <p class="sf-body" id="sf-body">Press <b>Play</b> to walk the flow, or <b>Next step</b> to go one at a time.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="recall">
+    <h2><span class="num">03</span>How the AI reads it back</h2>
+    <p class="lede">
+      Four read paths reach memory. They differ in whether they fire automatically, what they can find,
+      and how much text they hand the model. The bridge only changes the third one — but that is the
+      one the system prompt tells the model to reach for first.
+    </p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Path</th><th>Fires</th><th>Reads</th><th>Budget</th><th>After the bridge</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>capsule</code><br /><span style="font-size:0.75rem;color:var(--text-2)">auto-injected</span></td>
+            <td>every turn, unprompted</td>
+            <td>atoms — <b>no filter</b>, so notes rank well</td>
+            <td>6 atoms / 1200 chars</td>
+            <td style="color:var(--ok)">unchanged — already worked</td>
+          </tr>
+          <tr>
+            <td><code>search_history</code></td>
+            <td>model decides</td>
+            <td>day digests + atoms</td>
+            <td>8 hits / 180 chars each</td>
+            <td style="color:var(--ok)">unchanged — already worked</td>
+          </tr>
+          <tr>
+            <td><code>memory_search</code><br /><span style="font-size:0.75rem;color:var(--text-2)">the preferred tool</span></td>
+            <td>model decides</td>
+            <td><b>memory files only</b></td>
+            <td>5 files / 12k each / 30k total</td>
+            <td style="color:var(--accent)"><b>the gap closes here</b></td>
+          </tr>
+          <tr>
+            <td><code>get_conversation</code></td>
+            <td>model decides</td>
+            <td>journal entries + check-ins</td>
+            <td>full transcript</td>
+            <td style="color:var(--ok)">now finds notes too — they became entries</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout danger">
+      <b>The design rule that matters most here.</b> User-written notes are returned
+      <b>verbatim and never summarised</b>, and never used to make a claim about the writer. The old panel
+      did exactly the opposite — it concatenated 180 characters of your own text and wrapped it in canned
+      therapy-speak ("Blackrose noticed you often return to themes of…"), with zero model calls behind it.
+      That is the failure mode to design against: an AI asserting something about you, at a moment you
+      didn't ask for it.
+    </div>
+  </section>
+
+  <section id="dream">
+    <h2><span class="num">04</span>What Dream does, and what it can't promise</h2>
+    <p class="lede">
+      Dream is the consolidation pass that promotes staged notes into formal threads. Spec 1 depends on it
+      for topic recall, but the full agent rewrite is spec 3. Worth being precise about now, because the
+      background-execution part of the idea has a hard platform ceiling.
+    </p>
+
+    <div class="split">
+      <div class="panel">
+        <p class="panel-title">What's achievable</p>
+        <ul class="plain">
+          <li><b>Resume after interruption.</b> This is the real guarantee, and it's a property of a durable checkpoint — not of staying alive. It also survives crashes and reboots, which background execution never would.</li>
+          <li><b>Opportunistic background runs.</b> iOS <code>fetch</code> + <code>processing</code> and Android WorkManager are already wired in this repo — but the only registered task today writes a config snapshot and does no memory work.</li>
+          <li><b>Read-only UI viewer.</b> A Dream activity surface you can watch and tap into. Straightforward — it reads state, it doesn't drive the run.</li>
+          <li><b>A 120k budget.</b> Needs to come from the resolved context window, not a constant.</li>
+        </ul>
+      </div>
+      <div class="panel broken">
+        <p class="panel-title">What can't be promised</p>
+        <ul class="plain">
+          <li><b>Background work is never guaranteed.</b> iOS gives a refresh task roughly 30 seconds; a processing task gets minutes but only when the OS decides. Frequency is advisory, not a schedule.</li>
+          <li><b>Force-quit stops everything.</b> On both platforms, until the user relaunches manually. No flag or library changes this.</li>
+          <li><b>So "it resumes when you open the app" is the honest promise</b> — and the dream acknowledging "I was interrupted, continuing" comes from the checkpoint, not from a live process.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>Context numbers, mapped onto what already exists</h3>
+    <p>
+      Your instinct — 120k context, compact around 80k — is close to the existing machinery, which is why
+      I'd reuse it rather than add a parallel scheme:
+    </p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Dial</th><th>Existing constant</th><th>Value</th><th>Effect at a 120k window</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>When compaction triggers</td>
+            <td><code>COMPACT_TRIGGER_RATIO</code></td>
+            <td>0.62</td>
+            <td>fires at <b>74.4k</b> — effectively your 80k</td>
+          </tr>
+          <tr>
+            <td>Size after compaction</td>
+            <td><code>summaryTokenBudget</code></td>
+            <td>15% of window, capped 12k</td>
+            <td>hits the 12k cap</td>
+          </tr>
+          <tr>
+            <td>Unknown-model window</td>
+            <td><code>DEFAULT_FALLBACK_CONTEXT_WINDOW</code></td>
+            <td>128k</td>
+            <td>but <code>ai.ts</code> falls back to <b>16,384</b> — divergent defaults, worth fixing</td>
+          </tr>
+          <tr>
+            <td>Agent tool rounds</td>
+            <td><code>MAX_AGENT_TOOL_ROUNDS</code></td>
+            <td>6</td>
+            <td>tuned for chat; Dream needs a larger dial, same loop</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <b>Note on "copy the chat architecture".</b> The skeleton transfers — tool registry, multi-round loop,
+      live activity, soft-fail. The budgets don't: the chat loop runs 6 rounds inside a 45-second wall clock
+      with a 24k token budget. Dream wants the same primitives with much larger dials, so it's a sibling
+      loop, not a second copy of the same one.
+    </div>
+  </section>
+
+  <section id="specs">
+    <h2><span class="num">05</span>Three specs, built in this order</h2>
+    <p class="lede">
+      These are coupled — Dream consumes what the write path produces — but each has its own risk and its
+      own way of failing, so each gets its own spec, plan, and implementation.
+    </p>
+
+    <div class="specs">
+      <div class="spec now">
+        <div class="spec-head">
+          <span class="spec-n">1</span>
+          <span class="spec-name">Explore + write path</span>
+        </div>
+        <ul>
+          <li>The ledger UI port (concept A), with the composer as the primary action</li>
+          <li><code>saveExploreNote()</code> — atom + memory file + journal entry + day digest</li>
+          <li>New <code>stageUserNoteMemory</code> writer with the thread hint</li>
+          <li>Delete the fake panel and the generator behind it</li>
+          <li>Theme source stays <code>atom.tags</code>; stop filtering notes out of it</li>
+        </ul>
+        <span class="state">Current — writing this spec</span>
+      </div>
+
+      <div class="spec">
+        <div class="spec-head">
+          <span class="spec-n">2</span>
+          <span class="spec-name">Extractor content model</span>
+        </div>
+        <ul>
+          <li>Why every card says the same thing twice: title == content</li>
+          <li>Leaked machine prose and third person ("the user returns to…")</li>
+          <li>Post-model validation, since the prompt already forbids it and nothing checks</li>
+          <li>The one shared theme vocabulary</li>
+          <li>Affects Explore, the graph, <b>and</b> Today</li>
+        </ul>
+        <span class="state">Next — needs live-model E2E</span>
+      </div>
+
+      <div class="spec">
+        <div class="spec-head">
+          <span class="spec-n">3</span>
+          <span class="spec-name">Dream agent</span>
+        </div>
+        <ul>
+          <li>Resumable, checkpointed consolidation with tool calls</li>
+          <li>Interruption acknowledged and continued on next open</li>
+          <li>Read-only Dream viewer in the UI</li>
+          <li>120k context budget, reusing the existing compact ratios</li>
+          <li>Opportunistic background runs, with honest expectations</li>
+        </ul>
+        <span class="state">Last — needs the store to be sound first</span>
+      </div>
+    </div>
+
+    <div class="callout warn">
+      <b>One exception, carved out now.</b> The orphan hazard in defect #1 below is <b>live silent data
+      loss today</b>. It doesn't wait for spec 3 — it should be fixed as a small standalone change, because
+      every day it isn't, a force-quit can permanently drop a memory.
+    </div>
+  </section>
+
+  <section id="defects">
+    <h2><span class="num">06</span>Defects found while tracing</h2>
+    <p class="lede">
+      These surfaced during exploration. The first is the serious one; the rest are small but real, and
+      spec 1 has to resolve them because it touches the same code.
+    </p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Defect</th><th>Where</th><th>Consequence</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>1</b></td>
+            <td><b>Manifest written before body</b></td>
+            <td><code>memoryFiles.ts:526</code><br /><code>stageTmpMemory:285</code></td>
+            <td>The new header goes live and the <code>_tmp</code> source is deprecated in the <i>same</i> write — then the body write follows. Kill the app in that window and you get a header with no bytes, no retry path, and nothing that notices. <b>The memory is gone from both the backlog and recall, permanently.</b></td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>Empty notes accepted</td>
+            <td><code>saveManualMemoryNote</code></td>
+            <td>No validation in the service — an empty string creates an atom with empty content. The only guard is in the UI.</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>Millisecond id collision</td>
+            <td><code>sourceId: note:${Date.now()}</code></td>
+            <td>Two notes saved in the same millisecond produce the same atom id and silently merge into one.</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td>Notes excluded from ranking</td>
+            <td><code>topAtoms()</code></td>
+            <td>Filters <code>layer !== 'note'</code>, so a kept note can never influence anything downstream. <b>Deleting the panel removes the only caller</b>, so this resolves itself.</td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td>Notes hidden from themes</td>
+            <td><code>memoryDisplay.ts:61</code></td>
+            <td><code>topMemoryThemes</code> filters notes out — a user who only writes on Explore would see no themes at all.</td>
+          </tr>
+          <tr>
+            <td>6</td>
+            <td>"Rosebud" brand leak</td>
+            <td><code>localMemory.ts:624</code><br />locked by a test</td>
+            <td>The retired brand is still generated, and a test asserts the string so it can't be fixed without touching the test.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="open">
+    <h2><span class="num">07</span>The one decision that widens an interface</h2>
+    <p class="lede">
+      Everything else in spec 1 is contained. This is the piece that reaches code outside the Explore
+      feature, so it's worth seeing before the spec is written.
+    </p>
+
+    <p>
+      Memory files carry a <code>type</code>. Today it's <code>'user' | 'feedback' | 'project'</code>. Notes
+      need one, and there are two ways to give them one:
+    </p>
+
+    <div class="split">
+      <div class="panel">
+        <p class="panel-title">Reuse <code>'user'</code></p>
+        <ul class="plain">
+          <li><b>Free:</b> inherits the supersession protection that only <code>type:'user'</code> gets — your own words are never auto-deleted as "restated by a newer memory".</li>
+          <li><b>Cost:</b> notes would feed the recall <code>user</code> route, the one that fires on <i>"my name / about me / my wife"</i>. Your five newest notes get dumped into identity queries and crowd out your actual identity file.</li>
+        </ul>
+      </div>
+      <div class="panel fixed">
+        <p class="panel-title">Add <code>'note'</code> &nbsp;<span style="color:var(--accent)">← recommended</span></p>
+        <ul class="plain">
+          <li>Keeps the <code>user</code> route clean and is semantically honest.</li>
+          <li><b>And</b> add <code>'note'</code> to the supersession skip list — that's the property that makes your words undeletable, and today only <code>'user'</code> has it.</li>
+          <li><b>Cost:</b> touches <code>MemoryFileType</code>, the <code>listMemoryFiles</code> kind filter, and the <code>memory_list</code> tool schema enum — so <code>toolSchemaPin.test.ts</code> changes deliberately rather than by accident.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout ok">
+      <b>Resolved 2026-09-19 — the contradicting concept image is retired.</b>
+      <code>black-rose-memory-hub.png</code> depicted the design being replaced: stacked bordered cards,
+      the bordered four-segment control, and the fake note panel at the foot, including the
+      "themes settle around career pressure" copy that is that panel's own output. It has been
+      <b>deleted</b>, and <code>UI_MAP.md</code> now records the retirement and names
+      <code>example-design/blackrose/explore-variants/</code> as the Explore design source.
+      <code>black-rose-threads.png</code> (the graph) is still current and still authoritative.
+    </div>
+  </section>
+
+  <div class="foot">
+    <p>
+      Architecture companion to spec 1 (Explore + write path). Every claim here was verified against the
+      source — file and line references are in the tables above, and the spec carries the full set.
+    </p>
+  </div>
+
+</div>
+
+<script>
+/* --- theme ---------------------------------------------------------------- */
+const themeBtn = document.getElementById('theme-btn');
+const themeLabel = document.getElementById('theme-label');
+let dark = false;
+themeBtn.addEventListener('click', () => {
+  dark = !dark;
+  document.documentElement.classList.toggle('dark', dark);
+  themeBtn.setAttribute('aria-pressed', String(dark));
+  themeLabel.textContent = dark ? 'Dark' : 'Light';
+});
+
+/* --- stepper -------------------------------------------------------------- */
+const STEPS = {
+  1: ['You press Keep it',
+      'The composer already knows which theme words it recognised, because the matcher ran locally as you typed. Nothing has been sent anywhere.'],
+  2: ['One function owns all four writes',
+      'saveExploreNote() is the single entry point. Putting the fan-out in one place — the way journalFinishSideEffects owns the chat-finish path — is what makes "did every store get written?" a testable question instead of four scattered calls.'],
+  3: ['Write 1 — the memory atom',
+      'Reaches the always-on capsule, which is injected into every chat turn. This path already works today; the note ranks well because it carries high salience and full confidence.'],
+  4: ['Write 2 — the memory file  ← the bridge',
+      'This is the new one. Staged into _tmp as type:\'note\', with "Thread hint <slug>." in the description — the exact convention Dream already groups on, so your note lands beside the journal memories of the same subject rather than in a separate pile.'],
+  5: ['Write 3 — the journal entry',
+      'A real completed entry, so writing on Explore counts: it shows in Archive and History, and get_conversation can read the full text. Recorded as written on Threads so the app never pretends it came from chat.'],
+  6: ['Write 4 — the day digest',
+      'Built from your own words. There is no model analysis at this moment, so the digest carries what you wrote rather than a machine summary of it.'],
+  7: ['Deferred — and this is the point',
+      'Identity extraction and session digests are skipped. Those are the two side effects that would call a model, and the page promised no AI — so it keeps that promise. They run later, when the app is idle.'],
+  8: ['Dream consolidates',
+      'When the app is idle with a backlog, Dream promotes the staged note into a formal thread. This is the moment topic recall starts working — before it, the note is findable by recency and listing, not by subject.'],
+  9: ['The gap is closed',
+      'memory_search("work") now resolves the thread, ranks your note, and returns it verbatim. It is never paraphrased into a claim about you.']
+};
+const TOTAL = 9;
+let current = 0;
+let timer = null;
+
+const stepLabel = document.getElementById('step-label');
+const sfTitle = document.getElementById('sf-title');
+const sfBody = document.getElementById('sf-body');
+const playBtn = document.getElementById('play-btn');
+const nodes = Array.from(document.querySelectorAll('#stepper [data-step]'));
+
+function render() {
+  nodes.forEach((el) => {
+    const n = Number(el.dataset.step);
+    el.classList.toggle('on', n === current);
+    el.classList.toggle('done', n < current);
+  });
+  stepLabel.textContent = 'Step ' + current + ' of ' + TOTAL;
+  if (current === 0) {
+    sfTitle.textContent = 'Ready';
+    sfBody.innerHTML = 'Press <b>Play</b> to walk the flow, or <b>Next step</b> to go one at a time.';
+    return;
+  }
+  const [title, body] = STEPS[current];
+  sfTitle.textContent = current + '. ' + title;
+  sfBody.textContent = body;
+}
+function next() { current = current >= TOTAL ? 0 : current + 1; render(); }
+function stop() { if (timer) { clearInterval(timer); timer = null; playBtn.textContent = 'Play'; } }
+
+playBtn.addEventListener('click', () => {
+  if (timer) { stop(); return; }
+  playBtn.textContent = 'Pause';
+  if (current >= TOTAL) current = 0;
+  next();
+  timer = setInterval(() => {
+    if (current >= TOTAL) { stop(); return; }
+    next();
+  }, 3200);
+});
+document.getElementById('step-btn').addEventListener('click', () => { stop(); next(); });
+document.getElementById('reset-btn').addEventListener('click', () => { stop(); current = 0; render(); });
+render();
+</script>
+</body>
+</html>
