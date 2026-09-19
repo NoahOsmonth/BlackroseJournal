@@ -5,17 +5,13 @@ import type { LocalMemoryAtom } from '@/services/memory/localMemory.types';
 import {
     memoryPortraitProse,
     profilePreview,
+    titleCaseTheme,
     topMemoryThemes,
 } from './memoryDisplay';
 
 interface MemoryPortraitProps {
     atoms: readonly LocalMemoryAtom[];
     onThemePress: (tag: string) => void;
-}
-
-/** Concept chips are title-case words, not extraction tokens ("calm" → "Calm"). */
-function titleCase(theme: string): string {
-    return theme.replace(/\b[a-z]/g, (char) => char.toUpperCase());
 }
 
 export function MemoryPortrait({ atoms, onThemePress }: MemoryPortraitProps) {
@@ -67,7 +63,7 @@ export function MemoryPortrait({ atoms, onThemePress }: MemoryPortraitProps) {
                                 className="text-[15px] text-text-light dark:text-text-dark"
                                 style={{ fontFamily: 'PlayfairDisplayRegular' }}
                             >
-                                {titleCase(theme)}
+                                {titleCaseTheme(theme)}
                             </Text>
                         </Pressable>
                     ))}

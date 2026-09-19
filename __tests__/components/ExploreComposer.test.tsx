@@ -29,7 +29,10 @@ describe('ExploreComposer', () => {
     it('previews the themes the note will actually be filed under', () => {
         setup({ value: 'Calm mornings help me think about mornings.' });
         expect(screen.getByText(/Filed under/)).toBeTruthy();
-        expect(screen.getByText(/mornings/)).toBeTruthy();
+        // Title-case, matching the portrait chips — the extraction token is
+        // "mornings", the rendered theme is "Mornings".
+        expect(screen.getByText(/Mornings/)).toBeTruthy();
+        expect(screen.queryByText(/mornings/)).toBeNull();
     });
 
     it('says so instead of inventing an observation when nothing is recognised', () => {
@@ -60,13 +63,31 @@ describe('ExploreComposer', () => {
         expect(screen.queryByText(/Blackrose noticed/)).toBeNull();
     });
 
+    it('states the privacy promise beside the commit action', () => {
+        // The on-screen restatement of the no-AI / no-network commitment — it is
+        // load-bearing copy, not decoration.
+        setup({ value: 'The kiln needs a new element.' });
+        expect(screen.getByText('Stays on this device.')).toBeTruthy();
+        expect(screen.getByText('Keep it')).toBeTruthy();
+    });
+
+    it('labels the input with its visible label and announces the preview', () => {
+        setup({ value: 'Calm mornings help.' });
+        expect(screen.getByLabelText('New line')).toBeTruthy();
+        // A screen-reader user must hear the themes update, and hear the
+        // "nothing recognised" branch rather than silence.
+        const themes = screen.getByText('Calm · Mornings · Help');
+        expect(themes.props.accessibilityLiveRegion).toBe('polite');
+    });
+
     it('previews themes from the same clipped text the write path will file', () => {
         // A token past the 600-char cut must NOT be previewed, because the file
         // will not carry it — the preview and the write path must agree.
+        // Case-insensitive: the preview is title-cased, so a case-sensitive
+        // query would pass even with the raw value and stop discriminating.
         const long = `${'alpha '.repeat(110)}zebraquix`.trim();
         setup({ value: long });
-        const preview = screen.getByText(/alpha/);
-        expect(preview).toBeTruthy();
-        expect(screen.queryByText(/zebraquix/)).toBeNull();
+        expect(screen.getByText(/alpha/i)).toBeTruthy();
+        expect(screen.queryByText(/zebraquix/i)).toBeNull();
     });
 });

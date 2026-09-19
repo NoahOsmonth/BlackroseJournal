@@ -139,6 +139,15 @@ export function themesForText(text: string): string[] {
  */
 export { clipNoteText } from '@/services/memory/keywordRanking';
 
+/**
+ * Concept chips and the composer's preview are title-case words, not extraction
+ * tokens ("calm" → "Calm"). One implementation because two surfaces render the
+ * same themes, and drift between them is visible on a single screen.
+ */
+export function titleCaseTheme(theme: string): string {
+    return theme.replace(/\b[a-z]/g, (char) => char.toUpperCase());
+}
+
 const LEDGER_MONTHS = [
     'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',

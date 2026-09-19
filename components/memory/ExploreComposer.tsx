@@ -3,7 +3,7 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { BLACKROSE_PALETTE } from '@/constants/theme';
-import { clipNoteText, formatLedgerDate, themesForText } from './memoryDisplay';
+import { clipNoteText, formatLedgerDate, themesForText, titleCaseTheme } from './memoryDisplay';
 
 interface ExploreComposerProps {
     value: string;
@@ -63,37 +63,55 @@ export function ExploreComposer({ value, onChangeText, onKeep, isSaving, now }: 
                     placeholderTextColor={placeholderColor}
                     multiline
                     textAlignVertical="top"
-                    className="min-h-[84px] text-[16px] leading-6 text-text-light dark:text-text-dark"
-                    accessibilityLabel="New note"
+                    /* The input carries the page's rule — "search becomes a rule
+                       you write on". It inks from hairline to full text once
+                       there is something on it (the prototype's `is-active`). */
+                    className={`min-h-[84px] border-b pb-2 text-[16px] leading-6 text-text-light dark:text-text-dark ${
+                        hasText
+                            ? 'border-text-light dark:border-text-dark'
+                            : 'border-hairline-light dark:border-hairline-dark'
+                    }`}
+                    accessibilityLabel="New line"
                 />
 
                 {hasText ? (
-                    <View className="gap-1 border-t border-hairline-light pt-3 dark:border-hairline-dark">
+                    <View className="gap-1">
                         <Text className="text-[11px] uppercase tracking-[1.5px] text-text-secondary-light dark:text-text-secondary-dark">
                             Filed under
                         </Text>
-                        <Text className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
+                        {/* Live region: a screen-reader user hears the themes
+                            update, and hears the "nothing recognised" branch
+                            rather than silence. */}
+                        <Text
+                            className="text-sm text-text-secondary-light dark:text-text-secondary-dark"
+                            accessibilityLiveRegion="polite"
+                        >
                             {themes.length > 0
-                                ? themes.slice(0, 4).join(' · ')
+                                ? themes.slice(0, 4).map(titleCaseTheme).join(' · ')
                                 : 'Nothing recognised — it will be kept as written'}
                         </Text>
                     </View>
                 ) : null}
 
-                <View className="flex-row justify-end">
+                <View className="flex-row items-center justify-between gap-3">
                     <Pressable
                         onPress={onKeep}
                         disabled={!canKeep}
                         accessibilityRole="button"
                         accessibilityLabel="Keep this note"
                         accessibilityState={{ disabled: !canKeep }}
-                        className="rounded-control border border-hairline-light px-4 py-2 dark:border-hairline-dark"
-                        style={({ pressed }) => [{ opacity: !canKeep ? 0.4 : pressed ? 0.7 : 1 }]}
+                        className="rounded-control border border-transparent bg-bone-light px-4 py-2 dark:bg-bone-dark"
+                        style={({ pressed }) => [{ opacity: !canKeep ? 0.35 : pressed ? 0.7 : 1 }]}
                     >
-                        <Text className="text-sm text-text-light dark:text-text-dark">
-                            {isSaving ? 'Keeping…' : 'Keep'}
+                        <Text className="text-sm text-on-bone-light dark:text-on-bone-dark">
+                            {isSaving ? 'Keeping…' : 'Keep it'}
                         </Text>
                     </Pressable>
+                    {/* The on-screen restatement of the no-AI, no-network promise
+                        this surface makes: nothing here leaves the device. */}
+                    <Text className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
+                        Stays on this device.
+                    </Text>
                 </View>
             </View>
         </View>
