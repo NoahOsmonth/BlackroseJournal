@@ -25,6 +25,13 @@ interface ExploreComposerProps {
 export function ExploreComposer({ value, onChangeText, onKeep, isSaving, now }: ExploreComposerProps) {
     const isDark = useColorScheme() === 'dark';
     const placeholderColor = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
+    // Prototype `.write-keep` fills with `--accent-strong` and inks with `--bg`.
+    // `accent-strong` is the high-contrast companion to the bone accent (the
+    // plan's "Primary CTA fill contrast"); `bone-*` is the *interactive* accent
+    // and renders this commit action as a mid-brown mark. It has no Tailwind
+    // token yet, so it is read from the locked palette the same way the dock's
+    // write control is. Promote to a token when `tailwind.config.js` is free.
+    const keepFill = isDark ? BLACKROSE_PALETTE.dark.accentStrong : BLACKROSE_PALETTE.light.accentStrong;
     const date = formatLedgerDate(now ?? Date.now());
     // Preview from the same clipped value the write path files — a token past
     // the 600-char cut would otherwise be promised here and never stored.
@@ -100,16 +107,24 @@ export function ExploreComposer({ value, onChangeText, onKeep, isSaving, now }: 
                         accessibilityRole="button"
                         accessibilityLabel="Keep this note"
                         accessibilityState={{ disabled: !canKeep }}
-                        className="rounded-control border border-transparent bg-bone-light px-4 py-2 dark:bg-bone-dark"
-                        style={({ pressed }) => [{ opacity: !canKeep ? 0.35 : pressed ? 0.7 : 1 }]}
+                        className="rounded-control border border-transparent px-4 py-2"
+                        style={({ pressed }) => [
+                            { backgroundColor: keepFill, opacity: !canKeep ? 0.35 : pressed ? 0.7 : 1 },
+                        ]}
                     >
-                        <Text className="text-sm text-on-bone-light dark:text-on-bone-dark">
+                        {/* Prototype inks the CTA with `var(--bg)` — the page
+                            colour — which is exactly what the runtime
+                            `background-*` tokens hold. */}
+                        <Text className="text-sm text-background-light dark:text-background-dark">
                             {isSaving ? 'Keeping…' : 'Keep it'}
                         </Text>
                     </Pressable>
                     {/* The on-screen restatement of the no-AI, no-network promise
                         this surface makes: nothing here leaves the device. */}
-                    <Text className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
+                    <Text
+                        className="text-xs text-text-secondary-light dark:text-text-secondary-dark"
+                        numberOfLines={1}
+                    >
                         Stays on this device.
                     </Text>
                 </View>

@@ -2,6 +2,7 @@ import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { ExploreComposer } from '../../components/memory/ExploreComposer';
+import { BLACKROSE_PALETTE } from '../../constants/theme';
 
 jest.mock('../../hooks/use-color-scheme', () => ({ useColorScheme: () => 'light' }));
 
@@ -89,5 +90,20 @@ describe('ExploreComposer', () => {
         setup({ value: long });
         expect(screen.getByText(/alpha/i)).toBeTruthy();
         expect(screen.queryByText(/zebraquix/i)).toBeNull();
+    });
+
+    it('fills the commit action with the high-contrast CTA accent, not the bone accent', () => {
+        // The prototype's `.write-keep` fills with `--accent-strong` and the plan
+        // calls that token "Primary CTA fill contrast". `bone-*` is the
+        // *interactive* accent and is a visibly lighter mark; using it here was a
+        // real defect, so pin the fill rather than trusting the class name.
+        setup({ value: 'The kiln needs a new element.' });
+        const fill = screen.getByLabelText('Keep this note').props.style;
+        const resolved = (Array.isArray(fill) ? fill : [fill]).reduce(
+            (acc, entry) => ({ ...acc, ...(entry ?? {}) }),
+            {} as { backgroundColor?: string },
+        );
+        expect(resolved.backgroundColor).toBe(BLACKROSE_PALETTE.light.accentStrong);
+        expect(resolved.backgroundColor).not.toBe(BLACKROSE_PALETTE.light.accent);
     });
 });
