@@ -5,6 +5,7 @@ import type { JournalEntry } from '@/services/journal/journalStorage.types';
 import type { IntentionCheckIn } from '@/services/intentions/intentionsStorage.types';
 import { formatEventDateLabel, getLocalDateKeyFromTimestamp, isValidIsoDateKey } from '@/utils/date';
 import {
+    extractTags,
     scoreKeywordRecency,
     tokenize,
 } from './keywordRanking';
@@ -110,13 +111,6 @@ function extractUserText(messages: readonly Message[]): string {
         .filter((message) => message.role === 'user')
         .map((message) => message.content)
         .join('\n\n');
-}
-
-function extractTags(text: string, seedTags: readonly string[] = []): string[] {
-    const counts = new Map<string, number>();
-    tokenize(text).forEach((token) => counts.set(token, (counts.get(token) ?? 0) + 1));
-    const ranked = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
-    return uniqueValues([...seedTags, ...ranked.slice(0, 8).map(([token]) => token)]);
 }
 
 function atomId(input: LocalMemoryAtomInput): string {

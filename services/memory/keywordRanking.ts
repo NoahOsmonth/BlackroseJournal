@@ -88,3 +88,23 @@ export function scoreKeywordRecency(
 ): number {
     return overlapRatio(candidateTokens, queryTokens) * 0.7 + recencyFactor(createdAt, now) * 0.3;
 }
+
+/** Dedupe, trim, drop empties — insertion order preserved. */
+function uniqueValues(values: readonly string[]): string[] {
+    return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+}
+
+/**
+ * Top tags for a piece of text: the highest-frequency tokens, seed tags first.
+ *
+ * Lives here rather than in `localMemory.ts` because it is pure and two callers
+ * need it — the memory store and the Explore composer's live "Filed under"
+ * preview. Importing the store for a pure string function dragged the whole
+ * AsyncStorage write path into the component graph.
+ */
+export function extractTags(text: string, seedTags: readonly string[] = []): string[] {
+    const counts = new Map<string, number>();
+    tokenize(text).forEach((token) => counts.set(token, (counts.get(token) ?? 0) + 1));
+    const ranked = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+    return uniqueValues([...seedTags, ...ranked.slice(0, 8).map(([token]) => token)]);
+}
