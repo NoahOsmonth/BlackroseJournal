@@ -300,6 +300,84 @@ export async function stageTmpMemory(input: StageMemoryInput): Promise<MemoryFil
     return record;
 }
 
+export interface StageUserNoteInput {
+    text: string;
+    /** Top tag from `extractTags` — becomes the thread hint. Absent when nothing was recognised. */
+    threadHint?: string;
+    /** Journal entry id; used for staging idempotency. */
+    sourceEntryId: string;
+    capturedAt?: string;
+}
+
+/** Lowercase slug used as the `Thread hint` token Dream clusters on. */
+function noteHintSlug(value: string): string {
+    return value
+        .toLowerCase()
+        .replace(/[^a-z0-9\u4e00-\u9fff]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 60);
+}
+
+/**
+ * Stage a user-written note as a first-class memory file.
+ *
+ * Deliberately not `stageTmpMemory`: that writer's `type` union and its
+ * `Project/` folder naming are for extracted memories, and widening it would let
+ * a caller stage a note under a folder that says otherwise. A note is its own
+ * kind of thing with its own id shape.
+ *
+ * The id is keyed on the **entry id**, not on the text. Two byte-identical notes
+ * kept on different days are two memories, and hashing only the text would give
+ * them one id and let the second silently overwrite the first's session key.
+ *
+ * The `Thread hint <slug>.` prefix is the exact convention `clusterTmpFiles`
+ * groups on (`memoryDream.ts:43-46`), so Dream files a note beside the journal
+ * memories of the same subject rather than in a separate pile.
+ */
+export async function stageUserNoteMemory(input: StageUserNoteInput): Promise<MemoryFileRecord> {
+    const text = input.text.trim();
+    if (!text) throw new Error('text is required');
+    const entryKey = input.sourceEntryId.trim();
+    if (!entryKey) throw new Error('sourceEntryId is required');
+
+    const hint = noteHintSlug(input.threadHint ?? '');
+    const name = `Note: ${normalizeText(text).slice(0, 60)}`;
+    const description = (
+        normalizeText(`${hint ? `Thread hint ${hint}. ` : ''}${text}`).slice(0, 320) || name
+    );
+    const body = ['## Note', text, '', '## Notes', '- Kept as written on Threads.'].join('\n');
+    const capturedAt = input.capturedAt && Number.isFinite(Date.parse(input.capturedAt))
+        ? input.capturedAt
+        : nowIso();
+    const baseId = `projects/${TMP_PROJECT_ID}/Note/${slugify(normalizeText(text).slice(0, 48))}-${hashText(entryKey)}.md`;
+
+    let record: MemoryFileRecord | undefined;
+    await withFilesLock(async () => {
+        const manifest = await loadManifest();
+        const id = await idWithoutOverwriting(manifest, body, baseId);
+        const header: MemoryFileHeader = {
+            id,
+            relativePath: id,
+            name,
+            description,
+            type: 'note',
+            scope: 'project',
+            projectId: TMP_PROJECT_ID,
+            updatedAt: nowIso(),
+            capturedAt,
+            sourceSessionKey: entryKey,
+        };
+        // Body first: an orphan body is reclaimable, a header with no bytes is
+        // an unreachable memory (see `promoteTmpRecord` for the full reasoning).
+        await storageAdapter.setItem(bodyKey(id), body);
+        manifest[id] = header;
+        await saveManifest(manifest);
+        record = { ...header, content: body, preview: previewText(body, HEADER_PREVIEW_CHARS) };
+    });
+    if (!record) throw new Error('note staging did not run');
+    return record;
+}
+
 function scoreHeader(header: MemoryFileHeader, tokens: string[]): number {
     if (tokens.length === 0) return 0;
     const hay = `${header.name} ${header.description} ${header.projectId ?? ''}`.toLowerCase();
