@@ -110,8 +110,12 @@ describe('ThemeDriftStrip', () => {
         render(<ThemeDriftStrip themes={THEMES} onThemePress={jest.fn()} />);
         // It is decorative, so it is `aria-hidden` and out of the default query
         // set — ask for it explicitly.
-        expect(screen.getAllByText('·', { includeHiddenElements: true }).length).toBeGreaterThanOrEqual(
-            THEMES.length,
-        );
+        const dots = screen.getAllByText('·', { includeHiddenElements: true });
+        expect(dots.length).toBeGreaterThanOrEqual(THEMES.length);
+        // Jest cannot see the platform a11y tree, and the two props cover
+        // different platforms: `aria-hidden` reaches web and RNTL, while
+        // `accessible` is the one that stops iOS VoiceOver reading the dot
+        // between every word. Pin both.
+        expect(dots.every((dot) => dot.props.accessible === false)).toBe(true);
     });
 });

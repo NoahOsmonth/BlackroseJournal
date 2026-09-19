@@ -53,14 +53,17 @@ interface ThemeDriftStripProps {
 
 /**
  * The `·` between words. Decorative punctuation, so it is hidden from assistive
- * tech with `aria-hidden` — the portable spelling: React Native maps it to the
- * iOS/Android props, react-native-web maps it to the DOM attribute, and RNTL
- * honours it when querying.
+ * tech — which takes both props, because they cover different platforms:
+ * `aria-hidden` reaches react-native-web and RNTL but is never mapped by React
+ * Native's `Text`, so iOS needs the platform prop as well.
  */
 function ThemeSeparator() {
     return (
         <Text
             aria-hidden
+            // Without this, VoiceOver on iOS reads the dot between every theme
+            // word: `Text` keeps `accessible` true there unless it is set false.
+            accessible={false}
             className="text-[13px] text-text-secondary-light opacity-60 dark:text-text-secondary-dark"
         >
             ·
