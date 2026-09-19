@@ -1,15 +1,10 @@
-import React, { useState } from 'react';
-import {
-    Pressable,
-    Text,
-    View,
-    type LayoutChangeEvent,
-    type NativeScrollEvent,
-    type NativeSyntheticEvent,
-} from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Pressable, Text, View, type LayoutChangeEvent } from 'react-native';
 import Animated, {
+    runOnJS,
     scrollTo,
     useAnimatedRef,
+    useAnimatedScrollHandler,
     useFrameCallback,
     useReducedMotion,
     useSharedValue,
@@ -30,6 +25,26 @@ const MAX_FRAME_DELTA_MS = 50;
 const WIDTH_EPSILON = 0.5;
 /** Floor for the run count: one run to show, one to wrap into. */
 const MIN_RUNS = 2;
+/**
+ * How long the drift stays held after the reader last touched the strip. The
+ * prototype resumes on this idle timer, never on momentum events, and that is
+ * not a style choice: iOS sends `onMomentumScrollEnd` only from a decelerating
+ * scroll (`RCTScrollView.m` — `scrollViewDidEndDecelerating` /
+ * `scrollViewDidEndScrollingAnimation`), so a drag released at rest never
+ * reports a momentum end and a momentum-gated drift would stay parked until the
+ * next fling.
+ */
+const IDLE_RESUME_MS = 2600;
+/** Closer than this and the difference is our own sub-pixel rounding, not a reader. */
+const DIVERGENCE_EPSILON = 1;
+
+/** Fold an offset into `[0, width)`. Invisible: the content repeats. */
+function foldOffset(value: number, width: number): number {
+    'worklet';
+    if (width <= 0) return value;
+    const wrapped = value % width;
+    return wrapped < 0 ? wrapped + width : wrapped;
+}
 
 interface ThemeDriftStripProps {
     themes: readonly string[];
@@ -37,16 +52,15 @@ interface ThemeDriftStripProps {
 }
 
 /**
- * The `·` between words. Decorative punctuation, so it opts out of being its
- * own screen-reader stop; the prototype's `aria-hidden` maps here to
- * `accessibilityElementsHidden`, but that also removes the node from RNTL's
- * default query filter — and the separators are what make one run's width equal
- * the wrap distance, so they have to stay observable to the test that pins them.
+ * The `·` between words. Decorative punctuation, so it is hidden from assistive
+ * tech with `aria-hidden` — the portable spelling: React Native maps it to the
+ * iOS/Android props, react-native-web maps it to the DOM attribute, and RNTL
+ * honours it when querying.
  */
 function ThemeSeparator() {
     return (
         <Text
-            accessible={false}
+            aria-hidden
             className="text-[13px] text-text-secondary-light opacity-60 dark:text-text-secondary-dark"
         >
             ·
@@ -59,9 +73,13 @@ function ThemeSeparator() {
  *
  * A CSS transform and native scroll cannot both own the offset, so the prototype
  * drove `scrollLeft` directly; here a frame callback drives `scrollTo` on an
- * `Animated.ScrollView`. Native scroll still owns the position while a finger is
- * down, and the offset is re-adopted from `contentOffset.x` when momentum ends —
- * so flick and momentum behave natively instead of being reimplemented.
+ * `Animated.ScrollView`. The strip only moves itself while nobody is touching
+ * it: every interaction holds the drift for `IDLE_RESUME_MS`, and if the
+ * scroller ends up somewhere the callback did not put it, the callback adopts
+ * that position and holds instead of dragging the reader back. That second rule
+ * is what makes a wheel or trackpad scroll work on web, where react-native-web
+ * drops the drag/momentum handlers, so the hold can only come from the
+ * divergence check and not from `onScrollBeginDrag`.
  *
  * The wrap is seamless because the content is periodic: normalising the offset
  * modulo one run's width lands on identical pixels, so the correction is
@@ -79,9 +97,15 @@ export function ThemeDriftStrip({ themes, onThemePress }: ThemeDriftStripProps) 
     const paused = useSharedValue(false);
     /** The frame callback and the drag handlers both need the width off the JS thread. */
     const runWidthValue = useSharedValue(0);
+    /** Where the scroller actually is, straight off `onScroll`. */
+    const livePosition = useSharedValue(0);
+    /** The offset the frame callback last drove, so our own frames never read as a reader's. */
+    const lastDriven = useSharedValue(0);
 
     const [runWidth, setRunWidth] = useState(0);
     const [viewportWidth, setViewportWidth] = useState(0);
+
+    const resumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     /**
      * Computed, not hard-coded. The drift can only reach its own wrap point if
@@ -96,37 +120,84 @@ export function ThemeDriftStrip({ themes, onThemePress }: ThemeDriftStripProps) 
             ? Math.max(MIN_RUNS, Math.ceil((runWidth + viewportWidth) / runWidth) + 1)
             : MIN_RUNS;
 
-    /** Fold an offset into `[0, runWidth)`. Invisible: the content repeats. */
-    const adopt = (x: number) => {
-        const width = runWidthValue.value;
-        if (width <= 0) {
-            offset.value = x;
-            return;
-        }
-        const wrapped = x % width;
-        offset.value = wrapped < 0 ? wrapped + width : wrapped;
-    };
+    /**
+     * Take the reader's position as ours and stop drifting for a moment. Called
+     * on every interaction, and re-armed rather than stacked: a long drag must
+     * not leave an earlier timer to fire mid-gesture.
+     */
+    const holdDrift = useCallback(() => {
+        paused.value = true;
+        if (resumeTimer.current !== null) clearTimeout(resumeTimer.current);
+        resumeTimer.current = setTimeout(() => {
+            resumeTimer.current = null;
+            const width = runWidthValue.value;
+            const live = foldOffset(livePosition.value, width);
+            // Only adopt a position the scroller really moved to. If `onScroll`
+            // ever lagged, adopting blindly would jump the strip by a whole run.
+            if (width > 0 && Math.abs(live - lastDriven.value) > DIVERGENCE_EPSILON) {
+                offset.value = live;
+                lastDriven.value = live;
+            }
+            paused.value = false;
+        }, IDLE_RESUME_MS);
+    }, [lastDriven, livePosition, offset, paused, runWidthValue]);
+
+    useEffect(
+        () => () => {
+            if (resumeTimer.current !== null) clearTimeout(resumeTimer.current);
+        },
+        [],
+    );
 
     useFrameCallback((frame) => {
         'worklet';
-        if (paused.value || reduceMotion || runWidthValue.value <= 0) return;
+        if (reduceMotion || runWidthValue.value <= 0) return;
+
+        const width = runWidthValue.value;
+        const live = foldOffset(livePosition.value, width);
+        // Compared folded, not raw: what we drive is always a folded offset, and
+        // `onScroll` reaches us a frame or so late, so a raw comparison would
+        // read our own wrap — a jump of a whole run — as a reader's scroll.
+        if (Math.abs(live - lastDriven.value) > DIVERGENCE_EPSILON) {
+            // Someone else moved it — a native drag, a trackpad flick, a wheel.
+            // Follow them instead of fighting, and hold the drift.
+            offset.value = live;
+            lastDriven.value = live;
+            if (!paused.value) runOnJS(holdDrift)();
+            return;
+        }
+
+        if (paused.value) return;
+
         const elapsed = Math.min(frame.timeSincePreviousFrame ?? 0, MAX_FRAME_DELTA_MS);
-        const next = offset.value + (DRIFT_SPEED * elapsed) / 1000;
-        const wrapped = next % runWidthValue.value;
-        offset.value = wrapped < 0 ? wrapped + runWidthValue.value : wrapped;
-        scrollTo(scrollRef, offset.value, 0, false);
+        const next = foldOffset(offset.value + (DRIFT_SPEED * elapsed) / 1000, width);
+        offset.value = next;
+        lastDriven.value = next;
+        scrollTo(scrollRef, next, 0, false);
     }, true);
+
+    const handleScroll = useAnimatedScrollHandler(
+        {
+            onScroll: (event) => {
+                'worklet';
+                livePosition.value = event.contentOffset.x;
+            },
+        },
+        [livePosition],
+    );
 
     const handleRunLayout = (event: LayoutChangeEvent) => {
         const next = event.nativeEvent.layout.width;
         // `onLayout` can fire more than once, and a run measured in fallback
         // font metrics would give a wrap distance that jumps at the seam. Only
-        // adopt a width that actually changed, then re-fold the live offset so
-        // the correction still lands on identical pixels.
+        // adopt a width that actually changed, then re-fold the offsets so the
+        // correction still lands on identical pixels — and so a re-measure
+        // cannot read as a foreign scroll on the next frame.
         if (Math.abs(next - runWidth) <= WIDTH_EPSILON) return;
         setRunWidth(next);
         runWidthValue.value = next;
-        adopt(offset.value);
+        offset.value = foldOffset(offset.value, next);
+        lastDriven.value = foldOffset(lastDriven.value, next);
     };
 
     const handleViewportLayout = (event: LayoutChangeEvent) => {
@@ -136,30 +207,6 @@ export function ThemeDriftStrip({ themes, onThemePress }: ThemeDriftStripProps) 
         );
     };
 
-    const handleScrollBeginDrag = () => {
-        paused.value = true;
-    };
-
-    /**
-     * A flick fires `onScrollEndDrag` and *then* momentum. Un-pausing on the
-     * drag end would start driving `scrollTo` while native momentum is still
-     * moving the content — the offset fighting native scroll. Re-pausing here
-     * (and only resuming on momentum end) leaves the strip parked for a moment
-     * on a zero-velocity release, which is the safer of the two failures.
-     */
-    const handleMomentumScrollBegin = () => {
-        paused.value = true;
-    };
-
-    const handleScrollEndDrag = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-        adopt(event.nativeEvent.contentOffset.x);
-    };
-
-    const handleMomentumScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-        adopt(event.nativeEvent.contentOffset.x);
-        paused.value = false;
-    };
-
     if (themes.length === 0) return null;
 
     return (
@@ -167,29 +214,34 @@ export function ThemeDriftStrip({ themes, onThemePress }: ThemeDriftStripProps) 
             testID="theme-drift-strip"
             // Deliberately NOT `accessible`: an accessible container groups every
             // descendant into one element, which would swallow the theme buttons
-            // and leave the whole strip as a single focusable blob. The role and
-            // label describe the group without collapsing it.
+            // and leave the whole strip as a single focusable blob. The role,
+            // label and tab stop describe the group without collapsing it.
             accessibilityRole="adjustable"
             accessibilityLabel="Themes you return to"
+            tabIndex={0}
         >
             <Animated.ScrollView
                 ref={scrollRef}
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 scrollEventThrottle={16}
+                onScroll={handleScroll}
                 onLayout={handleViewportLayout}
-                onScrollBeginDrag={handleScrollBeginDrag}
-                onMomentumScrollBegin={handleMomentumScrollBegin}
-                onScrollEndDrag={handleScrollEndDrag}
-                onMomentumScrollEnd={handleMomentumScrollEnd}
+                onScrollBeginDrag={holdDrift}
+                onMomentumScrollBegin={holdDrift}
+                onScrollEndDrag={holdDrift}
+                onMomentumScrollEnd={holdDrift}
             >
                 {Array.from({ length: runCount }, (_, run) => (
                     <View
                         key={run}
-                        className="flex-row items-baseline gap-5 pr-5"
+                        className="flex-row items-baseline gap-2 pr-2"
                         onLayout={run === 0 ? handleRunLayout : undefined}
-                        accessibilityElementsHidden={run > 0}
-                        importantForAccessibility={run > 0 ? 'no-hide-descendants' : 'auto'}
+                        // One prop, correct on all three platforms: React Native
+                        // maps it to accessibilityElementsHidden (and, when
+                        // true, `importantForAccessibility`) and react-native-web
+                        // maps it to the DOM attribute.
+                        aria-hidden={run > 0}
                     >
                         {themes.map((theme) =>
                             run === 0 ? (
