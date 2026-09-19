@@ -9,6 +9,7 @@ import { deriveNoteTitle, saveExploreNote } from '../../services/memory/exploreN
 import { listMemoryAtoms, resetMemoryStorageAdapter, setMemoryStorageAdapter } from '../../services/memory/localMemory';
 import {
     clearMemoryFiles,
+    getMemoryRecordsByIds,
     listTmpFiles,
     resetMemoryFilesStorageAdapter,
     setMemoryFilesStorageAdapter,
@@ -21,6 +22,7 @@ import {
 import {
     clearAllEntries,
     getEntry,
+    listEntries,
     resetStorageAdapter,
     setStorageAdapter,
 } from '../../services/journal/journalStorage';
@@ -92,6 +94,10 @@ describe('saveExploreNote', () => {
 
     it('rejects blank text before writing anything', async () => {
         await expect(saveExploreNote({ text: '   \n  ', now: NOW })).rejects.toThrow('Note text is required');
+        // All three stores, not just the derived two: "before writing anything"
+        // is only true if the journal store is empty too. A throw moved after
+        // `createEntry` would leave an empty entry behind and pass without this.
+        await expect(listEntries()).resolves.toEqual([]);
         await expect(listMemoryAtoms()).resolves.toEqual([]);
         await expect(listTmpFiles()).resolves.toEqual([]);
     });
@@ -107,7 +113,18 @@ describe('saveExploreNote', () => {
 
         expect(entryText.length).toBe(600);
         expect(atoms[0]?.content).toBe(entryText);
+        // The header name is `Note: ${text.slice(0, 60)}`, so it is byte-identical
+        // whether the file got 600 chars or 1319 — it cannot see the stored body.
+        // Assert on the body itself, which is what `memory_search` returns.
         expect(files[0]?.name).toContain(entryText.slice(0, 40));
+        // Body shape is `## Note\n<text>\n\n## Notes\n...`, so the second line is
+        // the note verbatim.
+        expect(result.file?.content.split('\n')[1]).toBe(entryText);
+        // Read it back the way recall does, through the store's own API.
+        const [stored] = await getMemoryRecordsByIds([files[0]!.id]);
+        expect(stored?.content.split('\n')[1]).toBe(entryText);
+        // The unclipped value must not be anywhere in the persisted body.
+        expect(stored?.content).not.toContain(long);
     });
 
     it('keeps the entry and reports the failure when a later store throws', async () => {

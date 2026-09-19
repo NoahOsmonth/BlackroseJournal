@@ -19,10 +19,21 @@ import * as path from 'path';
 
 const ROOT = process.cwd();
 
-/** Modules that reach a provider, directly or through a wrapper. */
+/**
+ * Modules that reach a provider, directly or through a wrapper.
+ *
+ * Every entry here is a real module — checked against the tree, not recalled.
+ * `streamingTransports` (XHR streaming fallback), `modelContext` and
+ * `customModels` (both `fetch(<baseUrl>/models)`) all hit the provider host.
+ * Excluded on purpose: `agenticGate` / `agentPromise` match `fetch(` only inside
+ * regex literals (no call), and `driveBackup` fetches a user-initiated Drive
+ * export, not a model.
+ */
 const LLM_MODULES = [
     'services/ai/directTransport',
-    'services/ai/chat',
+    'services/ai/streamingTransports',
+    'services/ai/modelContext',
+    'services/ai/customModels',
     'services/ai/jsonCompletion',
     'services/ai/agentLoop',
     'services/ai/ai',
@@ -55,18 +66,39 @@ function resolveSpec(fromFile: string, spec: string): string | null {
 }
 
 /**
- * Value imports only. Multi-line aware, and it skips `import type` statements
- * and `*.types.ts` declaration modules — those edges are erased at compile time
- * and are not runtime dependencies of the write path.
+ * Every module specifier that is a runtime dependency: static `import … from`,
+ * `export … from` (a re-export is a real runtime edge and was previously
+ * invisible here), dynamic `import('…')`, and bare `import '…'` side-effect
+ * imports. Multi-line aware, both quote styles.
+ *
+ * Skips `import type … from` and `export type … from` statements and any
+ * `*.types.ts` target — those edges are erased at compile time and are not
+ * runtime dependencies of the write path. An inline `{ type X }` specifier in a
+ * value import keeps the edge: erring toward reporting a dependency is safe,
+ * erring toward hiding one is exactly the bug this guard exists to catch.
  */
 function importedModules(file: string): string[] {
     const source = fs.readFileSync(file, 'utf8');
     const targets: string[] = [];
-    for (const match of source.matchAll(/^[ \t]*import\s+(type\s+)?([\s\S]*?)\bfrom\s+'([^']+)'/gm)) {
-        if (match[1]) continue;
-        const target = resolveSpec(file, match[3]!);
-        if (!target || /\.types\.ts$/.test(target)) continue;
+    const add = (spec: string | undefined): void => {
+        if (!spec) return;
+        const target = resolveSpec(file, spec);
+        if (!target || /\.types\.ts$/.test(target)) return;
         targets.push(target);
+    };
+
+    // `import … from 'x'` / `export … from 'x'`, including multi-line braces.
+    for (const match of source.matchAll(/^[ \t]*(import|export)\b(?![ \t]*\()([^;]*?)\bfrom\s+(['"])([^'"]+)\3/gm)) {
+        if (/^[ \t]*(?:import|export)\s+type\b/.test(match[0])) continue;
+        add(match[4]);
+    }
+    // Dynamic `import('x')` — a lazy provider load is still a provider load.
+    for (const match of source.matchAll(/\bimport\s*\(\s*(['"])([^'"]+)\1\s*\)/g)) {
+        add(match[2]);
+    }
+    // Bare `import 'x'` side-effect import.
+    for (const match of source.matchAll(/^[ \t]*import\s+(['"])([^'"]+)\1/gm)) {
+        add(match[2]);
     }
     return targets;
 }
