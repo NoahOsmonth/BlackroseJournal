@@ -1,5 +1,8 @@
 import type { LocalMemoryAtom, LocalMemoryLayer } from '@/services/memory/localMemory.types';
 import { isNavigableRootKind, resolveRootSource } from '@/services/memory/memoryProvenance';
+import { extractTags } from '@/services/memory/keywordRanking';
+import type { NoteOrigin } from '@/services/journal/journalStorage.types';
+import { getLocalDateKey } from '@/utils/date';
 
 export type MemoryLayerFilter = LocalMemoryLayer | 'all';
 
@@ -55,10 +58,16 @@ export function memoryPortraitProse(atoms: readonly LocalMemoryAtom[]): string {
     return parts.join(' · ');
 }
 
+/**
+ * Every theme, notes included. The previous version filtered `layer !== 'note'`
+ * out because notes were a side-channel that would have polluted a ranking of
+ * extracted themes. Now that a note is a first-class memory the writer chose to
+ * keep, excluding them meant a user who only writes on Explore saw no themes at
+ * all — the portrait would describe an empty life to the person living it.
+ */
 export function topMemoryThemes(atoms: readonly LocalMemoryAtom[], limit = 6): string[] {
     const counts = new Map<string, number>();
     atoms
-        .filter((atom) => atom.layer !== 'note')
         .flatMap((atom) => atom.tags)
         .forEach((tag) => counts.set(tag, (counts.get(tag) ?? 0) + 1));
 
@@ -111,4 +120,38 @@ export function memoryAtomRoute(atom: LocalMemoryAtom): MemoryAtomRoute {
         return { pathname: '/checkin-detail', params: { id: root.id } };
     }
     return null;
+}
+
+/**
+ * Live "Filed under" preview. Same matcher the write path uses, so what the
+ * composer shows is what the note is actually filed under — a second
+ * implementation here would let the preview promise a theme the file never got.
+ */
+export function themesForText(text: string): string[] {
+    return extractTags(text);
+}
+
+const LEDGER_MONTHS = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+/** Margin date column: month over day, plus the ISO key the row keys on. */
+export function formatLedgerDate(timestamp: number): { month: string; day: string; iso: string } {
+    const date = new Date(timestamp);
+    const month = LEDGER_MONTHS[date.getMonth()] ?? '';
+    return {
+        month,
+        day: String(date.getDate()),
+        iso: getLocalDateKey(date),
+    };
+}
+
+/**
+ * Provenance label. `undefined` is `'chat'` — every entry saved before Explore
+ * had a composer came from chat, so defaulting the other way would relabel
+ * history.
+ */
+export function originLabel(origin: NoteOrigin | undefined): string {
+    return origin === 'threads' ? 'Written on Threads' : 'Journal';
 }
