@@ -119,6 +119,7 @@ export function createEntry(input: JournalEntryCreateInput): Promise<JournalEntr
             analysis: input.analysis,
             createdAt,
             updatedAt,
+            ...(input.origin ? { origin: input.origin } : {}),
         };
 
         await withMutationLock(async () => {

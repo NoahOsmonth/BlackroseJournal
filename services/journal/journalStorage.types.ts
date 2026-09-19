@@ -15,6 +15,13 @@ export interface JournalEntryAnalysis {
     generatedAt: number;
 }
 
+/**
+ * Where an entry was written. Absent on entries saved before this field existed,
+ * so every reader treats `undefined` as `'chat'` — the journal was the only
+ * writer until Explore gained a composer.
+ */
+export type NoteOrigin = 'chat' | 'threads';
+
 export interface JournalEntry {
     id: string;
     title: string;
@@ -26,6 +33,8 @@ export interface JournalEntry {
     updatedAt: number;
     /** Compact mirror cursor; source-owner persistence arrives in Phase 1 Task 8. */
     sourceRevision?: number;
+    /** Where this entry was written. Absent on older entries → read as 'chat'. */
+    origin?: NoteOrigin;
 }
 
 export interface JournalEntryCreateInput {
@@ -37,6 +46,7 @@ export interface JournalEntryCreateInput {
     /** Optional override (seed demo uses daysAgo offsets). Defaults to now. */
     createdAt?: number;
     updatedAt?: number;
+    origin?: NoteOrigin;
 }
 
 export interface JournalEntryUpdateInput {
