@@ -57,6 +57,7 @@ describe('useMemoryGraph', () => {
             addNote: jest.fn(),
             addGeneratedNote: jest.fn(),
             refreshGeneratedNote: jest.fn(),
+            addExploreNote: jest.fn(),
             removeAtom: jest.fn(),
             clearAll: jest.fn(),
         });
@@ -103,6 +104,7 @@ describe('useMemoryGraph', () => {
             addNote: jest.fn(),
             addGeneratedNote: jest.fn(),
             refreshGeneratedNote: jest.fn(),
+            addExploreNote: jest.fn(),
             removeAtom: jest.fn(),
             clearAll: jest.fn(),
         });

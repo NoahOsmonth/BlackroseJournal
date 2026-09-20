@@ -8,6 +8,8 @@ import {
     saveManualMemoryNote,
     subscribeMemoryChanges,
 } from '@/services/memory/localMemory';
+import { saveExploreNote } from '@/services/memory/exploreNote';
+import type { ExploreNoteResult } from '@/services/memory/exploreNote';
 import type { LocalMemoryAtom } from '@/services/memory/localMemory.types';
 
 interface UseLocalMemoriesReturn {
@@ -18,6 +20,13 @@ interface UseLocalMemoriesReturn {
     addNote: (content: string) => Promise<void>;
     addGeneratedNote: () => Promise<void>;
     refreshGeneratedNote: () => void;
+    /**
+     * Keeps a note written on Explore. Goes through `saveExploreNote`, not a
+     * bespoke atom write: the note must reach the memory-file store too, or
+     * `memory_search` cannot see it. Returns the outcome so the screen can
+     * report a partial write; `null` when the text was blank.
+     */
+    addExploreNote: (text: string) => Promise<ExploreNoteResult | null>;
     removeAtom: (id: string) => Promise<void>;
     clearAll: () => Promise<void>;
 }
@@ -61,6 +70,13 @@ export function useLocalMemories(): UseLocalMemoriesReturn {
         setGeneratedNote(generateMemoryNoteSuggestion(atoms) ?? '');
     }, [atoms]);
 
+    const addExploreNote = useCallback(async (text: string) => {
+        if (!text.trim()) return null;
+        const result = await saveExploreNote({ text });
+        await refresh();
+        return result;
+    }, [refresh]);
+
     const removeAtom = useCallback(async (id: string) => {
         await deleteMemoryAtom(id);
         await refresh();
@@ -86,6 +102,7 @@ export function useLocalMemories(): UseLocalMemoriesReturn {
         addNote,
         addGeneratedNote,
         refreshGeneratedNote,
+        addExploreNote,
         removeAtom,
         clearAll,
     };
