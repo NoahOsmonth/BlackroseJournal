@@ -242,7 +242,7 @@ describe('Plan 09 manual-QA smoke test', () => {
         expect(rehydrated[journalEntry.id].messages[0].content).toContain('slow mornings');
     });
 
-    it('QA11: manual memory note propagates to useLocalMemoryContext without reload (subscription works)', async () => {
+    it('QA11: an Explore note propagates to useLocalMemoryContext without reload (subscription works)', async () => {
         const memories = renderHook(() => useLocalMemories());
         const context = renderHook(() => useLocalMemoryContext({ query: 'calm' }));
 
@@ -250,7 +250,9 @@ describe('Plan 09 manual-QA smoke test', () => {
         await waitFor(() => expect(context.result.current.isLoading).toBe(false));
 
         await act(async () => {
-            await memories.result.current.addNote('Calm mornings mean a gentler afternoon.');
+            // `addExploreNote` is the supported way to write a note from
+            // Explore now — it fans out to entry + atom + memory file + digest.
+            await memories.result.current.addExploreNote('Calm mornings mean a gentler afternoon.');
         });
 
         // Both hooks should see the new note without manual refresh
@@ -334,7 +336,7 @@ describe('Plan 09 manual-QA smoke test', () => {
 
         // First write creates the sharded store: a header index plus atom shards
         await act(async () => {
-            await memories1.result.current.addNote('Hello, post-crash world.');
+            await memories1.result.current.addExploreNote('Hello, post-crash world.');
         });
 
         const index = JSON.parse(store.get(memoryKey) ?? '{}');

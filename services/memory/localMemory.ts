@@ -576,50 +576,6 @@ export async function saveManualMemoryNote(content: string): Promise<LocalMemory
     });
 }
 
-export async function saveGeneratedMemoryNote(content: string): Promise<LocalMemoryAtom> {
-    const trimmed = trimText(content, 600);
-    return upsertMemoryAtom({
-        layer: 'note',
-        source: 'system',
-        sourceId: `settings:${Date.now()}`,
-        rootSourceKind: 'system',
-        title: trimText(trimmed, 60) || 'Generated memory note',
-        content: trimmed,
-        tags: extractTags(trimmed),
-        salience: 0.78,
-        confidence: 0.72,
-    });
-}
-
-function topAtoms(atoms: readonly LocalMemoryAtom[]): LocalMemoryAtom[] {
-    return [...atoms]
-        .filter((atom) => atom.layer !== 'note')
-        .sort((a, b) => (b.salience + b.confidence) - (a.salience + a.confidence))
-        .slice(0, 3);
-}
-
-function collectThemes(atoms: readonly LocalMemoryAtom[]): string[] {
-    return uniqueValues(atoms.flatMap((atom) => atom.tags)).slice(0, 4);
-}
-
-export function generateMemoryNoteSuggestion(
-    atoms: readonly LocalMemoryAtom[]
-): string | undefined {
-    const candidates = topAtoms(atoms);
-    if (candidates.length === 0) return undefined;
-
-    const themes = collectThemes(candidates);
-    const themePhrase = themes.length > 0
-        ? `themes of ${themes.join(', ')}`
-        : 'threads that matter to you';
-    const observation = candidates.map((atom) => trimText(atom.content, 180)).join(' ');
-
-    return trimText(
-        `You seem to be someone who is navigating a lot right now. Rosebud notices you often return to ${themePhrase}. It may help to remember that ${observation}`,
-        600,
-    );
-}
-
 /**
  * Journal finish → 1 episodic + up to 3 merged theme atoms + optional named profile.
  * Never creates per-entry "About the user" clones or per-entry topic spam.

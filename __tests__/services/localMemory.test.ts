@@ -18,13 +18,11 @@ import {
     buildLocalMemoryContext,
     clearMemoryAtoms,
     deleteMemoryAtomsBySource,
-    generateMemoryNoteSuggestion,
     listMemoryAtoms,
     rankAtom,
     resetMemoryStorageAdapter,
     deleteMemoryAtom,
     retrieveLocalMemories,
-    saveGeneratedMemoryNote,
     saveManualMemoryNote,
     saveIntentionCheckInMemories,
     saveJournalEntryMemories,
@@ -147,27 +145,6 @@ describe('localMemory', () => {
         expect(note.source).toBe('manual');
         await expect(deleteMemoryAtom(note.id)).resolves.toBe(true);
         await expect(listMemoryAtoms()).resolves.toEqual([]);
-    });
-
-    it('generates a warm therapist-voice suggested note from non-note memory atoms', async () => {
-        await saveJournalEntryMemories(buildEntry());
-
-        const suggestion = generateMemoryNoteSuggestion(await listMemoryAtoms());
-
-        expect(suggestion).toContain('You seem to be someone who is navigating a lot right now');
-        expect(suggestion).toContain('Rosebud notices you often return to themes of');
-        expect(suggestion).toContain('It may help to remember that');
-        expect(suggestion).toContain('balancing ambition with recovery');
-        expect(suggestion).toContain('career');
-        expect(suggestion).not.toContain('Remember for Rosebud chats');
-    });
-
-    it('saves generated settings notes as system note atoms', async () => {
-        const note = await saveGeneratedMemoryNote('Remember to support gentler evenings.');
-
-        expect(note.layer).toBe('note');
-        expect(note.source).toBe('system');
-        expect(note.salience).toBeGreaterThan(0.7);
     });
 
     it('turns completed intention check-ins into source:intention memories', async () => {
