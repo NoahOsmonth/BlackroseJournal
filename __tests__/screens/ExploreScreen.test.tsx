@@ -157,6 +157,47 @@ describe('ExploreScreen memory hub', () => {
         expect(screen.getByText('Theme: Sleep')).toBeTruthy();
     });
 
+    it('reports which stores did not finish, rather than failing silently', async () => {
+        // §7: "Entry succeeds, a later store fails → `failures[]` reports which
+        // stores failed. Never a silent partial write." The words are already
+        // durable at this point, so the alert must say so rather than implying
+        // the note was lost.
+        mockAddExploreNote.mockResolvedValue({
+            failures: [{ store: 'memory file', error: 'quota' }],
+            themes: [],
+        });
+        const alertSpy = jest.spyOn(Alert, 'alert');
+
+        render(<ExploreScreen />);
+        fireEvent.changeText(screen.getByLabelText('New line'), 'Keep Sundays quiet.');
+        fireEvent.press(screen.getByLabelText('Keep this note'));
+
+        await waitFor(() => {
+            expect(alertSpy).toHaveBeenCalledWith(
+                'Saved, with a gap',
+                expect.stringContaining('memory file'),
+            );
+        });
+        // The gap must not be reported as a total failure: no error alert.
+        expect(alertSpy).not.toHaveBeenCalledWith(
+            'Could not keep the note',
+            expect.anything(),
+        );
+    });
+
+    it('surfaces a total write failure as an error instead of a gap', async () => {
+        mockAddExploreNote.mockRejectedValue(new Error('disk full'));
+        const alertSpy = jest.spyOn(Alert, 'alert');
+
+        render(<ExploreScreen />);
+        fireEvent.changeText(screen.getByLabelText('New line'), 'Keep Sundays quiet.');
+        fireEvent.press(screen.getByLabelText('Keep this note'));
+
+        await waitFor(() => {
+            expect(alertSpy).toHaveBeenCalledWith('Could not keep the note', 'disk full');
+        });
+    });
+
     it('shows no fake-AI suggestion panel', () => {
         render(<ExploreScreen />);
 
