@@ -93,9 +93,11 @@ function ThemeSeparator() {
  * it: every interaction holds the drift for `IDLE_RESUME_MS`, and if the
  * scroller ends up somewhere the callback did not put it, the callback adopts
  * that position and holds instead of dragging the reader back. That second rule
- * is what makes a wheel or trackpad scroll work on web, where react-native-web
- * drops the drag/momentum handlers, so the hold can only come from the
- * divergence check and not from `onScrollBeginDrag`.
+ * is what makes a wheel or trackpad scroll work on web: react-native-web *passes*
+ * the four drag/momentum props (`ScrollView/index.js:581-584` wires them into the
+ * DOM `View` props, and `ScrollViewBase.js:3`'s `_excluded` list does not drop
+ * them) but never *invokes* them from a drag path there, so on web the hold can
+ * only come from the divergence check and not from `onScrollBeginDrag`.
  *
  * The wrap is seamless because the content is periodic: normalising the offset
  * modulo one run's width lands on identical pixels, so the correction is

@@ -21,7 +21,11 @@ export function MemoryEmpty({ onWritePress }: MemoryEmptyProps) {
     return (
         <View
             className="items-center gap-3 px-6 py-14"
-            accessibilityLabel="Your memory grows as you journal"
+            /* Describes the block and what its action does. The old label
+               ("Your memory grows as you journal") promised a growth the visible
+               copy no longer makes — the empty state now points at the composer
+               on this page, not at journaling elsewhere. */
+            accessibilityLabel="Nothing in your memory yet — write a line to start it"
         >
             <RoseMark size={30} color={markColor} variant="bloom" />
             <Text

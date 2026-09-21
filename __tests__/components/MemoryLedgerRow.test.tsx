@@ -2,8 +2,9 @@ import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { MemoryLedgerRow } from '../../components/memory/MemoryLedgerRow';
-import { BLACKROSE_GRAPH_FAMILIES } from '../../constants/blackrose';
+import { BLACKROSE_GRAPH_FAMILIES, BLACKROSE_PALETTE } from '../../constants/blackrose';
 import type { LocalMemoryAtom } from '../../services/memory/localMemory.types';
+import { getLocalDateKey } from '../../utils/date';
 
 jest.mock('../../hooks/use-color-scheme', () => ({ useColorScheme: () => 'light' }));
 jest.mock('@expo/vector-icons', () => ({
@@ -69,6 +70,49 @@ describe('MemoryLedgerRow', () => {
         );
         expect(screen.queryByText('Sep')).toBeNull();
         expect(screen.getByText('19')).toBeTruthy();
+    });
+
+    it('inks the day number on a day start and mutes a continuation', () => {
+        // The month-drop makes a day boundary findable; the ink change is what
+        // does the finding, so both halves are asserted. Muted by default...
+        const continuation = setup({ showMonth: false });
+        expect(screen.getByText('19').props.className).toContain('text-text-secondary-light');
+        continuation.unmount();
+
+        // ...inked when this row opens a new day.
+        setup({ showMonth: true });
+        const day = screen.getByText('19');
+        expect(day.props.className).toContain('text-text-light');
+        expect(day.props.className).not.toContain('text-text-secondary-light');
+    });
+
+    it('draws today\'s accent rule and inks the day, and draws neither on an older day', () => {
+        const todayAtom: LocalMemoryAtom = { ...atom, createdAt: Date.now(), updatedAt: Date.now() };
+        const today = setup({ atom: todayAtom, showMonth: false });
+        expect(screen.getByTestId('memory-ledger-row-today-rule')).toBeTruthy();
+        // Today inks even as a continuation — the day number must not be muted.
+        expect(screen.getByText(String(new Date().getDate())).props.className)
+            .toContain('text-text-light');
+        today.unmount();
+
+        // The fixture is Sep 19 2026, not today: no rule, and the muted class
+        // when it is also not a day start.
+        setup({ showMonth: false });
+        expect(screen.queryByTestId('memory-ledger-row-today-rule')).toBeNull();
+    });
+
+    it('fills today\'s rule with the scheme-aware bone accent', () => {
+        const todayAtom: LocalMemoryAtom = { ...atom, createdAt: Date.now(), updatedAt: Date.now() };
+        setup({ atom: todayAtom });
+        const rule = screen.getByTestId('memory-ledger-row-today-rule');
+        const style = (Array.isArray(rule.props.style) ? rule.props.style : [rule.props.style]).reduce(
+            (acc, entry) => ({ ...acc, ...(entry ?? {}) }),
+            {} as { backgroundColor?: string },
+        );
+        // The mocked scheme is light, so the paper accent — not the dark one.
+        expect(style.backgroundColor).toBe(BLACKROSE_PALETTE.light.accent);
+        expect(style.backgroundColor).not.toBe(BLACKROSE_PALETTE.dark.accent);
+        expect(getLocalDateKey(new Date(todayAtom.createdAt))).toBe(getLocalDateKey());
     });
 
     it('opens the entry the note came from', () => {

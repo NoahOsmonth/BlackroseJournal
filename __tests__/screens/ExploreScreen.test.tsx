@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert } from 'react-native';
+import { Alert, ScrollView } from 'react-native';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import ExploreScreen from '../../app/(tabs)/explore';
@@ -203,7 +203,17 @@ describe('ExploreScreen memory hub', () => {
         render(<ExploreScreen />);
 
         expect(screen.getByText('Still quiet here')).toBeTruthy();
+
+        // The hub scrolls its own scroller to the composer, so the action has a
+        // positive half as well as the negative one below. `ScrollView` here is
+        // the class the mocked scroller extends, so the spy sees the real call
+        // the hub makes through its ref. `y` is not asserted: `onLayout` never
+        // fires under Jest, so the measured composer offset is still 0.
+        const scrollSpy = jest.spyOn(ScrollView.prototype as unknown as {
+            scrollTo: (...args: unknown[]) => void;
+        }, 'scrollTo');
         fireEvent.press(screen.getByLabelText('Write a line'));
+        expect(scrollSpy).toHaveBeenCalled();
 
         // The empty state's action brings the composer into view; it must not
         // navigate away (the old behaviour routed to /chat).

@@ -104,11 +104,25 @@ function relativeModule(file: string): string {
     return path.relative(ROOT, file).replace(/\\/g, '/').replace(/\.tsx?$/, '');
 }
 
+/**
+ * The pure display set in `components/memory/`. Task 14 added the ledger row,
+ * the empty state and the skeleton next to the composer, so rooting the walk at
+ * the composer alone guarded the smallest part of the surface this file
+ * describes: a provider or write-path import dragged into any of the others
+ * would have gone unseen. `MemoryHubScreen.tsx` is deliberately **not** here —
+ * it is the screen, it legitimately owns the hook and the write path.
+ */
+const DISPLAY_ENTRIES = [
+    'components/memory/ExploreComposer.tsx',
+    'components/memory/MemoryLedgerRow.tsx',
+    'components/memory/MemoryEmpty.tsx',
+    'components/memory/MemoryHubSkeleton.tsx',
+].map((relative) => path.join(ROOT, relative));
+
 describe('ExploreComposer import graph', () => {
     it('does not reach the note write path, the atom store, or a provider', () => {
-        const entry = path.join(ROOT, 'components/memory/ExploreComposer.tsx');
         const seen = new Set<string>();
-        const queue = [entry];
+        const queue = [...DISPLAY_ENTRIES];
         const offenders: string[] = [];
 
         while (queue.length > 0) {
@@ -125,6 +139,11 @@ describe('ExploreComposer import graph', () => {
 
         // A walk that visited nothing would pass vacuously.
         expect(seen.size).toBeGreaterThan(1);
+        // ...and so would a walk that never left the first entry, so pin that
+        // every root was actually visited.
+        for (const entry of DISPLAY_ENTRIES) {
+            expect(seen.has(entry)).toBe(true);
+        }
         expect(offenders).toEqual([]);
     });
 

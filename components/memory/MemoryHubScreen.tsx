@@ -291,9 +291,17 @@ export function MemoryHubScreen() {
                                                     <MemoryLedgerRow
                                                         key={atom.id}
                                                         atom={atom}
+                                                        // Day granularity, not month: the month is
+                                                        // dropped only on a repeat of a *day*
+                                                        // already shown above it, which is how a
+                                                        // printed ledger handles continuation — and
+                                                        // it is the same signal that marks a day's
+                                                        // first row as the day-start (the row inks
+                                                        // it). Two notes on different days of one
+                                                        // month each open their own date block.
                                                         showMonth={index === 0
-                                                            || formatLedgerDate(visibleAtoms[index - 1]!.createdAt).month
-                                                                !== formatLedgerDate(atom.createdAt).month}
+                                                            || formatLedgerDate(visibleAtoms[index - 1]!.createdAt).iso
+                                                                !== formatLedgerDate(atom.createdAt).iso}
                                                         onDelete={deleteAtom}
                                                         onThemePress={setQuery}
                                                         onOpen={handleOpenAtom}

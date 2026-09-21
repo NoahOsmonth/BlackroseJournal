@@ -6,6 +6,7 @@ import * as Haptics from 'expo-haptics';
 import { BLACKROSE_PALETTE, memoryLayerShades } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { LocalMemoryAtom } from '@/services/memory/localMemory.types';
+import { getLocalDateKey } from '@/utils/date';
 import {
     formatLedgerDate,
     formatRelativeMemoryTime,
@@ -18,7 +19,13 @@ interface MemoryLedgerRowProps {
     onDelete: (atom: LocalMemoryAtom) => void;
     onThemePress: (tag: string) => void;
     onOpen?: (atom: LocalMemoryAtom) => void;
-    /** False when the row above already printed this month. */
+    /**
+     * True when this row opens a new day — i.e. the row above it printed a
+     * different date, or there is no row above it. The date column drops the
+     * month on a repeat of a day already shown (a printed ledger's continuation
+     * convention), so this prop is *exactly* the day-start signal; the day
+     * number inks on it.
+     */
     showMonth: boolean;
 }
 
@@ -46,6 +53,21 @@ export function MemoryLedgerRow({
     // threshold, so the marker would read as a smudge in light mode.
     const layerColor = memoryLayerShades(atom.layer, scheme).deep;
     const date = formatLedgerDate(atom.createdAt);
+    // The date column's two ink states, ported from the prototype
+    // (`.entry-date.is-day-start` / `.is-today` in explore.css:699-716). The
+    // month-drop above only makes a day boundary *findable*; the ink change is
+    // what does the finding, so the two ship together. `showMonth` is already
+    // exactly the day-start signal (see the prop doc), so no new prop is added —
+    // a new required prop would be a `tsc` error in every test literal that
+    // enumerates this component's props.
+    const isDayStart = showMonth;
+    // Local date, computed here rather than passed: `date.iso` is
+    // `getLocalDateKey(createdAt)`, so today is a like-for-like comparison.
+    const isToday = date.iso === getLocalDateKey();
+    const dateInkClass = isDayStart || isToday
+        ? 'text-text-light dark:text-text-dark'
+        : 'text-text-secondary-light dark:text-text-secondary-dark';
+    const accent = isDark ? BLACKROSE_PALETTE.dark.accent : BLACKROSE_PALETTE.light.accent;
     const tags = atom.tags.slice(0, 3);
     const route = memoryAtomRoute(atom);
     const canOpen = Boolean(route && onOpen);
@@ -76,11 +98,23 @@ export function MemoryLedgerRow({
                     {showMonth ? date.month : ''}
                 </Text>
                 <Text
-                    className="text-[20px] leading-6 text-text-light dark:text-text-dark"
+                    testID="memory-ledger-row-day"
+                    className={`text-[20px] leading-6 ${dateInkClass}`}
                     style={{ fontFamily: 'PlayfairDisplayRegular' }}
                 >
                     {date.day}
                 </Text>
+                {/* Today's marker: a short accent rule under the day number
+                    (prototype `.entry-date.is-today::after`). The prototype
+                    animates it in; arrival motion is deliberately not ported —
+                    see the ledger's accepted deviation. */}
+                {isToday ? (
+                    <View
+                        testID="memory-ledger-row-today-rule"
+                        className="mt-[5px] h-0.5 w-5 rounded-[2px]"
+                        style={{ backgroundColor: accent }}
+                    />
+                ) : null}
             </View>
 
             <View className="min-w-0 flex-1 gap-2">

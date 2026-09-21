@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 
 import { MemoryHubScreen } from '../../components/memory/MemoryHubScreen';
 import type { LocalMemoryAtom } from '../../services/memory/localMemory.types';
@@ -65,6 +65,36 @@ const atoms: LocalMemoryAtom[] = [
     },
 ];
 
+/** Two notes on different days of the *same* month, in ledger order. */
+const sameMonthAtoms: LocalMemoryAtom[] = [
+    {
+        ...atoms[0],
+        id: 'note-late',
+        title: 'Later in the month',
+        createdAt: Date.UTC(2026, 8, 19, 10, 0, 0),
+        updatedAt: Date.UTC(2026, 8, 19, 10, 0, 0),
+    },
+    {
+        ...atoms[0],
+        id: 'note-early',
+        title: 'Earlier in the month',
+        createdAt: Date.UTC(2026, 8, 12, 10, 0, 0),
+        updatedAt: Date.UTC(2026, 8, 12, 10, 0, 0),
+    },
+];
+
+/**
+ * Index of the first node matching `predicate` in render order. The composer's
+ * leading position is a *structural* requirement of the port, and presence alone
+ * cannot see it — a screen with the composer at the bottom passed every other
+ * assertion in this file.
+ */
+function renderIndex(predicate: (props: Record<string, unknown>) => boolean): number {
+    return screen.UNSAFE_root
+        .findAll(() => true)
+        .findIndex((node) => predicate(node.props as Record<string, unknown>));
+}
+
 describe('MemoryHubScreen', () => {
     beforeEach(() => {
         mockAtoms = atoms;
@@ -77,6 +107,37 @@ describe('MemoryHubScreen', () => {
         // The composer's input label is 'New line' (ExploreComposer.tsx:81),
         // matching its visible label at :64 — not 'New note'.
         expect(screen.getByLabelText('New line')).toBeTruthy();
+
+        // Presence is not order. The task's central structural requirement is
+        // that the composer *leads* the page — before the portrait, the filter
+        // line, the "Written" list head and the first ledger row. Asserting only
+        // that the input exists passed with the composer moved to the bottom of
+        // the page, so compare render positions instead.
+        const composer = renderIndex((props) => props.accessibilityLabel === 'New line');
+        expect(composer).toBeGreaterThanOrEqual(0);
+
+        expect(renderIndex((props) => props.testID === 'memory-ledger-row')).toBeGreaterThan(composer);
+        expect(renderIndex((props) => props.children === 'About you')).toBeGreaterThan(composer);
+        expect(renderIndex((props) => props.children === 'Written')).toBeGreaterThan(composer);
+        // The filter line's first segment ("All") stands in for the whole row.
+        expect(renderIndex((props) => props.children === 'All')).toBeGreaterThan(composer);
+    });
+
+    it('prints the month on every new day, not just a new month', () => {
+        // Two notes on Sep 19 and Sep 12: the second is a new *day*, so it opens
+        // its own date block and must print its month. Suppressing it because
+        // the month already appeared above inverts the ledger convention.
+        mockAtoms = sameMonthAtoms;
+        render(<MemoryHubScreen />);
+
+        const rows = screen.getAllByTestId('memory-ledger-row');
+        expect(rows).toHaveLength(2);
+        // Scoped to the rows: the composer's own date column also prints the
+        // current month, so a screen-wide count would not be about the ledger.
+        expect(within(rows[0]!).getByText('Sep')).toBeTruthy();
+        expect(within(rows[1]!).getByText('Sep')).toBeTruthy();
+        expect(within(rows[0]!).getByText('19')).toBeTruthy();
+        expect(within(rows[1]!).getByText('12')).toBeTruthy();
     });
 
     it('keeps a note through the shared write path and clears the input', async () => {
@@ -114,5 +175,10 @@ describe('MemoryHubScreen', () => {
         // state's action must reach it, not navigate away.
         expect(screen.getByLabelText('New line')).toBeTruthy();
         expect(screen.getByLabelText('Write a line')).toBeTruthy();
+        // The block's own label must describe what is here now. It previously
+        // promised "Your memory grows as you journal" — a sentence the visible
+        // copy no longer makes, since the action keeps you on this page.
+        expect(screen.getByLabelText(/write a line to start it/i)).toBeTruthy();
+        expect(screen.queryByLabelText('Your memory grows as you journal')).toBeNull();
     });
 });
