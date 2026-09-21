@@ -43,7 +43,8 @@
     },
     "plugins": [
       "expo-router",
-      "expo-task-manager"
+      "expo-task-manager",
+      "./plugins/with-cleartext-traffic"
     ],
     "extra": {
       "router": {},

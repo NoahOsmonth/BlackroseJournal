@@ -51,3 +51,31 @@ describe("app.json config", () => {
         expect(expo.android?.package).toBe("com.blackrosejournal");
     });
 });
+
+describe("release build reaches the HTTP chat provider", () => {
+    const pluginPath = path.join(process.cwd(), "plugins", "with-cleartext-traffic.js");
+
+    it("registers the cleartext plugin", () => {
+        const parsed = JSON.parse(fs.readFileSync(path.join(process.cwd(), "app.json"), "utf-8")) as {
+            expo?: { plugins?: string[] };
+        };
+        expect(parsed.expo?.plugins).toContain("./plugins/with-cleartext-traffic");
+    });
+
+    // Android blocks cleartext HTTP from targetSdk 28 on. The provider is plain
+    // HTTP, so without this flag a release build cannot reach it at all — the
+    // debug manifest hides the bug because the Expo template sets the flag there.
+    it("sets android:usesCleartextTraffic on the application element", async () => {
+        const plugin = jest.requireActual(pluginPath) as (config: unknown) => {
+            mods: { android: { manifest: (cfg: unknown) => Promise<{ modResults: unknown }> } };
+        };
+        const mod = plugin({ name: "x", slug: "x" }).mods.android.manifest;
+        const result = await mod({
+            modResults: { manifest: { application: [{ $: { "android:name": ".MainApplication" } }] } },
+        });
+        const manifest = (result.modResults as {
+            manifest: { application: { $: Record<string, string> }[] };
+        }).manifest;
+        expect(manifest.application[0].$["android:usesCleartextTraffic"]).toBe("true");
+    });
+});
