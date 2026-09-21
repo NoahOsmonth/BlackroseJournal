@@ -2,6 +2,7 @@ import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { MemoryLedgerRow } from '../../components/memory/MemoryLedgerRow';
+import { formatLedgerDate } from '../../components/memory/memoryDisplay';
 import { BLACKROSE_GRAPH_FAMILIES, BLACKROSE_PALETTE } from '../../constants/blackrose';
 import type { LocalMemoryAtom } from '../../services/memory/localMemory.types';
 import { getLocalDateKey } from '../../utils/date';
@@ -31,6 +32,17 @@ const atom: LocalMemoryAtom = {
     updatedAt: Date.UTC(2026, 8, 19, 10, 0, 0),
     accessCount: 3,
 };
+
+/**
+ * The day-of-month the row will print for a timestamp, read through the same
+ * helper the row renders with. `formatLedgerDate` reads it off the device clock
+ * (`new Date(timestamp).getDate()`), so a hard-coded literal only holds in the
+ * runner's own timezone: the Sep 19 UTC fixture renders as "20" under UTC+14.
+ * Deriving it keeps the assertion about the row's own output, not the CI box.
+ */
+function localDay(timestamp: number): string {
+    return formatLedgerDate(timestamp).day;
+}
 
 function setup(overrides: Partial<React.ComponentProps<typeof MemoryLedgerRow>> = {}) {
     const props = {
@@ -69,19 +81,20 @@ describe('MemoryLedgerRow', () => {
             <MemoryLedgerRow atom={atom} onDelete={jest.fn()} onThemePress={jest.fn()} showMonth={false} />,
         );
         expect(screen.queryByText('Sep')).toBeNull();
-        expect(screen.getByText('19')).toBeTruthy();
+        expect(screen.getByText(localDay(atom.createdAt))).toBeTruthy();
     });
 
     it('inks the day number on a day start and mutes a continuation', () => {
         // The month-drop makes a day boundary findable; the ink change is what
         // does the finding, so both halves are asserted. Muted by default...
         const continuation = setup({ showMonth: false });
-        expect(screen.getByText('19').props.className).toContain('text-text-secondary-light');
+        expect(screen.getByTestId('memory-ledger-row-day').props.className)
+            .toContain('text-text-secondary-light');
         continuation.unmount();
 
         // ...inked when this row opens a new day.
         setup({ showMonth: true });
-        const day = screen.getByText('19');
+        const day = screen.getByTestId('memory-ledger-row-day');
         expect(day.props.className).toContain('text-text-light');
         expect(day.props.className).not.toContain('text-text-secondary-light');
     });

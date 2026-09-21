@@ -2,6 +2,7 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 
 import { MemoryHubScreen } from '../../components/memory/MemoryHubScreen';
+import { formatLedgerDate } from '../../components/memory/memoryDisplay';
 import type { LocalMemoryAtom } from '../../services/memory/localMemory.types';
 
 jest.mock('../../hooks/use-color-scheme', () => ({ useColorScheme: () => 'light' }));
@@ -65,7 +66,11 @@ const atoms: LocalMemoryAtom[] = [
     },
 ];
 
-/** Two notes on different days of the *same* month, in ledger order. */
+/**
+ * Two notes on different days of the *same* month, in ledger order. The ledger
+ * is newest first, and `showMonth` compares each row against the one above it,
+ * so `note-late` (newer) must come first and `note-early` is its continuation.
+ */
 const sameMonthAtoms: LocalMemoryAtom[] = [
     {
         ...atoms[0],
@@ -82,6 +87,72 @@ const sameMonthAtoms: LocalMemoryAtom[] = [
         updatedAt: Date.UTC(2026, 8, 12, 10, 0, 0),
     },
 ];
+
+/**
+ * Two notes on the *same day-of-month* but a different month, in ledger order.
+ *
+ * This is the pair the round-1 fixture cannot see. Comparing `.day` instead of
+ * `.iso` makes the two `19`s equal, so the August row is treated as a
+ * continuation of the September row above it and drops its month — a silently
+ * wrong date block. Only the ISO key tells them apart.
+ *
+ * Built with local-time constructors, not `Date.UTC`: a `Date.UTC` timestamp
+ * lands on the next (UTC+14) or previous (UTC-11) local day, so "the same day
+ * number" would stop being true on a runner in another timezone. `new Date(y,
+ * m, d, h)` is local by construction, so both rows share day 19 everywhere.
+ */
+const sameDayOfMonthAtoms: LocalMemoryAtom[] = [
+    {
+        ...atoms[0],
+        id: 'note-sep',
+        title: 'Earlier this month',
+        createdAt: new Date(2026, 8, 19, 12).getTime(),
+        updatedAt: new Date(2026, 8, 19, 12).getTime(),
+    },
+    {
+        ...atoms[0],
+        id: 'note-aug',
+        title: 'Last month, same day number',
+        createdAt: new Date(2026, 7, 19, 12).getTime(),
+        updatedAt: new Date(2026, 7, 19, 12).getTime(),
+    },
+];
+
+/**
+ * Two notes on the *same* local day, in ledger order — a true continuation.
+ * Local-time constructors for the same reason as above: the two hours must not
+ * straddle local midnight under a wide offset.
+ */
+const sameDayAtoms: LocalMemoryAtom[] = [
+    {
+        ...atoms[0],
+        id: 'note-later',
+        title: 'Later the same day',
+        createdAt: new Date(2026, 8, 19, 12).getTime(),
+        updatedAt: new Date(2026, 8, 19, 12).getTime(),
+    },
+    {
+        ...atoms[0],
+        id: 'note-earlier',
+        title: 'Earlier the same day',
+        createdAt: new Date(2026, 8, 19, 11).getTime(),
+        updatedAt: new Date(2026, 8, 19, 11).getTime(),
+    },
+];
+
+/**
+ * The month and day the row will print for a timestamp, read off the device
+ * clock by the same helper the row renders through. Hard-coding 'Sep' / '19'
+ * only holds in the runner's own timezone; deriving them keeps the assertion
+ * about the row's output rather than about the CI box.
+ */
+function localMonth(timestamp: number): string {
+    return formatLedgerDate(timestamp).month;
+}
+
+function localDay(timestamp: number): string {
+    return formatLedgerDate(timestamp).day;
+}
 
 /**
  * Index of the first node matching `predicate` in render order. The composer's
@@ -134,10 +205,46 @@ describe('MemoryHubScreen', () => {
         expect(rows).toHaveLength(2);
         // Scoped to the rows: the composer's own date column also prints the
         // current month, so a screen-wide count would not be about the ledger.
-        expect(within(rows[0]!).getByText('Sep')).toBeTruthy();
-        expect(within(rows[1]!).getByText('Sep')).toBeTruthy();
-        expect(within(rows[0]!).getByText('19')).toBeTruthy();
-        expect(within(rows[1]!).getByText('12')).toBeTruthy();
+        // Both the month and the day are derived from the fixtures rather than
+        // written as literals — the row reads them off the device clock.
+        expect(within(rows[0]!).getByText(localMonth(sameMonthAtoms[0]!.createdAt))).toBeTruthy();
+        expect(within(rows[1]!).getByText(localMonth(sameMonthAtoms[1]!.createdAt))).toBeTruthy();
+        expect(within(rows[0]!).getByText(localDay(sameMonthAtoms[0]!.createdAt))).toBeTruthy();
+        expect(within(rows[1]!).getByText(localDay(sameMonthAtoms[1]!.createdAt))).toBeTruthy();
+    });
+
+    it('opens a new month even when the day-of-month repeats', () => {
+        // Aug 19 and Sep 19 share a day *number*. The month-drop is keyed on the
+        // ISO day, so the August row is a new block and must print its month.
+        // Comparing `.day` instead would call the two 19s equal, treat August
+        // as a continuation of September, and silently drop the month — which
+        // is exactly what the round-1 fixture above (Sep 19 vs Sep 12, days
+        // that already differ) cannot see.
+        mockAtoms = sameDayOfMonthAtoms;
+        render(<MemoryHubScreen />);
+
+        const rows = screen.getAllByTestId('memory-ledger-row');
+        expect(rows).toHaveLength(2);
+        expect(localDay(sameDayOfMonthAtoms[0]!.createdAt))
+            .toBe(localDay(sameDayOfMonthAtoms[1]!.createdAt));
+        expect(within(rows[0]!).getByText(localMonth(sameDayOfMonthAtoms[0]!.createdAt))).toBeTruthy();
+        expect(within(rows[1]!).getByText(localMonth(sameDayOfMonthAtoms[1]!.createdAt))).toBeTruthy();
+    });
+
+    it('drops the month on a second row of the same day', () => {
+        // The other half of the rule: the continuation of a day already shown
+        // above it prints no month. Only the *row* test pinned this before, so
+        // hard-coding `showMonth={true}` in the hub left every test green.
+        mockAtoms = sameDayAtoms;
+        render(<MemoryHubScreen />);
+
+        const rows = screen.getAllByTestId('memory-ledger-row');
+        expect(rows).toHaveLength(2);
+        const month = localMonth(sameDayAtoms[0]!.createdAt);
+        // The first row of the day opens the block...
+        expect(within(rows[0]!).getByText(month)).toBeTruthy();
+        // ...and the continuation under it must not repeat the month.
+        expect(within(rows[1]!).queryByText(month)).toBeNull();
     });
 
     it('keeps a note through the shared write path and clears the input', async () => {

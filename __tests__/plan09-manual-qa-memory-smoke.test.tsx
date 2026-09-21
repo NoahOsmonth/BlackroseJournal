@@ -2,9 +2,11 @@
 /**
  * End-to-end manual-QA smoke test for Plan 09 — the memory half.
  *
- * Exercises the user flows from Phase E §4 against the actual service code
- * (not mocks) and the real backend running at EXPO_PUBLIC_AGENT_BASE_URL.
- * Mirrors what would happen in the app when a user taps through:
+ * Exercises the user flows from Phase E §4 against the actual service code and
+ * a real AsyncStorage round-trip (no mocks of the units under test). Only QA12
+ * can reach a model, and it soft-fails to a deterministic fallback — see the
+ * timeout note below. Mirrors what would happen in the app when a user taps
+ * through:
  *   - QA10:   + FAB journal chat regression (storage round-trip)
  *   - QA11:   Manual memory note propagation through the change-subscription hook
  *   - QA12:   Journal entry -> memory atoms (graph view-model)
@@ -31,9 +33,15 @@ jest.mock('@react-native-async-storage/async-storage', () => {
     };
 });
 
-// These are live-AI smoke tests: when the backend is reachable they make real
-// AI calls (generateEntryTitle, memory extraction) that take ~10s each, so the
-// default 5s Jest timeout is too tight. When the backend is down they skip.
+// QA12 is the one flow here that can reach a model: `saveJournalEntryMemories`
+// calls `extractJournalMemoryAtoms`, which soft-fails to a deterministic
+// extractive fallback when the provider is down — so it passes either way, and
+// there is no health check to skip on. QA11 and QA13 write through
+// `saveExploreNote`, which is model-free by design (it derives the title and
+// tags locally). The 180s timeout is headroom for the extraction round-trip,
+// not for `generateEntryTitle` or a `backendHealthy()` skip: neither exists in
+// this file. Both belong to the goals/intentions half, whose harness this one
+// was copied from.
 jest.setTimeout(180000);
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
