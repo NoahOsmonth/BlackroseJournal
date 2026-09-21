@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -24,6 +24,12 @@ interface ExploreComposerProps {
  */
 export function ExploreComposer({ value, onChangeText, onKeep, isSaving, now }: ExploreComposerProps) {
     const isDark = useColorScheme() === 'dark';
+    // Pressed state is tracked by hand, not read off `Pressable`'s function
+    // style: NativeWind merges `className` into `style` by assignment when the
+    // target is not an object, and a function is not one — so a function style
+    // is discarded whole (fill and disabled opacity with it) on web. A static
+    // style survives the merge.
+    const [isPressed, setIsPressed] = useState(false);
     const placeholderColor = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
     // Prototype `.write-keep` fills with `--accent-strong` and inks with `--bg`.
     // `accent-strong` is the high-contrast companion to the bone accent (the
@@ -103,13 +109,18 @@ export function ExploreComposer({ value, onChangeText, onKeep, isSaving, now }: 
                 <View className="flex-row items-center justify-between gap-3">
                     <Pressable
                         onPress={onKeep}
+                        onPressIn={() => setIsPressed(true)}
+                        onPressOut={() => setIsPressed(false)}
                         disabled={!canKeep}
                         accessibilityRole="button"
                         accessibilityLabel="Keep this note"
                         accessibilityState={{ disabled: !canKeep }}
                         className="rounded-control border border-transparent px-4 py-2"
-                        style={({ pressed }) => [
-                            { backgroundColor: keepFill, opacity: !canKeep ? 0.35 : pressed ? 0.7 : 1 },
+                        style={[
+                            {
+                                backgroundColor: keepFill,
+                                opacity: !canKeep ? 0.35 : isPressed ? 0.7 : 1,
+                            },
                         ]}
                     >
                         {/* Prototype inks the CTA with `var(--bg)` — the page

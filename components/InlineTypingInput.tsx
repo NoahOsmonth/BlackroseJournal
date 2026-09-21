@@ -47,6 +47,13 @@ export const InlineTypingInput = forwardRef<InlineTypingInputRef, InlineTypingIn
   ({ onSubmit, disabled = false, placeholder = "Write what's true…", onTextChange, isStreaming = false, onStop }, ref) => {
     const [text, setText] = useState('');
     const [isFocused, setIsFocused] = useState(false);
+    // Pressed state is tracked by hand rather than read off `Pressable`'s
+    // function style. NativeWind merges `className` into `style` by assignment
+    // when the target is not an object, and a function is not one — so the whole
+    // function style is discarded on web, taking the disc's fill with it and
+    // leaving the send glyph drawn in near-paper ink on the paper surface. A
+    // static style survives the merge.
+    const [pressedControl, setPressedControl] = useState<'send' | 'stop' | null>(null);
     const inputRef = useRef<TextInput>(null);
     const colorScheme = useColorScheme();
     const { colorTheme } = useThemeSettings();
@@ -161,12 +168,14 @@ export const InlineTypingInput = forwardRef<InlineTypingInputRef, InlineTypingIn
             {isStreaming && onStop ? (
               <Pressable
                 onPress={onStop}
+                onPressIn={() => setPressedControl('stop')}
+                onPressOut={() => setPressedControl(null)}
                 className="h-6 items-center justify-center rounded-full px-2.5"
                 accessibilityRole="button"
                 accessibilityLabel="Stop generating"
                 hitSlop={8}
-                style={({ pressed }) => [
-                  { backgroundColor: sendFill, opacity: pressed ? 0.75 : 1 },
+                style={[
+                  { backgroundColor: sendFill, opacity: pressedControl === 'stop' ? 0.75 : 1 },
                 ]}
               >
                 <MaterialIcons name="stop" size={13} color={sendGlyph} />
@@ -176,14 +185,19 @@ export const InlineTypingInput = forwardRef<InlineTypingInputRef, InlineTypingIn
                 always figured, so the send affordance never disappears. */}
             <Pressable
               onPress={handleSubmit}
+              onPressIn={() => setPressedControl('send')}
+              onPressOut={() => setPressedControl(null)}
               disabled={!canSend}
               className="h-6 w-6 items-center justify-center rounded-full"
               accessibilityRole="button"
               accessibilityState={{ disabled: !canSend }}
               accessibilityLabel="Send message"
               hitSlop={8}
-              style={({ pressed }) => [
-                { backgroundColor: sendFill, opacity: canSend ? (pressed ? 0.75 : 1) : 0.5 },
+              style={[
+                {
+                  backgroundColor: sendFill,
+                  opacity: canSend ? (pressedControl === 'send' ? 0.75 : 1) : 0.5,
+                },
               ]}
             >
               <MaterialIcons name="send" size={13} color={sendGlyph} />
