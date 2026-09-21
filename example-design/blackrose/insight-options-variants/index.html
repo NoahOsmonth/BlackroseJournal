@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Blackrose — Insight options — Variant Index</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=Plus+Jakarta+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,300,0,0" rel="stylesheet" />
+<style>
+  /* ==========================================================================
+     Index hub — five phone frames side by side.
+     Each frame is a real iframe of the variant file, so what you see here is
+     exactly what you get when you open the file directly. The scheme toggle
+     drives every frame at once.
+     ========================================================================== */
+
+  :root {
+    --bg: #f4f1eb;
+    --surface: #fffdf9;
+    --surface-2: #ede8df;
+    --hairline: #e2dcd2;
+    --text: #1c1917;
+    --text-2: #6b6560;
+    --accent: #5c564c;
+    --danger: #9b3a3a;
+  }
+  .dark {
+    --bg: #0c0c0e;
+    --surface: #151518;
+    --surface-2: #1a1a1e;
+    --hairline: #2c2a26;
+    --text: #ede8e0;
+    --text-2: #8a8580;
+    --accent: #c9c2b6;
+    --danger: #c97b7b;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+
+  .wrap { padding: 2.5rem 2rem 4rem; max-width: 128rem; margin: 0 auto; }
+
+  header {
+    display: flex;
+    align-items: flex-end;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--hairline);
+    margin-bottom: 2rem;
+  }
+  h1 {
+    margin: 0;
+    font-family: 'Playfair Display', Georgia, serif;
+    font-weight: 400;
+    font-size: 2.5rem;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+  }
+  .lede { margin: 0.5rem 0 0; max-width: 52rem; font-size: 0.9375rem; line-height: 1.55; color: var(--text-2); }
+  .spacer { flex: 1 1 6rem; }
+  .controls { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+  button { font-family: inherit; cursor: pointer; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    padding: 0.5rem 0.9rem; border-radius: 999px;
+    border: 1px solid var(--hairline); background: var(--surface);
+    color: var(--text-2); font-size: 0.6875rem;
+    letter-spacing: 0.12em; text-transform: uppercase;
+  }
+  .pill[aria-pressed='true'] { color: var(--text); border-color: var(--accent); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: 2rem; align-items: start; }
+  .item { display: flex; flex-direction: column; gap: 0.9rem; }
+  .item-head { display: flex; align-items: baseline; gap: 0.6rem; }
+  .letter { font-family: 'Playfair Display', Georgia, serif; font-size: 1.75rem; line-height: 1; color: var(--accent); }
+  .name { font-family: 'Playfair Display', Georgia, serif; font-size: 1.25rem; color: var(--text); }
+  .open {
+    margin-left: auto; font-size: 0.625rem; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--text-2); text-decoration: none; border-bottom: 1px solid var(--hairline); padding-bottom: 1px;
+  }
+  .open:hover { color: var(--text); border-color: var(--accent); }
+  .idea { margin: 0; font-size: 0.8125rem; line-height: 1.5; color: var(--text-2); min-height: 4.6rem; }
+
+  .frame {
+    position: relative; height: 46rem; border-radius: 18px; overflow: hidden;
+    border: 1px solid var(--hairline); background: var(--bg);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06), 0 24px 48px -28px rgba(0,0,0,0.45);
+  }
+  .frame iframe { width: 100%; height: 100%; border: 0; display: block; }
+
+  /* The measured defect, stated as numbers, so the page cannot be read as taste. */
+  .defect {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 1px; background: var(--hairline); border: 1px solid var(--hairline);
+    border-radius: 14px; overflow: hidden; margin-bottom: 2rem;
+  }
+  .defect div { background: var(--surface); padding: 0.9rem 1rem; }
+  .defect .n { font-family: 'Playfair Display', Georgia, serif; font-size: 1.5rem; line-height: 1.1; color: var(--danger); }
+  .defect .k { margin-top: 0.2rem; font-size: 0.6875rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-2); }
+  .defect .s { margin-top: 0.35rem; font-size: 0.75rem; line-height: 1.4; color: var(--text-2); }
+
+  .note {
+    margin: 3rem 0 0; padding-top: 1.5rem; border-top: 1px solid var(--hairline);
+    font-size: 0.8125rem; line-height: 1.65; color: var(--text-2); max-width: 62rem;
+  }
+  .note b { color: var(--text); font-weight: 500; }
+  .note code { font-family: ui-monospace, Menlo, monospace; font-size: 0.75rem; padding: 0.1rem 0.3rem; border-radius: 4px; background: var(--surface-2); }
+  .note h3 { font-family: 'Playfair Display', Georgia, serif; font-weight: 400; font-size: 1.25rem; color: var(--text); margin: 1.75rem 0 0.5rem; }
+  .note ul { margin: 0.5rem 0 0; padding-left: 1.1rem; }
+  .note li { margin-bottom: 0.35rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Insight options — five ways to make "tap outside" actually work</h1>
+      <p class="lede">
+        Same card, same four actions, same tokens. What changes is the container and how it is
+        dismissed. Each frame below is the real file, live and clickable — open the sheet, then try
+        to close it by tapping anywhere that is not a button.
+      </p>
+    </div>
+    <span class="spacer"></span>
+    <div class="controls">
+      <button type="button" class="pill" id="theme-btn" aria-pressed="true">
+        <span class="material-symbols-rounded" style="font-size:15px">contrast</span>
+        <span id="theme-label">Dark</span>
+      </button>
+      <button type="button" class="pill" id="reset-btn">Reset all</button>
+    </div>
+  </header>
+
+  <div class="defect">
+    <div>
+      <div class="n">40%</div>
+      <div class="k">of the screen did nothing</div>
+      <div class="s">The sheet occupied y=508–844 and swallowed every tap inside it, including 24px gutters and a 56px header band.</div>
+    </div>
+    <div>
+      <div class="n">20×20</div>
+      <div class="k">px trigger</div>
+      <div class="s">The <code>···</code> button measured 20×20 CSS px, against a 44pt minimum. Both the target and the exit were hard to hit.</div>
+    </div>
+    <div>
+      <div class="n">1</div>
+      <div class="k">guaranteed exit</div>
+      <div class="s">Cancel was the only dependable way out — which is exactly why it felt like a hassle to reach for it.</div>
+    </div>
+    <div>
+      <div class="n">0.40</div>
+      <div class="k">dark scrim alpha</div>
+      <div class="s">The same 40% black was used in both schemes, so in dark mode the card behind stayed legible and competed with the menu.</div>
+    </div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <p class="note">
+    <b>How to judge them.</b> Open each sheet, then attack its dismissal: tap the header band, the
+    gutters beside a row, the space under the last row, and the empty screen above. Every one of
+    those should close it in every variant. Then check the destructive row — <i>Hide for today</i>
+    destroys something, and in the shipped design it looked identical to <i>Copy</i>.
+    <br /><br />
+    A and E are literal fixes to the reported bug. B and C are structural — they change the container
+    so the dead band cannot exist. D is about commitment: if a wrong tap is undoable, closing stops
+    being the user's problem at all.
+    <br /><br />
+    All five project from the locked palette in <code>constants/blackrose.ts</code> and the 12 / 16 / 28
+    radius scale, use Playfair Display for labels and Plus Jakarta Sans for body, and keep every row at
+    or above the 48px minimum — nothing here invents a token.
+
+    <h3>What each one would cost to port</h3>
+    <ul>
+      <li><b>A</b> is the smallest diff: the same <code>Modal</code>, a real scrim behind the sheet, and pointer-based drag. This is the one to pick if you want the bug gone today.</li>
+      <li><b>B</b> needs the trigger's measured box (the repo already does this for <code>RadialMenu</code> via <code>anchorOffset</code>), but removes the large dead band by construction.</li>
+      <li><b>C</b> has no overlay, no scrim and no animation state to reconcile — but it stops dimming the page, which is a product decision, not a styling one.</li>
+      <li><b>D</b> needs an undo path in the data layer for <i>Hide for today</i>. Without that, the toast is a lie.</li>
+      <li><b>E</b> is A plus a content-height sheet: the smallest dead band of any variant, at the cost of a denser ledger look.</li>
+    </ul>
+  </p>
+</div>
+
+<script>
+  const VARIANTS = [
+    { letter: 'A', name: 'Full-bleed Dismiss', file: 'variant-a-full-bleed-dismiss.html',
+      idea: 'The literal fix. The scrim becomes the dismiss surface edge to edge, with the sheet floating above it instead of sharing it. Three exits — tap outside, drag the handle down, press Esc — and Cancel is deleted, because a sheet you can always leave does not need a row explaining how.' },
+    { letter: 'B', name: 'Anchored Popover', file: 'variant-b-anchored-popover.html',
+      idea: 'Change the container, not the dismissal. A popover anchored to the ··· button claims only the space it needs, so there is almost no "inside" to get stuck in and the scrim below is unobstructed by construction. The lightest scrim of the five, since the menu is about that one card.' },
+    { letter: 'C', name: 'Action Dock', file: 'variant-c-action-dock.html',
+      idea: 'Remove the modal entirely — the four actions are a state of the card, not a layer over the app. The icon row slides out and a labelled dock slides in, at the same place. No scrim, no dead band, and dismissal is the same gesture that opened it.' },
+    { letter: 'D', name: 'Undo Instead of Cancel', file: 'variant-d-undo-toast.html',
+      idea: 'About commitment, not geometry. Every action commits and closes at once, and a toast offers Undo for the one that destroys something. Mis-tapping stops costing anything, so dismissal stops being the user\u2019s problem. Still a superset of A\u2019s fix.' },
+    { letter: 'E', name: 'Content-Height Ledger', file: 'variant-e-content-height-ledger.html',
+      idea: 'Attacks the dead band directly: the sheet is exactly as tall as its content, hairline-separated so it can be genuinely compact, so there is no padding to get lost in and the scrim reaches right up to the last row. Keeps one explicit close control, in the header.' },
+  ];
+
+  const grid = document.getElementById('grid');
+  grid.innerHTML = VARIANTS.map(
+    (v) => `
+    <div class="item">
+      <div class="item-head">
+        <span class="letter">${v.letter}</span>
+        <span class="name">${v.name}</span>
+        <a class="open" href="${v.file}" target="_blank" rel="noopener">open &#8599;</a>
+      </div>
+      <p class="idea">${v.idea}</p>
+      <div class="frame"><iframe src="${v.file}" title="Variant ${v.letter} — ${v.name}" loading="eager"></iframe></div>
+    </div>`,
+  ).join('');
+
+  const frames = () => Array.from(document.querySelectorAll('.frame iframe'));
+
+  function broadcastTheme(dark) {
+    frames().forEach((f) => {
+      try {
+        f.contentDocument.documentElement.classList.toggle('dark', dark);
+        f.contentDocument.querySelectorAll('[data-theme-label]').forEach((el) => {
+          el.textContent = dark ? 'Dark' : 'Light';
+        });
+      } catch (e) { /* same-origin only */ }
+    });
+  }
+
+  const themeBtn = document.getElementById('theme-btn');
+  const themeLabel = document.getElementById('theme-label');
+  let dark = true;
+
+  function applyTheme(next) {
+    dark = next;
+    document.documentElement.classList.toggle('dark', dark);
+    themeBtn.setAttribute('aria-pressed', String(dark));
+    themeLabel.textContent = dark ? 'Dark' : 'Light';
+    broadcastTheme(dark);
+  }
+
+  themeBtn.addEventListener('click', () => applyTheme(!dark));
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    frames().forEach((f) => { try { f.contentWindow.location.reload(); } catch (e) {} });
+  });
+
+  /* The app ships dark first, so the hub opens dark; frames finish loading at
+     different times, so re-apply the current scheme on each load. */
+  document.documentElement.classList.add('dark');
+  frames().forEach((f) => f.addEventListener('load', () => broadcastTheme(dark)));
+</script>
+</body>
+</html>

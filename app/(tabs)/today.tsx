@@ -4,7 +4,7 @@
  * they exist) today's goals plus the entry insight.
  */
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Share, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -20,7 +20,6 @@ import { GoalQuickAddModal } from '@/components/goals/GoalQuickAddModal';
 import {
     EntryInsightsCard,
     GoalsSection,
-    InsightMoreOptionsModal,
     MyIntentionsSection,
     TodayRitualRow,
     TodayWritingCard,
@@ -69,8 +68,8 @@ export default function TodayScreen() {
     useFocusEffect(refreshAll);
 
     const [showAddGoal, setShowAddGoal] = useState(false);
-    const [moreVisible, setMoreVisible] = useState(false);
     const [isInsightHidden, setInsightHidden] = useState(false);
+    const scrollRef = useRef<React.ComponentRef<typeof Animated.ScrollView>>(null);
 
     const dateKey = useMemo(() => getLocalDateKey(selectedDay.date), [selectedDay.date]);
 
@@ -183,27 +182,33 @@ export default function TodayScreen() {
 
     const handleShare = async () => {
         await Share.share({ message: question });
-        setMoreVisible(false);
     };
 
     const handleCopy = async () => {
         await Clipboard.setStringAsync(question);
-        setMoreVisible(false);
     };
 
     const handleHide = () => {
         setInsightHidden(true);
-        setMoreVisible(false);
     };
 
     const handleShowSavedInsights = () => {
         router.push('/saved-insights');
-        setMoreVisible(false);
     };
 
     const handleInsightPress = () => {
         router.push({ pathname: '/chat', params: { topic: question } });
     };
+
+    /* The insight dock grows the card by its own height, and the insight card is
+       the last child of this scroll view — so opening the dock near the fold would
+       leave its labels behind the floating nav. The card is last, which makes
+       "scroll to the end" exactly "scroll the dock into view"; when the dock is
+       already visible the call is a no-op. */
+    const handleInsightDockOpenChange = useCallback((open: boolean) => {
+        if (!open) return;
+        setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 120);
+    }, []);
 
     return (
         <ScreenContainer edges="top">
@@ -219,6 +224,7 @@ export default function TodayScreen() {
             ) : (
                 <>
                     <Animated.ScrollView
+                        ref={scrollRef}
                         className="flex-1"
                         contentContainerStyle={{
                             paddingHorizontal: SCREEN_PADDING_X,
@@ -287,8 +293,12 @@ export default function TodayScreen() {
                                             question={question}
                                             onRefresh={refresh}
                                             onBookmark={handleBookmark}
-                                            onMore={() => setMoreVisible(true)}
+                                            onShare={handleShare}
+                                            onCopy={handleCopy}
+                                            onHide={handleHide}
+                                            onShowSavedInsights={handleShowSavedInsights}
                                             onPress={handleInsightPress}
+                                            onDockOpenChange={handleInsightDockOpenChange}
                                         />
                                     </RevealItem>
                                 ) : null}
@@ -308,15 +318,6 @@ export default function TodayScreen() {
                 visible={showAddGoal}
                 onClose={() => setShowAddGoal(false)}
                 onSubmit={handleAddGoalSubmit}
-            />
-
-            <InsightMoreOptionsModal
-                visible={moreVisible}
-                onClose={() => setMoreVisible(false)}
-                onShare={handleShare}
-                onCopy={handleCopy}
-                onHide={handleHide}
-                onShowSavedInsights={handleShowSavedInsights}
             />
         </ScreenContainer>
     );

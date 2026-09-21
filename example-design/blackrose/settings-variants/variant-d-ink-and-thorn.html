@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Blackrose Settings — Variant D · Ink &amp; Thorn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=Plus+Jakarta+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,300,0,0" rel="stylesheet" />
+<link rel="stylesheet" href="assets/blackrose.css" />
+<style>
+  /* ==========================================================================
+     VARIANT D — Ink & Thorn
+     --------------------------------------------------------------------------
+     Keeps a divider, but refuses to let it be a plain rule. Each separator
+     becomes an ornament: a pair of tapering strokes drawn in toward a small
+     four-point thorn, set in the bone accent and centred in the gutter. It
+     reads as a printer's mark between passages rather than a table border.
+
+     Supporting moves: labels get a serif italic hint line (a "thorn" of
+     prose under each title), the open row's ornament blooms outward, and the
+     summary value is set in small caps so the ornament has something to sit
+     between typographically.
+     ========================================================================== */
+
+  .scroll {
+    padding: 1.5rem 1.5rem 7.5rem;
+  }
+
+  .page-head {
+    padding: 1.5rem 0 1.5rem;
+    text-align: center;
+  }
+  .page-head .page-sub {
+    font-size: 0.875rem;
+  }
+  .page-head::after {
+    content: '';
+    display: block;
+    width: 5.5rem;
+    height: 9px;
+    margin: 1.5rem auto 0;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 88 9' fill='none' stroke='%238A8580' stroke-width='1'%3E%3Cpath d='M0 4.5h30'/%3E%3Cpath d='M58 4.5h30'/%3E%3Cpath d='M44 0.5l3.6 4-3.6 4-3.6-4z'/%3E%3C/svg%3E");
+    opacity: 0.75;
+  }
+
+  [data-rows] {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .row {
+    position: relative;
+  }
+
+  /* ---------------------------------------------------------- the ornament */
+
+  /* Sits in the gutter ABOVE each row, replacing the full-bleed hairline.
+     Two strokes taper in toward a thorn; on an open row the strokes retract
+     and the thorn grows, so the ornament marks where you are. */
+  .sep {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    height: 1.5rem;
+    padding: 0 0.25rem;
+  }
+  .row:first-child .sep {
+    display: none;
+  }
+
+  .sep::before,
+  .sep::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--hairline) 35%, var(--hairline));
+    transition: opacity 0.24s ease, transform 0.24s ease;
+  }
+  .sep::after {
+    background: linear-gradient(to left, transparent, var(--hairline) 35%, var(--hairline));
+  }
+
+  .sep i {
+    flex: 0 0 auto;
+    width: 5px;
+    height: 5px;
+    background: var(--accent);
+    transform: rotate(45deg) scale(0.72);
+    opacity: 0.55;
+    transition: transform 0.28s cubic-bezier(0.34, 1.4, 0.64, 1), opacity 0.24s ease;
+  }
+
+  .row[data-expanded='true'] .sep i {
+    transform: rotate(45deg) scale(1.35);
+    opacity: 1;
+  }
+  .row[data-expanded='true'] .sep::before,
+  .row[data-expanded='true'] .sep::after {
+    opacity: 0.35;
+    transform: scaleX(0.82);
+  }
+
+  /* --------------------------------------------------------------- the row */
+
+  .row-head {
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.9rem 0;
+    min-height: 64px;
+  }
+
+  .row-title {
+    font-size: 1.25rem;
+  }
+  .row-hint {
+    font-style: italic;
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 0.8125rem;
+    color: var(--text-2);
+    opacity: 0.8;
+  }
+  .row-summary {
+    font-size: 0.75rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    color: var(--text-2);
+  }
+
+  .row[data-expanded='true'] .row-title {
+    color: var(--accent);
+  }
+
+  .row-body-inner {
+    padding: 0.25rem 0 1.35rem;
+  }
+
+  /* Body wells: a hairline box drawn only on the open row, so the page never
+     carries a grid — the box is a frame around one passage at a time. */
+  .row-body-inner .segment,
+  .row-body-inner .preview,
+  .row-body-inner .preset {
+    background: color-mix(in srgb, var(--surface) 60%, transparent);
+  }
+  .row[data-expanded='true'] .row-body-inner {
+    position: relative;
+  }
+  .row[data-expanded='true'] .row-body-inner::before,
+  .row[data-expanded='true'] .row-body-inner::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(to right, var(--hairline), transparent 72%);
+    opacity: 0.8;
+  }
+  .row[data-expanded='true'] .row-body-inner::before {
+    top: 0;
+  }
+  .row[data-expanded='true'] .row-body-inner::after {
+    bottom: 0.75rem;
+    background: linear-gradient(to left, var(--hairline), transparent 72%);
+  }
+
+  .dock {
+    border-top: 0;
+    box-shadow: 0 -1px 0 0 color-mix(in srgb, var(--hairline) 60%, transparent);
+  }
+</style>
+</head>
+<body>
+<div class="phone" data-variant="D · Ink &amp; Thorn">
+  <button type="button" class="theme-toggle" data-theme-toggle>
+    <span class="material-symbols-rounded" style="font-size:16px">contrast</span>
+    <span data-theme-label>Light</span>
+  </button>
+
+  <div class="scroll">
+    <div class="page-head">
+      <h1 class="page-title">Settings</h1>
+      <p class="page-sub">Theme, AI, data &amp; account</p>
+    </div>
+
+    <div data-rows></div>
+  </div>
+
+  <nav class="dock" data-dock></nav>
+</div>
+
+<script src="assets/parts.js"></script>
+</body>
+</html>

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Blackrose Settings — Variant A · Quiet Cards</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&family=Plus+Jakarta+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,300,0,0" rel="stylesheet" />
+<link rel="stylesheet" href="assets/blackrose.css" />
+<style>
+  /* ==========================================================================
+     VARIANT A — Quiet Cards
+     --------------------------------------------------------------------------
+     The problem: a hairline under every row reads as a ruled table. It is
+     orderly but flat, and nine rules in a column start to look like a form.
+     The fix here: no rules at all. Each row becomes its own soft card lifted
+     off the page by a real shadow, with a gap of air between cards. The list
+     stops being a table and becomes a stack of objects you could pick up.
+     Only the expanded card gets a slightly stronger lift, so the open one
+     reads as "in your hand".
+     ========================================================================== */
+
+  .scroll {
+    padding: 1.25rem 1.25rem 7.5rem;
+  }
+
+  .page-head {
+    padding: 1.5rem 0.25rem 1.5rem;
+  }
+
+  [data-rows] {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+  }
+
+  /* The rule is gone entirely — the separator element stays in the markup for
+     the other variants but renders nothing here. */
+  .sep {
+    display: none;
+  }
+
+  .row {
+    border-radius: var(--radius-card);
+    background: var(--surface);
+    border: 1px solid color-mix(in srgb, var(--hairline) 60%, transparent);
+    box-shadow: var(--shadow-card);
+    transition: box-shadow 0.22s ease, transform 0.22s ease,
+                border-color 0.22s ease, background 0.22s ease;
+  }
+
+  /* Open card: lifted, warmer edge, and the tiniest scale so it feels held. */
+  .row[data-expanded='true'] {
+    box-shadow: var(--shadow-lift);
+    border-color: color-mix(in srgb, var(--accent) 34%, var(--hairline));
+    background: var(--surface);
+  }
+
+  .row-head {
+    padding: 1.1rem 1.15rem;
+    min-height: 68px;
+  }
+
+  .row-title {
+    font-size: 1.1875rem;
+  }
+
+  /* A hairline-width accent tick that grows into a bar on the open card —
+     it replaces "which row am I in" that the rules used to provide. */
+  .row::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 2px;
+    height: 0;
+    border-radius: 0 2px 2px 0;
+    background: var(--accent);
+    opacity: 0;
+    transform: translateY(-50%);
+    transition: height 0.24s ease, opacity 0.24s ease;
+  }
+  .row {
+    position: relative;
+    overflow: hidden;
+  }
+  .row[data-expanded='true']::before {
+    height: 62%;
+    opacity: 1;
+  }
+
+  .row-body-inner {
+    padding: 0 1.15rem 1.15rem;
+  }
+
+  /* Section body pieces read as inset wells inside the card. */
+  .row .segment {
+    background: var(--bg);
+    border-color: color-mix(in srgb, var(--hairline) 70%, transparent);
+  }
+  .row .preview {
+    background: var(--bg);
+    border-color: color-mix(in srgb, var(--hairline) 60%, transparent);
+    box-shadow: none;
+  }
+  .row .preset {
+    background: var(--bg);
+  }
+  .row .preset[aria-checked='true'] {
+    background: var(--surface-2);
+  }
+  .row .stub-btn {
+    background: var(--bg);
+  }
+
+  .dock {
+    border-top: 0;
+    box-shadow: 0 -8px 24px -18px rgba(0, 0, 0, 0.5);
+  }
+</style>
+</head>
+<body>
+<div class="phone" data-variant="A · Quiet Cards">
+  <button type="button" class="theme-toggle" data-theme-toggle>
+    <span class="material-symbols-rounded" style="font-size:16px">contrast</span>
+    <span data-theme-label>Light</span>
+  </button>
+
+  <div class="scroll">
+    <div class="page-head">
+      <h1 class="page-title">Settings</h1>
+      <p class="page-sub">Theme, AI, data &amp; account</p>
+    </div>
+
+    <div data-rows></div>
+  </div>
+
+  <nav class="dock" data-dock></nav>
+</div>
+
+<script src="assets/parts.js"></script>
+</body>
+</html>

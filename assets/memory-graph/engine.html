@@ -105,6 +105,14 @@
     };
     const FALLBACK_COLOR = '#8A8580';
 
+    // The bottom of the canvas sits under app chrome (the Threads stats strip
+    // and the dock). Those are painted on the void, so a canvas that stayed at
+    // its vignette tone behind them read as a lighter grey slab with a visible
+    // seam. Dissolving the paint into the void tone here makes the chrome
+    // disappear into the graph instead. Height in CSS px: dock (63) + its gap
+    // (17) + the strip, so the dissolve covers everything pinned to the bottom.
+    const CHROME_FADE_H = 118;
+
     const BLOOM_MS = 420;
     const EXIT_MS = 380;
     const ENTRY_MS = 560;
@@ -115,6 +123,7 @@
     const THEMES = {
       dark: {
         pageBg: '#0C0C0E',
+        pageBgRgb: '12,12,14',
         deep: '#08080A',
         nebula: [
           { c: '201,194,182', a: 0.06 },
@@ -138,6 +147,7 @@
       },
       light: {
         pageBg: '#F4F1EB',
+        pageBgRgb: '244,241,235',
         deep: '#EDE8DF',
         nebula: [
           { c: '92,86,76', a: 0.07 },
@@ -202,6 +212,7 @@
 
     let bgGradient = null;
     let vignette = null;
+    let bottomFade = null;
     const stars = [];
     const dust = [];
     let nebulaSeeds = [];
@@ -685,6 +696,13 @@
       );
       vignette.addColorStop(0, 'rgba(0,0,0,0)');
       vignette.addColorStop(1, palette.vignetteOuter);
+
+      // Bottom chrome dissolve: transparent at the top of the band, full void
+      // tone at the bottom edge, so the RN chrome above it has no seam.
+      bottomFade = ctx.createLinearGradient(0, height - CHROME_FADE_H, 0, height);
+      bottomFade.addColorStop(0, 'rgba(' + palette.pageBgRgb + ',0)');
+      bottomFade.addColorStop(0.35, 'rgba(' + palette.pageBgRgb + ',0.55)');
+      bottomFade.addColorStop(1, 'rgba(' + palette.pageBgRgb + ',0.96)');
 
       stars.length = 0;
       dust.length = 0;
@@ -1212,6 +1230,10 @@
       if (vignette) {
         ctx.fillStyle = vignette;
         ctx.fillRect(0, 0, width, height);
+      }
+      if (bottomFade) {
+        ctx.fillStyle = bottomFade;
+        ctx.fillRect(0, height - CHROME_FADE_H, width, CHROME_FADE_H);
       }
     }
 

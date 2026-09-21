@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Blackrose Settings — Variant E · Tonal Stack</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&family=Plus+Jakarta+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,300,0,0" rel="stylesheet" />
+<link rel="stylesheet" href="assets/blackrose.css" />
+<style>
+  /* ==========================================================================
+     VARIANT E — Tonal Stack
+     --------------------------------------------------------------------------
+     Replaces the hairline with a change of value instead of a line. Each row
+     is a full-bleed band, and the bands alternate between the page colour and
+     the raised surface, so separation comes from tone alone. The open band
+     deepens one more step and gains a bone rule only along its leading edge —
+     an edge, not a divider, so the page never reads as a ruled table.
+
+     This is the most structural of the five: it also removes the side padding
+     from the list so the bands run edge to edge, which gives the screen a
+     stack-of-paper feel and makes the open section unmistakable.
+     ========================================================================== */
+
+  /* List goes full-bleed; the header keeps its own padding. */
+  .scroll {
+    padding: 0 0 7.5rem;
+  }
+  .page-head {
+    padding: 1.5rem 1.5rem 1.25rem;
+  }
+
+  [data-rows] {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .row {
+    position: relative;
+    background: var(--bg);
+    transition: background 0.24s ease;
+  }
+
+  /* Odd bands lift to the surface value — that alternation IS the separator. */
+  .row:nth-child(even) {
+    background: color-mix(in srgb, var(--surface) 72%, var(--bg));
+  }
+
+  .row[data-expanded='true'] {
+    background: var(--surface);
+  }
+
+  /* The one line allowed: a leading edge on the open band, drawn in bone and
+     fading out to the right so it reads as a mark rather than a border. */
+  .row[data-expanded='true']::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 1px;
+    background: linear-gradient(to right, var(--accent) 0%, color-mix(in srgb, var(--accent) 20%, transparent) 55%, transparent 85%);
+    opacity: 0.85;
+  }
+
+  /* No full-bleed rules at all — separation is tonal. */
+  .sep {
+    display: none;
+  }
+
+  .row-head {
+    padding: 1.15rem 1.5rem;
+    min-height: 70px;
+  }
+
+  .row-title {
+    font-size: 1.1875rem;
+  }
+  .row-hint {
+    font-size: 0.75rem;
+  }
+
+  /* The value chip: a small tonal pill, which gives the band a right-hand
+     anchor without adding a line. */
+  .row-summary {
+    padding: 0.22rem 0.6rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text) 7%, transparent);
+    font-size: 0.8125rem;
+  }
+  .row[data-expanded='true'] .row-summary {
+    background: color-mix(in srgb, var(--accent) 20%, transparent);
+    color: var(--text);
+  }
+
+  .row-body-inner {
+    padding: 0.15rem 1.5rem 1.5rem;
+  }
+
+  /* Inside a band, wells drop to the page colour so they stay legible. */
+  .row-body-inner .segment,
+  .row-body-inner .preview,
+  .row-body-inner .preset {
+    background: var(--bg);
+  }
+  .row-body-inner .preset[aria-checked='true'] {
+    background: var(--surface-2);
+  }
+  .row-body-inner .stub-btn {
+    background: var(--bg);
+  }
+  .row-body-inner .stub-row {
+    border-top: 1px solid color-mix(in srgb, var(--hairline) 50%, transparent);
+  }
+  .row-body-inner .stub-row:first-child {
+    border-top: 0;
+  }
+
+  .dock {
+    border-top: 0;
+    background: color-mix(in srgb, var(--bg) 94%, transparent);
+    box-shadow: 0 -1px 0 0 color-mix(in srgb, var(--hairline) 55%, transparent);
+  }
+</style>
+</head>
+<body>
+<div class="phone" data-variant="E · Tonal Stack">
+  <button type="button" class="theme-toggle" data-theme-toggle>
+    <span class="material-symbols-rounded" style="font-size:16px">contrast</span>
+    <span data-theme-label>Light</span>
+  </button>
+
+  <div class="scroll">
+    <div class="page-head">
+      <h1 class="page-title">Settings</h1>
+      <p class="page-sub">Theme, AI, data &amp; account</p>
+    </div>
+
+    <div data-rows></div>
+  </div>
+
+  <nav class="dock" data-dock></nav>
+</div>
+
+<script src="assets/parts.js"></script>
+</body>
+</html>

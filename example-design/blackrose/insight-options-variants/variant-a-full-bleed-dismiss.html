@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Blackrose — Variant A · Full-bleed Dismiss</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&family=Plus+Jakarta+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,300,0,0" rel="stylesheet" />
+<link rel="stylesheet" href="assets/sheet.css" />
+<style>
+  /* ==========================================================================
+     VARIANT A — Full-bleed Dismiss
+     --------------------------------------------------------------------------
+     The literal fix. The shipped sheet had exactly one dismiss surface — a
+     Pressable that the sheet's own padding, header band and gutters sat on top
+     of — so roughly 40% of the screen (everything below y≈508) did nothing, and
+     Cancel was the only guaranteed exit. Here the scrim IS the dismiss surface,
+     edge to edge, with the sheet floating above it rather than sharing it.
+     Three independent exits: tap outside, drag the grab handle down, press Esc.
+     Cancel is gone, because a sheet you can always leave does not need a row
+     telling you how to leave it.
+     ========================================================================== */
+
+  .sheet[data-open='true'] ~ .hint,
+  .hint[data-open='true'] { opacity: 1; }
+
+  /* While dragging, the sheet follows the finger and the transition is off so
+     the movement is not lagged behind the pointer. */
+  .sheet[data-dragging='true'] {
+    transition: none;
+  }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="scrim" id="scrim" data-open="false"></div>
+  <div class="sheet" id="sheet" data-open="false" role="dialog" aria-modal="true" aria-label="More options">
+    <button class="grabber" id="grabber" aria-label="Dismiss"></button>
+    <span class="overline sheet-label">More options</span>
+    <div id="actions" role="menu"></div>
+  </div>
+  <div class="hint" id="hint" data-open="false">Tap anywhere outside · or drag down</div>
+</div>
+
+<script src="assets/parts.js"></script>
+<script>
+(function () {
+  BR.boot(function (host) {
+    var scrim = document.getElementById('scrim');
+    var sheet = document.getElementById('sheet');
+    var hint = document.getElementById('hint');
+    var trigger = document.getElementById('trigger');
+    var actions = document.getElementById('actions');
+
+    actions.innerHTML = BR.ACTIONS.map(function (a) { return BR.actionRow(a); }).join('');
+
+    var open = false;
+
+    function setOpen(next) {
+      open = next;
+      scrim.dataset.open = String(open);
+      sheet.dataset.open = String(open);
+      hint.dataset.open = String(open);
+      trigger.setAttribute('aria-expanded', String(open));
+      if (open) sheet.style.transform = '';
+    }
+
+    trigger.addEventListener('click', function () { setOpen(!open); });
+
+    /* Exit 1 — the scrim covers every pixel that is not the sheet. This is the
+       whole point of the variant: there is no dead band, no gutter, no header
+       strip that swallows the tap. */
+    scrim.addEventListener('click', function () { setOpen(false); });
+
+    /* Exit 2 — Esc, for a hardware keyboard or an attached trackpad. */
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && open) setOpen(false);
+    });
+
+    /* Exit 3 — drag the grab handle down. Pointer events, so the same code path
+       serves a mouse drag and a touch drag. */
+    var startY = 0;
+    var dragging = false;
+    function down(e) {
+      dragging = true;
+      startY = e.clientY;
+      sheet.dataset.dragging = 'true';
+      document.getElementById('grabber').setPointerCapture(e.pointerId);
+    }
+    function move(e) {
+      if (!dragging) return;
+      var dy = Math.max(0, e.clientY - startY);
+      sheet.style.transform = 'translateY(' + dy + 'px)';
+      scrim.style.opacity = String(Math.max(0, 1 - dy / 260));
+    }
+    function up(e) {
+      if (!dragging) return;
+      dragging = false;
+      delete sheet.dataset.dragging;
+      scrim.style.opacity = '';
+      var dy = Math.max(0, e.clientY - startY);
+      /* Past a third of the sheet, the gesture means "dismiss"; short of that it
+         means "I changed my mind", and the sheet springs back. */
+      if (dy > sheet.getBoundingClientRect().height / 3) setOpen(false);
+      else sheet.style.transform = '';
+    }
+    document.getElementById('grabber').addEventListener('pointerdown', down);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+
+    actions.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-action]');
+      if (btn) setOpen(false);
+    });
+
+    /* Tapping inside the sheet body must not dismiss — the scrim is behind it,
+       so this is only needed for the sheet's own padding, and it is a plain
+       stopPropagation rather than the shipped onTouchEnd hack. */
+    sheet.addEventListener('click', function (e) { e.stopPropagation(); });
+  });
+})();
+</script>
+</body>
+</html>

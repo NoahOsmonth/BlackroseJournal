@@ -38,6 +38,13 @@ module.exports = {
                 // Nested surfaces: chat user slip, chips, inset panels.
                 'surface-2-light': '#EDE8DF',
                 'surface-2-dark': '#1A1A1E',
+                // Settings tonal bands (Variant E): surface mixed 72% toward the
+                // page background. Alternating bands carry the row separation, so
+                // no hairline is drawn between rows. Computed from the palette in
+                // `constants/blackrose.ts`; `__tests__/settingsTonalBand.test.ts`
+                // fails if these drift from that mix.
+                'band-light': '#FCFAF5',
+                'band-dark': '#121215',
                 // Hairlines: dividers, borders, the chat companion rule.
                 'hairline-light': '#E2DCD2',
                 'hairline-dark': '#2C2A26',

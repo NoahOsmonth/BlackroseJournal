@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Blackrose Settings — Variant B · Editorial Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=Plus+Jakarta+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,300,0,0" rel="stylesheet" />
+<link rel="stylesheet" href="assets/blackrose.css" />
+<style>
+  /* ==========================================================================
+     VARIANT B — Editorial Ledger
+     --------------------------------------------------------------------------
+     Same complaint, opposite remedy. Instead of drawing something new to
+     replace the rule, this variant removes every line and lets typography do
+     the separating: a numbered ledger with a serif index, generous leading,
+     and a dotted leader that carries the eye from the label to its value —
+     the way a table of contents does, without a single ruled edge.
+
+     The hairline survives in exactly one place: as a short centred ornament
+     under the page title, where it reads as an editorial mark rather than a
+     grid line.
+     ========================================================================== */
+
+  .scroll {
+    padding: 1.5rem 1.5rem 7.5rem;
+  }
+
+  .page-head {
+    padding: 1.75rem 0 1.25rem;
+    text-align: center;
+  }
+  .page-head .page-title {
+    font-size: 2.75rem;
+    letter-spacing: -0.02em;
+  }
+  .page-head .page-sub {
+    font-size: 0.875rem;
+    letter-spacing: 0.02em;
+  }
+
+  /* The single surviving rule: a centred editorial mark. */
+  .page-head::after {
+    content: '';
+    display: block;
+    width: 2.75rem;
+    height: 1px;
+    margin: 1.35rem auto 0;
+    background: var(--accent);
+    opacity: 0.5;
+  }
+
+  .sep {
+    display: none;
+  }
+
+  [data-rows] {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .row {
+    position: relative;
+  }
+
+  /* Rhythm, not rules: a tall gap between entries and a heavy index numeral
+     hanging in the left margin. */
+  .row-head {
+    align-items: baseline;
+    gap: 0.9rem;
+    padding: 1.5rem 0;
+    min-height: 0;
+  }
+
+  .row-index {
+    flex: 0 0 auto;
+    width: 1.5rem;
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 0.8125rem;
+    letter-spacing: 0.06em;
+    color: var(--text-2);
+    opacity: 0.6;
+    transition: color 0.2s ease, opacity 0.2s ease;
+  }
+  .row[data-expanded='true'] .row-index {
+    color: var(--accent);
+    opacity: 1;
+  }
+
+  .row-text {
+    gap: 0.2rem;
+  }
+  .row-title {
+    font-size: 1.375rem;
+    letter-spacing: -0.005em;
+  }
+  .row-hint {
+    font-style: italic;
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 0.8125rem;
+    color: var(--text-2);
+    opacity: 0.85;
+  }
+
+  /* Dot leader: fills the gap between label and value like a contents page. */
+  .row-summary {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    font-size: 0.9375rem;
+    color: var(--text-2);
+  }
+  .row-summary::before {
+    content: '';
+    display: inline-block;
+    flex: 0 0 auto;
+    width: 2.5rem;
+    height: 1px;
+    margin-bottom: 0.22rem;
+    background-image: radial-gradient(circle, var(--text-2) 1px, transparent 1px);
+    background-size: 5px 2px;
+    background-repeat: repeat-x;
+    opacity: 0.55;
+  }
+
+  .row-chev {
+    align-self: center;
+    margin-left: 0.35rem;
+  }
+
+  .row-body-inner {
+    padding: 0 0 1.5rem 2.4rem;
+  }
+
+  /* Expanded body is set slightly inset and quieter than the row label, so the
+     typographic hierarchy itself marks where the section begins. */
+  .row-body-inner .segment,
+  .row-body-inner .preview,
+  .row-body-inner .preset {
+    background: color-mix(in srgb, var(--surface) 70%, transparent);
+  }
+
+  .dock {
+    border-top: 1px solid color-mix(in srgb, var(--hairline) 55%, transparent);
+  }
+</style>
+</head>
+<body>
+<div class="phone" data-variant="B · Editorial Ledger">
+  <button type="button" class="theme-toggle" data-theme-toggle>
+    <span class="material-symbols-rounded" style="font-size:16px">contrast</span>
+    <span data-theme-label>Light</span>
+  </button>
+
+  <div class="scroll">
+    <div class="page-head">
+      <h1 class="page-title">Settings</h1>
+      <p class="page-sub">Theme, AI, data &amp; account</p>
+    </div>
+
+    <div data-rows></div>
+  </div>
+
+  <nav class="dock" data-dock></nav>
+</div>
+
+<script src="assets/parts.js"></script>
+</body>
+</html>

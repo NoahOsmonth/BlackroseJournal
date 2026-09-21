@@ -1,5 +1,472 @@
 # PROGRESS — Optimization + Bug Hunt (2026-09-02)
 
+## 2026-09-19 (latest) — Insight options: Variant C ported (the sheet is gone)
+
+**Chosen by the user: "C Action Dock."** The five variants below are prototypes; this entry is the
+port. The overflow actions are no longer a layer above the app — they are a state of the card, so
+there is nothing to tap "outside" of and no **Cancel** row to hunt for.
+
+**Shipped**
+
+| File | Change |
+|---|---|
+| `components/today/InsightActionDock.tsx` | **new** — four labelled actions (Share / Copy / Saved insights / Hide for today, destructive last), hairline-separated full-bleed strip, destructive tinted with `danger-light`/`danger-dark` |
+| `components/today/EntryInsightsCard.tsx` | owns `dockOpen`; icon row rebuilt as 44pt boxes; the `···` becomes a real toggle carrying `accessibilityState.expanded`; card body dismisses instead of navigating while open |
+| `app/(tabs)/today.tsx` | drops `moreVisible` + the modal mount, passes the four handlers, and scrolls the dock into view on open |
+| `components/today/InsightMoreOptionsModal.tsx` + its test | **deleted**, along with the no-op `onTouchEnd` stopPropagation and the `InsightMoreOptionsModal` export |
+
+**The measurement that shaped the port — do not lose this.** NativeWind compiles rem-based utilities
+against **`inlineRem = 14`** on native (this repo does not override it in `metro.config.js`), so
+`h-11` is **38.5pt** and `min-h-12` is **42pt** on device while the web build looks correct — both
+under the 44pt floor, silently. Only arbitrary px values are immune. Every touch-critical box here is
+literal px, and `__tests__/mocks/tailwindCompile.ts` compiles the real class names through Tailwind
+and `cssToReactNativeRuntime` at rem 14, so the floor is asserted rather than assumed.
+
+**Verified by measurement** (`scripts/qa/insight-dock-qa.mjs`, live dev server, 390×844, both
+schemes — **37 checks, 0 failures, 0 uncaught page errors**):
+
+- Icon row `44×44` (was a bare 20×20 target; `hitSlop` does not exist on web), actions `76×68`.
+- Card `175 → 260px` open (+85 = action 68 + strip padding 16 + hairline 1).
+- Every dismissal route: the trigger toggles, each action closes on the same press, the **card body**
+  closes without navigating, and a press on the **strip's own padding** closes — that last one is the
+  exact class of dead space that made the old sheet feel broken.
+- `no Cancel row exists`; no actions in the tree while closed.
+- Light: hairline `rgb(226,220,210)` on surface `rgb(255,253,249)`. Dark: `rgb(44,42,38)` on
+  `rgb(21,21,24)` — the real tokens in both schemes, no stuck-black chrome.
+- **Sabotage-tested the geometry guard:** `h-[44px] w-[44px]` → `h-11 w-11` and `min-h-[56px]` →
+  `min-h-12` produced exactly `38.5` and `42` and both tests went red; restored, green.
+
+**Four deliberate deviations from the prototype, each with its reason:**
+
+1. **The card grows by 85px instead of overlaying the icon row.** The prototype overlaid, but its
+   icon row was 60px tall against a 77px dock; production's was 20px, so an overlay would need either
+   a permanently tall dead slot or pixel-exact coupling between a gap, a row and a dock height. The
+   insight card is the last child of the scroll view, so the growth shifts nothing below it.
+2. **The icon row stays visible while the dock is open**, and `···` toggles. The prototype's own hint
+   text ("press `···` again to close") was impossible: it slid the row out behind
+   `pointer-events: none`, so the trigger could not be pressed again.
+3. **"Tap anywhere" is scoped.** React Native has no document-level listener, and the prototype's
+   rule is unreachable verbatim: a transparent full-screen catcher would block Today, which is the
+   trade-off C explicitly rejected. Dismissal is the trigger, any action, the card body, the strip's
+   own padding, and leaving the screen.
+4. **Opening the dock scrolls it clear of the nav** (`scrollToEnd` on the existing scroll ref, the
+   repo's chat idiom). Without it, opening the dock while the card sat at the fold left its labels
+   behind the floating `BottomNav` — measured at dock bottom 848 vs nav top 785 before, 763 vs 785
+   after.
+
+**Two probe artifacts worth remembering** (both first read as production bugs): Playwright
+auto-scrolls a target into view before clicking, which silently undid the probe's scroll-to-end and
+left the dock behind the nav in a screenshot; and raw `page.mouse.click(x, y)` at the card's bottom
+edge landed on the `BottomNav`, so "the dock didn't dismiss" was really "the click never reached it."
+Fixed by aiming at the strip's `role=menu` container, which makes Playwright fail loudly on
+interception instead of clicking through.
+
+**Gates:** `npx tsc --noEmit`, `npm run lint` (0 errors), `npm run check:design` clean;
+`npm test` 1405 passed / 25 pre-existing skips.
+
+**Follow-ups:**
+- The dock's labels wrap to two lines at 390pt ("Saved insights", "Hide for today"), so two of the
+  four icons sit ~8px higher than the other two. The approved prototype does the same; shortening the
+  labels would fix the stagger but changes the copy.
+- Drag-to-dismiss, Escape, and an Android `BackHandler` parity path are still absent — the old modal
+  got back-to-close for free from `onRequestClose`. Nothing regressed for the reported bug, but a
+  hardware back press now leaves the screen instead of closing the dock.
+
+## 2026-09-19 — Insight "More options" sheet: five variants (prototype only)
+
+**Reported:** on the Today tab's insight card, tapping "somewhere where there's no button" in the
+`···` menu does not close it, so the only reliable exit is the **Cancel** row.
+
+**Measured in the running app before designing anything** (430×900 web viewport, dark scheme, against
+`components/today/InsightMoreOptionsModal.tsx`):
+
+| What | Measured | Verdict |
+|---|---|---|
+| Backdrop dismiss | full-bleed, `pointerEvents: auto`, reaches `inset:0` | **works** — mouse click *and* CDP touch at y=200 both closed it |
+| Sheet box | `y=508–844` — **40% of the screen** | every tap inside it was swallowed |
+| Dead zones inside the sheet | 56px header band, 24px left + 24px right gutters, 24px below the last row | taps there did nothing |
+| `···` trigger | **20×20 CSS px** | below the 44pt / 48dp minimum |
+| Scrim | `rgba(0,0,0,0.4)` in **both** schemes | in dark mode the card behind stayed legible and competed with the menu |
+| Exits | backdrop, Cancel, `onRequestClose` | no grab handle, no drag-to-dismiss, no Escape handling |
+| Destructive row | `Hide for today` styled identically to `Copy` | irreversible action looked like the safest one |
+| Row height | 48px | **passes** the minimum as shipped |
+
+So the reported symptom is the sheet's own dead band, not a broken backdrop — and `radial-menu.tsx`
+had already solved the sibling of this problem (it uses `StyleSheet.absoluteFill` plus a
+`pointerdown`-started guard, and carries a heavier `0.66` dark scrim for exactly the contrast reason
+above). `InsightMoreOptionsModal` never got those fixes.
+
+**Prototypes (5 remedies, not reskins)** at `example-design/blackrose/insight-options-variants/` —
+`index.html` is the hub, every frame a live file, dismissable in both schemes:
+
+- **A Full-bleed Dismiss** — scrim becomes the dismiss surface edge to edge, sheet floats above it;
+  grab handle + drag-down + Esc; Cancel deleted. Smallest port.
+- **B Anchored Popover** — anchored to the `···`'s *measured* box, so the dead band cannot exist.
+- **C Action Dock** — no overlay at all; the icon row slides out, a labelled dock slides in.
+- **D Undo Instead of Cancel** — every action commits and closes; a toast offers Undo.
+- **E Content-Height Ledger** — sheet hugs its content with hairline-separated rows; 16px below the
+  last row instead of 24px of padding plus gutters.
+
+**Verified, not eyeballed.** `audit-variants.mjs` (in the same folder) runs all 5 variants × both
+schemes and asserts: dismissal from every non-action region, **no** dismissal from the layer's own
+body, trigger and rows ≥44px, destructive row present and last, layer not overflowing.
+
+- Clean run: **0 findings, exit 0.**
+- Self-tested against three deliberate sabotages, each producing its expected class —
+  scrim dismiss removed → `dead-zone (8)`; trigger shrunk to 20×20 → `hugging (2)`; sheet body wired
+  to close → `over-dismissing (2)`. A harness that cannot fail proves nothing.
+- **Two harness bugs found and fixed, both of which first read as design defects:** a closed bottom
+  sheet sits at `translateY(102%)` and a closed popover at `scale(0.94)`, so measuring or probing a
+  *closed* layer reported a shrunken box (41.36px rows) and "unreachable" points; and at a 430px
+  viewport the 26rem phone frame is centred with ~7px of gutter, so probing `x=4` landed on `BODY`.
+  Both guards are now comments in the script.
+- One real defect found in my own Variant C by driving it: dismissal was wired to the card body
+  only, so a tap elsewhere on the page did nothing — the original complaint, one level down. Fixed to
+  dismiss from anywhere off the dock.
+
+**Follow-ups (not done — prototype-only change):**
+- Port the winner once chosen; this entry describes prototypes, so no production file, test, or
+  storage key was touched. `git status` shows only the new `example-design/blackrose/` folder and this
+  file.
+- The `onTouchEnd={(e) => e.stopPropagation()}` hack in `InsightMoreOptionsModal` is a no-op for a
+  sibling backdrop and should go with the port.
+- Whichever variant wins, `···` must become a 44pt target and the destructive row must stay visually
+  distinct — both are asserted by the audit and must be re-asserted in a Jest test on the ported
+  component.
+
+## 2026-09-19 — `ULTIMATE-DESIGN-VARIANTS` skill (from the Settings redesign)
+
+The Settings redesign below produced a repeatable workflow, and the mistakes made along the way were
+worth more than the outcome. Both are now captured as a skill so the next agent does not relearn them.
+
+**Installed at user level, not in this repo:** `~/.agents/skills/ULTIMATE-DESIGN-VARIANTS/`. It is
+deliberately **general** — it works for any frontend stack and any design system, so it is available in
+every project on this machine rather than only in BlackroseJournal. A workspace copy was created first
+and then removed, because `~/.agents/skills` outranks a workspace `.agents/skills` in discovery order —
+a repo copy would have been permanently shadowed and never loaded, a duplicate that silently does
+nothing. There is exactly one copy.
+
+The content is stack-agnostic: it names no repo path, token, or command. Phase 1 is a **discovery**
+step — find the component, find the token source, identify the stack and its layout primitives, and
+read the project's own gates from its contributor docs — and Phases 4–6 use whatever was found.
+
+- `SKILL.md` — the workflow: **ask the user first** (scope / the complaint in their words / how many
+  variants / prototype-only or also implement), recon the real component + design source + tokens,
+  build 4–5 variants that are genuinely different *remedies* rather than reskins, **ask which one
+  wins**, port it, then verify with measurements. The framing rule: no claim about a design may rest
+  on "it looks fine."
+- `references/prototype-kit.md` — file layout, the shared CSS token base (both schemes from the first
+  line), the shared part renderers, the index hub, and a **cross-stack portability table**
+  (React Native / SwiftUI / Flutter / web): a plain view cannot render a gradient, `color-mix` must
+  become a derived token, `space-*` is silently dropped on native.
+- `references/verification-protocol.md` — the element × state × scheme inventory as the contract,
+  the six defect classes, measurement recipes, and the **prototype ↔ production anatomy diff** whose
+  absence caused two rounds of "it doesn't look exactly the same".
+- `references/pitfalls.md` — every mistake from this session as symptom → cause → fix, split into
+  fidelity failures, harness failures (the measurement lying), prototype-kit failures, production/test
+  failures, and process failures.
+- `scripts/audit-screen.mjs` — the audit harness: copy to a scratch folder, fill in `SPEC`, run against
+  the live app at 4 widths × 2 schemes. Ships with a `selfTest()` export.
+
+**The skill was self-tested, and that caught two bugs in the harness itself.** The first version of
+`audit-screen.mjs` reported a false failure on a clean layout *and* passed a deliberate dark-mode
+sabotage. Cause: the `invisible` check compared each colored element against the **page** background,
+so a light-scheme hex on a dark card scored as high-contrast and "visible" — it was measuring the
+wrong pair. Fixed to compare against the nearest opaque ancestor. The generalized lesson is now in
+`pitfalls.md`: *a harness that never fails is indistinguishable from a broken one* — run it against a
+synthetic green case plus deliberate sabotages before trusting it on a real screen. `selfTest()` is
+that check, kept in the script so it can be re-run: currently **11/11** (the green case reports
+0 findings; ten sabotages each produce their expected defect class).
+
+Gates: `npx tsc --noEmit` clean, `npm run lint` 0 errors (79 warnings), `npm run check:design`
+0 errors / 172 OK. The skill lives outside the repo, so it is not linted or size-checked here;
+its frontmatter validates (name matches directory, description 660 chars, body 257 lines) and it
+contains no repo-specific references.
+
+Note: a transient `no-undef` lint error appeared in `example-design/blackrose/explore-variants/`
+(a dangling `clearFresh` export in `parts.js`) while this was running. It was another session's
+in-flight edit and resolved on its own; that folder is not part of this change.
+
+## 2026-09-19 — Settings: the hairline list is gone (tonal bands, variant E)
+
+Reported against the Settings screen: the flat `1px` rule under all nine accordion rows "does
+look cleaner but it seems bland." Five redesign prototypes were built under
+`example-design/blackrose/settings-variants/` (A Quiet Cards, B Editorial Ledger, C Studio,
+D Ink & Thorn, E Tonal Stack) with an `index.html` hub to compare them in both schemes; the
+user picked **E — Tonal Stack** and it was ported into production.
+
+### The change
+
+Separation now comes from a change of surface *value* instead of a line. Each row is a
+full-bleed band: even rows lift to a new `band-*` token, odd rows stay on the page background,
+and the open row deepens to `surface-*`. The one line that survives is a leading edge on the
+open band — bone at the left gutter, **fading to nothing before the right edge** so it reads as
+a mark rather than a divider. That fade is an SVG `LinearGradient` (`react-native-svg`, already
+a dependency): a plain `View` with a background colour can only render a hard 1px rule, which is
+what the first port shipped and what the review caught.
+
+- `tailwind.config.js` gains `band-light #FCFAF5` / `band-dark #121215` — the surface mixed 72%
+  toward the page background, computed from `constants/blackrose.ts` rather than eyeballed.
+- `SettingsAccordionSection` is rewritten: index numeral (`01`–`09`), title over a hint line, the
+  current value as a tonal pill, chevron. The screen passes `hint` + `index` per section and
+  drops its own horizontal padding so the bands run edge to edge.
+- `ColorThemeSettingsSection`: the preset swatch bars read the `*Light` colour slots
+  unconditionally, so in dark mode the middle two of four segments vanished into the card. Now
+  scheme-aware. (Pre-existing rule-1 bug, found by this audit — not introduced here.)
+
+### Verification (this is the part that caught the real defects)
+
+A measurement harness (`tmp/ux/audit-settings.mjs`, driven by `tmp/ux/element-inventory.mjs`)
+walks an explicit inventory of every element × state × scheme and classifies findings as
+overlap / overflow / hugging / clipped / invisible / inconsistent. Final run: **4 widths
+(320/360/390/430) × 2 schemes = 8 runs, 0 findings**, plus all nine rows expanded and checked
+for body overflow (0 in every case) and for the edge gradient stops (`0.85 → 0.2 → 0`).
+
+Three defects it caught, all fixed:
+
+1. **The leading edge was a solid line.** The prototype fades right; a `View` cannot. Replaced
+   with an SVG gradient. Caught by review, then confirmed by reading the stop opacities.
+2. **Dark-mode preset bars.** Two of four segments invisible (rule 1).
+3. **Row anatomy was incomplete.** The prototype's index numeral and hint subtitle were missing
+   entirely from the first port — visible only by diffing prototype against build at equal width.
+
+Two harness bugs worth remembering, because both produced *false* defect reports: scrolling and
+reading `getBoundingClientRect` inside a single `page.evaluate` returns **stale** boxes (measure
+in a second round-trip); and a coarse overflow threshold (`+40px`) silently skips the scroll on a
+screen with only 24px of scrollable content. A stale Node ESM import also kept re-running the
+old harness — cache-bust with `?v=`.
+
+### Tests / gates
+
+- `__tests__/components/SettingsAccordionSection.test.tsx` rewritten, 7 cases: collapsed/expanded,
+  alternating band tone (and explicitly *no* `bg-hairline`), open row promoted to surface,
+  label-vs-pill squeeze behaviour, index numeral + hint rendering, hint omission.
+- `__tests__/settingsTonalBand.test.ts` (new): recomputes the 72% mix from
+  `constants/blackrose.ts` and fails if the Tailwind band tokens drift, plus asserts the band is
+  distinct from both the page and the surface so a retune cannot silently erase the separation.
+- `npx tsc --noEmit`, `npm run lint`, `npm run check:design` clean;
+  `npm test` 257 suites / 1332 tests green.
+
+## 2026-09-19 — Threads: the "grey background" under the stats strip is gone
+
+Reported with a cropshot of the Threads footer: a rounded, outlined panel holding the
+memories / links / themes numbers, filled with a flat grey that matches nothing around it.
+
+### Cause — two surfaces, one seam
+
+The bottom band of `/memory-graph` is app chrome (the stats strip, then the dock) sitting on a
+canvas that fades *darker* than the app void as it approaches its edges: the engine's backdrop
+runs #0C0C0E → #08080A with a 55% vignette on top, so by the bottom edge the paint is ~#09090B
+while the void and the dock's plate (`dark:bg-background-dark/95`) are #0C0C0E. Anything
+painted at the void tone therefore reads as a lighter grey slab with a hard boundary, and
+`MemoryGraphStats` framed that slab in a `rounded-card border` — which is what made it read as
+an unexplained panel rather than part of the graph. Measured live at 390×844: canvas above the
+dock `#09090B–#0A0A0B`, dock plate `#0C0C0E` (a 2–3 level step), plus a full-width hairline.
+
+A pixel diff with the strip hidden proved the strip itself paints nothing: 7,356 differing
+pixels over 58,500, all glyph and 1px-border antialiasing, max delta 658 — i.e. no fill. The
+"grey" is the *background agreeing with itself*, not a card.
+
+### Fix
+
+- `assets/memory-graph/engine.html` gains a bottom **chrome dissolve**: a linear gradient over
+the last `CHROME_FADE_H = 118` px (dock 63 + gap 17 + strip) that ramps to the theme's page
+background (`pageBgRgb`, i.e. the app void in dark and paper in light) and is painted after
+the vignette and the node labels, so stars and labels fade out under the chrome instead of
+being sliced by it. Verified in a standalone engine harness: dark `y419 → #0C0C0E` across the
+width, light `y419 → #F4F1EB` — the band now ends exactly on the chrome's own tone
+(0–1 level step into the dock plate, was 2–3 plus a hairline).
+- `MemoryGraphStats` drops the card: no `rounded-card`, no outer `border`, no fill — a single
+hairline **top rule** plus the cell dividers, so the concept's hairline cells survive while
+the strip reads as HUD on the art.
+- The dissolve also stops node labels from being cropped mid-line behind the strip, and
+dissolves the ~28% of the canvas that was already unreadable under the chrome.
+
+### Tests / gates
+
+- `__tests__/screens/TabBottomSpacing.test.ts` +2 cases: the strip is a HUD rule (no
+`rounded-card`, no outer border, keeps `border-t` / `border-l`) and the engine ships the
+dissolve (`CHROME_FADE_H`, `bottomFade`, the `fillRect` call).
+- `__tests__/memoryGraphAsset.test.ts` +1 case tying both theme tones to the design lock:
+the engine's `pageBgRgb` must equal `BLACKROSE_PALETTE.dark.bg` / `.light.bg`, so the fade can
+never drift from the palette it is hiding in.
+- Gates: **1330 tests green** (was 1320), `npx tsc --noEmit` clean, eslint 0 errors on the
+touched files, `npm run check:design` PASSED (0 errors). Verified live with playwriter at
+390×844 in the running app (DOM + pixel scans) and in the engine harness for both schemes.
+
+## 2026-09-19 — DEF-014: long-pressing the write control navigated to chat instead of opening the radial menu
+
+Long-press the pencil FAB and the radial menu (New Entry / New Check-in / Ask Rosebud /
+Memory) flashed for a single frame before the app jumped straight into the journal chat,
+making `/memory-graph` unreachable from the dock.
+
+- **Cause:** `WriteButton` in `components/journal/BottomNav.tsx` wrapped an
+  `AnimatedPressable` in a `GestureDetector`. `Gesture.LongPress().onStart` set
+  `radialVisible`, but the Pressable underneath still received the release and fired its own
+  `onPress` → `onFabPress` → `router.push('/chat')`. The two were never mutually exclusive;
+  winning the gesture race did not cancel the Pressable's tap.
+- **Fix:** a `longPressFired` ref. `onStart` sets it before showing the menu; the extracted
+  `handleWritePress` swallows exactly one trailing press when set. `handleNavigate` and
+  `handleCloseRadial` both clear the flag, so dismissing the menu (or picking an option)
+  re-arms normal tapping rather than leaving the control dead.
+- **Tests:** new `__tests__/components/BottomNavWriteGesture.test.tsx` drives the gesture
+  handler directly with a mocked `react-native-gesture-handler` and asserts four things: the
+  long press does **not** fire the tap or push a route, a plain press still does, the next
+  tap after a long press writes again, and the Memory item routes to `/memory-graph`.
+  Sabotage-verified: removing the guard turns the first and third cases red (2 failed /
+  2 passed), restoring it returns 4 green.
+- **Verified:** 1313 tests green, `npx tsc --noEmit` clean, `npm run lint` 0 errors,
+  `npm run check:design` passed.
+
+## 2026-09-19 (later still) — the Threads stats strip was pinned under the dock
+
+Reported right after the write-menu fix, with a screenshot of `/memory-graph`: the
+memories / links / themes strip rendered with its numerals and labels behind the bottom bar.
+
+### Cause
+
+The dock is absolutely positioned, so the screen's last in-flow child decides whether it is
+covered. `MemoryGraphScreen` put the clearance on the **graph stage** instead:
+
+```tsx
+<View testID="memory-graph-stage" className={`${showBottomNav ? 'mb-32' : 'mb-0'} flex-1`}>
+```
+
+A bottom margin on a `flex-1` sibling shrinks that sibling; it does not move the sibling
+after it. So the graph lost 128px of height, the stats strip stayed pinned to the bottom of
+the screen, and the dock (an absolute overlay, 63px) cut its lower half off. Measured live
+before the fix: strip `y=753..816`, dock `y=781..844` — 35px of numerals and labels hidden.
+
+The constant behind it was stale too: `BOTTOM_NAV_BASE_HEIGHT = 96` still described the
+removed island capsule ("8px float + 68px capsule + raised write button"), while the flat
+hairline dock measures 63. Every screen was reserving 112px for a 63px bar — invisible in a
+scroll view, a visible dead band anywhere content is pinned.
+
+### Fix
+
+- `MemoryGraphScreen` renders one always-present spacer as its **last in-flow child**:
+`showBottomNav ? navAwareBottomPadding(insets.bottom) : 12`. The strip now sits above the
+dock, and when the strip is absent (empty state) the graph stage still stops short of the
+bar instead of running under it.
+- `MemoryGraphStats` lost its own `mb-3`: the screen owns the space below it, so the two can
+no longer stack into the dock.
+- `BOTTOM_NAV_BASE_HEIGHT` 96 → **64** (measured 63 at 390×844 with a zero inset), so
+`navAwareBottomPadding(0)` is 80 = dock + 16px gap on every screen. The pinned `MemoryGraphSheet`
+inherits the same correction: it now rests 17px above the bar instead of 49px.
+
+### Measured after (playwriter, 390×844)
+
+```
+dock        y=781 h=63   (unchanged)
+stats strip y=685 h=79   (was 753..816, half hidden)
+clearance   y=764 h=80
+stage       y=229 h=456  (reclaimed the 60px the old hack wasted)
+gap above dock: 17px  — identical in dark and light
+```
+
+`/today` scrolled to the end after the constant change: content `padding-bottom: 80px`
+against a 63px dock — last card fully visible, 17px of air, no clipped content.
+
+### Tests
+
+`__tests__/screens/TabBottomSpacing.test.ts` used to *pin the bug* — it asserted the file
+contained `"showBottomNav ? 'mb-32' : 'mb-0'"`. It now asserts the clearances that matter:
+the screen uses `navAwareBottomPadding(insets.bottom)`, contains no `mb-32`, renders the
+`memory-graph-bottom-clearance` spacer **after** the stats strip, and the strip carries no
+bottom margin of its own. `constants/spacing.test.ts` derives from the constant, so it stays
+honest by construction.
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| `npx tsc --noEmit` | clean |
+| `npx jest --runInBand` | **1320 passed / 0 failed** (25 skipped, 256 suites) — up from 1319 |
+
+## 2026-09-19 (later) — UX: the long-press write menu was an unreadable jumble
+
+Reported from a phone screenshot: long-press the dock pencil and "the stuff are rumbled" —
+four pills of wrapped 11px text scattered across the journal cards, the dock and the pencil
+itself. Same gesture DEF-014 fixed one layer down; the *layout* was never checked.
+
+### What was actually wrong (three separate defects, not one ugly frame)
+
+Measured live via playwriter on Expo web `:8081`, 390×844 viewport:
+
+| # | Defect | Evidence |
+|---|---|---|
+| 1 | Geometry: `RadialMenu` placed items on a 100px arc around a container with **no height** (`bottom: 80` inside the pencil's 44px slot) | rows rendered 48–59px wide, 55–85px tall — i.e. every label wrapped to 2–3 lines, and items overlapped each other, the timeline and the dock |
+| 2 | The scrim was `absoluteFill` of that same 44px slot | `elementFromPoint` inside the "dimmed" area returned the app, not the scrim: the app stayed fully interactive under an open menu |
+| 3 | Row chrome never applied | computed `background-color: rgba(0,0,0,0)` and `border-width: 0px` — `AnimatedPressable` drops `className` (the trap already documented on the dock tabs), so the rows were borderless transparent text |
+
+And one behavioural defect that only appears on **touch**: lifting the finger that opened the
+menu is retargeted by the browser into a `click` on the scrim, so the menu dismissed the
+instant the finger moved. Reproduced with `Input.dispatchTouchEvent` (open → 1, after
+`touchEnd` → 0, three cycles), and invisible to the mouse path, where pointer capture keeps
+the release on the pencil.
+
+### What shipped
+
+- **A real layout instead of a fan.** Four equal 196×48 rows (icon + single-line label,
+hairline border, card surface, soft shadow) in a right-aligned stack that grows upward out of
+the pencil, gap 8. `AnimatedPressable` only carries the animation and the press target; the
+visual row is a plain `View`, so the chrome cannot be dropped again.
+- **Positioned against the dock, not the pencil.** `BottomNav` measures its own bar with
+`onLayout` and passes `dockHeight + 12` down as `anchorOffset` (fallback 76 while the first
+layout pass is pending), so the stack can never cover the tabs, on any bottom inset.
+- **A real overlay.** The menu renders through a transparent `Modal`, so the scrim covers the
+screen (dark `0.66`, light `0.4` — 45% black over a near-black app left the timeline legible
+and competing), outside taps dismiss, and the exit animation still plays before unmount.
+- **Dismissal requires a press that started on the scrim** (`onPointerDown` flag, reset on
+open). A phantom release from the opening gesture — or a synthetic click — no longer closes
+it; a timestamp guard was tried first and flaked at millisecond resolution, which is why the
+flag exists.
+- **Staggered entrance** (45ms apart, spring, `ReduceMotion.System`), labels in sentence case
+matching the app's other actions, `accessibilityHint` per row, `accessibilityViewIsModal` on
+the overlay (scrim included, so only the menu is announced), Escape/back via
+`onRequestClose`.
+- Pencil press-scale is released when the menu opens: the modal swallows `onPressOut`, so the
+quill used to stay shrunken under its own menu.
+
+### Verified live (playwriter → headless Chrome, touch **and** mouse)
+
+```
+touch:  long press opens 1 · stays open after finger lift 1 · outside tap closes 0
+mouse:  release keeps it open 1 · outside click closes 0 · plain tap → /chat (no menu)
+Memory row: → /memory-graph, menu closed
+dark:  row bg rgb(21,21,24) · border rgb(44,42,38) · radius 12 · row 196×48 · every label one line
+light: row bg rgb(255,253,249) · border rgb(226,220,210)
+```
+
+Frames reviewed at 1× and 2× (full screen, dock crop, mid-entrance crop) before and after each
+change; the mid-entrance frame shows row 1 settled while rows 2–4 are still rising.
+
+### Tests
+
+New `__tests__/components/RadialMenu.test.tsx` (5): routing from each row, the stack anchored
+at `anchorOffset`, the phantom release ignored, a scrim press dismissed, and the exit-timer
+`onClose` that re-arms the dock. One added to `BottomNavWriteGesture.test.tsx`: the dock's
+measured height (60) reaches the anchor as 72, with the 76 fallback before any layout.
+
+Sabotage-verified, each turning exactly one test red and restoring green:
+
+| Sabotage | Result |
+|---|---|
+| Scrim closes on any press (drop the started-here guard) | `RadialMenu` **1 of 5 red** — the phantom-release case |
+| `const bottom = 76` (ignore the measured offset) | `RadialMenu` **1 of 5 red** — the anchoring case |
+| Stop passing `anchorOffset` from `BottomNav` | `BottomNavWriteGesture` **1 of 5 red** — the measurement case |
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| `npx tsc --noEmit` | clean |
+| `npx eslint components __tests__` (touched files) | 0 errors |
+| `npm run check:design` | PASSED (0 errors, 2 warnings) |
+| `npx jest --runInBand` | **1319 passed / 0 failed** (25 skipped, 256 suites) — up from 1313 |
+
+Screenshots and the scratch viewer live in `tmp/ux/` (gitignored).
+
 ## 2026-09-18 (later) — DEF-013: the demo seed waited on 28 AI calls, so it looked frozen
 
 The last open QA defect. Seeding demo data wrote its 31 rows but appeared hung for
@@ -2669,3 +3136,153 @@ calls) with source-ratio telemetry now explicit per turn.
 **Gates:** `npm test` 297 suites / 1560 tests green · `tsc --noEmit` clean · `lint` 0 errors · `check:design` PASSED.
 
 **Tracker:** dashboard regenerated (107 cases: 78 Pass / 0 Fail / 9 Blocked / 1 N/A / 19 Untested); run summary in `docs/qa/results/2026-09-17-run3.md`.
+
+## 2026-09-20 - T14: the Explore ledger port (fake-AI panel deleted)
+
+**Ported.** `MemoryHubScreen` is now the ledger design from `example-design/blackrose/explore-variants/variant-a-index.html`, in the prototype's order: page head (Memory / "What Blackrose holds for you") → hairline rule → composer (the primary action) → portrait (About you + drifting theme strip) → filter line → search rule → "Written" list head → dated ledger rows. `MemoryLedgerRow` replaces `MemoryAtomCard`; the composer replaces `MemoryNotesPanel`. The composer is held back while the first load is in flight, because the skeleton already carries a composer-shaped block.
+
+**Deleted (all of it deferred here from T10-T13).** `MemoryNotesPanel.tsx` + `MemoryAtomCard.tsx` + both tests; `generateMemoryNoteSuggestion`, `saveGeneratedMemoryNote`, `topAtoms`, `collectThemes` from `localMemory.ts`; the `generatedNote` / `addNote` / `addGeneratedNote` / `refreshGeneratedNote` fields from `useLocalMemories`. Consumers updated in five files, not the four the corrections named - `__tests__/hooks/useLocalMemories.test.tsx` also exercised two of the deleted fields and its mock still declared both generators. `saveManualMemoryNote` kept (live caller in `seedDemoData.ts`).
+
+**Two discrepancies found by running the tree, not reading it.**
+1. The corrections say the generator deletion has one caller left (`seedDemoData.ts:743`, `saveManualMemoryNote`). It has **two**: `saveGeneratedMemoryNote` was also live at `seedDemoData.ts:750`, seeding the demo's one theme-summary memory. Deleted as ordered and repointed that row at `saveManualMemoryNote`, so the seeded atom and the `demoSeedStepCount()` step both survive.
+2. The brief's Step-1 test cannot pass as written even after the label fix: it omits the `react-native-safe-area-context` mock, so `ScreenContainer` → `useSafeAreaInsets` throws on every render. Added the same mock `ExploreScreen.test.tsx` uses.
+
+**Browser verification of the drift strip (deferred from T12, done here).** Real Chromium against `npx expo start --web --port 8081`, sampling `scrollLeft`:
+- **No periodic stall.** 40 s of sampling crossed two wraps with **zero stalls ≥ 1 s**; measured rate 15.8 px/s (the configured 16). The 2.6 s-every-10-15 s signature of the pre-fix wrap bug is **not present** - T12's circular-distance fix holds on a real frame.
+- **Repeats are width-identical:** 4 runs (computed, not hard-coded), each exactly 374.94 px, on a 380 px viewport / 1500 px track. The seamless wrap has the geometry it needs.
+- **Hold and resume:** a wheel scroll moves the reader's position, the drift holds ~2.4 s, then resumes from there - no snap-back. (Mouse-drag does nothing, because react-native-web does not pan a scroll container on mouse drag; wheel/touch is the supported path. The component's `onScrollBeginDrag` handlers are inert on web for the same reason - the divergence check is what holds it there, as its own comment says.)
+- **Reduced motion:** 0 px/s over 5 s, and the strip stays manually scrollable (`scrollLeft` 0 → 120). Correct.
+- **Seam:** stepping across the wrap boundary shows the offset crossing 373 → 52 with no visual jump (the 52 is 373 + step folded by runWidth; the content is periodic).
+
+**One real defect found, not caused here, not fixed here.** The composer's Keep CTA renders with **no fill at all** in both light and dark on web (measured: `background-color: rgba(0,0,0,0)`, and its disabled `opacity: 0.35` also never applies). Cause: react-native-web drops a `Pressable`'s **function** style - a static `style={{...}}` on the same element renders fine. The composer is Task 10's component and is not in this task's file list, so it is left as-is; `__tests__/components/ExploreComposer.test.tsx` pins the fill on `props.style` and cannot see the web render. Worth its own fix: move the fill to a child `View`'s static style, or to a class.
+
+**Deviations carried, not "fixed":** `design.md:227` still describes the pre-fix drift mechanism (the code follows the ordered design); repeats are inert to touch as the spec ordered (on a wide frame a large share of visible words sits in a repeat - the dead tap zones are not visually obvious, since nothing marks a word as interactive, but a pointer user cannot filter from them); the prototype's edge-dissolve `mask-image` is not ported (no RN dependency); `tabIndex={0}` makes the strip TalkBack-focusable-but-inert on Android.
+
+**Gates:** `npm test` 267 suites / 1414 tests green (25 skipped) · `tsc --noEmit` clean · `lint` clean · `check:design` PASSED (0 errors; `MemoryHubScreen.tsx` 420 lines, under the 450 warn threshold, so `LayerFilters` stays inline). Sabotage-verified: removing the composer, routing the write to the old atom path, rendering a card instead of a ledger row, and restoring `router.push('/chat')` in the empty state each produce a real red on the new assertions.
+
+**PROGRESS.md is appended but not committed** - it carries 467 lines of another session's uncommitted work; staging it would absorb that work into this branch.
+
+## 2026-09-21 — Explore write path: full gate, live recall, offline boot (T16)
+
+**The write path is real, and it is recallable.** This is the entry that proves it rather than asserting it.
+
+**Shipped (branch `explore-write-path`).** `/explore` is the ledger port of
+`example-design/blackrose/explore-variants/variant-a-index.html`, and writing there now fans out to
+**four** stores in one orchestration call (`saveExploreNote`, mirroring `journalFinishSideEffects.ts`):
+
+| Store | What lands |
+|---|---|
+| Journal entries (`@journal_entries`) | one completed entry, `origin: 'threads'` |
+| Atom store (`@rosebud_local_memory_shard:*`) | one atom, source `manual` |
+| Memory files (`@blackrose_memory_manifest` + `@blackrose_memory_file:<id>`) | one file of type **`'note'`**, staged to `_tmp` for Dream to promote |
+| Day digests (`@blackrose_day_digests`) | the day's rollup, extractive |
+
+Notes are a first-class memory-file type: `'note'` is in the derived allowlist, and notes are **never
+superseded** (a restated note is not a stale note). The write path is body-first, so an interrupted write
+cannot leave a manifest header pointing at a body that was never written. Nothing in the path calls a model
+or touches the network — the themes on the composer are matched locally.
+
+**Live recall E2E, cleared demo data, every host but the chat provider blocked.** Wrote
+*"The lighthouse lens needs a new copper gasket before winter. I keep thinking about the harbour at dusk and
+the green flash over the breakwater."* on `/explore`, pressed Keep, opened a fresh chat, and asked
+*"Search your memory for the lighthouse lens…"*. The model called `memory_search` → `memory_get` and replied
+**verbatim**:
+
+> Found it — one note, not a formal thread yet. Here's the file, verbatim:
+> The lighthouse lens needs a new copper gasket before winter. I keep thinking about the harbour at dusk and the green flash over the breakwater.
+> That's the whole of it — filed as a note, kept as written, stamped 2026-09-21 at 11:55 local. So: it needs a new copper gasket before winter.
+
+Asked to run `memory_list` with `kind: "note"`, it returned **the note and nothing else**:
+
+> - projects/_tmp/Note/the-lighthouse-lens-needs-a-new-copper-gasket-be-fact9d.md [note] (2026-09-21T03:27:17.822Z): Thread hint lighthouse. The lighthouse lens needs a new copper gasket before winter. …
+
+Recall is **by topic, not by recency fallback** — `memory_search` was the first tool called, before any listing.
+Storage was read directly to confirm all four halves independently of the model: journal entry with
+`origin: 'threads'`, one atom, one `'note'` file whose body carries the text and `Kept as written on Threads`,
+and a `2026-09-21` digest naming the entry. **0 blocked outbound hosts** across the run.
+
+**Offline boot gate.** `E2E_BOOT_ONLY=1` → **PASS**: `/today` renders with content, 0 page errors, 0 blocked
+hosts. `E2E_OFFLINE_WALK=1` → **PASS**: all 11 routes render, `boundary=0 neverRendered=0 pageErrors=0
+blocked requests: 0`. The write path adds no outbound host. (Console shows the pre-existing
+`AI memory extraction failed` / `unparseable digest JSON` soft-fails — those are the designed degradation on a
+blocked host, not errors, and they were present before this branch.)
+
+**A real defect found by looking at the screen, and fixed here (`776e360`).** The Explore composer's `Keep it`
+CTA rendered **completely invisible** on web — no fill, and its label inked with the page colour, so it painted
+nothing at all. Root cause is a NativeWind bug, verified in the vendored source:
+`cssInterop(Pressable, { className: 'style' })` merges through `assignToTarget` with
+`objectMergeStyle: 'toArray'`, but that branch requires `typeof target === 'object'`
+(`react-native-css-interop/dist/shared.js:96-120`). A `style={({ pressed }) => …}` is a **function**, so it falls
+to the final `else` → `parent.style = value`, discarding the function whole — fill *and* the disabled
+`opacity: 0.35` with it. **Jest cannot see this**: `props.style` under the RNTL renderer is already the resolved
+array (probed: `TYPE: object`, `IS_ARRAY: true`, `[{backgroundColor:'#1C1917',opacity:1}]`), so the existing test
+that flattens `props.style` passes while the browser paints nothing. The same bug made the **chat send disc**
+transparent, leaving a near-paper glyph (`#FFFDF9`) on the paper surface. Both now carry a static style with
+`onPressIn`/`onPressOut`-driven pressed state (measured after: fill `rgb(28,25,23)`, disabled `0.35`, pressed
+`0.7`; chat disc `rgb(92,86,76)`). A repo-wide guard, `__tests__/nativewindFunctionStyle.test.ts`, fails if a
+colour is declared inside a function style — sabotage-verified on both files (reverting each names the exact
+file:line). This was recorded as a deferred follow-up in T14; T16 is where it got fixed.
+
+**Composer date-column fidelity, arbitrated against the prototype (three divergences, all deliberate).**
+Measured with computed styles on both sides rather than judged from a screenshot:
+1. **Ink.** The prototype's composer date is *muted*: `.write-date` lacks the `.entry-date` class, so
+   `parts.js:452`'s `entry-date-day` inside `write-date is-today` matches no inking rule and resolves to
+   `--text-2` (`rgb(107,101,96)` — measured). The port inks it (`rgb(28,25,23)`). **Keep the port's ink:** the
+   composer is the page's primary action and the ledger rows below it ink day-starts, so a muted composer date
+   would read as a continuation of nothing. The spec (`design.md:218`) asks for the date column and the
+   day-start ink; it does not ask the composer to be muted.
+2. **Alignment.** The prototype is left-aligned (`align-items: flex-start`), the port is `items-end` (`w-11
+   items-end`). **Keep `items-end`:** it is what the plan mandates for both the composer and the ledger row
+   (`plan:1806`, `plan:2066`), so the two date columns on one screen line up. Prototype-vs-plan, decided for
+   internal consistency.
+3. **Day padding.** The prototype pads (`dayPadded`, `parts.js:276`, used at `variant-a-index.html:591` and
+   `parts.js:452`); `formatLedgerDate` does not. **Keep unpadded:** `tabular-nums` is not set on the port's
+   column, so padding would only add a leading zero without buying the alignment it exists for. Note the
+   prototype itself does not set `font-variant-numeric` on `.write-date` either.
+Also left as-is: the serif writing surface (app-wide inputs are sans) and the "Filed under" preview joining
+themes with ` · ` instead of bordered pills — both are deliberate app-level deviations, recorded here rather
+than re-litigated.
+
+**Deliberate deviations, recorded not "fixed":** `design.md:227` still describes the pre-fix drift mechanism
+(the code follows the ordered design; the spec sentence is the stale part) · repeats in the strip are inert to
+touch as the spec ordered · the prototype's edge-dissolve `mask-image` is not ported (no RN dependency) ·
+`tabIndex={0}` makes the strip TalkBack-focusable-but-inert on Android · the arrival motion (`is-fresh` wash,
+`is-new` animation) is not ported.
+
+**Drift strip, verified in a real browser** (the one thing Jest cannot test): sampled `scrollLeft` every second
+— exactly **16 px/s**, matching `DRIFT_SPEED`, and the wrap at `273 → 13` is `273 + 16 = 289 − 276 = 13`, landing
+on identical pixels, so the seam is genuinely seamless. Zero periodic stalls across the sample.
+
+**Light/dark QA against the prototype, both schemes.** Both schemes render the full ledger — page head, hairline,
+composer leading the page, drifting strip, `All/Profile` filter, search rule, `WRITTEN` list head, dated rows.
+A programmatic contrast sweep over 96 text nodes per scheme found **no invisible text** (the only sub-2.0 entries
+were the two CTA labels, which is the defect fixed above, plus non-visible `<script>`/`<style>` text). The
+apparent "clipping" where the strip meets the filter is the horizontal edge of a scrolling strip: measured
+`scrollHeight === clientHeight === 24`, zero vertically-overflowing children, 28 px gap to the filter.
+
+**Gates:** `npm test` **270 suites / 1430 tests green** (25 skipped) · `tsc --noEmit` clean · `lint` clean
+(0 errors) · `check:design` PASSED (0 errors; 2 warnings) · offline boot + offline walk PASS · live recall
+positive by topic.
+
+**PROGRESS.md is appended but not committed** — it carries 492 lines of another session's uncommitted work;
+staging it would absorb that work into this branch. Per the same reason, T16's Step-7 commit is skipped.
+
+**Follow-ups found by the final whole-branch review — both pre-existing retrieval semantics this branch widens, both belong in the next spec, neither blocks this merge.**
+
+1. **`memory_search` can miss a note whenever any formal thread exists.** `memoryRetrieval.ts:153-198`: for
+   `project_memory`, a formal thread is resolved and **only that thread's** headers are scanned; a `_tmp` note
+   belongs to no thread, so it is reachable only via the no-thread recency fallback at `:171`
+   (`listMemoryFiles({limit: RECALL_TOP_K})`, `RECALL_TOP_K = 5`). So the T16 live-recall evidence is accurate
+   **for the condition it was measured under** — cleared store, no formal threads, ≤5 newer staged files — and
+   should not be read more broadly. Pre-existing gating, not introduced here (at the base the note had no file
+   at all, so this branch strictly improves recall). Fix is in retrieval gating, not the write path.
+2. **Deleting a note does not remove it from `memory_search`.** `useLocalMemories.ts:53-61`:
+   `removeAtom`/`clearAll` call only `deleteMemoryAtom`/`clearMemoryAtoms` (the atom shards) and never
+   `deleteMemoryFilesBySourceSessions` (`memoryFiles.ts:748`, called only from `journalEntryActions.ts:88` and
+   `seedDemoData.ts:560`). The `'note'` memory file and the journal entry both survive, so retrieval still
+   returns the note the UI said it deleted. **The more serious of the two** — the branch widens it, because the
+   atom used to be the note's only visibility.
+
+**Also noted:** `plan:61` lists a `noteFiles` stat for `getManifestStats` that is implemented nowhere; no task
+step asks for it and `memory_overview` folds notes into `tmpFiles`, so it is a stale line in the plan's file
+table, not a missed requirement.
