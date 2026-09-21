@@ -185,22 +185,41 @@ export function ColorThemeSettingsSection({
                                     : 'border-hairline-light dark:border-hairline-dark',
                             ].join(' ')}
                         >
+                            {/* The bar must follow the live scheme. Reading the
+                                *Light slots unconditionally made the middle two
+                                segments disappear into the dark surface. */}
                             <View className="flex-row gap-1">
                                 <View
                                     className="h-4 flex-1 rounded-full"
-                                    style={{ backgroundColor: preset.colors.accentLight }}
+                                    style={{
+                                        backgroundColor: isDark
+                                            ? preset.colors.accentDark
+                                            : preset.colors.accentLight,
+                                    }}
                                 />
                                 <View
                                     className="h-4 flex-1 rounded-full"
-                                    style={{ backgroundColor: preset.colors.appTextLight }}
+                                    style={{
+                                        backgroundColor: isDark
+                                            ? preset.colors.appTextDark
+                                            : preset.colors.appTextLight,
+                                    }}
                                 />
                                 <View
                                     className="h-4 flex-1 rounded-full"
-                                    style={{ backgroundColor: preset.colors.chatUserTextLight }}
+                                    style={{
+                                        backgroundColor: isDark
+                                            ? preset.colors.chatUserTextDark
+                                            : preset.colors.chatUserTextLight,
+                                    }}
                                 />
                                 <View
                                     className="h-4 flex-1 rounded-full"
-                                    style={{ backgroundColor: preset.colors.chatAiTextLight }}
+                                    style={{
+                                        backgroundColor: isDark
+                                            ? preset.colors.chatAiTextDark
+                                            : preset.colors.chatAiTextLight,
+                                    }}
                                 />
                             </View>
                             <Text

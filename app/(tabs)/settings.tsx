@@ -205,12 +205,13 @@ export default function SettingsScreen() {
             <ScrollView
                     className="flex-1"
                     contentContainerStyle={{
-                        paddingHorizontal: 24,
                         paddingBottom: navAwareBottomPadding(insets.bottom),
                     }}
                     showsVerticalScrollIndicator={false}
                 >
-                <View className="pt-6 pb-4">
+                {/* Bands run edge to edge, so the gutter lives on the header and
+                    on each section's own padding — not on the ScrollView. */}
+                <View className="px-6 pt-6 pb-5">
                     <Text
                         className="text-[40px] leading-tight text-text-light dark:text-text-dark"
                         style={{ fontFamily: 'PlayfairDisplayRegular' }}
@@ -222,13 +223,13 @@ export default function SettingsScreen() {
                     </Text>
                 </View>
 
-                <View className="h-px w-full bg-hairline-light dark:bg-hairline-dark" />
-
                 <SettingsAccordionSection
                     id="appearance"
                     title="Appearance"
+                    hint="Theme and emoji treatment"
                     summary={summaries.appearance}
                     icon="brightness-6"
+                    index={0}
                     expanded={expandedIds.has('appearance')}
                     onToggle={toggleSection}
                 >
@@ -243,7 +244,9 @@ export default function SettingsScreen() {
 
                 <SettingsAccordionSection
                     id="color"
+                    index={1}
                     title="Color Studio"
+                    hint="Palette and per-slot colors"
                     summary={summaries.color}
                     icon="palette"
                     expanded={expandedIds.has('color')}
@@ -260,7 +263,9 @@ export default function SettingsScreen() {
 
                 <SettingsAccordionSection
                     id="generation"
+                    index={2}
                     title="Generation"
+                    hint="Reply length and warmth"
                     summary={summaries.generation}
                     icon="tune"
                     expanded={expandedIds.has('generation')}
@@ -271,7 +276,9 @@ export default function SettingsScreen() {
 
                 <SettingsAccordionSection
                     id="customAi"
+                    index={3}
                     title="AI Model"
+                    hint="Bring your own provider"
                     summary={summaries.customAi}
                     icon="smart-toy"
                     expanded={expandedIds.has('customAi')}
@@ -282,7 +289,9 @@ export default function SettingsScreen() {
 
                 <SettingsAccordionSection
                     id="data"
+                    index={4}
                     title="Data Management"
+                    hint="Everything stays on device"
                     summary={summaries.data}
                     icon="folder"
                     expanded={expandedIds.has('data')}
@@ -308,7 +317,9 @@ export default function SettingsScreen() {
 
                 <SettingsAccordionSection
                     id="identity"
+                    index={5}
                     title="Identity"
+                    hint="What Blackrose always remembers"
                     summary={summaries.identity}
                     icon="badge"
                     expanded={expandedIds.has('identity')}
@@ -327,7 +338,9 @@ export default function SettingsScreen() {
 
                 <SettingsAccordionSection
                     id="memory"
+                    index={6}
                     title="Memory"
+                    hint="Atoms, files and Dream"
                     summary={summaries.memory}
                     icon="auto-awesome"
                     expanded={expandedIds.has('memory')}
@@ -343,7 +356,9 @@ export default function SettingsScreen() {
 
                 <SettingsAccordionSection
                     id="account"
+                    index={7}
                     title="Account"
+                    hint="No sign-in, no server"
                     summary={summaries.account}
                     icon="person"
                     expanded={expandedIds.has('account')}
@@ -354,7 +369,9 @@ export default function SettingsScreen() {
 
                 <SettingsAccordionSection
                     id="about"
+                    index={8}
                     title="About"
+                    hint="Version and privacy"
                     summary={summaries.about}
                     icon="info"
                     expanded={expandedIds.has('about')}

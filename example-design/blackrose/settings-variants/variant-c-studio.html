@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Blackrose Settings — Variant C · Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&family=Plus+Jakarta+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,300,0,0" rel="stylesheet" />
+<link rel="stylesheet" href="assets/blackrose.css" />
+<style>
+  /* ==========================================================================
+     VARIANT C — Studio
+     --------------------------------------------------------------------------
+     The complaint was that the rules make the page bland. The root cause is
+     that nine identical rows have nothing to look at: every entry is the same
+     weight, so the eye has no anchor.
+
+     The fix is structural, not decorative. Color Studio is the one section
+     people actually come here to play with, so it stops being row #2 and
+     becomes the hero: an always-open studio panel at the top, on its own
+     surface, with a live journal preview beside the presets. The remaining
+     eight rows drop below into a quiet inset group, where the hairline is
+     demoted to an internal card divider instead of a full-bleed page rule.
+     ========================================================================== */
+
+  .scroll {
+    padding: 1.25rem 1.25rem 7.5rem;
+  }
+
+  .page-head {
+    padding: 1.5rem 0.25rem 1.25rem;
+  }
+
+  /* ---------------------------------------------------------------- hero */
+
+  .studio-hero {
+    position: relative;
+    margin-bottom: 1.75rem;
+    padding: 1.25rem 1.15rem 1.35rem;
+    border-radius: var(--radius-sheet);
+    background:
+      radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 62%),
+      var(--surface);
+    border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--hairline));
+    box-shadow: var(--shadow-lift);
+  }
+
+  .studio-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    margin-bottom: 1.1rem;
+  }
+  .studio-head h2 {
+    margin: 0;
+    font-family: 'Playfair Display', Georgia, serif;
+    font-weight: 400;
+    font-size: 1.5rem;
+    letter-spacing: -0.01em;
+    color: var(--text);
+  }
+  .studio-head .live {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.5625rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-2);
+  }
+  .studio-head .live i {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--ok);
+    display: block;
+  }
+
+  /* Inside the hero the wells sit on the page colour so they read as inset. */
+  .studio-hero .segment,
+  .studio-hero .preview,
+  .studio-hero .preset {
+    background: var(--bg);
+  }
+  .studio-hero .preset[aria-checked='true'] {
+    background: var(--surface-2);
+  }
+  .studio-hero .swatch-stack {
+    margin-top: 1.15rem;
+    padding-top: 1.15rem;
+    border-top: 1px solid color-mix(in srgb, var(--hairline) 70%, transparent);
+  }
+
+  /* --------------------------------------------------- remaining rows group */
+
+  [data-rows] {
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--radius-card);
+    background: var(--surface);
+    border: 1px solid color-mix(in srgb, var(--hairline) 65%, transparent);
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+  }
+
+  /* Color Studio now lives in the hero — its row is not rendered here at all
+     (the mount skips it, so the studio body is not built twice). */
+  .row {
+    position: relative;
+  }
+
+  /* Hairline demoted: an internal divider, inset from the card edge, and
+     suppressed on the first row and on the row that follows an open one. */
+  .row .sep {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 1.15rem;
+    right: 1.15rem;
+    height: 1px;
+    background: var(--hairline);
+    opacity: 0.7;
+  }
+  .row:first-child .sep {
+    display: none;
+  }
+  .row[data-expanded='true'] .sep,
+  .row[data-expanded='true'] + .row .sep {
+    opacity: 0;
+  }
+
+  .row-head {
+    padding: 1rem 1.15rem;
+    min-height: 66px;
+  }
+  .row-title {
+    font-size: 1.125rem;
+  }
+  .row[data-expanded='true'] {
+    background: color-mix(in srgb, var(--surface-2) 55%, var(--surface));
+  }
+  .row-body-inner {
+    padding: 0 1.15rem 1.15rem;
+  }
+  .row-body-inner .segment,
+  .row-body-inner .preset,
+  .row-body-inner .preview,
+  .row-body-inner .stub-btn {
+    background: var(--surface);
+  }
+  .row-body-inner .stub-row {
+    border-top: 1px solid color-mix(in srgb, var(--hairline) 55%, transparent);
+  }
+  .row-body-inner .stub-row:first-child {
+    border-top: 0;
+  }
+
+  .dock {
+    border-top: 1px solid color-mix(in srgb, var(--hairline) 55%, transparent);
+  }
+</style>
+</head>
+<body>
+<div class="phone" data-variant="C · Studio">
+  <button type="button" class="theme-toggle" data-theme-toggle>
+    <span class="material-symbols-rounded" style="font-size:16px">contrast</span>
+    <span data-theme-label>Light</span>
+  </button>
+
+  <div class="scroll">
+    <div class="page-head">
+      <h1 class="page-title">Settings</h1>
+      <p class="page-sub">Theme, AI, data &amp; account</p>
+    </div>
+
+    <section class="studio-hero" aria-label="Color Studio">
+      <div class="studio-head">
+        <h2>Color Studio</h2>
+        <span class="live"><i></i>live</span>
+      </div>
+      <div data-part="color-studio" data-preview-first="true"></div>
+    </section>
+
+    <div data-rows data-skip="color"></div>
+  </div>
+
+  <nav class="dock" data-dock></nav>
+</div>
+
+<script src="assets/parts.js"></script>
+</body>
+</html>
