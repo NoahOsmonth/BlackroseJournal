@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Blackrose — Variant C · Action Dock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&family=Plus+Jakarta+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,300,0,0" rel="stylesheet" />
+<link rel="stylesheet" href="assets/sheet.css" />
+<style>
+  /* ==========================================================================
+     VARIANT C — Action Dock
+     --------------------------------------------------------------------------
+     Structural remedy: remove the modal entirely. The four actions are a
+     *state of the card*, not a layer above the app. The icon row morphs in
+     place: the `...` unfolds into a horizontal strip of labelled actions that
+     sits exactly where the icon row was.
+     There is no scrim to miss and no dead band to find, because there is no
+     overlay at all. Dismissal is the same gesture that opened it — press `...`
+     again, press an action, or tap the card's own body.
+     Trade-off, stated plainly: no dimming, so the rest of Today stays live and
+     tappable while the strip is open. That is a deliberate choice, not an
+     oversight — it makes "tap outside" unnecessary rather than merely fixed.
+     ========================================================================== */
+
+  .today-card {
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* The strip is absolutely positioned over the icon row so the card does not
+     change height when it opens — a card that jumps is its own kind of bug. */
+  .dock {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: stretch;
+    justify-content: space-between;
+    gap: 0.25rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--surface);
+    border-top: 1px solid var(--hairline);
+    transform: translateY(100%);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.24s cubic-bezier(0.22, 0.61, 0.36, 1), opacity 0.2s ease;
+  }
+  .dock[data-open='true'] {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .dock-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    min-height: 56px;
+    padding: 0.35rem 0.25rem;
+    border: 0;
+    border-radius: var(--radius-control);
+    background: none;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.6875rem;
+    cursor: pointer;
+    transition: background 0.16s ease;
+  }
+  .dock-btn:hover {
+    background: var(--surface-2);
+  }
+  .dock-btn.danger {
+    color: var(--danger);
+  }
+  .dock-btn.danger .material-symbols-rounded {
+    color: var(--danger);
+  }
+  .dock-btn .material-symbols-rounded {
+    font-size: 20px;
+    color: var(--text-2);
+  }
+
+  /* The icon row slides out as the dock slides in — a cross-fade reads as two
+     layers; a slide reads as one thing changing its mind. */
+  .icon-row {
+    transition: transform 0.24s cubic-bezier(0.22, 0.61, 0.36, 1), opacity 0.18s ease;
+  }
+  .icon-row[data-hidden='true'] {
+    transform: translateY(-100%);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .hint {
+    position: static;
+    padding: 0.5rem 0 0;
+    opacity: 1;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="scroll">
+    <div class="today-head">
+      <div class="today-date serif">Thu · 10 Sep</div>
+      <div class="today-streak">3 days</div>
+    </div>
+    <div class="overline" style="padding:0 0.25rem 0.5rem">Based on your entries</div>
+    <div class="card today-card">
+      <p class="card-q serif">What would make tomorrow feel 10% lighter?</p>
+      <div class="card-rule"></div>
+      <div class="icon-row" id="iconRow">
+        <button class="icon-btn" aria-label="Refresh insight">
+          <span class="material-symbols-rounded">refresh</span></button>
+        <button class="icon-btn" aria-label="Save insight">
+          <span class="material-symbols-rounded">bookmark_border</span></button>
+        <button class="icon-btn" id="trigger" aria-label="More options" aria-expanded="false">
+          <span class="material-symbols-rounded">more_horiz</span></button>
+      </div>
+      <div class="dock" id="dock" data-open="false" role="menu" aria-label="More options"></div>
+    </div>
+    <p class="hint" id="hint" style="opacity:1">Press <b>···</b> again, or tap the card, to close</p>
+    <div class="ambient">
+      <div class="ambient-row"><span>Morning note</span><span>Done</span></div>
+      <div class="ambient-row"><span>Evening close</span><span>Open</span></div>
+      <div class="ambient-row"><span>Grow into the new role</span><span></span></div>
+      <div class="ambient-row"><span>Speak the hurt, not the anger</span><span></span></div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/parts.js"></script>
+<script>
+(function () {
+  var host = document.querySelector('.phone');
+  BR.themeChip(host);
+
+  var dock = document.getElementById('dock');
+  var iconRow = document.getElementById('iconRow');
+  var trigger = document.getElementById('trigger');
+
+  dock.innerHTML = BR.ACTIONS.map(function (a) {
+    return (
+      '<button class="dock-btn' + (a.danger ? ' danger' : '') + '" data-action="' + a.id + '" role="menuitem">' +
+      '<span class="material-symbols-rounded">' + a.icon + '</span>' +
+      '<span>' + a.label + '</span></button>'
+    );
+  }).join('');
+
+  var open = false;
+  function setOpen(next) {
+    open = next;
+    dock.dataset.open = String(open);
+    iconRow.dataset.hidden = String(open);
+    trigger.setAttribute('aria-expanded', String(open));
+  }
+
+  trigger.addEventListener('click', function (e) {
+    e.stopPropagation();
+    setOpen(!open);
+  });
+
+  /* Dismissal is *anywhere that is not the dock* — the card body, the rest of
+     Today, the empty margins. Restricting it to the card alone would reproduce
+     the original complaint one level down: a tap outside the card would do
+     nothing. Nothing is dimmed, so nothing is "outside" in a modal sense; the
+     rule is simply "a tap that is not on an action closes the strip". */
+  document.addEventListener('click', function (e) {
+    if (!open) return;
+    if (e.target.closest('[data-action]') || e.target.closest('#trigger')) return;
+    setOpen(false);
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && open) setOpen(false);
+  });
+
+  dock.addEventListener('click', function (e) {
+    if (e.target.closest('[data-action]')) setOpen(false);
+  });
+})();
+</script>
+</body>
+</html>

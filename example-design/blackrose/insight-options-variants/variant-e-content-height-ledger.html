@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Blackrose — Variant E · Content-Height Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&family=Plus+Jakarta+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,300,0,0" rel="stylesheet" />
+<link rel="stylesheet" href="assets/sheet.css" />
+<style>
+  /* ==========================================================================
+     VARIANT E — Content-Height Ledger
+     --------------------------------------------------------------------------
+     The diagnosis, restated: the shipped sheet was 336px tall inside a 844px
+     screen, and every pixel of it below the last row — plus both 24px gutters
+     and the 56px header band — swallowed taps. The sheet looked small and
+     behaved huge.
+     This variant attacks the dead band itself rather than the dismissal: the
+     sheet is exactly as tall as its content, so there is no padding to get
+     lost in, and the scrim therefore reaches right up to the last row. Rows
+     are separated by hairlines instead of air, which lets the sheet be
+     genuinely compact — the ledger idea, applied to a menu.
+     An explicit close control is kept, because a dense ledger benefits from a
+     stated exit; it sits in the header, where the eye already is.
+     ========================================================================= */
+
+  .sheet {
+    /* Hug the content: no fixed height, no filler padding. */
+    padding: 0 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  }
+
+  .sheet-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.25rem 0.25rem;
+  }
+  .sheet-close {
+    width: var(--tap-min);
+    height: var(--tap-min);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: none;
+    color: var(--text-2);
+    border-radius: 999px;
+    cursor: pointer;
+    margin-right: -0.5rem;
+  }
+  .sheet-close:hover {
+    color: var(--text);
+    background: var(--surface-2);
+  }
+
+  /* Hairline-separated ledger rows. No vertical air between them means no
+     dead gaps to hit, and the whole sheet stays short. */
+  .action {
+    min-height: var(--row-min);
+    padding: 0.5rem 0.25rem;
+    border-radius: 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .action:last-child {
+    border-bottom: 0;
+  }
+  .action:hover {
+    background: var(--surface-2);
+  }
+
+  .action.danger {
+    margin-top: 0.5rem;
+    border-top: 1px solid var(--hairline);
+    border-bottom: 0;
+    border-radius: 0;
+  }
+
+  /* A hairline is a thin target, so the drag area is the sheet's own top edge
+     rather than a drawn bar — nothing to mis-hit, nothing to draw. */
+  .grabber {
+    height: 18px;
+  }
+  .grabber::after {
+    margin-top: 8px;
+    background: var(--hairline);
+  }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="scrim" id="scrim" data-open="false"></div>
+  <div class="sheet" id="sheet" data-open="false" role="dialog" aria-modal="true" aria-label="More options">
+    <button class="grabber" id="grabber" aria-label="Dismiss"></button>
+    <div class="sheet-head">
+      <span class="overline">More options</span>
+      <button class="sheet-close" id="close" aria-label="Close more options">
+        <span class="material-symbols-rounded">close</span>
+      </button>
+    </div>
+    <div id="actions" role="menu"></div>
+  </div>
+</div>
+
+<script src="assets/parts.js"></script>
+<script>
+(function () {
+  BR.boot(function () {
+    var scrim = document.getElementById('scrim');
+    var sheet = document.getElementById('sheet');
+    var actions = document.getElementById('actions');
+    var trigger = document.getElementById('trigger');
+    var closeBtn = document.getElementById('close');
+
+    actions.innerHTML = BR.ACTIONS.map(function (a) { return BR.actionRow(a); }).join('');
+
+    var open = false;
+    function setOpen(next) {
+      open = next;
+      scrim.dataset.open = String(open);
+      sheet.dataset.open = String(open);
+      trigger.setAttribute('aria-expanded', String(open));
+    }
+
+    trigger.addEventListener('click', function () { setOpen(!open); });
+    scrim.addEventListener('click', function () { setOpen(false); });
+    closeBtn.addEventListener('click', function () { setOpen(false); });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && open) setOpen(false);
+    });
+
+    actions.addEventListener('click', function (e) {
+      if (e.target.closest('[data-action]')) setOpen(false);
+    });
+
+    sheet.addEventListener('click', function (e) { e.stopPropagation(); });
+
+    var startY = 0, dragging = false;
+    var grabber = document.getElementById('grabber');
+    grabber.addEventListener('pointerdown', function (e) {
+      dragging = true; startY = e.clientY;
+      sheet.dataset.dragging = 'true';
+      grabber.setPointerCapture(e.pointerId);
+    });
+    window.addEventListener('pointermove', function (e) {
+      if (!dragging) return;
+      sheet.style.transform = 'translateY(' + Math.max(0, e.clientY - startY) + 'px)';
+    });
+    window.addEventListener('pointerup', function (e) {
+      if (!dragging) return;
+      dragging = false;
+      delete sheet.dataset.dragging;
+      sheet.style.transform = '';
+      if (Math.max(0, e.clientY - startY) > sheet.getBoundingClientRect().height / 3) setOpen(false);
+    });
+  });
+})();
+</script>
+</body>
+</html>

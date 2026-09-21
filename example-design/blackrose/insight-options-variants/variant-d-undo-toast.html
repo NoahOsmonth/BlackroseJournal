@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Blackrose — Variant D · Undo Instead of Cancel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&family=Plus+Jakarta+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,300,0,0" rel="stylesheet" />
+<link rel="stylesheet" href="assets/sheet.css" />
+<style>
+  /* ==========================================================================
+     VARIANT D — Undo Instead of Cancel
+     --------------------------------------------------------------------------
+     The remedy is about *commitment*, not geometry. The shipped sheet asked the
+     user to make a decision and then confirm they had not made one — Cancel was
+     load-bearing because every action fired immediately and irreversibly.
+     Here every action commits immediately, the sheet closes at once, and a
+     toast offers Undo for the one that destroys something. Dismissal stops
+     mattering: tapping the wrong place costs nothing, because you can always
+     press `...` again — and if you tapped an action by mistake, you undo it.
+     The sheet still gets a full-bleed scrim and a drag handle, so it is also a
+     straight superset of Variant A's fix.
+     ========================================================================= */
+
+  .sheet[data-open='true'] { transform: translateY(0); }
+
+  /* Rows are staggered in, so the sheet reads as assembling rather than
+     appearing — cheap, and it makes the layer feel deliberate. */
+  .action {
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.2s ease, transform 0.2s ease, background 0.16s ease;
+  }
+  .sheet[data-open='true'] .action {
+    opacity: 1;
+    transform: none;
+  }
+  .sheet[data-open='true'] .action:nth-child(1) { transition-delay: 0.04s; }
+  .sheet[data-open='true'] .action:nth-child(2) { transition-delay: 0.08s; }
+  .sheet[data-open='true'] .action:nth-child(3) { transition-delay: 0.12s; }
+  .sheet[data-open='true'] .action:nth-child(4) { transition-delay: 0.16s; }
+
+  /* A quiet hairline between the safe actions and the destructive one. It is
+     the only structural difference between the rows, and it is enough. */
+  .action.danger {
+    margin-top: 0.375rem;
+    border-top: 1px solid var(--hairline);
+    border-radius: 0 0 var(--radius-control) var(--radius-control);
+    padding-top: 0.75rem;
+  }
+
+  .action .action-sub {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-2);
+  }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="scrim" id="scrim" data-open="false"></div>
+  <div class="sheet" id="sheet" data-open="false" role="dialog" aria-modal="true" aria-label="More options">
+    <button class="grabber" id="grabber" aria-label="Dismiss"></button>
+    <span class="overline sheet-label">More options</span>
+    <div id="actions" role="menu"></div>
+  </div>
+  <div class="toast" id="toast" data-open="false" role="status" aria-live="polite">
+    <span id="toastMsg">Hidden for today</span>
+    <button type="button" id="undo">Undo</button>
+  </div>
+</div>
+
+<script src="assets/parts.js"></script>
+<script>
+(function () {
+  BR.boot(function () {
+    var scrim = document.getElementById('scrim');
+    var sheet = document.getElementById('sheet');
+    var actions = document.getElementById('actions');
+    var trigger = document.getElementById('trigger');
+    var toast = document.getElementById('toast');
+    var toastMsg = document.getElementById('toastMsg');
+    var undoBtn = document.getElementById('undo');
+
+    actions.innerHTML = BR.ACTIONS.map(function (a) { return BR.actionRow(a); }).join('');
+
+    var open = false;
+    var toastTimer = null;
+
+    function setOpen(next) {
+      open = next;
+      scrim.dataset.open = String(open);
+      sheet.dataset.open = String(open);
+      trigger.setAttribute('aria-expanded', String(open));
+    }
+
+    function showToast(msg) {
+      toastMsg.textContent = msg;
+      toast.dataset.open = 'true';
+      clearTimeout(toastTimer);
+      /* Long enough to notice and reach, short enough not to nag. */
+      toastTimer = setTimeout(function () { toast.dataset.open = 'false'; }, 5000);
+    }
+
+    trigger.addEventListener('click', function () { setOpen(!open); });
+    scrim.addEventListener('click', function () { setOpen(false); });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && open) setOpen(false);
+    });
+
+    actions.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      var id = btn.dataset.action;
+      setOpen(false);
+      if (id === 'hide') showToast('Hidden for today');
+      else if (id === 'copy') showToast('Copied to clipboard');
+      else if (id === 'share') showToast('Ready to share');
+      else showToast('Opening saved insights');
+    });
+
+    undoBtn.addEventListener('click', function () {
+      toast.dataset.open = 'false';
+      showToast('Restored');
+    });
+
+    /* Drag-to-dismiss, same threshold logic as A. */
+    var startY = 0, dragging = false;
+    var grabber = document.getElementById('grabber');
+    grabber.addEventListener('pointerdown', function (e) {
+      dragging = true; startY = e.clientY;
+      sheet.dataset.dragging = 'true';
+      grabber.setPointerCapture(e.pointerId);
+    });
+    window.addEventListener('pointermove', function (e) {
+      if (!dragging) return;
+      var dy = Math.max(0, e.clientY - startY);
+      sheet.style.transform = 'translateY(' + dy + 'px)';
+    });
+    window.addEventListener('pointerup', function (e) {
+      if (!dragging) return;
+      dragging = false;
+      delete sheet.dataset.dragging;
+      sheet.style.transform = '';
+      if (Math.max(0, e.clientY - startY) > sheet.getBoundingClientRect().height / 3) setOpen(false);
+    });
+  });
+})();
+</script>
+</body>
+</html>
