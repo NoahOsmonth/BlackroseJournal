@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import React, { useCallback } from 'react';
 import { View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FinishBackgroundBanner } from '@/components/entries/FinishBackgroundBanner';
 import { BottomNav } from '@/components/journal';
@@ -11,6 +11,7 @@ import { useMemoryGraph } from '@/hooks/memory/useMemoryGraph';
 import { useMemorySourcePreview } from '@/hooks/memory/useMemorySourcePreview';
 import { useTabNavigation } from '@/hooks/navigation/useTabNavigation';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { navAwareBottomPadding } from '@/constants/spacing';
 import { BLACKROSE_PALETTE } from '@/constants/theme';
 import type { MemoryLayer } from '@/services/memory/memoryGraph.types';
 import { MemoryGraphFilters } from './MemoryGraphFilters';
@@ -34,6 +35,7 @@ export function MemoryGraphScreen({
     onBack,
 }: MemoryGraphScreenProps) {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const { goToTab } = useTabNavigation();
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
@@ -71,7 +73,7 @@ export function MemoryGraphScreen({
 
             <View
                 testID="memory-graph-stage"
-                className={`${showBottomNav ? 'mb-32' : 'mb-0'} flex-1`}
+                className="flex-1"
                 style={{ backgroundColor: stageBackground }}
             >
                 <MemoryGraphWebView
@@ -96,15 +98,38 @@ export function MemoryGraphScreen({
                         />
                     </View>
                 ) : null}
-            </View>
 
-            {graph.atoms.length > 0 ? (
-                <MemoryGraphStats
-                    memories={graph.atoms.length}
-                    links={graph.connections.length}
-                    themes={graph.atoms.filter((atom) => atom.layer === 'semantic').length}
-                />
-            ) : null}
+                {/*
+                 * The strip floats ON the graph rather than sitting in a footer
+                 * below it: anything in flow below the stage sits on the app's
+                 * flat void (#0C0C0E) while the canvas above it has dimmed to
+                 * #08080A-#0A0A0B, so the void reads as a lighter grey slab.
+                 * Inside the stage the strip rests on the engine instead, which
+                 * dissolves into that same void over its bottom CHROME_FADE_H px
+                 * — the strip and the dock are painted on art, with no seam.
+                 *
+                 * pointerEvents none so the graph stays tappable through it, and
+                 * the offset clears the absolute dock with the app's standard gap.
+                 */}
+                {graph.atoms.length > 0 ? (
+                    <View
+                        testID="memory-graph-stats-overlay"
+                        pointerEvents="none"
+                        style={{
+                            position: 'absolute',
+                            left: 0,
+                            right: 0,
+                            bottom: showBottomNav ? navAwareBottomPadding(insets.bottom) : 12,
+                        }}
+                    >
+                        <MemoryGraphStats
+                            memories={graph.atoms.length}
+                            links={graph.connections.length}
+                            themes={graph.atoms.filter((atom) => atom.layer === 'semantic').length}
+                        />
+                    </View>
+                ) : null}
+            </View>
 
             {graph.selectedAtom ? (
                 <MemoryGraphSheet

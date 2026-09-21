@@ -125,6 +125,24 @@ describe('memory graph asset integration', () => {
         });
     });
 
+    it('dissolves the canvas into the palette void under the bottom chrome', () => {
+        const enginePath = path.join(
+            process.cwd(),
+            'assets',
+            'memory-graph',
+            'engine.html'
+        );
+        const engine = fs.readFileSync(enginePath, 'utf-8');
+
+        // The Threads stats strip and the dock are painted on the app void, so
+        // the engine fades its bottom band to that same tone: any other value
+        // there shows up as a grey slab with a seam above the chrome.
+        const rgb = (hex: string) =>
+            [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(',');
+        expect(engine).toContain(`pageBgRgb: '${rgb(BLACKROSE_PALETTE.dark.bg)}'`);
+        expect(engine).toContain(`pageBgRgb: '${rgb(BLACKROSE_PALETTE.light.bg)}'`);
+    });
+
     it('paints the Blackrose void and paper in both engine themes', () => {
         const enginePath = path.join(
             process.cwd(),
