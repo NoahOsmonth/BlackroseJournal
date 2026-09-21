@@ -4,6 +4,9 @@
  *
  * Toolfix (2026-09): descriptions were DELIBERATELY rewritten (verb +
  * when-use + when-NOT-use + arg example) and the pin re-frozen below.
+ * Explore (2026-09-19): `memory_list.kind` gained "note" because user-written
+ * notes became first-class memory files. The enum is now derived from
+ * `MEMORY_FILE_TYPES`, so this pin is what still catches a drift.
  * Parameters/required must still not drift without a matching pin update.
  */
 
@@ -149,7 +152,8 @@ const PINNED_OTHER_TOOLS_JSON = JSON.stringify([
                             "all",
                             "user",
                             "feedback",
-                            "project"
+                            "project",
+                            "note"
                         ]
                     },
                     "query": {

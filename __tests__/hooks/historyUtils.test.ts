@@ -14,7 +14,8 @@ function makeEntry(
     id: string,
     createdAt: number,
     title: string,
-    analysisMood?: string
+    analysisMood?: string,
+    overrides: Partial<JournalEntry> = {}
 ): JournalEntry {
     return {
         id,
@@ -38,6 +39,7 @@ function makeEntry(
                 generatedAt: createdAt,
             }
             : undefined,
+        ...overrides,
     };
 }
 
@@ -144,5 +146,25 @@ describe('historyUtils build + filter', () => {
         expect(today.label).toBe('Today');
         expect(yesterday.relativeLabel).toBe('yesterday');
         expect(yesterday.label).toBe('Yesterday');
+    });
+});
+
+describe('buildHistoryItems provenance', () => {
+    it("carries 'threads' through so Archive can label it", () => {
+        const items = buildHistoryItems(
+            [makeEntry('e1', Date.UTC(2026, 8, 19), 'Calm mornings', undefined, {
+                origin: 'threads',
+            })],
+            []
+        );
+        expect(items[0]?.origin).toBe('threads');
+    });
+
+    it('leaves origin undefined for a chat entry', () => {
+        const items = buildHistoryItems(
+            [makeEntry('e1', Date.UTC(2026, 8, 19), 'Calm mornings')],
+            []
+        );
+        expect(items[0]?.origin).toBeUndefined();
     });
 });

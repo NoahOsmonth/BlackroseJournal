@@ -5,6 +5,7 @@ import type { JournalEntry } from '@/services/journal/journalStorage.types';
 import type { IntentionCheckIn } from '@/services/intentions/intentionsStorage.types';
 import { formatEventDateLabel, getLocalDateKeyFromTimestamp, isValidIsoDateKey } from '@/utils/date';
 import {
+    extractTags,
     scoreKeywordRecency,
     tokenize,
 } from './keywordRanking';
@@ -110,13 +111,6 @@ function extractUserText(messages: readonly Message[]): string {
         .filter((message) => message.role === 'user')
         .map((message) => message.content)
         .join('\n\n');
-}
-
-function extractTags(text: string, seedTags: readonly string[] = []): string[] {
-    const counts = new Map<string, number>();
-    tokenize(text).forEach((token) => counts.set(token, (counts.get(token) ?? 0) + 1));
-    const ranked = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
-    return uniqueValues([...seedTags, ...ranked.slice(0, 8).map(([token]) => token)]);
 }
 
 function atomId(input: LocalMemoryAtomInput): string {
@@ -580,50 +574,6 @@ export async function saveManualMemoryNote(content: string): Promise<LocalMemory
         salience: 0.9,
         confidence: 1,
     });
-}
-
-export async function saveGeneratedMemoryNote(content: string): Promise<LocalMemoryAtom> {
-    const trimmed = trimText(content, 600);
-    return upsertMemoryAtom({
-        layer: 'note',
-        source: 'system',
-        sourceId: `settings:${Date.now()}`,
-        rootSourceKind: 'system',
-        title: trimText(trimmed, 60) || 'Generated memory note',
-        content: trimmed,
-        tags: extractTags(trimmed),
-        salience: 0.78,
-        confidence: 0.72,
-    });
-}
-
-function topAtoms(atoms: readonly LocalMemoryAtom[]): LocalMemoryAtom[] {
-    return [...atoms]
-        .filter((atom) => atom.layer !== 'note')
-        .sort((a, b) => (b.salience + b.confidence) - (a.salience + a.confidence))
-        .slice(0, 3);
-}
-
-function collectThemes(atoms: readonly LocalMemoryAtom[]): string[] {
-    return uniqueValues(atoms.flatMap((atom) => atom.tags)).slice(0, 4);
-}
-
-export function generateMemoryNoteSuggestion(
-    atoms: readonly LocalMemoryAtom[]
-): string | undefined {
-    const candidates = topAtoms(atoms);
-    if (candidates.length === 0) return undefined;
-
-    const themes = collectThemes(candidates);
-    const themePhrase = themes.length > 0
-        ? `themes of ${themes.join(', ')}`
-        : 'threads that matter to you';
-    const observation = candidates.map((atom) => trimText(atom.content, 180)).join(' ');
-
-    return trimText(
-        `You seem to be someone who is navigating a lot right now. Rosebud notices you often return to ${themePhrase}. It may help to remember that ${observation}`,
-        600,
-    );
 }
 
 /**

@@ -35,7 +35,8 @@ import { tokenize } from './keywordRanking';
  * therefore fires only on **restatement**: the older file's content is almost
  * entirely contained in the newer one's.
  *
- * Never supersedes a `user` file, never across threads, never the last live
+ * Never supersedes a `user` or `note` file — both carry the writer's own words,
+ * which are undeletable by doctrine — never across threads, never the last live
  * file of a group. Soft-fail: a throw here must not break Dream.
  */
 
@@ -118,11 +119,16 @@ async function supersedeThreadHeaders(
     threadId: string,
     headers: readonly MemoryFileHeader[],
 ): Promise<SupersedeOutcome> {
-    // Promotion owns the `_tmp` backlog: a staged file deprecated here would
-    // vanish from `listTmpFiles` before Dream ever got to promote it. Both
-    // entry points filter it here so the invariant lives in one place.
+    // `user` and `note` files carry the writer's own words, and supersession's
+    // whole job is deciding that a newer memory *replaces* an older one — which
+    // is not a judgement to make about something the user typed. Promotion owns
+    // the `_tmp` backlog: a staged file deprecated here would vanish from
+    // `listTmpFiles` before Dream ever got to promote it. Both entry points
+    // filter here so the invariant lives in one place.
     const scoped = headers.filter(
-        (header: MemoryFileHeader) => header.type !== 'user' && header.projectId !== TMP_PROJECT_ID,
+        (header: MemoryFileHeader) => header.type !== 'user'
+            && header.type !== 'note'
+            && header.projectId !== TMP_PROJECT_ID,
     );
     const candidates = scoped.slice(0, SUPERSEDE_SCAN_LIMIT);
     const truncated = scoped.length > SUPERSEDE_SCAN_LIMIT ? [threadId] : [];

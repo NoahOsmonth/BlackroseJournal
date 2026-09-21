@@ -51,7 +51,6 @@ import {
 import {
     deleteMemoryAtom,
     listMemoryAtoms,
-    saveGeneratedMemoryNote,
     saveJournalEntryMemories,
     saveManualMemoryNote,
 } from '@/services/memory/localMemory';
@@ -747,7 +746,11 @@ async function seedDemoDataForAccount(
         reportStep();
     }
     verifySeedTarget();
-    const generated = await saveGeneratedMemoryNote(
+    // Was `saveGeneratedMemoryNote` until the fake-AI panel was deleted from
+    // Explore — that generator existed only to feed the panel's suggestion
+    // block. The seeded row stays (it is the demo's one theme-summary memory)
+    // and is written through the same manual-note path the notes above use.
+    const generated = await saveManualMemoryNote(
         'Recurring theme: the user returns to calm mornings, movement, and honest communication as what regulates them.'
     );
     assertAccountOperationActive(context);

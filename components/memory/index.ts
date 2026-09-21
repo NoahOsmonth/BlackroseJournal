@@ -1,5 +1,6 @@
 export { MemoryHubScreen, MEMORY_ATOMS_PAGE_SIZE } from './MemoryHubScreen';
 export { MemoryPortrait } from './MemoryPortrait';
-export { MemoryAtomCard } from './MemoryAtomCard';
-export { MemoryNotesPanel } from './MemoryNotesPanel';
+export { MemoryLedgerRow } from './MemoryLedgerRow';
+export { ExploreComposer } from './ExploreComposer';
+export { ThemeDriftStrip } from './ThemeDriftStrip';
 export { MemoryEmpty } from './MemoryEmpty';

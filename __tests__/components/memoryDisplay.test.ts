@@ -1,8 +1,12 @@
 import {
+    formatLedgerDate,
     formatRelativeMemoryTime,
     memoryAtomRoute,
     memoryPortraitProse,
+    originLabel,
     profilePreview,
+    themesForText,
+    topMemoryThemes,
 } from '../../components/memory/memoryDisplay';
 import type { LocalMemoryAtom } from '../../services/memory/localMemory.types';
 
@@ -64,5 +68,33 @@ describe('memoryDisplay helpers', () => {
         expect(formatRelativeMemoryTime(now - 3 * 60_000, now)).toBe('3m ago');
         expect(formatRelativeMemoryTime(now - 5 * 3_600_000, now)).toBe('5h ago');
         expect(formatRelativeMemoryTime(now - 3 * 86_400_000, now)).toBe('3d ago');
+    });
+
+    it('counts themes from notes too, so a user who only writes on Explore still sees them', () => {
+        const atoms = [
+            atom({ id: '1', layer: 'note', tags: ['mornings', 'calm'] }),
+            atom({ id: '2', layer: 'note', tags: ['mornings'] }),
+        ];
+        expect(topMemoryThemes(atoms)).toEqual(['mornings', 'calm']);
+    });
+
+    it('formats a ledger date column', () => {
+        const at = Date.UTC(2026, 8, 19, 10, 0, 0);
+        const parts = formatLedgerDate(at);
+        expect(parts.month).toMatch(/^[A-Z][a-z]{2}$/);
+        expect(parts.day).toBe(String(new Date(at).getDate()));
+        expect(parts.iso).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    });
+
+    it('labels provenance without pretending a Threads note came from chat', () => {
+        expect(originLabel('threads')).toBe('Written on Threads');
+        expect(originLabel('chat')).toBe('Journal');
+        expect(originLabel(undefined)).toBe('Journal');
+    });
+
+    it('previews themes for composer text with the same matcher the write path uses', () => {
+        expect(themesForText('Calm mornings help me think about mornings.'))
+            .toEqual(['mornings', 'calm', 'help', 'think']);
+        expect(themesForText('it was a day')).toEqual([]);
     });
 });

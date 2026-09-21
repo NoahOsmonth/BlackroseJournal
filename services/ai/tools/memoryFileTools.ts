@@ -3,6 +3,7 @@ import {
     getManifestStats,
     listMemoryFiles,
     listStagedSessionKeys,
+    MEMORY_FILE_TYPES,
 } from '@/services/memory/memoryFiles';
 import type { MemoryFileType } from '@/services/memory/memoryFiles';
 import { runMemoryDream } from '@/services/memory/memoryDream';
@@ -72,9 +73,15 @@ const MEMORY_LIST_MAX_LIMIT = 50;
 /** ClawX `memory_list`: header-only browse (never bodies). */
 export const memoryListTool: ToolHandler = async (args) => {
     const kindRaw = asString(args.kind)?.toLowerCase() ?? 'all';
-    const kind: 'all' | MemoryFileType = kindRaw === 'user' || kindRaw === 'feedback' || kindRaw === 'project'
-        ? kindRaw
-        : 'all';
+    // Derived, never a second copy of the list. A hardcoded allowlist here meant
+    // a kind the store supports but this line does not know about fell through to
+    // `all` — the tool answered a narrower question than it was asked, and said
+    // nothing. `MEMORY_FILE_TYPES` is the store's own list, so the two cannot drift.
+    const kind: 'all' | MemoryFileType = kindRaw === 'all'
+        ? 'all'
+        : (MEMORY_FILE_TYPES as readonly string[]).includes(kindRaw)
+            ? (kindRaw as MemoryFileType)
+            : 'all';
     const askedLimit = Math.max(1, Math.floor(asNumber(args.limit) ?? MEMORY_LIST_DEFAULT_LIMIT));
     const limit = Math.min(MEMORY_LIST_MAX_LIMIT, askedLimit);
     const offset = Math.max(0, Math.floor(asNumber(args.offset) ?? 0));

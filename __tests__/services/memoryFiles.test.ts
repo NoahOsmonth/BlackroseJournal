@@ -4,6 +4,7 @@ import {
     getMemoryRecordsByIds,
     listMemoryFiles,
     listTmpFiles,
+    MEMORY_FILE_BODY_PREFIX,
     MEMORY_FILES_MANIFEST_KEY,
     promoteTmpRecord,
     resetMemoryFilesStorageAdapter,
@@ -65,6 +66,24 @@ describe('memoryFiles (offline file-semantic store)', () => {
             expect(records).toHaveLength(1);
             expect(records[0]?.content).toContain('Lead with outcomes');
         } finally {
+            resetMemoryFilesStorageAdapter();
+        }
+    });
+
+    it('warns instead of silently skipping an id whose header has no body', async () => {
+        const adapter = createAdapter();
+        setMemoryFilesStorageAdapter(adapter);
+        const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+        try {
+            const staged = await stageTmpMemory({
+                type: 'project', name: 'Orphan', description: 'd', body: '## Current Stage\nx',
+            });
+            adapter.store.delete(`${MEMORY_FILE_BODY_PREFIX}${staged.id}`);
+            await expect(getMemoryRecordsByIds([staged.id])).resolves.toEqual([]);
+            expect(warn).toHaveBeenCalledWith(expect.stringContaining(staged.id));
+        } finally {
+            warn.mockRestore();
+            await clearMemoryFiles();
             resetMemoryFilesStorageAdapter();
         }
     });

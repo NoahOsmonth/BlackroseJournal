@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Blackrose Explore — Index</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=Plus+Jakarta+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,300,0,0" rel="stylesheet" />
+<link rel="stylesheet" href="assets/explore.css" />
+<style>
+  /* ==========================================================================
+     EXPLORE / THREADS — "Index"
+     --------------------------------------------------------------------------
+     The diagnosis: the screen was four identical bordered rectangles in a
+     column — chips, segment, search, then thirty atom cards — so every element
+     had equal weight and nothing led. It read as a form, not as a record.
+
+     This is a document instead. No boxes anywhere. Entries sit on a ruled
+     column with their DATE in the margin, the way a ledger is set, and
+     hierarchy comes from type and rules rather than borders. Filters become a
+     line of text with the active word inked; search becomes a rule you write
+     on; the portrait becomes a lede. Writing opens the page, because this is
+     where you write freely with no AI in the loop — and it shares the ledger's
+     date column, so today's line sits at the top of the same column as every
+     entry below it.
+
+     WHY DATES REPLACE THE ORDINALS
+     ------------------------------
+     The first draft numbered entries 01, 02, 03. Those numbers were worse than
+     useless: they renumber on every filter, so they are not identity, and they
+     carry no information a reader wants. A date is stable, meaningful, and the
+     defining feature of a ledger. So the margin column now holds the date, and
+     the list header says "Written" — write date, not event date, per the clock
+     doctrine: a date label must never be read as "when it happened".
+     ========================================================================== */
+
+  .scroll {
+    padding: 1.25rem 1.5rem 7.5rem;
+  }
+
+  .page-head {
+    padding: 1.5rem 0 1.1rem;
+  }
+
+  /* The header rule is the only rule at full ink weight — it separates the
+     title block from the body of the document. */
+  .head-rule {
+    height: 1px;
+    background: var(--text);
+    opacity: 0.85;
+    margin-bottom: 1.75rem;
+  }
+
+  /* ------------------------------------------------------------ portrait */
+
+  .portrait {
+    margin-bottom: 2rem;
+  }
+  .portrait-label {
+    display: block;
+    margin-bottom: 0.6rem;
+    font-size: 0.625rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-2);
+  }
+  /* The portrait opens the document, so it gets the largest body type on the
+     page — the one paragraph allowed to run long. */
+  .portrait-about {
+    font-size: 1.125rem;
+    line-height: 1.68;
+  }
+  .portrait-meta {
+    margin-top: 0.9rem;
+  }
+
+  /* --------------------------------------------------------- filter line */
+
+  /* Filters: one line of text. The active word is inked and underlined; the
+     rest are muted. No segment, no border, no track. */
+  .filter-line {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.1rem;
+    padding: 0 0 1.4rem;
+  }
+  .filter-word {
+    border: 0;
+    background: none;
+    padding: 0 0 0.2rem;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-size: 0.875rem;
+    letter-spacing: 0.01em;
+    color: var(--text-2);
+    cursor: pointer;
+    border-bottom: 1px solid transparent;
+    transition: color var(--dur-fast) ease, border-color var(--dur-fast) ease;
+  }
+  .filter-word:hover {
+    color: var(--text);
+  }
+  .filter-word[aria-pressed='true'] {
+    color: var(--text);
+    border-bottom-color: var(--text);
+  }
+  .filter-count {
+    font-size: 0.75rem;
+    color: var(--text-2);
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Search: a rule you write on. */
+  .search-field {
+    border: 0;
+    border-bottom: 1px solid var(--hairline);
+    border-radius: 0;
+    padding: 0 0.15rem;
+    margin-bottom: 1.75rem;
+    transition: border-color var(--dur-fast) ease;
+  }
+  .search-field:focus-within {
+    border-bottom-color: var(--text);
+  }
+  .search-icon {
+    font-size: 17px;
+    opacity: 0.7;
+  }
+  .search-input {
+    padding: 0.55rem 0;
+    font-size: 0.9375rem;
+  }
+
+  /* -------------------------------------------------------------- entries */
+
+  /* The list header names the column so the date is unambiguous: these are
+     write dates, not event dates. */
+  .list-head {
+    display: grid;
+    grid-template-columns: 2.5rem 1fr;
+    gap: 0 0.75rem;
+    padding-bottom: 0.5rem;
+  }
+  .list-head-label {
+    grid-column: 2;
+    font-size: 0.625rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-2);
+  }
+
+  .index-list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .entry {
+    display: grid;
+    grid-template-columns: 2.5rem 1fr;
+    gap: 0 0.75rem;
+    padding: 1.1rem 0 1.4rem;
+    border-top: 1px solid var(--hairline);
+    cursor: pointer;
+    transition: opacity var(--dur-fast) ease;
+  }
+  .entry:last-child {
+    border-bottom: 1px solid var(--hairline);
+  }
+  .entry:hover {
+    opacity: 0.72;
+  }
+
+  /* The date column is the spine of the layout. tabular-nums keeps the day
+     digits aligned down the column however many entries there are. */
+  .entry-date {
+    padding-top: 1.35rem;
+  }
+
+  .entry-body {
+    min-width: 0;
+  }
+  .entry-title {
+    margin: 0;
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 1.1875rem;
+    line-height: 1.35;
+    color: var(--text);
+  }
+  /* Only the newest entry is allowed the larger setting — it is the most recent
+     thing the user wrote, and the document should open with it. */
+  .entry:first-child .entry-title {
+    font-size: 1.3125rem;
+  }
+  .entry-text {
+    margin: 0.4rem 0 0;
+    font-size: 0.875rem;
+    line-height: 1.55;
+    color: var(--text-2);
+  }
+  .entry .atom-foot {
+    margin-top: 0.55rem;
+  }
+  .entry .atom-tags {
+    margin-top: 0.45rem;
+  }
+
+  /* A freshly kept line is marked in words as well as by the wash, so the
+     meaning survives with motion off. */
+  .entry.is-fresh .entry-title::after {
+    content: 'just written';
+    display: inline-block;
+    margin-left: 0.5rem;
+    vertical-align: 0.15em;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-size: 0.5625rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-2);
+    animation: fresh-fade 3.4s var(--ease-out) both;
+  }
+  @keyframes fresh-fade {
+    0% { opacity: 0; }
+    12% { opacity: 1; }
+    75% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
+  .dock {
+    border-top: 0;
+  }
+</style>
+</head>
+<body>
+<div class="phone" data-variant="Index">
+  <button type="button" class="theme-toggle" data-theme-toggle>
+    <span class="material-symbols-rounded" style="font-size:16px">contrast</span>
+    <span data-theme-label>Light</span>
+  </button>
+
+  <div class="scroll">
+    <div class="page-head">
+      <h1 class="page-title">Memory</h1>
+      <p class="page-sub">What Blackrose holds for you</p>
+    </div>
+    <div class="head-rule"></div>
+
+    <!-- Writing opens the document: this is where you write freely, with no AI
+         in the loop, and the line you keep becomes the newest entry below. -->
+    <section data-write-host></section>
+
+    <section class="portrait">
+      <span class="portrait-label">About you</span>
+      <p class="portrait-about" data-portrait></p>
+      <p class="portrait-meta" data-meta></p>
+      <!-- The themes drift slowly. It is the page's only looping motion; see
+           the motion notes in explore.css for why it pauses on interaction.
+           Focusable so a keyboard user can scroll it with the arrow keys. -->
+      <div class="theme-drift" role="group" aria-label="Themes you return to" tabindex="0">
+        <div class="theme-track" data-theme-track></div>
+      </div>
+    </section>
+
+    <div class="filter-line" data-filters></div>
+
+    <div data-search-host></div>
+
+    <div class="list-head"><span class="list-head-label">Written</span></div>
+    <div class="index-list" data-list aria-live="polite"></div>
+  </div>
+
+  <nav class="dock" data-dock="explore"></nav>
+</div>
+
+<script src="assets/parts.js"></script>
+<script>
+  (function () {
+    const BR = window.BR;
+    const list = document.querySelector('[data-list]');
+    const count = document.createElement('span');
+    count.className = 'filter-count';
+
+    document.querySelector('[data-portrait]').textContent = BR.PORTRAIT;
+
+    /* ------------------------------------------------------------- writing */
+
+    const writeHost = document.querySelector('[data-write-host]');
+    writeHost.innerHTML = BR.writeComposer({
+      label: 'New line',
+      placeholder: 'Write it plainly. No one is reading it.',
+    });
+
+    /* The page acknowledges that you have started writing, and nothing else. */
+    const writeEl = writeHost.querySelector('.write');
+    writeHost.querySelector('[data-write-input]').addEventListener('input', (e) => {
+      writeEl.classList.toggle('is-active', e.target.value.trim().length > 0);
+    });
+
+    /* ------------------------------------------------------- drifting themes
+
+       The strip is natively scrollable AND auto-drifting. Those two cannot both
+       own the offset, so the drift drives `scrollLeft` rather than a transform —
+       one mechanism, and the reader keeps full control of it.
+
+       Seamlessness rests on the content being PERIODIC: the track holds N
+       identical runs of the same words, so the offset `scrollLeft + runWidth`
+       renders exactly the same pixels as `scrollLeft`. That makes the wrap
+       (subtract runWidth when we pass it) invisible, and it also means
+       normalising the offset after a manual scroll is invisible too.
+
+       N is computed, not hard-coded: we need maxScroll >= runWidth, i.e.
+       totalWidth >= runWidth + viewportWidth. With a short theme list and a wide
+       frame, two runs are not enough — the strip could never scroll far enough
+       to reach its own wrap point, and the drift would jam against the end. */
+    const track = document.querySelector('[data-theme-track]');
+    const strip = document.querySelector('.theme-drift');
+    const SEP = '<span class="theme-sep" aria-hidden="true">·</span>';
+
+    /* Only the FIRST run is real interactive content. The repeats exist purely
+       to make the offset periodic, so they are spans inside an aria-hidden
+       subtree — not buttons. Buttons there would put focusable elements inside
+       hidden content, which is both an a11y violation and a focus trap: tabbing
+       would walk the same four words over and over. Clicks still work on the
+       spans (the track delegates), so a pointer user can hit any visible word. */
+    function runContent(interactive) {
+      return BR.THEMES.map((theme) => {
+        const label = BR.esc(theme);
+        const key = BR.esc(theme.toLowerCase());
+        const word = interactive
+          ? `<button type="button" class="theme-word" data-theme-word="${key}">${label}</button>`
+          : `<span class="theme-word" data-theme-word="${key}">${label}</span>`;
+        return `${word}${SEP}`;
+      }).join('');
+    }
+
+    /* Build one run, measure it, then add runs until the wrap point is
+       reachable. Measuring beats guessing: the count adapts to the theme list
+       and to the frame width. */
+    function buildRuns() {
+      track.innerHTML = `<span class="theme-run">${runContent(true)}</span>`;
+      const runWidth = track.firstElementChild.getBoundingClientRect().width;
+      const viewport = strip.clientWidth;
+      /* +1 because the first run is already present; the ceiling guarantees
+         maxScroll >= runWidth with a margin for sub-pixel rounding. */
+      const runCount = Math.max(2, Math.ceil((runWidth + viewport) / runWidth) + 1);
+      track.innerHTML = Array.from(
+        { length: runCount },
+        (_, i) =>
+          `<span class="theme-run"${i === 0 ? '' : ' aria-hidden="true"'}>${runContent(i === 0)}</span>`,
+      ).join('');
+      return runWidth;
+    }
+
+    let runWidth = buildRuns();
+
+    /* Fonts change the width of every word, so a run measured before Playfair
+       Display arrives is measured in fallback metrics — and the wrap distance
+       would then be wrong, showing a jump at the seam. Re-measure once the
+       fonts are actually loaded. */
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => {
+        const next = buildRuns();
+        if (Math.abs(next - runWidth) > 0.5) {
+          runWidth = next;
+          offset = normalise(strip.scrollLeft);
+          apply();
+        }
+      });
+    }
+
+    track.addEventListener('click', (event) => {
+      const word = event.target.closest('[data-theme-word]');
+      if (word) BR.setQuery(word.dataset.themeWord);
+    });
+
+    /* --- the drift ------------------------------------------------------- */
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const SPEED = 16;          /* px per second — slow enough to read */
+    const IDLE_RESUME_MS = 2600; /* quiet time before the drift resumes */
+    let offset = 0;            /* our own fractional position, in px */
+    let last = performance.now();
+    let paused = false;
+    let idleTimer = null;
+    let dragging = false;
+    let didDrag = false;
+    let dragStartX = 0;
+    let dragStartOffset = 0;
+
+    /** Fold the offset into [0, runWidth). Invisible: the content repeats. */
+    function normalise(value) {
+      if (runWidth <= 0) return 0;
+      const wrapped = value % runWidth;
+      return wrapped < 0 ? wrapped + runWidth : wrapped;
+    }
+
+    function apply() {
+      strip.scrollLeft = offset;
+    }
+
+    function frame(now) {
+      const dt = Math.min((now - last) / 1000, 0.05); /* clamp after a tab switch */
+      last = now;
+      if (!dragging && !reduceMotion.matches) {
+        /* If the DOM disagrees with us, someone else moved the strip — native
+           touch momentum, trackpad scroll, a keyboard arrow press. Follow them
+           instead of fighting: the drift would otherwise yank the strip back
+           mid-flick. The follow is free and cannot loop, because we fold the
+           adopted position back into [0, runWidth) with apply() — and folding
+           is invisible, since the content repeats. Sub-pixel rounding stays
+           under 1px, so this only trips on a real scroll. */
+        if (Math.abs(strip.scrollLeft - offset) > 1) {
+          offset = normalise(strip.scrollLeft);
+          apply();
+          holdDrift();
+        } else if (!paused) {
+          offset = normalise(offset + SPEED * dt);
+          apply();
+        }
+      }
+      requestAnimationFrame(frame);
+    }
+
+    /** Pause the drift, and schedule its return after the reader goes quiet. */
+    function holdDrift() {
+      paused = true;
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        paused = false;
+        /* Resync from the DOM: a manual scroll moved the real offset, and the
+           drift must continue from where the reader left it. */
+        offset = normalise(strip.scrollLeft);
+      }, IDLE_RESUME_MS);
+    }
+
+    /* Any interaction with the strip hands control to the reader. */
+    strip.addEventListener('pointerenter', holdDrift);
+    strip.addEventListener('focusin', holdDrift);
+    strip.addEventListener('touchstart', holdDrift, { passive: true });
+    strip.addEventListener('wheel', holdDrift, { passive: true });
+
+    /* Drag to scroll with a mouse. Touch and trackpad already scroll natively,
+       so this only fills the one gap the browser leaves on desktop.
+
+       Deliberately NOT setPointerCapture: capture retargets the click event to
+       the strip itself, so a plain tap on a theme word would arrive with the
+       strip as `event.target` and never match the word — silently breaking the
+       filter. Window listeners give the same "keep tracking outside the box"
+       behaviour without stealing the click. */
+    function onDragMove(event) {
+      if (!dragging) return;
+      const delta = event.clientX - dragStartX;
+      /* A few pixels of slop, so a slightly unsteady click still counts as a
+         click and not as a drag. */
+      if (Math.abs(delta) > 4) didDrag = true;
+      /* Drag right → content moves right → offset decreases. */
+      offset = dragStartOffset - delta;
+      apply();
+    }
+
+    function endDrag() {
+      if (!dragging) return;
+      dragging = false;
+      strip.classList.remove('is-dragging');
+      window.removeEventListener('pointermove', onDragMove);
+      window.removeEventListener('pointerup', endDrag);
+      window.removeEventListener('pointercancel', endDrag);
+      offset = normalise(offset);
+      apply();
+      /* The click that follows this pointerup is dispatched immediately after
+         it, so retire the flag on the next task. We must: a drag that ends off
+         any word emits no click at all, and a flag left standing would then
+         swallow the reader's next real tap. */
+      if (didDrag) setTimeout(() => { didDrag = false; }, 0);
+    }
+
+    strip.addEventListener('pointerdown', (event) => {
+      if (event.pointerType === 'touch') return; /* native touch scrolling */
+      dragging = true;
+      didDrag = false;
+      dragStartX = event.clientX;
+      dragStartOffset = strip.scrollLeft;
+      strip.classList.add('is-dragging');
+      window.addEventListener('pointermove', onDragMove);
+      window.addEventListener('pointerup', endDrag);
+      window.addEventListener('pointercancel', endDrag);
+      holdDrift();
+    });
+
+    /* A drag that ends on a word must not also fire that word's filter. */
+    track.addEventListener(
+      'click',
+      (event) => {
+        if (!didDrag) return;
+        event.stopPropagation();
+        event.preventDefault();
+      },
+      true,
+    );
+
+    /* Never drift in a hidden tab or off-screen — it would burn cycles for
+       nobody, and resume mid-word when the reader returns. */
+    document.addEventListener('visibilitychange', () => {
+      paused = document.hidden;
+      if (!document.hidden) {
+        last = performance.now();
+        offset = normalise(strip.scrollLeft);
+      }
+    });
+
+    /* Reduced motion keeps the strip fully scrollable — it only loses the
+       self-propulsion. */
+    reduceMotion.addEventListener('change', () => {
+      offset = normalise(strip.scrollLeft);
+    });
+
+    apply();
+    requestAnimationFrame(frame);
+
+    /* ------------------------------------------------------------- filters */
+
+    const filters = document.querySelector('[data-filters]');
+    BR.LAYERS.forEach((layer) => {
+      filters.appendChild(
+        BR.el(`<button type="button" class="filter-word" data-layer="${layer.id}">${layer.label}</button>`),
+      );
+    });
+    filters.appendChild(count);
+
+    document.querySelector('[data-search-host]').innerHTML = BR.search('Search memories');
+
+    /* ---------------------------------------------------------------- list
+
+       `seen` tracks which memories have already been rendered, so the arrival
+       animation plays once per memory and never again — otherwise every
+       keystroke in search would re-animate the whole list.
+
+       `pendingFreshId` holds the id of the line just kept. It is set on keep and
+       cleared by the render that consumes it, so the "just written" mark is tied
+       to that moment rather than stored on the memory. Any other interaction
+       (search, filter, a tag tap) drops it, because by then it is no longer
+       "just written". */
+    const seen = new Set();
+    let pendingFreshId = null;
+
+    function render() {
+      const atoms = BR.ATOMS.filter(BR.matches);
+      count.textContent = `${atoms.length} of ${BR.ATOMS.length}`;
+      document.querySelector('[data-meta]').textContent = BR.metaLine();
+
+      if (atoms.length === 0) {
+        list.innerHTML = '<p class="no-results">No matching memories. Adjust search or filter.</p>';
+        return;
+      }
+
+      /* The month is only labelled the first time a day appears, so the column
+         reads as day boundaries rather than a wall of repeated dates. */
+      let lastDay = null;
+      list.innerHTML = atoms
+        .map((atom) => {
+          const p = BR.dateParts(atom.iso);
+          const isDayStart = atom.iso !== lastDay;
+          lastDay = atom.iso;
+          const isToday = atom.iso === BR.TODAY_ISO;
+          const isNew = !seen.has(atom.id);
+          const isFresh = atom.id === pendingFreshId;
+          const classes = [
+            'entry',
+            `layer-${atom.layer}`,
+            isNew ? 'is-new' : '',
+            isFresh ? 'is-fresh' : '',
+          ]
+            .filter(Boolean)
+            .join(' ');
+          const dateClasses = [
+            'entry-date',
+            isDayStart ? 'is-day-start' : 'is-repeat',
+            isToday ? 'is-today' : '',
+          ]
+            .filter(Boolean)
+            .join(' ');
+          const label = isDayStart
+            ? `${p.month} ${p.day}${isToday ? ' — today' : ''}`
+            : `${p.month} ${p.day}`;
+          return `
+          <article class="${classes}" data-atom="${atom.id}">
+            <time class="${dateClasses}" datetime="${atom.iso}" title="Written ${BR.longDate(atom.iso)}">
+              <span class="entry-date-month" aria-hidden="${isDayStart ? 'false' : 'true'}">${p.month}</span>
+              <span class="entry-date-day">${p.dayPadded}</span>
+              <span class="sr-only">${label}</span>
+            </time>
+            <div class="entry-body">
+              <h3 class="entry-title">${BR.esc(atom.title)}</h3>
+              <p class="entry-text">${BR.esc(atom.body)}</p>
+              ${BR.atomMeta(atom)}
+              ${BR.measures(atom)}
+              ${BR.atomTags(atom)}
+              ${BR.atomSource(atom)}
+            </div>
+          </article>`;
+        })
+        .join('');
+
+      atoms.forEach((atom) => seen.add(atom.id));
+      pendingFreshId = null;
+    }
+
+    BR.mount = function () {
+      BR.bindSearch(document);
+      BR.bindLayerControls(document);
+      BR.bindTagTaps(list);
+      BR.onChange(render);
+
+      /* Keeping a line re-renders the ledger, so the new entry arrives directly
+         beneath the composer — you watch your own words become part of the
+         archive. `pendingFreshId` marks that one entry for its wash. */
+      BR.bindWrite(writeHost, {
+        onKept: (atom) => {
+          pendingFreshId = atom.id;
+          writeEl.classList.remove('is-active');
+          render();
+        },
+      });
+
+      /* Anything else the user does ends the "just written" moment: the line is
+         no longer fresh once they have moved on to searching or filtering. */
+      const endFresh = () => {
+        if (pendingFreshId === null) return;
+        pendingFreshId = null;
+        render();
+      };
+      document.querySelector('[data-search]')?.addEventListener('input', endFresh);
+      document.querySelectorAll('[data-layer]').forEach((btn) => btn.addEventListener('click', endFresh));
+
+      render();
+    };
+  })();
+</script>
+</body>
+</html>

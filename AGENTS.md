@@ -8,7 +8,7 @@ Every rule below prevents a real bug that already happened. Rules are ordered by
 
 ## Skills
 
-Skills live in this repo at `.agents/skills/` (absolute path: `C:\Users\sigmu\Desktop\BlackroseJournal\.agents\skills`). View/read the relevant skill from that directory when the user asks for it.
+Skills live in this repo at `.agents/skills/` (repo-relative — resolve it from the repo root, e.g. `/home/xcxccccsigmund/projects/BlackroseJournal/.agents/skills` on this machine; do not hardcode a path from another OS). View/read the relevant skill from that directory when the user asks for it.
 
 ---
 
@@ -70,10 +70,10 @@ NativeWind v4 cannot compile `space-*` utilities on native (they need CSS child 
 
 Spacing language: `gap-3` (12px) is the baseline for grouped content and the minimum for button rows; `gap-4` for side-by-side primary actions; `gap-6` between sections. Guard test: `__tests__/no-space-utilities.test.ts`.
 
-### 3. UI → hooks → services. Never skip a layer. Never loop back.
+### 3. UI → hooks → services. One direction only. No cycles.
 
 ```tsx
-// BAD — screen calling service directly
+// BAD — screen doing its own I/O
 function JournalScreen() {
   const data = await fetch('/api/journal');
 }
@@ -84,10 +84,19 @@ function JournalScreen() {
 }
 ```
 
-- UI components do not import from `services/`.
-- Services do not import from `components/` or `hooks/`.
-- `utils/` is pure — no I/O, no hooks, no side effects.
-- No circular dependencies across layers.
+The enforced direction is the one that prevents cycles, and it is currently **clean**:
+
+- **`services/` must never import `components/` or `hooks/`** (verified 0 occurrences). This is the rule that matters — it is what keeps the I/O layer testable without a renderer.
+- **`hooks/` → `components/` is allowed for `components/ui/` primitives only** (`webConfirm`, `webDownload` — 3 call sites). Anything else there is a layering smell.
+- **`utils/` is pure** — no I/O, no hooks, no side effects.
+- **No circular dependencies across layers.**
+
+**On `components/` → `services/`:** AGENTS.md previously stated "UI components do not import from `services/`" as an absolute. That is **not** true of this codebase — there are 44 such imports, including in the memory files this project edits (`components/memory/memoryDisplay.ts` → `memoryProvenance`). Most are type-only or pure formatters, which is fine. The rule was aspirational and unguarded, so it read as a trap: an agent could "follow" it by hoisting a pure helper into a hook for no reason. The real rule is:
+
+- UI may import **types** and **pure functions** from `services/`.
+- UI must not call a service's **I/O** directly — that goes through a hook, so there is one place to handle loading and errors. `MemoryHubScreen` → `useLocalMemories` → `localMemory` is the pattern to copy.
+
+There is no guard test for any of this. If you want it enforced, write one; do not add prose.
 
 ### 4. AsyncStorage writes: serialize read-modify-write, never bare-`JSON.parse` reads.
 
@@ -122,7 +131,9 @@ Prompt weave lives in **one place**: `features/chat/flows` (`composeSystemPrompt
 
 ### 6. Design/UI files are 200–500 lines, hard max 500.
 
-Applies to `app/`, `components/`, `global.css`, `constants/theme.ts`, theme/style helpers. At 450 lines, split. Enforced by `npm run check:design`.
+Enforced by `npm run check:design` (`scripts/check-design-limits.js`), which scans **exactly four targets**: `app/**`, `components/**`, `global.css`, `constants/theme.ts`. Hard max 500 (fails), warns at ≥450. At 450, split.
+
+The "theme/style helpers" in older wording is not scanned — `utils/**` and `hooks/**` are unchecked. Keep them modular by judgment, not by pretending the gate covers them.
 
 ### 7. Tests are part of the diff.
 
@@ -142,14 +153,18 @@ Every change updates or adds tests. If a test isn't feasible, document why in `P
 | Full transcripts | On demand only | Tools: `get_conversation` reads journal/check-in storage |
 | Session compact | Older turns → rolling summary when ctx fills | `conversationCompact.ts` inside `streamChat` / `completeChat` |
 | **Offline memory files** | Frontmatter docs + manifest index — the primary **and only** long-term layer, entirely on-device | `services/memory/memoryFiles.ts` → `memory_search` / `memory_list` / `memory_get` via `memoryRetrieval.ts` |
-| Dream consolidation | `_tmp` staged files → LLM rewrite with merge reasons (local keyword fallback when the provider is down) | `memoryStage.ts`, `memoryDream.ts` |
+| Dream consolidation | `_tmp` staged files → grouped into thread projects and **promoted by reference**. The LLM only proposes a *plan* (which files belong to which thread); bodies are never rewritten. Falls back to deterministic thread-hint clustering when the provider is down | `memoryStage.ts`, `memoryDream.ts`, `memorySupersession.ts` |
 | Drive backup (manual) | Export/restore bundle of memory files + identity + digests | `services/backup/driveBackup.ts` |
 
-**On-device doctrine.** Journal/check-in finish stages a memory file into `_tmp` alongside the existing atoms (`memoryStage.ts`); `memory_search` → `memory_get` is the only recall path and is fully on-device (gate → thread shortlist → header scan → body budgets, 12k/file & 30k total, 30s cache in `memoryRetrieval.ts`). Recall never blocks a send and never leaves the device. Gemini (`gemini-embedding-001`, 768-dim) is **embeddings-only — never an LLM**; all LLM work goes to the configured chat gateway (structured default `merge/deepseek/deepseek-v4-flash-0731`; free dump-prone models are fallback only).
+**On-device doctrine.** Journal/check-in finish stages a memory file into `_tmp` alongside the existing atoms (`memoryStage.ts`); `memory_search` → `memory_get` is the only recall path and is fully on-device (gate → thread shortlist → header scan → body budgets, 12k/file & 30k total, 30s cache in `memoryRetrieval.ts`). Recall never blocks a send and never leaves the device.
+
+**Recall is purely lexical — there are no embeddings.** Earlier versions of this file claimed Gemini (`gemini-embedding-001`, 768-dim) did embeddings. That string appears **nowhere** in the codebase, and nothing writes a vector: `memoryRetrieval.ts` ("lexical edition"), `keywordRanking.ts` ("no vectors"), `sessionRecall.ts` ("no app-side embeddings"), and `sessionDigestBuild.ts` ("No embeddings — recall ranks by keyword") all rank by keyword overlap plus recency fading (`memoryFade.ts`). Some type comments still mention historical 2048-d nvidia vectors and a `@rosebud_session_digest:<id>` "full row including embedding[]" — that is **vestigial commentary, not live behavior**. Do not add an embedding provider without a plan; ranking quality work means improving keyword scoring, not reaching for vectors.
+
+All LLM work goes to the configured chat gateway (structured default `merge/deepseek/deepseek-v4-flash-0731`; free dump-prone models are fallback only).
 
 **Removed 2026-09-18 — never resurrect:** Hindsight (vectorize-io long-term memory + its `recall_memory` tool and the `services/memory/hindsight/` client), Supabase (auth, app-data remote sync, the `EXPO_PUBLIC_DATA_PROVIDER` toggle, `services/supabase/`, `services/*/*Remote.ts`, `supabase/migrations/`), and the managed AI gateway (`backend/`, `@blackrose/ai-control-plane-contracts`, `managedTransport`/`managedCatalog`). The app is now a local-only build: no auth screens, no remote sync, no server. Earlier retirements still hold: the custom cloud-memory platform (`LOCAL → MIRROR → SHADOW → CLOUD`) went 2026-08-18 (never restore its storage keys `@rosebud_cloud_memory_mirror_outbox`, `@rosebud_memory_dataset_binding`), and OpenRouter went 2026-09-10 (do not re-add openrouter.ai defaults).
 
-Guard: `__tests__/services/memory/memoryFiles.test.ts`, `memoryRetrieval.test.ts`, `__tests__/services/ai/toolSchemaPin.test.ts` (removed-tool boundary).
+Guard: `__tests__/services/memoryFiles.test.ts`, `__tests__/services/memoryRetrieval.test.ts`, `__tests__/services/memory/memoryFileTools.test.ts`, `__tests__/services/ai/toolSchemaPin.test.ts` (removed-tool boundary). Note the first two sit at `__tests__/services/` root, **not** under `__tests__/services/memory/` — this file cited them wrongly for a while, so a `npm test -- --testPathPattern` on the wrong path silently matched nothing.
 
 ### 10. System prompts: long freeform vs short guided — don't mix them up.
 
@@ -179,7 +194,7 @@ Registry: `services/ai/tools/*`. Agent loop: `services/ai/agentLoop.ts`. Wired f
 | `memory_overview` / `memory_flush` / `memory_dream` | Index/compact the offline store (Dream consolidates `_tmp` into promoted files) |
 
 - Soft-fail if the provider rejects tools → fall back to streaming + clock/digests/eager prefetch (`historyPrefetch.ts`).
-- Proactive enablement: history intent, long rants, tired/work/today cues, first real turns — **not** every `"hi"` (latency). See `shouldEnableHistoryTools` in `ai.ts`.
+- Proactive enablement: history intent, long rants, tired/work/today cues, first real turns — **not** every `"hi"` (latency). See `shouldEnableHistoryTools` in `services/ai/agenticGate.ts` (**not** `ai.ts` — it is re-exported/consumed there).
 - Clear history must also `clearDayDigests()` **and** `clearIdentityProfile()` (`useClearJournalHistory`).
 - **Identity core memory** is separate from ranked atoms: `@rosebud_identity_profile` via `identityProfile.ts` / turn-level `identityExtraction.ts`. Always inject `## Identity` early in `composeHistoryContextBlocks` — never rely on the 6-atom capsule for preferred name.
 
@@ -206,8 +221,8 @@ Guard tests: `__tests__/services/account/*` (registry/ownership), Boot gate: the
 | `@rosebud_local_memory` (v3 header index: shardCount + atomCount, **no atoms**) + `@rosebud_local_memory_shard:<0-7>` (atom bodies, ~425 KB per key at the 4000-atom cap) | `services/memory/localMemory.ts` |
 | `@rosebud_identity_profile` (always-on name/pronouns/people/facts) | `services/memory/identityProfile.ts` |
 | `@blackrose_day_digests` (calendar-day rollups for AI history tools) | `services/memory/dayDigestStorage.ts` |
-| `@rosebud_session_digest_index` + `@rosebud_session_digest:<id>` (sharded session digests + embeddings; index has no vectors) | `services/memory/sessionDigestStorage.ts` |
-| `@rosebud_memory_rollup_index` + `@rosebud_memory_rollup:<kind>:<periodKey>` (week/month/year rollups + embeddings) | `services/memory/memoryRollupStorage.ts` |
+| `@rosebud_session_digest_index` + `@rosebud_session_digest:<id>` (sharded session digests; index has no vectors — nothing in the app writes vectors, see rule 9) | `services/memory/sessionDigestStorage.ts` |
+| `@rosebud_memory_rollup_index` + `@rosebud_memory_rollup:<kind>:<periodKey>` (week/month/year rollups) | `services/memory/memoryRollupStorage.ts` |
 | `@rosebud_memory_rollup_attempts` (last LLM attempt per period — offline backoff) | `services/memory/memoryRollupBuild.ts` |
 | `@blackrose_local_backup_session_digest:<backupId>:<sessionId>` (backup bodies only; meta in `@blackrose_local_backups`) | `services/backup/localBackup.ts` |
 | `@blackrose_memory_manifest` (header index) + `@blackrose_memory_file:<id>` (body, one key per file) — offline file memories; staged on finish, promoted by Dream | `services/memory/memoryFiles.ts` |
@@ -219,6 +234,8 @@ Guard tests: `__tests__/services/account/*` (registry/ownership), Boot gate: the
 View-model types must not reuse a stored type's name (e.g. `MemoryGraphAtom` is the graph display model — ISO dates, 1–10 salience — never write it back to storage).
 
 **Write-path coupling:** journal finish → `saveJournalEntryMemories` **and** `upsertJournalDayDigest` **and** `buildAndSaveSessionDigest` **and** `stageJournalEntryMemoryFiles` (offline `_tmp` memory files) (`journalFinishSideEffects.ts`). Check-in complete → `saveIntentionCheckInMemories` **and** `upsertCheckInDayDigest` **and** `buildAndSaveSessionDigest` **and** `stageCheckInMemoryFiles` (completed branch of `intentionsStorage.ts`). Local backup includes day digests + packed session-digest bundle (`services/backup/localBackup.ts`). Clear history must also `clearSessionDigests()`, `clearMemoryRollups()`, **and** `clearMemoryFiles()` (`useClearJournalHistory`); the dev demo clear removes memory files staged from the seed ledger's session ids only (`deleteMemoryFilesBySourceSessions`).
+
+**Two stores, one bridge (2026-09-19).** A note written on Explore lands in the atom store (`@rosebud_local_memory_shard:*`), which the always-on capsule reads — but `memory_search` reads **only** `@blackrose_memory_manifest` + `@blackrose_memory_file:<id>`, and `memoryRetrieval.ts` never imports `localMemory`. So an atoms-only write is *passively visible but not searchable*. Any new authoring surface must dual-write: atom **and** memory file. See `docs/superpowers/specs/2026-09-19-explore-memory-architecture.html`.
 
 **Session digest sharding:** never store all embeddings under one AsyncStorage key (Android ~2MB/key). One record key per digest + lightweight index. Aggregate Android DB size: `AsyncStorage_db_size_in_MB` in `android/gradle.properties`.
 
@@ -243,29 +260,31 @@ View-model types must not reuse a stored type's name (e.g. `MemoryGraphAtom` is 
 
 ### Prototype Files Validation Strategy
 
-**Blackrose is the active visual target.** Generated concept images in `example-design/concepts/generated/` are the source of truth for look and layout. Production code never imports `example-design/`. When changing any UI:
+**Blackrose is the active visual target.** For a screen that has a current concept image, that image is the source of truth for look and layout. Production code never imports `example-design/`. When changing any UI:
 
-1. **Open the concept image first** (`Read` / view the PNG under `example-design/concepts/generated/` for that screen). Use `UI_MAP.md` concept ↔ production mapping if unsure which file. Do not port from memory or from the old Rosebud HTML alone.
+1. **Find the design source first.** Check `example-design/concepts/UI_MAP.md` — it records, per screen, whether a concept image exists, and where the source lives if the concept was **retired**. Open that source (`Read` the PNG, or the HTML prototype) before writing any UI. Do not port from memory or from the old Rosebud HTML alone.
+   - A retired concept is a real case, not a hypothetical: `black-rose-memory-hub.png` was deleted 2026-09-19 because it depicted the design being replaced. Its screen's source is now `example-design/blackrose/explore-variants/`. **When you retire a concept, update `UI_MAP.md` in the same change** — otherwise the rule below points at a deleted file and the next agent ports the old design back.
 2. **Optional HTML reference:** `example-design/updated/**` and `example-design/*.html` are historical Rosebud layouts — useful only for “what the old product did,” never as the rewrite target. New HTML prototypes belong under `example-design/blackrose/**` (read-only to production).
-3. Identify tokens (colors, spacing, typography) from the concept + this plan. If a token is missing in `tailwind.config.js` or `constants/theme.ts`, add it there first — never inline a raw hex / `space-y-*` / hardcoded pixel value in `app/` or `components/`.
-4. Port into React Native + NativeWind. Map structure 1:1 from the concept; always confirm the **light and dark** scheme (rule 1).
+3. Identify tokens (colors, spacing, typography) from the source. If a token is missing in `tailwind.config.js` or `constants/theme.ts`, add it there first — never inline a raw hex / `space-y-*` / hardcoded pixel value in `app/` or `components/`.
+4. Port into React Native + NativeWind. Map structure 1:1 from the source; always confirm the **light and dark** scheme (rule 1).
 5. For high-frequency rendering layers (e.g. `assets/memory-graph/engine.html`), the runtime engine lives under `assets/`, **not** in `example-design/`. Push theme via `SET_THEME`.
 6. Changing a prototype/concept is not a production change. Port is a separate, reviewable diff.
 
-Validation: a change is not "done" until the produced screen has been light/dark mode QA'd **against the concept image** and the `npm run check:design`, `npx tsc --noEmit`, `npm run lint`, and `npm test` gates are all green.
+Validation: a change is not "done" until the produced screen has been light/dark mode QA'd **against its design source** and the `npm run check:design`, `npx tsc --noEmit`, `npm run lint`, and `npm test` gates are all green.
 
 ## What NOT to touch
 
 - Lockfiles (`package-lock.json`, etc.).
 - `node_modules/`, `dist/`, `.expo/`, build outputs; anything `// DO NOT EDIT` or `@generated` (regenerate from source instead).
-- `example-design/**` for writes (old HTML prototypes, `concepts/generated/*.png`). **Read** concepts freely; do not edit or delete them. New HTML refs → `example-design/blackrose/**` only when explicitly prototyping.
+- `example-design/**` for writes (old HTML prototypes, `concepts/generated/*.png`). **Read** them freely; do not edit them as a side effect of a production change. New HTML refs → `example-design/blackrose/**` only when explicitly prototyping.
+- **Deleting a concept image requires an explicit instruction from the user.** It is not something to do as a cleanup step, and it is not implied by "this design is changing" — retire it only when told, and update `UI_MAP.md` in the same change (see Prototype Files Validation Strategy step 1).
 
 ## Concrete commands
 
 ```bash
 npm test                                                # all
-npm test -- --testPathPattern="ChatScreen"              # one file
-npm test -- --testPathPattern="EmotionalLandscape|KeyThemes"  # OR pattern
+npm test -- --testPathPattern="MemoryHubScreen"         # one file (matches the path)
+npm test -- --testPathPattern="EmotionalLandscape|BottomNav"  # OR pattern
 npm test -- --watch / --verbose
 
 # Unit: history / prompt / tools / compact
@@ -290,6 +309,10 @@ npx tsc --noEmit
 npm run lint
 npm run check:design
 ```
+
+> `--testPathPattern` matches the **path**, not a test name. An earlier version of this
+> file used `"ChatScreen"` / `"KeyThemes"`, which match no file — jest exits 0 having run
+> nothing, which reads exactly like a pass. Check any pattern against a real filename.
 
 ### Client AI env (primary path — phone → provider)
 
@@ -393,4 +416,16 @@ This file grows from real incidents only. When an agent does something wrong, ad
 - Sabotage required for real behavior fixes: deliberate break → confirm red → restore → confirm green; paste real output. Never mock the unit under test.
 - Test B day-slip: injected dates are **write day**; event weekdays live only in user prose. Clock doctrine + "Written YYYY-MM-DD" labels required; do not invent structured event-date extraction without a plan.
 - Demo seed is **dev-only** (`__DEV__`); production first launch stays empty. Memory/recall E2E must clear seed before probes.
+- A long-press menu built *inside* the dock's 44px pencil slot inherited that slot's geometry, so its items overlapped the timeline and its scrim dimmed only the pencil: `Modal` for overlay chrome, and position it against the dock's measured height. Same incident: `AnimatedPressable` drops `className` (rows shipped with no fill, border or wrap control) — keep visual chrome on a plain child `View` and pin labels with `numberOfLines`. Touch also retargets the finger-lift that opened the menu into a `click` on the scrim, so dismissal must require a press that *started* on the scrim.
+- The memory-graph canvas fades *darker* than the app void toward its edges (backdrop #0C0C0E → #08080A + 55% vignette), so any chrome painted at the void tone down there reads as a lighter grey slab with a hard seam — the Threads stats strip's `rounded-card border` framed exactly that. The engine now dissolves into the page background over its last `CHROME_FADE_H` px (tone from `pageBgRgb`, asserted equal to the palette in `memoryGraphAsset.test.ts`); bottom chrome on a canvas screen must either sit on that dissolve or carry no frame at all. Don't reintroduce a card outline around the stats strip — it is a HUD rule (`border-t` + cell dividers).
+- Bottom clearance for the absolute dock must be an in-flow **spacer after the last child**, never a bottom margin on the stage above it: `mb-32` on a `flex-1` graph stage shrank the graph and left the Threads stats strip under the bar (`BOTTOM_NAV_BASE_HEIGHT` was also 96 for a dock that measures 63). Use `navAwareBottomPadding(insets.bottom)` and keep the constant equal to the real measured bar.
 - The 400-atom cap was a storage bound wearing a policy's clothes: one AsyncStorage value can hold ~2 MB and 4000 atoms measure 3 MB. Shard the key *before* raising a cap, and keep restore paths on `importMemoryAtoms` — a per-atom loop at a full store is 220 ms per atom.
+- **AGENTS.md corrections (2026-09-19), each one a way this file misled an agent:**
+  - It claimed Gemini `gemini-embedding-001` did embeddings. Nothing in the repo mentions it, and **no code writes a vector** — recall is lexical (`memoryFade` + `keywordRanking`). Vestigial type comments still mention 2048-d vectors; that is not live behavior. A rule that describes a subsystem that doesn't exist sends agents hunting for a provider to configure.
+  - It described Dream as an "LLM rewrite with merge reasons". Dream's LLM call only proposes a **plan** (thread grouping); bodies are never rewritten. `supersedeRestatedMemories` deprecates by restatement ratio, not by an LLM merge reason.
+  - It asserted "UI components do not import from `services/`" as absolute. There are 44 such imports. An unenforceable absolute reads as a trap; the real rule is types/pure functions yes, I/O through a hook.
+  - It pointed `shouldEnableHistoryTools` at `ai.ts`; it lives in `agenticGate.ts`.
+  - It cited `__tests__/services/memory/memoryFiles.test.ts` and `memoryRetrieval.test.ts`; both are at `__tests__/services/` root.
+  - Its `--testPathPattern` examples (`ChatScreen`, `KeyThemes`) matched no file — jest exits 0 having run nothing, which looks like a pass.
+  - It hardcoded a Windows path (`C:\Users\...`) for `.agents/skills`, wrong on this machine.
+  - It said concepts must never be deleted, then the user retired one. Deletion now requires an explicit instruction **and** a same-change `UI_MAP.md` update, so the "open the concept first" rule can never point at a deleted file.

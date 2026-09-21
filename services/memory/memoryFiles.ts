@@ -11,7 +11,14 @@ import { runAccountBoundOperation } from '@/services/account/accountRuntime';
  * for winners. No embeddings, fully offline.
  */
 
-export type MemoryFileType = 'user' | 'feedback' | 'project';
+/**
+ * The one list. `isHeader` validates against it and the `memory_list` tool
+ * derives its accepted kinds from it, because both previously hardcoded their
+ * own copy: adding a type updated one and not the other, and the failure mode
+ * was silence (a header dropped on load, or a filter that returned everything).
+ */
+export const MEMORY_FILE_TYPES = ['user', 'feedback', 'project', 'note'] as const;
+export type MemoryFileType = (typeof MEMORY_FILE_TYPES)[number];
 export type MemoryFileScope = 'global' | 'project';
 
 export interface MemoryFileFrontmatter {
@@ -202,7 +209,8 @@ function isHeader(value: unknown): value is MemoryFileHeader {
         && typeof h.relativePath === 'string'
         && typeof h.name === 'string'
         && typeof h.description === 'string'
-        && (h.type === 'user' || h.type === 'feedback' || h.type === 'project')
+        && typeof h.type === 'string'
+        && (MEMORY_FILE_TYPES as readonly string[]).includes(h.type)
         && (h.scope === 'global' || h.scope === 'project')
         && typeof h.updatedAt === 'string';
 }
@@ -281,14 +289,95 @@ export async function stageTmpMemory(input: StageMemoryInput): Promise<MemoryFil
             capturedAt,
             ...(input.sourceSessionKey ? { sourceSessionKey: input.sourceSessionKey } : {}),
         };
+        // Body first, header second. An orphan body key is unreferenced and
+        // reclaimable; a header with no bytes is an unreachable memory, because
+        // every reader skips a missing body in silence.
+        await storageAdapter.setItem(bodyKey(id), body);
         manifest[id] = header;
         await saveManifest(manifest);
-        await storageAdapter.setItem(bodyKey(id), body);
         record = { ...header, content: body, preview: previewText(body, HEADER_PREVIEW_CHARS) };
     });
     // Assignment happens inside the locked task, so this is only undefined if the
     // lock never ran — which would mean the write did not happen either.
     if (!record) throw new Error('memory staging did not run');
+    return record;
+}
+
+export interface StageUserNoteInput {
+    text: string;
+    /** Top tag from `extractTags` — becomes the thread hint. Absent when nothing was recognised. */
+    threadHint?: string;
+    /** Journal entry id; used for staging idempotency. */
+    sourceEntryId: string;
+    capturedAt?: string;
+}
+
+/** Lowercase slug used as the `Thread hint` token Dream clusters on. */
+function noteHintSlug(value: string): string {
+    return value
+        .toLowerCase()
+        .replace(/[^a-z0-9\u4e00-\u9fff]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 60);
+}
+
+/**
+ * Stage a user-written note as a first-class memory file.
+ *
+ * Deliberately not `stageTmpMemory`: that writer's `type` union and its
+ * `Project/` folder naming are for extracted memories, and widening it would let
+ * a caller stage a note under a folder that says otherwise. A note is its own
+ * kind of thing with its own id shape.
+ *
+ * The id is keyed on the **entry id**, not on the text. Two byte-identical notes
+ * kept on different days are two memories, and hashing only the text would give
+ * them one id and let the second silently overwrite the first's session key.
+ *
+ * The `Thread hint <slug>.` prefix is the exact convention `clusterTmpFiles`
+ * groups on (`memoryDream.ts:43-46`), so Dream files a note beside the journal
+ * memories of the same subject rather than in a separate pile.
+ */
+export async function stageUserNoteMemory(input: StageUserNoteInput): Promise<MemoryFileRecord> {
+    const text = input.text.trim();
+    if (!text) throw new Error('text is required');
+    const entryKey = input.sourceEntryId.trim();
+    if (!entryKey) throw new Error('sourceEntryId is required');
+
+    const hint = noteHintSlug(input.threadHint ?? '');
+    const name = `Note: ${normalizeText(text).slice(0, 60)}`;
+    const description = (
+        normalizeText(`${hint ? `Thread hint ${hint}. ` : ''}${text}`).slice(0, 320) || name
+    );
+    const body = ['## Note', text, '', '## Notes', '- Kept as written on Threads.'].join('\n');
+    const capturedAt = input.capturedAt && Number.isFinite(Date.parse(input.capturedAt))
+        ? input.capturedAt
+        : nowIso();
+    const baseId = `projects/${TMP_PROJECT_ID}/Note/${slugify(normalizeText(text).slice(0, 48))}-${hashText(entryKey)}.md`;
+
+    let record: MemoryFileRecord | undefined;
+    await withFilesLock(async () => {
+        const manifest = await loadManifest();
+        const id = await idWithoutOverwriting(manifest, body, baseId);
+        const header: MemoryFileHeader = {
+            id,
+            relativePath: id,
+            name,
+            description,
+            type: 'note',
+            scope: 'project',
+            projectId: TMP_PROJECT_ID,
+            updatedAt: nowIso(),
+            capturedAt,
+            sourceSessionKey: entryKey,
+        };
+        // Body first: an orphan body is reclaimable, a header with no bytes is
+        // an unreachable memory (see `promoteTmpRecord` for the full reasoning).
+        await storageAdapter.setItem(bodyKey(id), body);
+        manifest[id] = header;
+        await saveManifest(manifest);
+        record = { ...header, content: body, preview: previewText(body, HEADER_PREVIEW_CHARS) };
+    });
+    if (!record) throw new Error('note staging did not run');
     return record;
 }
 
@@ -377,7 +466,13 @@ export async function getMemoryRecordsByIds(
         const header = manifest[id];
         if (!header || header.deprecated) continue;
         const body = await storageAdapter.getItem(bodyKey(id));
-        if (typeof body !== 'string') continue;
+        if (typeof body !== 'string') {
+            // A header with no bytes is a memory nobody can read. Writes are
+            // body-first now, so this is either pre-fix data or a body removed
+            // out of band — either way it must not disappear in silence.
+            console.warn(`Memory file ${id} has a manifest header but no body; skipping.`);
+            continue;
+        }
         records.push({ ...header, content: body, preview: previewText(body, BODY_PREVIEW_CHARS) });
     }
     return records;
@@ -412,6 +507,26 @@ export async function listFormalProjectIds(): Promise<string[]> {
         ids.add(header.projectId);
     });
     return Array.from(ids).sort();
+}
+
+/**
+ * Manifest headers whose body key is missing — a memory that exists on paper and
+ * nowhere else. Every reader skips these silently, so without this they are
+ * invisible forever. Reporting only: the body is gone, so there is nothing to
+ * repair; the point is to stop the loss being silent.
+ *
+ * Writes are body-first, so a crash cannot create a new one of these.
+ */
+export async function findOrphanManifestHeaders(): Promise<MemoryFileHeader[]> {
+    return withFilesLock(async () => {
+        const manifest = await loadManifest();
+        const orphans: MemoryFileHeader[] = [];
+        for (const header of Object.values(manifest)) {
+            const body = await storageAdapter.getItem(bodyKey(header.id));
+            if (typeof body !== 'string') orphans.push(header);
+        }
+        return orphans;
+    });
 }
 
 /** All non-deprecated `_tmp` staged files awaiting Dream. */
@@ -523,8 +638,12 @@ export async function promoteTmpRecord(id: string, targetProjectId: string): Pro
         };
         manifest[newId] = header;
         manifest[id] = { ...source, deprecated: true, updatedAt: timestamp };
-        await saveManifest(manifest);
+        // Same ordering as staging, and here it also protects the source: the
+        // `_tmp` original is deprecated in this same manifest save, so a crash
+        // after the save but before the body write would retire the source while
+        // the promoted copy had no bytes — losing the memory outright.
         await storageAdapter.setItem(bodyKey(newId), body);
+        await saveManifest(manifest);
         return header;
     });
 }

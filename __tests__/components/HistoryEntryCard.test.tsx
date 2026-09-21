@@ -42,6 +42,16 @@ const morningItem: HistoryItem = {
     checkInType: 'morning',
 };
 
+const threadsItem: HistoryItem = {
+    id: 'journal-2',
+    type: 'journal',
+    title: 'Note on the ledger',
+    summary: 'Wrote this on Explore, not in a chat.',
+    createdAt: new Date(2026, 5, 1, 9, 30).getTime(),
+    sourceId: '2',
+    origin: 'threads',
+};
+
 describe('HistoryEntryCard', () => {
     it('renders journal meta without inventing mood', () => {
         render(<HistoryEntryCard item={journalItem} onPress={jest.fn()} isLast />);
@@ -50,6 +60,12 @@ describe('HistoryEntryCard', () => {
         expect(screen.getByText('Feeling progress on personal projects.')).toBeTruthy();
         expect(screen.queryByText('Reflective')).toBeNull();
         expect(screen.getByLabelText('Open Grateful Code')).toBeTruthy();
+    });
+
+    it('labels a note written on Threads instead of claiming a conversation', () => {
+        render(<HistoryEntryCard item={threadsItem} onPress={jest.fn()} isLast />);
+        expect(screen.getByText('Written on Threads')).toBeTruthy();
+        expect(screen.queryByText('Journal')).toBeNull();
     });
 
     it('renders ritual meta and real mood only (no decorative glyph)', () => {

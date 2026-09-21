@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert } from 'react-native';
+import { Alert, ScrollView } from 'react-native';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import ExploreScreen from '../../app/(tabs)/explore';
@@ -7,20 +7,15 @@ import type { LocalMemoryAtom } from '../../services/memory/localMemory.types';
 
 const mockPush = jest.fn();
 const mockGoToTab = jest.fn();
-const mockAddNote = jest.fn();
-const mockAddGeneratedNote = jest.fn();
-const mockRefreshGeneratedNote = jest.fn();
+const mockAddExploreNote = jest.fn();
 const mockRemoveAtom = jest.fn();
 const mockClearAll = jest.fn();
 
 let mockMemoryState: {
     atoms: LocalMemoryAtom[];
     isLoading: boolean;
-    generatedNote: string;
     refresh: jest.Mock;
-    addNote: jest.Mock;
-    addGeneratedNote: jest.Mock;
-    refreshGeneratedNote: jest.Mock;
+    addExploreNote: jest.Mock;
     removeAtom: jest.Mock;
     clearAll: jest.Mock;
 };
@@ -110,19 +105,14 @@ describe('ExploreScreen memory hub', () => {
     beforeEach(() => {
         mockPush.mockClear();
         mockGoToTab.mockClear();
-        mockAddNote.mockResolvedValue(undefined);
-        mockAddGeneratedNote.mockResolvedValue(undefined);
-        mockRefreshGeneratedNote.mockClear();
+        mockAddExploreNote.mockResolvedValue({ failures: [], themes: [] });
         mockRemoveAtom.mockResolvedValue(undefined);
         mockClearAll.mockResolvedValue(undefined);
         mockMemoryState = {
             atoms,
             isLoading: false,
-            generatedNote: 'Remember for Rosebud chats: quieter evenings help.',
             refresh: jest.fn(),
-            addNote: mockAddNote,
-            addGeneratedNote: mockAddGeneratedNote,
-            refreshGeneratedNote: mockRefreshGeneratedNote,
+            addExploreNote: mockAddExploreNote,
             removeAtom: mockRemoveAtom,
             clearAll: mockClearAll,
         };
@@ -148,37 +138,72 @@ describe('ExploreScreen memory hub', () => {
         expect(mockPush).toHaveBeenCalledWith('/memory-graph');
     });
 
-    it('saves notes, filters atoms, and deletes an atom', async () => {
+    it('keeps a line through the composer and filters the ledger', async () => {
         render(<ExploreScreen />);
 
-        // The concept keeps the note field visible — no disclosure to open.
-        fireEvent.changeText(screen.getByLabelText('Memory note'), 'Keep Sundays quiet.');
-        fireEvent.press(screen.getByLabelText('Save memory note'));
-        fireEvent.press(screen.getByLabelText('Save generated memory note'));
-        fireEvent.press(screen.getByLabelText('Refresh generated memory note'));
+        // The composer is the page's primary action and is visible on load —
+        // no disclosure to open. Its input label is 'New line' (the component's
+        // own label), not the old panel's 'Memory note'.
+        fireEvent.changeText(screen.getByLabelText('New line'), 'Keep Sundays quiet.');
+        fireEvent.press(screen.getByLabelText('Keep this note'));
         fireEvent.changeText(screen.getByLabelText('Search local memory'), 'sleep');
         fireEvent.press(screen.getByLabelText('Delete memory Theme: Sleep'));
 
         await waitFor(() => {
-            expect(mockAddNote).toHaveBeenCalledWith('Keep Sundays quiet.');
-            expect(mockAddGeneratedNote).toHaveBeenCalledTimes(1);
+            expect(mockAddExploreNote).toHaveBeenCalledWith('Keep Sundays quiet.');
             expect(mockRemoveAtom).toHaveBeenCalledWith('semantic-1');
         });
-        expect(mockRefreshGeneratedNote).toHaveBeenCalledTimes(1);
         expect(screen.queryByText('Work meeting')).toBeNull();
         expect(screen.getByText('Theme: Sleep')).toBeTruthy();
     });
 
-    it('renders a warm fallback when no generated note is available', () => {
-        mockMemoryState = {
-            ...mockMemoryState,
-            atoms,
-            generatedNote: '',
-        };
+    it('reports which stores did not finish, rather than failing silently', async () => {
+        // §7: "Entry succeeds, a later store fails → `failures[]` reports which
+        // stores failed. Never a silent partial write." The words are already
+        // durable at this point, so the alert must say so rather than implying
+        // the note was lost.
+        mockAddExploreNote.mockResolvedValue({
+            failures: [{ store: 'memory file', error: 'quota' }],
+            themes: [],
+        });
+        const alertSpy = jest.spyOn(Alert, 'alert');
 
         render(<ExploreScreen />);
+        fireEvent.changeText(screen.getByLabelText('New line'), 'Keep Sundays quiet.');
+        fireEvent.press(screen.getByLabelText('Keep this note'));
 
-        expect(screen.getByText(/No stable pattern yet/)).toBeTruthy();
+        await waitFor(() => {
+            expect(alertSpy).toHaveBeenCalledWith(
+                'Saved, with a gap',
+                expect.stringContaining('memory file'),
+            );
+        });
+        // The gap must not be reported as a total failure: no error alert.
+        expect(alertSpy).not.toHaveBeenCalledWith(
+            'Could not keep the note',
+            expect.anything(),
+        );
+    });
+
+    it('surfaces a total write failure as an error instead of a gap', async () => {
+        mockAddExploreNote.mockRejectedValue(new Error('disk full'));
+        const alertSpy = jest.spyOn(Alert, 'alert');
+
+        render(<ExploreScreen />);
+        fireEvent.changeText(screen.getByLabelText('New line'), 'Keep Sundays quiet.');
+        fireEvent.press(screen.getByLabelText('Keep this note'));
+
+        await waitFor(() => {
+            expect(alertSpy).toHaveBeenCalledWith('Could not keep the note', 'disk full');
+        });
+    });
+
+    it('shows no fake-AI suggestion panel', () => {
+        render(<ExploreScreen />);
+
+        expect(screen.queryByText(/Blackrose noticed/)).toBeNull();
+        expect(screen.queryByText(/Keep this as a note/)).toBeNull();
+        expect(screen.queryByText(/No stable pattern yet/)).toBeNull();
     });
 
     it('paginates memory atoms instead of rendering an unbounded list', () => {
@@ -210,19 +235,31 @@ describe('ExploreScreen memory hub', () => {
         expect(screen.getByText('Memory 11')).toBeTruthy();
     });
 
-    it('renders an empty state with an entry action', () => {
+    it('renders an empty state whose action stays on this page', () => {
         mockMemoryState = {
             ...mockMemoryState,
             atoms: [],
-            generatedNote: '',
         };
 
         render(<ExploreScreen />);
 
-        fireEvent.press(screen.getByLabelText('Write your first entry'));
-
         expect(screen.getByText('Still quiet here')).toBeTruthy();
-        expect(mockPush).toHaveBeenCalledWith('/chat');
+
+        // The hub scrolls its own scroller to the composer, so the action has a
+        // positive half as well as the negative one below. `ScrollView` here is
+        // the class the mocked scroller extends, so the spy sees the real call
+        // the hub makes through its ref. `y` is not asserted: `onLayout` never
+        // fires under Jest, so the measured composer offset is still 0.
+        const scrollSpy = jest.spyOn(ScrollView.prototype as unknown as {
+            scrollTo: (...args: unknown[]) => void;
+        }, 'scrollTo');
+        fireEvent.press(screen.getByLabelText('Write a line'));
+        expect(scrollSpy).toHaveBeenCalled();
+
+        // The empty state's action brings the composer into view; it must not
+        // navigate away (the old behaviour routed to /chat).
+        expect(screen.getByLabelText('New line')).toBeTruthy();
+        expect(mockPush).not.toHaveBeenCalledWith('/chat');
     });
 
     it('opens a navigable memory atom source when provenance exists', () => {

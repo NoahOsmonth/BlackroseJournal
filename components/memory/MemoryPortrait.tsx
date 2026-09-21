@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import type { LocalMemoryAtom } from '@/services/memory/localMemory.types';
 import {
@@ -7,19 +7,18 @@ import {
     profilePreview,
     topMemoryThemes,
 } from './memoryDisplay';
+import { ThemeDriftStrip } from './ThemeDriftStrip';
 
 interface MemoryPortraitProps {
     atoms: readonly LocalMemoryAtom[];
     onThemePress: (tag: string) => void;
 }
 
-/** Concept chips are title-case words, not extraction tokens ("calm" → "Calm"). */
-function titleCase(theme: string): string {
-    return theme.replace(/\b[a-z]/g, (char) => char.toUpperCase());
-}
-
 export function MemoryPortrait({ atoms, onThemePress }: MemoryPortraitProps) {
     const about = profilePreview(atoms);
+    // Notes included: a note is now a first-class memory the writer chose to
+    // keep, so excluding them meant someone who only writes on Explore saw no
+    // themes at all (see `topMemoryThemes`).
     const themes = topMemoryThemes(atoms, 4);
     const prose = memoryPortraitProse(atoms);
 
@@ -52,26 +51,11 @@ export function MemoryPortrait({ atoms, onThemePress }: MemoryPortraitProps) {
                 </Text>
             </View>
 
+            {/* The themes drift slowly past the reader — the page's only looping
+                motion, and the only element saying the list is longer than the
+                frame. */}
             {themes.length > 0 ? (
-                <View className="flex-row flex-wrap gap-2">
-                    {themes.map((theme) => (
-                        <Pressable
-                            key={theme}
-                            onPress={() => onThemePress(theme)}
-                            className="rounded-control border border-hairline-light bg-surface-light px-3.5 py-2 dark:border-hairline-dark dark:bg-surface-dark"
-                            accessibilityRole="button"
-                            accessibilityLabel={`Filter memory by ${theme}`}
-                            style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
-                        >
-                            <Text
-                                className="text-[15px] text-text-light dark:text-text-dark"
-                                style={{ fontFamily: 'PlayfairDisplayRegular' }}
-                            >
-                                {titleCase(theme)}
-                            </Text>
-                        </Pressable>
-                    ))}
-                </View>
+                <ThemeDriftStrip themes={themes} onThemePress={onThemePress} />
             ) : null}
         </View>
     );
