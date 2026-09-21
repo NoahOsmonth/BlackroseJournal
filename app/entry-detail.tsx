@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { EntryAnalysisPanel } from '@/components/entries/EntryAnalysisPanel';
 import { EntryDetailSkeleton } from '@/components/entries/EntryDetailSkeleton';
 import { EntryEditModal } from '@/components/entries/EntryEditModal';
+import { originLabel } from '@/components/memory/memoryDisplay';
 import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
 import { useJournalEntryActions } from '@/hooks/journal/useJournalEntryActions';
 import { useNavBack } from '@/hooks/navigation/useNavBack';
@@ -89,8 +90,11 @@ export default function EntryDetailScreen() {
         if (!entry?.createdAt) return null;
         const authored = new Date(entry.createdAt);
         if (Number.isNaN(authored.getTime())) return null;
-        return `Written ${getLocalDateKey(authored)} · ${formatLocalTime(authored)}`;
-    }, [entry?.createdAt]);
+        const label = `Written ${getLocalDateKey(authored)} · ${formatLocalTime(authored)}`;
+        // Only Threads notes say so — a chat entry's label stays byte-identical to
+        // before, and appending unconditionally would put "Journal" on every row.
+        return entry.origin === 'threads' ? `${label} · ${originLabel(entry.origin)}` : label;
+    }, [entry?.createdAt, entry?.origin]);
 
     const handleSaveText = useCallback(async (text: string) => {
         if (!entryId || !text.trim()) return;

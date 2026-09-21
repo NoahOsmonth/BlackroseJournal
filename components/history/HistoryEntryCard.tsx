@@ -3,6 +3,7 @@ import { Platform, Pressable, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
 import { HistoryItem } from '@/hooks/history/historyUtils';
+import { originLabel } from '@/components/memory/memoryDisplay';
 
 interface HistoryEntryCardProps {
     item: HistoryItem;
@@ -25,7 +26,9 @@ function resolveLabel(item: HistoryItem): string {
         if (item.checkInType === 'morning') return 'Morning note';
         return 'Intention setting';
     }
-    return 'Journal';
+    // A note written on Explore is a real entry, but it did not come from chat —
+    // labelling it "Journal" would claim a conversation that never happened.
+    return originLabel(item.origin);
 }
 
 /**

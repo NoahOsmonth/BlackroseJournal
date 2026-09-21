@@ -1,4 +1,5 @@
 import { JournalEntry } from '@/services/journal/journalStorage.types';
+import type { NoteOrigin } from '@/services/journal/journalStorage.types';
 import { IntentionCheckIn } from '@/services/intentions/intentionsStorage.types';
 import { getLocalDateKey } from '@/utils/date';
 
@@ -15,6 +16,8 @@ export interface HistoryItem {
     sourceId: string;
     checkInType?: IntentionCheckIn['type'];
     intentionId?: string;
+    /** Where the entry was written; absent on older entries → read as chat. */
+    origin?: NoteOrigin;
 }
 
 export interface HistorySection {
@@ -166,6 +169,7 @@ export function buildHistoryItems(
             mood: mood || undefined,
             createdAt: entry.createdAt,
             sourceId: entry.id,
+            origin: entry.origin,
         };
     });
 
