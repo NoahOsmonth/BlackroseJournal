@@ -15,7 +15,7 @@ import { useThemeSettings } from '@/hooks/theme/useThemeSettings';
 import { BLACKROSE_PALETTE } from '@/constants/theme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Haptics from 'expo-haptics';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
 import Animated, {
     useAnimatedStyle,
@@ -157,14 +157,20 @@ function DockTab({
  * write is one affordance among the tabs, not a brand button.
  */
 function WriteButton({
+    anchorOffset,
     onPress,
 }: {
+    anchorOffset?: number;
     onPress?: () => void;
 }) {
     const scale = useSharedValue(1);
     const [radialVisible, setRadialVisible] = useState(false);
     const router = useRouter();
     const isDark = useColorScheme() === 'dark';
+    // A long press activates the radial menu, but the Pressable underneath still
+    // receives the release and fires onPress — which navigated straight to chat
+    // and made the menu flash for one frame. Swallow that trailing press.
+    const longPressFired = useRef(false);
 
     const animStyle = useAnimatedStyle(() => ({
         transform: [{ scale: scale.value }],
@@ -173,12 +179,27 @@ function WriteButton({
     const longPressGesture = Gesture.LongPress()
         .minDuration(400)
         .onStart(() => {
+            longPressFired.current = true;
             hapticHeavy();
             setRadialVisible(true);
+            // The modal swallows the pointer release, so the Pressable never
+            // reports onPressOut — release the press-scale ourselves or the
+            // pencil stays shrunken under the open menu.
+            scale.value = withSpring(1, SPRING);
         });
+
+    const handleWritePress = useCallback(() => {
+        if (longPressFired.current) {
+            longPressFired.current = false;
+            return;
+        }
+        hapticMedium();
+        onPress?.();
+    }, [onPress]);
 
     const handleNavigate = (route: string, params?: Record<string, string>) => {
         hapticMedium();
+        longPressFired.current = false;
         setRadialVisible(false);
         if (params) {
             router.push({ pathname: route, params });
@@ -188,6 +209,8 @@ function WriteButton({
     };
 
     const handleCloseRadial = () => {
+        longPressFired.current = false;
+        scale.value = withSpring(1, SPRING);
         setRadialVisible(false);
     };
 
@@ -200,10 +223,7 @@ function WriteButton({
         <GestureDetector gesture={longPressGesture}>
             <View style={{ alignItems: 'center', justifyContent: 'center', paddingLeft: 4 }}>
                 <AnimatedPressable
-                    onPress={() => {
-                        hapticMedium();
-                        onPress?.();
-                    }}
+                    onPress={handleWritePress}
                     onPressIn={() => {
                         scale.value = withSpring(0.94, SPRING);
                     }}
@@ -223,6 +243,7 @@ function WriteButton({
                 </AnimatedPressable>
                 <RadialMenu
                     isVisible={radialVisible}
+                    anchorOffset={anchorOffset}
                     onClose={handleCloseRadial}
                     onNavigate={handleNavigate}
                 />
@@ -235,10 +256,18 @@ export function BottomNav({ activeTab, onTabPress, onFabPress }: BottomNavProps)
     const insets = useSafeAreaInsets();
     const isDark = useColorScheme() === 'dark';
     const { colorTheme } = useThemeSettings();
+    // Long-press opens the write actions above the dock; measuring the bar (it
+    // grows with the bottom inset) keeps the stack from ever covering the tabs.
+    const [dockHeight, setDockHeight] = useState(0);
 
     const accent = isDark
         ? colorTheme.colors.accentDark
         : colorTheme.colors.accentLight;
+
+    const handleDockLayout = useCallback((height: number) => {
+        const next = Math.round(height);
+        setDockHeight((prev) => (prev === next ? prev : next));
+    }, []);
 
     const handleTab = useCallback(
         (name: TabName) => {
@@ -263,6 +292,8 @@ export function BottomNav({ activeTab, onTabPress, onFabPress }: BottomNavProps)
                 flexDirection: 'row',
                 alignItems: 'center',
             }}
+            onLayout={(event) => handleDockLayout(event.nativeEvent.layout.height)}
+            testID="bottom-nav-dock"
         >
             {DOCK_TABS.map((tab) => (
                 <DockTab
@@ -274,7 +305,10 @@ export function BottomNav({ activeTab, onTabPress, onFabPress }: BottomNavProps)
                 />
             ))}
 
-            <WriteButton onPress={onFabPress} />
+            <WriteButton
+                anchorOffset={dockHeight > 0 ? dockHeight + 12 : undefined}
+                onPress={onFabPress}
+            />
         </View>
     );
 }
