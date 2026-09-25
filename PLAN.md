@@ -1,78 +1,67 @@
-# Legacy Epic Plan: Rosebud Local Memory System
+# PLAN — Current Plan and Documentation Map
 
-## Status
+**Status 2026-09-24.** There is no single active forward plan. The app is in a
+maintained, feature-complete local-only state; open work is a small set of
+gated follow-ups (see [PROGRESS.md → Open follow-ups](PROGRESS.md)).
 
-This file records the implemented local-memory baseline and is retained as
-current-state context. It is not the active cloud migration plan.
-
-**Superseded 2026-08-18.** The cloud-migration plan this section used to point
-at was abandoned and its documents were deleted. Nothing here is a forward plan
-and none of it is executable.
-
-The architecture that actually replaced it is the offline-first on-device memory
-system — see [`.planning/offline-memory/PLAN.md`](.planning/offline-memory/PLAN.md)
-(done 2026-09-12) and `services/memory/memoryFiles.ts` + `memoryRetrieval.ts`.
-That store is now the **only** long-term tier: Hindsight, Supabase and the
-managed AI gateway were all removed on 2026-09-18. See AGENTS.md rules 9–12.
-
-The deleted cloud-memory documents were recovered for reference only and live in
-[`.planning/archive/`](.planning/archive/README.md). They are **not** approved
-and must not be implemented: AGENTS.md forbids resurrecting the platform or its
+**Standing rule:** nothing here resurrects the cloud-memory platform, its
 storage keys (`@rosebud_cloud_memory_mirror_outbox`,
-`@rosebud_memory_dataset_binding`). Mine them for requirements and
-invariants only.
+`@rosebud_memory_dataset_binding`), or any remote memory tier. The app is
+local-only by decision (2026-09-18); guard test:
+`__tests__/backend-local-only.test.ts`.
 
-## Goal
-Build a phone-local memory system for Rosebud that gives the AI durable,
-privacy-preserving continuity without restoring the removed backend/SimpleMem
-stack. The system should support short-term context, long-term journal memory,
-about-user profile memory, notes, feedback/preferences, and a richer weekly
-history experience.
+## Open work (in priority order)
 
-## Current Direction
-1. **Research and invention**
-   - Ground the architecture in recent memory-agent research.
-   - Document the full proposal in `.planning/archive/idea.md` (archived
-     2026-09-01) and the implementation contract in `memory.md`.
-2. **Local memory service**
-   - Add `services/memory/` with on-device memory atoms.
-   - Persist completed journal memory in AsyncStorage.
-   - Retrieve bounded context by salience, recency, usage, and lexical overlap.
-3. **Prompt integration**
-   - Add `hooks/memory/useLocalMemoryContext.ts`.
-   - Inject a compact local memory capsule into journal chat prompts.
-   - Save completed entries into long-term local memory after finish.
-4. **Week history UX**
-   - Add a rich weekly summary strip to History.
-   - Show entries, check-ins, active days, and recurring signals.
-5. **Settings memory controls**
-   - Show local memory counts and about-user preview.
-   - Let the user add explicit memory notes.
-   - Let the user clear local AI memory.
-6. **Testing and verification**
-   - Unit test memory extraction/retrieval and weekly history aggregation.
-   - Component test the weekly summary UI.
-   - Update local backup tests to include the memory store.
-   - Run targeted tests, design check, and type/lint checks where feasible.
+1. **Fix note deletion** — deleting a note from Explore must also remove its
+   `'note'` memory file (via `deleteMemoryFilesBySourceSessions`) and journal
+   entry. Currently only the atom shard is deleted, so the note stays
+   searchable. Smallest, highest-value fix on the list.
+2. **Retrieval gating for staged notes** — `memory_search` can miss a `_tmp`
+   note whenever any formal thread exists; the fix belongs in
+   `memoryRetrieval.ts`'s project_memory branch, not the write path.
+3. **R3 (entity/alias → temporal → prospection)** — only after a
+   real-restatement ledger prices supersession on journal-like data. The R0
+   ledger's `superseded: 0` is by design, so the gate is unmet.
+4. **Insight dock a11y parity** — Escape / Android back-to-close; optional
+   label shortening to un-stagger the icon row (copy change, needs a call).
+5. **Doc drift** — `design.md:227` in the explore spec still describes the
+   pre-fix drift mechanism.
 
-## Architecture
-- **Service layer:** `services/memory/localMemory.ts` owns persistence,
-  extraction, retrieval, prompt formatting, and test adapter injection.
-- **Hook layer:** `hooks/memory/useLocalMemoryContext.ts` exposes compact memory
-  state to screens.
-- **UI layer:** `components/history/HistoryWeekSummary.tsx` renders weekly
-  history metrics; `app/(tabs)/entries.tsx` composes it.
-- **Chat route:** `app/chat.tsx` combines therapist prompt, local memory, and
-  feedback guidance, then writes completed entries into memory.
+## Documentation map
 
-## Acceptance Criteria
-- `.planning/archive/idea.md` contains a 1000+ word research-backed invention for the memory
-  system (archived; superseded by `.planning/offline-memory/PLAN.md`).
-- `memory.md` documents implemented behavior and next phases.
-- Completed journal entries create local memory atoms.
-- Journal chat receives a bounded local memory capsule.
-- Drafts are not saved as long-term memory.
-- Settings exposes local memory counts, about-user preview, notes, and clear action.
-- History shows a weekly summary panel.
-- Local backups include the memory store.
-- New/updated tests pass.
+Where each kind of document lives. Root filenames are fixed by
+`AGENTS.md` (workflow step 1 and the key-files table), so `PLAN.md`,
+`PROGRESS.md`, and `memory.md` stay at the root; everything else lives under
+`docs/`.
+
+| Path | Kind | What it holds |
+|---|---|---|
+| [`PLAN.md`](PLAN.md) | **plan** | This file: current plan + doc map |
+| [`PROGRESS.md`](PROGRESS.md) | **log** | Work log, newest effort last; full text in git history |
+| [`memory.md`](memory.md) | **reference** | Memory-system contract: stores, write/read paths, tool doctrine (implementation-shaped, verified against code) |
+| [`AGENTS.md`](AGENTS.md) | **rules** | Coding standards, workflow, E2E gates, storage-key ownership, what NOT to touch |
+| [`notes/local-only-storage.md`](notes/local-only-storage.md) | **reference** | Local-only architecture: account identity, AI transport, storage keys, backup/restore |
+| [`README.md`](README.md) | onboarding | Setup, SoC architecture, quality gates |
+| `docs/README.md` | index | One-screen index of everything under `docs/` |
+| `docs/plans/` | **plans** | Approved, screen-level design plans (e.g. `blackrose-design-rewrite.md`) |
+| `docs/superpowers/plans/` | plans | Historical executable plans (offline-memory waves, agent loop, explore write path); superseded by `PROGRESS.md`'s log but kept for line-level traceability |
+| `docs/superpowers/specs/` | specs | Design specs for the plans above, incl. the HTML visual companion |
+| `docs/compose/spec/` | specs | Agent-loop finality spec (status-only continue) |
+| `docs/qa/` | QA | `TEST_PLAN.md` (index + dashboard), `cases/*.csv` (the tracker), `DEFECTS.md`, `results/` (dated run summaries), `AI-HANDOFF-PROMPT.md` |
+| `.planning/offline-memory/` | **plans** | The DONE offline-memory rework: `PLAN.md` + `RESEARCH.md` |
+| `.planning/context-retention/` | **plans** | Context-retention plan (R0–R5); R0–R2.6 landed, R3 gated — read `PLAN.md` for the phases, `RESEARCH.md` for the evidence base |
+| `.planning/debug/` | post-mortems | Resolved debug sessions (e.g. the finish-entry hang) |
+| `.planning/archive/` | **read-only** | Recovered Era 1/2 memory documents. **Nothing here is executable**; mine for requirements and invariants only (see its README) |
+| `example-design/concepts/UI_MAP.md` | design | Screen-by-screen production UI map + Blackrose redesign status; concept PNGs in `generated/` are design source, not test output |
+| `QA-Plan.md` | QA | QA program charter (root level per the charter's own references) |
+
+## Deleting documents
+
+- Planning docs move to `.planning/archive/` (with a provenance banner) rather
+  than vanishing — the Era 1/2 deletion caused two live docs to dangle until
+  they were recovered from git.
+- Retiring a design concept requires deleting the PNG **and** updating
+  `UI_MAP.md` in the same change (AGENTS.md prototype-validation rule).
+- `PROGRESS.md` condenses rather than accumulates: when it grows past
+  ~400 lines, fold finished efforts into one dated paragraph per era and keep
+  the full text in git history.
