@@ -127,7 +127,7 @@ export default function EntryDetailScreen() {
                         <MaterialIcons name="arrow-back" size={24} color={iconColor} />
                     </Pressable>
                     <Text
-                        className="text-[26px] leading-[34px] text-text-light dark:text-text-dark"
+                        className="flex-1 px-3 text-center text-[26px] leading-[34px] text-text-light dark:text-text-dark"
                         style={{ fontFamily: 'PlayfairDisplayRegular' }}
                         numberOfLines={1}
                     >
