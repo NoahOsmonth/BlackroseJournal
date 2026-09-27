@@ -23,20 +23,24 @@ describe("metro config", () => {
     expect(pkg.dependencies?.["phosphor-react-native"]).toBeUndefined();
   });
 
-  it("banishes barrel imports from @expo/vector-icons", (done) => {
+  it("banishes barrel imports from @expo/vector-icons", () => {
     // Barrel imports (@expo/vector-icons) pull every icon family into the
     // bundle; per-family subpaths (…/MaterialIcons) tree-shake to one font.
-    const { execFile } = require("child_process");
-    execFile(
-      "grep",
-      ["-rn", "from '@expo/vector-icons'", "app", "components", "constants", "hooks", "features"],
-      { maxBuffer: 16 * 1024 * 1024 },
-      (err, stdout) => {
-        const hits = stdout.split("\n").filter((l: string) => l.trim().length > 0);
-        expect({ err, hits }).toMatchObject({ err: { code: 1 }, hits: [] });
-        done();
-      },
-    );
+    // Scanned in-process instead of shelling out to grep: grep is not
+    // guaranteed on Windows, and execFile ENOENT'ed there.
+    const dirs = ["app", "components", "constants", "hooks", "features"];
+    const needle = "from '@expo/vector-icons'";
+    const hits: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (fs.readFileSync(full, "utf8").includes(needle)) hits.push(full);
+      }
+    };
+    dirs.forEach((d) => walk(path.join(process.cwd(), d)));
+    expect(hits).toEqual([]);
   });
 
   it("enables new architecture required by reanimated/worklets", () => {

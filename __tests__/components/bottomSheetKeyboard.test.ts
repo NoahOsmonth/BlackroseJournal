@@ -40,7 +40,12 @@ const files = [
 const SHEET_BACKDROP = /className="flex-1 justify-end bg-black\/50"/;
 
 const sheets = files
-    .map((file) => ({ file: path.relative(root, file), src: fs.readFileSync(file, 'utf8') }))
+    // Normalize to POSIX separators so the expectations below are platform-stable
+    // (path.relative yields backslashes on Windows).
+    .map((file) => ({
+        file: path.relative(root, file).split(path.sep).join('/'),
+        src: fs.readFileSync(file, 'utf8'),
+    }))
     .filter(({ src }) => SHEET_BACKDROP.test(src));
 
 describe('bottom-sheet keyboard handling', () => {
