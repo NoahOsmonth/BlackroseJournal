@@ -8,7 +8,7 @@ content on 2026-09-24.
 
 ---
 
-## Current state (as of 2026-09-21)
+## Current state (as of 2026-09-26)
 
 **Blackrose** — a local-only React Native / Expo journal with an AI companion
 that remembers on-device. No auth server, no cloud memory, no managed gateway:
@@ -18,7 +18,8 @@ directly to an OpenAI-compatible provider with a user-supplied key.
 | Area | State | Since | Where |
 |---|---|---|---|
 | Agent chat engine | Pi-class loop: tool shortlist → parallel pure reads → one mutating call per turn, idempotency, strict finality (status-only replies continue) | 2026-09-10 | `services/ai/agentLoop.ts`, `executeTool.ts`, `agenticGate.ts`; spec in `docs/compose/spec/` |
-| Transport | OpenRouter removed; device-direct BYOK to the local OmniRoute gateway; default model `merge/deepseek/deepseek-v4-flash-0731` | 2026-09-10/18 | `services/ai/aiTransport.ts`, `directConfig.ts` |
+| Transport | OpenRouter removed; **provider profiles** (schema v2, several per device) replace the baked-in gateway — user-supplied base URL/key/model, no vendor host or model id in code | 2026-09-10/26 | `services/ai/customModels.ts`, `directConfig.ts` |
+| Input handling | Bottom sheets and both chat composers ride above the soft keyboard with a concrete `KeyboardAvoidingView behavior` (Android 15+ edge-to-edge made `adjustResize` a no-op) | 2026-09-26 | `components/{entries,goals,intentions}/*Modal.tsx`, `app/chat.tsx` |
 | Local-only build | Hindsight, Supabase, managed AI gateway, and the auth surface deleted; device-local account id instead | 2026-09-18 | `services/auth/localAccount.ts`; contract in `notes/local-only-storage.md` |
 | Offline memory (Era 3) | File-semantic store with `_tmp` staging on finish; recall = intent gate → thread shortlist → manifest headers → top-K bodies, budgets 12k/file / 30k total / top-5 / 30s cache | 2026-09-12 | `services/memory/memoryFiles.ts`, `memoryRetrieval.ts`; plan in `.planning/offline-memory/` |
 | Consolidation | Idle Dream trigger (single-flight, never during a streaming turn) + fading + supersession with audit fields ("when unsure, keep separate") | 2026-09-16 | `memoryDreamTrigger.ts`, `memoryFade.ts`, `memorySupersession.ts` |
@@ -34,10 +35,94 @@ directly to an OpenAI-compatible provider with a user-supplied key.
 
 Recall metrics on the frozen R0 ledger (`probes/shared/recallLedger.ts`):
 hit-rate 16.7% → **83.3%**, precision 0.167 → **0.433**, thread selection
-reproducible — the R1+R2 delta, stable across runs. Last full gate: **270
-suites / 1430 tests green** (25 skipped), tsc / lint / `check:design` clean.
+reproducible — the R1+R2 delta, stable across runs. Last full gate: **273
+suites passed / 9 skipped (282 discovered), 1490 tests green**, tsc / lint /
+`check:design` clean.
 
 ## Dated log
+
+### 2026-09-26 — provider profiles replace the baked-in gateway (+ the keyboard, and two hidden fields)
+
+- **The app no longer knows any vendor's name.** `services/ai/customModels.ts`
+  restructured to schema v2 (`enabled`, `activeProfileId`, `profiles[]` with
+  per-profile baseUrl/apiKey/selectedModelId/flashModelId/models/
+  `modelFilterPatterns`/fallbackModelIds); v1 flat records fold in on load and the
+  storage key is unchanged. The four `EXPO_PUBLIC_AI_CUSTOM_*` vars are a
+  **first-run seed only** — Expo inlines `EXPO_PUBLIC_*` at build time, so env
+  physically cannot deliver runtime flexibility (measured: a probe reading the var
+  returned `undefined` while an unrewritable read returned the mutated value).
+  The saved profile is the source of truth.
+- **Free-only deleted outright**: `FreeModelBadge`, `freeOnly`, `isFreeModelId`,
+  `filterFreeModels`, `preferFreeModelId`, `FreeOnlyPill`,
+  `resolveManagedToolCapability`, and the vendor constants
+  (`DEFAULT_AI_BASE_URL`, `PREFERRED_FREE_MODEL_ID`, `FREE_WEB_PROVIDER_PREFIXES`,
+  `BUILTIN_FREE_FALLBACK_MODELS`, `OPENROUTER_DEFAULT_BASE_URL`). Dropping
+  `BUILTIN_FREE_FALLBACK_MODELS` is a bug fix, not a loss: the fallback pool is
+  now the profile's own cached models instead of a hardcoded roster. The
+  paid-endpoint cost warnings went with free-only, per the owner's call. Dated
+  history (`PROGRESS.md`, `docs/qa/**`, `docs/superpowers/**`, `.planning/**`,
+  `docs/plans/**`) keeps its OmniRoute mentions on purpose — scrubbing them would
+  make the repo's history lie.
+- **The render-test layer had been dark, and the ambient shell did it.**
+  `babel-preset-expo` inlines `process.env.NODE_ENV` at *transform* time and this
+  shell exports `NODE_ENV=production`, so React resolved to `react.production.js`
+  (no `act`) and RN's `AnimatedProps` test guard was baked to `'production'` — a
+  disabled `TouchableOpacity` then **threw** `Unable to locate attached view in
+  the native tree` instead of degrading. This reads exactly like a React-19/RNTL
+  version mismatch and is not one. Fixed at the top of `jest.config.js`, the only
+  point early enough (`setupFiles` runs after transforms). It also un-froze
+  `EXPO_PUBLIC_*` in tests, so six `directConfig` cases that were red at HEAD pass
+  on their own merits. Guard: `AGENTS.md` changelog.
+- **Guards added.** `__tests__/vendorLeakage.test.ts` fails if vendor gateway /
+  model-roster / price-tier vocabulary reappears in shipped source (with a
+  sanity assertion that the glob matches >100 files, so it cannot pass vacuously)
+  — it caught a leftover NanoGPT doc comment on its first run. The dev harness
+  (`probes/`, `scripts/e2e/providerHost.mjs`) derives the outbound host from env
+  instead of hardcoding it.
+- **Two user-reported defects, same root cause, found only by using the screen.**
+  `Base URL` and `Provider name` both lived inside the collapsed `Advanced`
+  block, so a provider could not be pointed anywhere or given a title at add
+  time. Both moved to the main form (Provider name → API key → Base URL →
+  Fetch/Save); `Advanced` keeps `Model filters`, fallback context tokens and
+  manual model id. The existing tests could not see it because they pressed the
+  Advanced toggle *before* looking, i.e. they encoded the old location; the new
+  guard never opens Advanced and asserts `Model filter patterns` is absent while
+  the two fields are present and wired. Verified on a real emulator, not just a
+  browser (the Advanced-open signal in both the unit test and the QA harness had
+  to move off `Provider name`, which is now permanently visible).
+- **Known gap, deliberately left.** A provider with no model cannot be renamed
+  persistently: `saveSettings` requires a selected model and
+  `getActiveCustomModelConfig` throws on "enabled but no model selected", so
+  relaxing it would create a state that breaks chat.
+- **Keyboard, on Android 15+.** Edge-to-edge made `windowSoftInputMode=
+  adjustResize` a no-op, so nothing lifted bottom-anchored content: the four
+  action sheets (entry editor, goal editor, goal quick-add, feedback comment)
+  sat behind the IME — including the goal sheet's `autoFocus` input — and both
+  chat surfaces passed `behavior={Platform.OS === 'ios' ? 'padding' : undefined}`,
+  i.e. Android got `undefined`. Sheet backdrops are now
+  `KeyboardAvoidingView behavior="padding"` and both composers pass a concrete
+  behavior on every platform. The old guard asserted the *string* `behavior=`
+  appeared, which passed while Android shipped `undefined`; it now checks the
+  value, and `bottomSheetKeyboard.test.ts` scans every sheet (asserting it finds
+  exactly the four known ones first).
+- **Entry-detail actions were unreachable.** The header's title had
+  `numberOfLines={1}` but no flex constraint, so a model-written long title ate
+  the row and pushed Edit/Delete off-screen; `flex-1 px-3 text-center` matches
+  what `app/intentions/detail.tsx` already did. The existing suite stayed green
+  because RNTL renders without layout and cannot see "off-screen", so the guard
+  is a source contract.
+- **Gates.** `tsc --noEmit` clean · `npm run lint` 0 errors (81 pre-existing
+  warnings) · `npm run check:design` PASSED · `npx jest --runInBand` **273
+  passed, 9 skipped (282 discovered), 1490 tests, 0 failures**.
+- **Offline boot re-verified with the seed blank** (rule 12): `E2E_BOOT_ONLY=1`
+  and `E2E_OFFLINE_WALK=1` both PASS — 12 routes rendered, 0 blocked requests,
+  0 page errors, `@blackrose_account_registry` intact, and the app's
+  provider-unreachable copy is vendor-free.
+- **Not verified, and not runnable here.** The live recall probe and
+  `RUN_INTEGRATION_TESTS=1` need a reachable provider; the endpoint the owner
+  removed now refuses TCP, so the provider-profile write path has unit coverage
+  but no live-network confirmation. Clears by pointing the app at a reachable
+  endpoint — no code change is pending on it.
 
 ### 2026-09-19/21 — design-variant ports + Explore write path
 
@@ -139,6 +224,25 @@ legacy-shim CI deadline.
 6. **Doc drift noted in passing** — the explore plan's `noteFiles` stat
    (`plan:61`) is unimplemented by agreement, and `design.md:227` still
    describes the pre-fix drift mechanism.
+7. **The live provider gate is unmet, and blocked on an endpoint rather than on
+   code.** The recall probe and `RUN_INTEGRATION_TESTS=1` need a reachable chat
+   provider; the gateway the owner deleted refuses TCP. The provider-profile
+   write path therefore has unit coverage but no live-network confirmation —
+   point the app at a reachable endpoint and re-run (AGENTS.md workflow step 7).
+8. **`customModels` v1 → v2 migration is unit-tested only.** It has never run
+   against a real device's stored v1 payload.
+9. **Live integration tests still default to gateway-specific model ids**
+   (`tencent/hy3:free`, `nvidia/nemotron-3-ultra-550b-a55b`) when `.env` omits a
+   model — harmless while skipped, but the last baked-in model strings outside
+   dated history.
+10. **`example-design/concepts/UI_MAP.md` still lists an Account row** (email,
+    sign in/up/out) that has not existed since auth was removed — stale in the
+    same way the AI Model row was; left alone to keep that diff scoped.
+11. **A provider with no model cannot be renamed persistently.**
+    `saveSettings` requires a selected model and `getActiveCustomModelConfig`
+    throws on "enabled but no model selected", so relaxing the guard would create
+    a state that breaks chat. The name is editable at add time and persists once
+    a model is fetched.
 
 ## Operational doctrine worth re-reading (distilled from the log)
 
@@ -147,7 +251,19 @@ legacy-shim CI deadline.
   reading code. Twice, measurement reclassified a "bug" as correct behavior.
 - **A harness that cannot fail proves nothing.** Audit scripts carry a
   `selfTest()` (green case + deliberate sabotages); two false-defect reports and
-  one false-pass were caught this way.
+  one false-pass were caught this way. Two more instances: a dropped assignment
+  made a chip probe return `undefined`, skip every assertion and print a clean
+  PASS (probes now fail loudly on zero matches), and a static scan needs a
+  sanity assertion that its glob matched anything at all — an empty match set
+  makes every later assertion vacuously true.
+- **A test that encodes the old location cannot see the new one.** The
+  provider-field defects (`Base URL`, `Provider name` hidden behind a collapsed
+  `Advanced`) were invisible because the tests pressed the toggle before looking.
+  Assert the user-visible contract (the field is present with the section
+  *collapsed*), not the path the old code took.
+- **Binary pulls over adb must use `exec-out`.** `adb shell cat` translates
+  line endings: AsyncStorage's SQLite store reported btree errors and read as 0
+  rows while the app plainly had data; `exec-out` returns `integrity_check: ok`.
 - **Playwright harness traps**: auto-scroll before click silently undoes
   scroll setup; raw coordinate clicks hit overlays — target `role=` containers
   so interception fails loudly.
