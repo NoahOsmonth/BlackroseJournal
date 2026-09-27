@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, Pressable, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Pressable, Text, TextInput, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { Colors } from '@/constants/theme';
@@ -43,7 +43,9 @@ export function FeedbackCommentModal({
 
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-            <View className="flex-1 justify-end bg-black/50">
+            {/* Bottom sheet: must ride above the soft keyboard, or the comment
+                field and its submit row sit behind the IME. */}
+            <KeyboardAvoidingView behavior="padding" className="flex-1 justify-end bg-black/50">
                 <View className="rounded-t-sheet border-t border-hairline-light bg-surface-light px-6 pb-8 pt-3 dark:border-hairline-dark dark:bg-surface-dark">
                     <View className="mb-5 h-1 w-10 self-center rounded-full bg-hairline-light dark:bg-hairline-dark" />
 
@@ -103,7 +105,7 @@ export function FeedbackCommentModal({
                         </Pressable>
                     </View>
                 </View>
-            </View>
+            </KeyboardAvoidingView>
         </Modal>
     );
 }

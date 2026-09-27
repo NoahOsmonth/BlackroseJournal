@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Modal, Pressable, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Pressable, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -30,7 +30,9 @@ export function GoalQuickAddModal({ visible, onClose, onSubmit }: GoalQuickAddMo
 
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-            <View className="flex-1 justify-end bg-black/50">
+            {/* Bottom sheet with an autoFocus input: the sheet must ride above the
+                keyboard or the field and its Save/Cancel row open behind the IME. */}
+            <KeyboardAvoidingView behavior="padding" className="flex-1 justify-end bg-black/50">
                 <Pressable className="flex-1" onPress={onClose} accessibilityLabel="Dismiss" />
                 <View
                     className="rounded-t-sheet border-t border-hairline-light bg-surface-light px-6 pt-3 dark:border-hairline-dark dark:bg-surface-dark"
@@ -109,7 +111,7 @@ export function GoalQuickAddModal({ visible, onClose, onSubmit }: GoalQuickAddMo
                         </Pressable>
                     </View>
                 </View>
-            </View>
+            </KeyboardAvoidingView>
         </Modal>
     );
 }

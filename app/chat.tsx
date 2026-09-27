@@ -9,7 +9,7 @@ import { usePersonas } from '@/hooks/personas/usePersonas';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { KeyboardAvoidingView, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChatModelPickerSheet } from '../components/ai/ChatModelPickerSheet';
 import { ChatErrorCard } from '../components/chat/ChatErrorCard';
@@ -360,7 +360,7 @@ export default function ChatScreen() {
 
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top', 'bottom']}>
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1">
+            <KeyboardAvoidingView behavior="padding" className="flex-1">
             <View className="flex-1 max-w-md mx-auto w-full bg-background-light dark:bg-background-dark">
                 <Header
                     onClose={

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Modal, Pressable, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -76,7 +76,9 @@ export function EntryEditModal({
 
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-            <View className="flex-1 justify-end bg-black/50">
+            {/* Bottom sheet: must ride above the soft keyboard or the editor's
+                text field and its Cancel/Save row sit behind the IME. */}
+            <KeyboardAvoidingView behavior="padding" className="flex-1 justify-end bg-black/50">
                 <Pressable className="flex-1" onPress={onClose} accessibilityLabel="Dismiss" />
                 <View
                     className="rounded-t-sheet border-t border-hairline-light bg-surface-light px-6 pt-3 dark:border-hairline-dark dark:bg-surface-dark"
@@ -171,7 +173,7 @@ export function EntryEditModal({
                         </View>
                     )}
                 </View>
-            </View>
+            </KeyboardAvoidingView>
         </Modal>
     );
 }

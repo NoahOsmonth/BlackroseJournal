@@ -36,7 +36,7 @@ export function FooterActions({
   const nameFeelingDisabled = disabled || !onNameFeeling;
   const finishEntryDisabled = disabled || !canFinish || !onFinishEntry || isSaving;
 
-  const verbClass = 'flex-1 rounded-control border border-hairline-light dark:border-hairline-dark px-2 py-2';
+  const verbClass = 'flex-1 rounded-control border border-hairline-light dark:border-hairline-dark px-1 py-2';
 
   return (
     <View className="gap-3">
