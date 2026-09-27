@@ -11,6 +11,7 @@ import {
     GENERATION_PRESETS,
     type GenerationSettings,
 } from '@/services/ai/generationSettings';
+import { getActiveProfile } from '@/services/ai/customModels';
 import type { CustomAiProviderSettings } from '@/services/ai/customModels';
 
 const THEME_LABELS: Record<ThemePreference, string> = {
@@ -53,15 +54,21 @@ export function customAiSummary(settings: CustomAiProviderSettings): string {
     if (!settings.enabled) {
         return 'Off';
     }
-    const selected = settings.models.find((model) => model.id === settings.selectedModelId);
-    const name = selected?.name ?? settings.selectedModelId;
+    const profile = getActiveProfile(settings);
+    if (!profile) {
+        return 'Off';
+    }
+    const selected = profile.models.find((model) => model.id === profile.selectedModelId);
+    const name = selected?.name ?? profile.selectedModelId;
     if (!name) {
-        if (!settings.apiKey.trim()) return 'Key needed';
+        if (!profile.apiKey.trim()) return 'Key needed';
         return 'Choose model';
     }
     const leaf = name.includes('/') ? (name.split('/').pop() ?? name) : name;
     const short = leaf.length > 22 ? `${leaf.slice(0, 19)}…` : leaf;
-    return settings.freeOnly ? `Free · ${short}` : short;
+    // With more than one saved provider, name the active one so the summary is
+    // unambiguous without opening Settings.
+    return settings.profiles.length > 1 ? `${profile.label} · ${short}` : short;
 }
 
 export function memorySummary(atomCount: number): string {

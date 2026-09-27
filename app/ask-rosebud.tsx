@@ -20,7 +20,6 @@ import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
     KeyboardAvoidingView,
-    Platform,
     Pressable,
     ScrollView,
     Text,
@@ -140,7 +139,7 @@ export default function AskRosebudScreen() {
                 <View className="h-px bg-hairline-light dark:bg-hairline-dark" />
 
                 <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    behavior="padding"
                     className="flex-1"
                 >
                     <ScrollView

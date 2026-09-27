@@ -2,7 +2,7 @@
  * Provider capability detection for the direct (phone-side) AI transport.
  *
  * OpenAI-compatible gateways disagree on which request fields they accept.
- * OmniRoute follows the OpenAI schema (`max_tokens`); ZenMux explicitly rejects
+ * Most follow the OpenAI schema (`max_tokens`); ZenMux explicitly rejects
  * `max_tokens` and wants `max_completion_tokens`. Centralising these
  * differences here keeps `directTransport.ts` free of per-host branching and
  * turns "add a provider" into a one-line table entry.
@@ -32,16 +32,17 @@ const DEFAULT_CAPABILITIES: ProviderCapabilities = {
 
 /**
  * Per-host overrides. Keyed by the hostname parsed from the configured base
- * URL so a single env var (`EXPO_PUBLIC_NANO_GPT_API_BASE_URL`) or a custom
- * provider base URL selects the right behaviour automatically.
+ * URL, so whichever endpoint the user points the app at
+ * (`EXPO_PUBLIC_AI_CUSTOM_BASE` or a saved provider profile) selects the right
+ * behaviour automatically.
  */
 const HOST_OVERRIDES: Record<string, Partial<ProviderCapabilities>> = {
     'zenmux.ai': {
         maxTokensField: 'max_completion_tokens',
         retryableStatuses: new Set(TRANSIENT_HTTP_STATUSES),
     },
-    // Legacy OpenRouter header pin removed — the app standardizes on the local
-    // OmniRoute gateway, which uses plain OpenAI defaults (no identity headers).
+    // No identity headers are pinned anywhere: the app targets plain OpenAI
+    // defaults, and any extra header a gateway needs is declared per host here.
 };
 
 export function resolveProviderHost(apiBaseUrl: string): string | null {

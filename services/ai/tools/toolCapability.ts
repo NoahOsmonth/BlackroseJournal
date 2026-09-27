@@ -41,9 +41,9 @@ function normalizeModelId(modelId: string | undefined | null): string {
  * Models known to emit reliable structured tool_calls (OpenAI-compatible).
  * Heuristic list — unknown free models fall through to hybrid.
  *
- * `deepseek-v4` is verified live on the OmniRoute `merge/` route: native
- * tool_calls with ids, a correct `role: tool` round-trip, and native
- * `response_format: json_object` (all three probed 2026-09-11).
+ * `deepseek-v4` is verified live: native tool_calls with ids, a correct
+ * `role: tool` round-trip, and native `response_format: json_object`
+ * (all three probed 2026-09-11).
  */
 const STRUCTURED_RE =
     /\b(gpt-4|gpt-4o|gpt-5|gpt-5\.\d|o1|o3|o4|claude|gemini|command-r|deepseek-chat|deepseek-v3|deepseek-v4|qwen3|qwen2\.5|qwq|kimi-k2|llama-4|mistral-large|mistral-medium)\b/i;
@@ -84,8 +84,8 @@ export function resolveToolCapability(modelId: string | undefined | null): ToolC
     const id = normalizeModelId(modelId);
 
     if (!id || id === 'agent-default') {
-        // Resolved model unknown until transport — assume hybrid (safe for free
-        // OmniRoute gateway models).
+        // Resolved model unknown until transport — assume hybrid (a safe default
+        // for gateway models that may dump tool syntax as text).
         return hybridCapability();
     }
 
@@ -97,10 +97,10 @@ export function resolveToolCapability(modelId: string | undefined | null): ToolC
         return injectOnlyCapability();
     }
 
-    // Order matters: capability is per-MODEL, not per-price-tag. OmniRoute
-    // serves strong models on free routes (auto/claude-opus:free), and those
-    // still return native structured tool_calls — the `:free` tag alone must
-    // not demote them to hybrid. Only genuinely dump-prone families do.
+    // Order matters: capability is per-MODEL, not per-price-tag. A gateway can
+    // serve a strong model behind a free route tag, and those still return
+    // native structured tool_calls — the `:free` tag alone must not demote them
+    // to hybrid. Only genuinely dump-prone families do.
     if (DUMP_PRONE_RE.test(id)) {
         return hybridCapability();
     }
@@ -116,13 +116,6 @@ export function resolveToolCapability(modelId: string | undefined | null): ToolC
 
     // Unknown paid / custom → hybrid (tools on + text safety net).
     return hybridCapability();
-}
-
-export function resolveManagedToolCapability(
-    modelId: string | undefined | null,
-    supportsTools: boolean
-): ToolCapability {
-    return supportsTools ? resolveToolCapability(modelId) : injectOnlyCapability();
 }
 
 function structuredCapability(): ToolCapability {

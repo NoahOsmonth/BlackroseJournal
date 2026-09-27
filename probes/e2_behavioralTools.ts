@@ -17,7 +17,7 @@ import {
 } from './shared/fixture';
 import { executeProbeTool, PROBE_TOOL_SPECS } from './shared/fixtureTools';
 import { applyProbeEnv } from './shared/loadEnv';
-import { ROSTER_VERBATIM } from './shared/roster';
+import { resolveProbeSelection } from './shared/roster';
 
 const MAX_ROUNDS = 6;
 
@@ -256,7 +256,7 @@ export async function runE2(): Promise<{
 }> {
     const env = applyProbeEnv();
     const fixture = buildProbeFixture();
-    const models = [...ROSTER_VERBATIM.probeSelection.e2];
+    const models = resolveProbeSelection().e2;
     const runs: E2QuestionRun[] = [];
 
     for (const model of models) {
@@ -310,7 +310,7 @@ export async function runE2(): Promise<{
         note: 'Keyword search is deliberately crude; E3 tests embedding rank.',
     });
 
-    const flashModel = ROSTER_VERBATIM.probeSelection.flashRequired;
+    const flashModel = resolveProbeSelection().flashRequired;
     const flashRuns = runs.filter((r) => r.model === flashModel);
     const flashTranscripts = flashRuns.map((r) => r.transcript).join('\n\n====\n\n');
     writeArtifact('e2-flash-transcripts.txt', flashTranscripts);

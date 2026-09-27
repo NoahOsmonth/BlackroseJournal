@@ -10,13 +10,13 @@ import {
 jest.mock('../services/ai/directConfig', () => ({
     getDirectConfig: () => ({
         apiKey: 'sk-direct-test-key',
-        apiBaseUrl: 'https://nano-gpt.com/api/v1',
+        apiBaseUrl: 'https://api.example.com/v1',
         model: 'nvidia/nemotron-3-ultra-550b-a55b',
         flashModel: 'nvidia/nemotron-3-ultra-550b-a55b',
     }),
     getResolvedDirectConfig: () => Promise.resolve({
         apiKey: 'sk-direct-test-key',
-        apiBaseUrl: 'https://nano-gpt.com/api/v1',
+        apiBaseUrl: 'https://api.example.com/v1',
         model: 'nvidia/nemotron-3-ultra-550b-a55b',
         flashModel: 'nvidia/nemotron-3-ultra-550b-a55b',
         source: 'env',

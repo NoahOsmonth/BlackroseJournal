@@ -88,7 +88,7 @@ probes/artifacts/
 # Codex isolated implementation worktrees
 .worktrees/
 
-# OpenRouter model-list cache (fetched, never commit)
+# Provider model-list cache (fetched, never commit)
 .or_models.json
 live-run*.log
 

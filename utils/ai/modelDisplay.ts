@@ -1,59 +1,65 @@
 /**
- * Pure display / free-model helpers for chat model picker.
+ * Pure display / model-list helpers for the chat model picker.
  * No I/O — safe for UI and services.
+ *
+ * Provider-agnostic by design: there is no vendor host, no preferred vendor
+ * model id, and no vendor free-tier taxonomy here. Which models are visible is
+ * decided entirely by a caller-supplied pattern filter (`matchesModelFilter`),
+ * and which model is active is decided by the persisted provider profile.
  */
 
-/** Preferred chat model id on the OmniRoute gateway (`merge/` route). */
-export const PREFERRED_FREE_MODEL_ID = 'merge/deepseek/deepseek-v4-flash-0731';
-/** Legacy OpenRouter base URL — removed from defaults; kept only as a historical export marker. */
-export const OPENROUTER_DEFAULT_BASE_URL = 'https://openrouter.ai/api/v1';
-/** Default AI provider base URL — the local OmniRoute gateway (OpenAI-compatible). */
-export const DEFAULT_AI_BASE_URL = 'http://100.107.7.52:20128/v1';
 export const MAX_RECENT_MODEL_IDS = 3;
 
-/**
- * OmniRoute account-cookie web providers are flat-rate (no per-token billing),
- * so they are treated as free alongside `:free` ids. These prefixes
- * never collide with other gateways' ids.
- */
-export const FREE_WEB_PROVIDER_PREFIXES = [
-    'ds-web/',
-    'deepseek-web/',
-    'qwen-web/',
-    'qwen-api/',
-    'cgpt-web/',
-    'chatgpt-web/',
-] as const;
+/** Substring patterns used to narrow the model list. Empty = show everything. */
+export type ModelFilterPatterns = readonly string[];
 
 /**
- * Free = `:free` suffix, `-free` suffix (zenmux), or a free web provider.
- * (`openrouter/free` kept as a legacy stored-id tolerance; new ids never come
- * from OpenRouter — OmniRoute is the only gateway.)
+ * True when `modelId` passes the filter.
+ *
+ * An empty pattern list passes every model — the default, because the app has
+ * no opinion about which ids a given endpoint serves. Patterns match as
+ * case-insensitive substrings, so `':free'`, `'-free'`, or a provider prefix
+ * all work without the app hardcoding any of them.
  */
-export function isFreeModelId(id: string): boolean {
-    const n = id.trim().toLowerCase();
-    if (!n) return false;
-    if (n.includes(':free') || n === 'openrouter/free') return true;
-    if (n.endsWith('-free')) return true;
-    return FREE_WEB_PROVIDER_PREFIXES.some((prefix) => n.startsWith(prefix));
+export function matchesModelFilter(
+    modelId: string,
+    patterns: ModelFilterPatterns = []
+): boolean {
+    // Blank entries are dropped, so a list of only blanks behaves like no
+    // filter at all rather than silently matching nothing.
+    const needles = patterns
+        .map((pattern) => pattern.trim().toLowerCase())
+        .filter((needle) => needle.length > 0);
+    if (needles.length === 0) return true;
+    const id = modelId.trim().toLowerCase();
+    if (!id) return false;
+    return needles.some((needle) => id.includes(needle));
 }
 
-export function filterFreeModels<T extends { id: string }>(models: readonly T[]): T[] {
-    return models.filter((model) => isFreeModelId(model.id));
+export function filterModels<T extends { id: string }>(
+    models: readonly T[],
+    patterns: ModelFilterPatterns = []
+): T[] {
+    return models.filter((model) => matchesModelFilter(model.id, patterns));
 }
 
-export function preferFreeModelId(
+/**
+ * Pick the active model after a model fetch, in priority order:
+ * the previous selection (if still served), then the env-seed model, then the
+ * first model the provider returned. Returns null when the list is empty.
+ */
+export function pickModelFromList(
     models: readonly { id: string }[],
-    preferredId?: string | null
+    previousSelectedId?: string | null,
+    seedModelId?: string | null
 ): string | null {
-    if (preferredId && models.some((model) => model.id === preferredId && isFreeModelId(preferredId))) {
-        return preferredId;
+    if (previousSelectedId && models.some((model) => model.id === previousSelectedId)) {
+        return previousSelectedId;
     }
-    if (models.some((model) => model.id === PREFERRED_FREE_MODEL_ID)) {
-        return PREFERRED_FREE_MODEL_ID;
+    if (seedModelId && models.some((model) => model.id === seedModelId)) {
+        return seedModelId;
     }
-    const free = filterFreeModels(models);
-    return free[0]?.id ?? null;
+    return models[0]?.id ?? null;
 }
 
 export function hostLabelFromBaseUrl(baseUrl: string): string {
@@ -65,17 +71,21 @@ export function hostLabelFromBaseUrl(baseUrl: string): string {
     }
 }
 
-/** Short label for headers: strip path prefix and trailing free/thinking tags when a Free badge is shown. */
-export function formatPickerModelName(modelId: string, options?: { stripFreeSuffix?: boolean }): string {
+/**
+ * Short label for a model id in headers and rows: drop the path prefix and the
+ * routing tags the provider appends. A trailing `:free` / `-free` is a routing
+ * tag, not part of the model's name, so it is stripped for display.
+ */
+export function formatPickerModelName(modelId: string): string {
     const leaf = modelId.split('/').pop() ?? modelId;
-    let name = leaf
+    const name = leaf
         .replace(/:thinking$/i, '')
+        .replace(/:free$/i, '')
+        .replace(/-free$/i, '')
         .replace(/[-_]+/g, ' ')
         .replace(/\bkimi\b/i, 'Kimi')
-        .replace(/\bk2\.5\b/i, 'K2.5');
-    if (options?.stripFreeSuffix !== false && isFreeModelId(modelId)) {
-        name = name.replace(/\s*:?\s*free$/i, '').trim();
-    }
+        .replace(/\bk2\.5\b/i, 'K2.5')
+        .trim();
     return name || modelId;
 }
 

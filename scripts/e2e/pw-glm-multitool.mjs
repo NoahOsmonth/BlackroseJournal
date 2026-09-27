@@ -65,7 +65,6 @@ async function forceGlmModel() {
     localStorage.setItem(key, JSON.stringify({
       ...cur,
       selectedModelId: 'glm-5.3-combo',
-      freeOnly: false,
       enabled: true,
     }));
   });
@@ -89,7 +88,7 @@ async function attachNetwork() {
 
   state.page.on('request', (req) => {
     const url = req.url();
-    if (!/100\.107\.7\.52|chat\/completions|:20128/i.test(url)) return;
+    if (!/chat\/completions/i.test(url)) return;
     let body = null;
     try {
       const post = req.postData();
@@ -108,7 +107,7 @@ async function attachNetwork() {
 
   state.page.on('response', async (res) => {
     const url = res.url();
-    if (!/100\.107\.7\.52|chat\/completions|:20128/i.test(url)) return;
+    if (!/chat\/completions/i.test(url)) return;
     try {
       const text = await res.text();
       const toolNames = [];

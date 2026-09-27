@@ -16,32 +16,41 @@ import { streamChatWithXhr } from '../../../services/ai/streamingTransports';
 jest.mock('../../../services/ai/directConfig', () => ({
     getDirectConfig: () => ({
         apiKey: 'sk-test',
-        apiBaseUrl: 'https://openrouter.ai/api/v1',
+        apiBaseUrl: 'https://api.example.com/v1',
         model: 'dead/model:free',
         flashModel: 'dead/model:free',
     }),
-    getResolvedDirectConfig: jest.fn(() =>
-        Promise.resolve({
-            apiKey: 'sk-test',
-            apiBaseUrl: 'https://openrouter.ai/api/v1',
-            model: 'dead/model:free',
-            flashModel: 'dead/model:free',
-            source: 'env',
-        })
-    ),
+    getResolvedDirectConfig: jest.fn(() => Promise.resolve({
+        apiKey: 'test-key',
+        apiBaseUrl: 'https://api.example.com/v1',
+        model: 'dead/model:free',
+        flashModel: 'dead/model:free',
+        fallbackModelIds: [],
+    })),
 }));
 
 jest.mock('../../../services/ai/customModels', () => ({
     loadCustomAiProviderSettings: jest.fn(() =>
         Promise.resolve({
+            schemaVersion: 2,
             enabled: false,
-            baseUrl: 'https://openrouter.ai/api/v1',
-            apiKey: '',
-            selectedModelId: null,
-            models: [],
-            freeOnly: true,
-            recentModelIds: [],
-            fallbackContextWindow: 128_000,
+            activeProfileId: 'profile-test',
+            profiles: [{
+                id: 'profile-test',
+                label: 'Test provider',
+                baseUrl: 'https://api.example.com/v1',
+                apiKey: 'test-key',
+                selectedModelId: null,
+                flashModelId: null,
+                models: [],
+                recentModelIds: [],
+                modelFilterPatterns: [],
+                fallbackModelIds: [],
+                contextWindowOverride: null,
+                fallbackContextWindow: 128_000,
+                createdAt: 0,
+                updatedAt: 0,
+            }],
             updatedAt: 0,
         })
     ),
@@ -61,7 +70,11 @@ const BASE_PAYLOAD: ChatRequestPayload = {
 };
 
 describe('streamChatWithXhr — Fix 5: skip when model cached-unavailable', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
+        // The direct transport takes an account operation lease, so a request
+        // only reaches `fetch` while an account is active.
+        await clearActiveAccount();
+        await activateAccount('account-streaming-transports');
         clearModelUnavailableCache();
     });
 

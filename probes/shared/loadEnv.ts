@@ -1,6 +1,6 @@
 /**
  * Probe-only env loader. Mirrors integration-test pattern.
- * Never hardcodes keys; reads process.env + project .env (gitignored).
+ * Never hardcodes keys or hosts; reads process.env + project .env (gitignored).
  */
 
 import fs from 'fs';
@@ -30,6 +30,13 @@ export function readEnvFile(cwd = process.cwd()): Record<string, string> {
     );
 }
 
+const ENV_KEYS = {
+    apiKey: 'EXPO_PUBLIC_AI_CUSTOM_API_KEY',
+    apiBaseUrl: 'EXPO_PUBLIC_AI_CUSTOM_BASE',
+    model: 'EXPO_PUBLIC_AI_CUSTOM_MODEL',
+    flashModel: 'EXPO_PUBLIC_AI_CUSTOM_FLASH_MODEL',
+} as const;
+
 export function applyProbeEnv(): {
     apiKey: string;
     apiBaseUrl: string;
@@ -37,36 +44,33 @@ export function applyProbeEnv(): {
     flashModel: string;
 } {
     const fileEnv = readEnvFile();
-    const apiKey = (
-        process.env.EXPO_PUBLIC_NANO_GPT_API_KEY
-        ?? fileEnv.EXPO_PUBLIC_NANO_GPT_API_KEY
-        ?? ''
-    ).trim();
-    if (!apiKey || apiKey.includes('YOUR_')) {
-        throw new Error(
-            'Missing EXPO_PUBLIC_NANO_GPT_API_KEY for PROBE_LLM (set in .env; never commit).',
-        );
-    }
-    const apiBaseUrl = (
-        process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL
-        ?? fileEnv.EXPO_PUBLIC_NANO_GPT_API_BASE_URL
-        ?? 'https://openrouter.ai/api/v1'
-    ).replace(/\/+$/, '');
-    const model = (
-        process.env.EXPO_PUBLIC_NANO_GPT_MODEL
-        ?? fileEnv.EXPO_PUBLIC_NANO_GPT_MODEL
-        ?? 'merge/deepseek/deepseek-v4-flash-0731'
-    ).trim();
-    const flashModel = (
-        process.env.EXPO_PUBLIC_NANO_GPT_FLASH_MODEL
-        ?? fileEnv.EXPO_PUBLIC_NANO_GPT_FLASH_MODEL
-        ?? model
+    const read = (key: string): string => (
+        process.env[key] ?? fileEnv[key] ?? ''
     ).trim();
 
-    process.env.EXPO_PUBLIC_NANO_GPT_API_KEY = apiKey;
-    process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL = apiBaseUrl;
-    process.env.EXPO_PUBLIC_NANO_GPT_MODEL = model;
-    process.env.EXPO_PUBLIC_NANO_GPT_FLASH_MODEL = flashModel;
+    const apiKey = read(ENV_KEYS.apiKey);
+    if (!apiKey || apiKey.includes('YOUR_')) {
+        throw new Error(
+            `Missing ${ENV_KEYS.apiKey} for PROBE_LLM (set in .env; never commit).`,
+        );
+    }
+    const apiBaseUrl = read(ENV_KEYS.apiBaseUrl).replace(/\/+$/, '');
+    if (!apiBaseUrl) {
+        throw new Error(
+            `Missing ${ENV_KEYS.apiBaseUrl} for PROBE_LLM. `
+            + 'Point it at the OpenAI-compatible endpoint you want to probe.',
+        );
+    }
+    const model = read(ENV_KEYS.model);
+    if (!model) {
+        throw new Error(`Missing ${ENV_KEYS.model} for PROBE_LLM.`);
+    }
+    const flashModel = read(ENV_KEYS.flashModel) || model;
+
+    process.env[ENV_KEYS.apiKey] = apiKey;
+    process.env[ENV_KEYS.apiBaseUrl] = apiBaseUrl;
+    process.env[ENV_KEYS.model] = model;
+    process.env[ENV_KEYS.flashModel] = flashModel;
 
     return { apiKey, apiBaseUrl, model, flashModel };
 }

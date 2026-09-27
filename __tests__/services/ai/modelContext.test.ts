@@ -36,7 +36,7 @@ function createStorageAdapter() {
 
 const envConfig = {
     apiKey: 'sk-test',
-    apiBaseUrl: 'https://nano-gpt.com/api/v1',
+    apiBaseUrl: 'https://api.example.com/v1',
     model: 'nvidia/nemotron-3-ultra-550b-a55b',
     flashModel: 'nvidia/nemotron-3-ultra-550b-a55b',
     source: 'env' as const,

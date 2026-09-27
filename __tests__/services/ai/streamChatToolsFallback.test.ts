@@ -7,13 +7,13 @@ const testModel = 'custom-model-without-tools';
 jest.mock('../../../services/ai/directConfig', () => ({
     getDirectConfig: () => ({
         apiKey: 'sk-direct-test-key',
-        apiBaseUrl: 'https://nano-gpt.com/api/v1',
+        apiBaseUrl: 'https://api.example.com/v1',
         model: 'custom-model-without-tools',
         flashModel: 'custom-model-without-tools',
     }),
     getResolvedDirectConfig: () => Promise.resolve({
         apiKey: 'sk-direct-test-key',
-        apiBaseUrl: 'https://nano-gpt.com/api/v1',
+        apiBaseUrl: 'https://api.example.com/v1',
         model: 'custom-model-without-tools',
         flashModel: 'custom-model-without-tools',
         source: 'env',

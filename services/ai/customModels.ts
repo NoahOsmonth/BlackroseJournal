@@ -1,14 +1,26 @@
 import {
-    DEFAULT_AI_BASE_URL,
-    filterFreeModels,
-    isFreeModelId,
-    preferFreeModelId,
+    matchesModelFilter,
     pushRecentModelId,
+    type ModelFilterPatterns,
 } from '@/utils/ai/modelDisplay';
 import { accountScopedStorage } from '@/services/account/accountScopedStorage';
 import { runAccountBoundOperation } from '@/services/account/accountRuntime';
 
 export type ContextWindowSource = 'api' | 'known' | 'fallback';
+
+/**
+ * Persisted schema version for the provider store.
+ *
+ * v1 — flat single provider (`baseUrl`/`apiKey`/`freeOnly` at the top level).
+ * v2 — `profiles[]` + `activeProfileId`; no vendor host baked into the shape.
+ *
+ * Never change a stored shape without bumping this and extending
+ * `migrateProviderSettings`.
+ */
+export const PROVIDER_SETTINGS_SCHEMA_VERSION = 2;
+
+/** Upper bound on saved profiles — keeps one AsyncStorage value small. */
+export const MAX_PROVIDER_PROFILES = 12;
 
 export interface CustomAiModel {
     readonly id: string;
@@ -19,27 +31,62 @@ export interface CustomAiModel {
     readonly contextWindowSource: ContextWindowSource;
 }
 
-export interface CustomAiProviderSettings {
-    readonly enabled: boolean;
+/**
+ * One configurable AI endpoint.
+ *
+ * Everything the transport needs lives here, so the app carries no vendor
+ * host, key or model id in its build. A user can point the app at any
+ * OpenAI-compatible gateway, and add a second one without retyping the first.
+ */
+export interface ProviderProfile {
+    readonly id: string;
+    readonly label: string;
     readonly baseUrl: string;
     readonly apiKey: string;
     readonly selectedModelId: string | null;
+    /** Used for cheap/short calls. Falls back to `selectedModelId` when null. */
+    readonly flashModelId: string | null;
     readonly models: CustomAiModel[];
-    readonly freeOnly: boolean;
     readonly recentModelIds: readonly string[];
+    /**
+     * Case-insensitive substrings used to narrow the picker to a subset of the
+     * endpoint's catalogue (e.g. `'gpt-4o'`, `'claude-'`). Empty = show all.
+     * This is the user's own filter — the app ships no opinion about which
+     * models are worth showing.
+     */
+    readonly modelFilterPatterns: readonly string[];
+    /**
+     * Ids to try when the selected model is rejected as missing. Empty means
+     * "self-heal from this profile's own cached models only".
+     */
+    readonly fallbackModelIds: readonly string[];
+    /** Per-profile override; null = trust the model's detected/known window. */
+    readonly contextWindowOverride: number | null;
     readonly fallbackContextWindow: number;
+    readonly createdAt: number;
     readonly updatedAt: number;
     readonly lastFetchedAt?: number;
     readonly lastFetchError?: string;
 }
 
+export interface CustomAiProviderSettings {
+    readonly schemaVersion: number;
+    readonly enabled: boolean;
+    readonly activeProfileId: string;
+    readonly profiles: ProviderProfile[];
+    readonly updatedAt: number;
+}
+
 export interface ActiveCustomModelConfig {
+    readonly profileId: string;
+    readonly label: string;
     readonly apiBaseUrl: string;
     readonly apiKey: string;
     readonly model: string;
     readonly flashModel: string;
     readonly contextWindow: number;
     readonly contextWindowSource: ContextWindowSource;
+    readonly fallbackModelIds: readonly string[];
 }
 
 interface StorageAdapter {
@@ -52,7 +99,6 @@ type ModelRecord = Record<string, unknown>;
 
 export const CUSTOM_AI_SETTINGS_KEY = '@blackrose_custom_ai_provider';
 export const DEFAULT_FALLBACK_CONTEXT_WINDOW = 128_000;
-export { DEFAULT_AI_BASE_URL };
 
 const MAX_FALLBACK_CONTEXT_WINDOW = 2_000_000;
 const CONTEXT_KEYS = [
@@ -71,14 +117,18 @@ const NESTED_CONTEXT_PATHS = [
     ['model_info', 'context_length'],
     ['top_provider', 'context_length'],
 ];
+
+/**
+ * Heuristic cache of well-known context windows, keyed by upstream model id.
+ * Provider-agnostic: these are properties of the model, not of any gateway,
+ * and every entry is only a shortcut past `fallbackContextWindow`.
+ */
 const KNOWN_CONTEXT_WINDOWS: Record<string, number> = {
     'nvidia/nemotron-3-ultra-550b-a55b': 1_000_000,
-    'nvidia/nemotron-3-ultra-550b-a55b:free': 1_000_000,
-    'dots-studio/dots-3-note-preview:free': 512_000,
-    'cl/dots-studio/dots-3-note-preview:free': 128_000,
-    'merge/deepseek/deepseek-v4-flash-0731': 128_000,
-    'moonshotai/kimi-k2.5:thinking': 128_000,
+    'dots-studio/dots-3-note-preview': 512_000,
+    'deepseek/deepseek-v4-flash': 128_000,
     'moonshotai/kimi-k2.5': 128_000,
+    'moonshotai/kimi-k2.5:thinking': 128_000,
 };
 
 const asyncStorageAdapter: StorageAdapter = accountScopedStorage;
@@ -106,7 +156,7 @@ function notifyCustomAiSettingsChanged(): void {
     }
 }
 
-/** Subscribe to custom AI provider setting mutations (select/save/fetch). */
+/** Subscribe to AI provider setting mutations (select/save/fetch/profile edits). */
 export function subscribeCustomAiSettingsChanges(listener: () => void): () => void {
     changeListeners.add(listener);
     return () => {
@@ -129,30 +179,89 @@ export function resetCustomModelStorageAdapter(): void {
     storageAdapter = asyncStorageAdapter;
 }
 
-/** Env-backed credentials for first-run bootstrap (Expo inlines EXPO_PUBLIC_*). */
-export function readEnvProviderSeed(): { baseUrl: string; apiKey: string; model?: string } {
-    const apiKey = (process.env.EXPO_PUBLIC_NANO_GPT_API_KEY ?? '').trim();
-    const baseUrl = (process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL ?? '').trim()
-        || DEFAULT_AI_BASE_URL;
-    const model = (process.env.EXPO_PUBLIC_NANO_GPT_MODEL ?? '').trim() || undefined;
-    return { baseUrl, apiKey, model };
+/**
+ * First-run seed for a fresh install. Expo inlines `EXPO_PUBLIC_*` at build
+ * time, so these values can only ever *seed* the store — they are never read
+ * as runtime configuration. Once the user saves a profile, the store is the
+ * only source of provider truth.
+ */
+export function readEnvProviderSeed(): {
+    baseUrl: string;
+    apiKey: string;
+    model?: string;
+    flashModel?: string;
+} {
+    const read = (name: string): string => (process.env[name] ?? '').trim();
+    return {
+        baseUrl: read('EXPO_PUBLIC_AI_CUSTOM_BASE'),
+        apiKey: read('EXPO_PUBLIC_AI_CUSTOM_API_KEY'),
+        model: read('EXPO_PUBLIC_AI_CUSTOM_MODEL') || undefined,
+        flashModel: read('EXPO_PUBLIC_AI_CUSTOM_FLASH_MODEL') || undefined,
+    };
+}
+
+/** Placeholder keys shipped in `.env.example` must never count as configured. */
+function isPlaceholderSecret(value: string): boolean {
+    return /^YOUR_/i.test(value.trim());
+}
+
+export function generateProfileId(): string {
+    return `p_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function createProviderProfile(
+    overrides: Partial<ProviderProfile> = {}
+): ProviderProfile {
+    const now = Date.now();
+    return {
+        id: overrides.id ?? generateProfileId(),
+        label: overrides.label ?? 'Provider',
+        baseUrl: overrides.baseUrl ?? '',
+        apiKey: overrides.apiKey ?? '',
+        selectedModelId: overrides.selectedModelId ?? null,
+        flashModelId: overrides.flashModelId ?? null,
+        models: overrides.models ? [...overrides.models] : [],
+        recentModelIds: overrides.recentModelIds ? [...overrides.recentModelIds] : [],
+        modelFilterPatterns: overrides.modelFilterPatterns
+            ? [...overrides.modelFilterPatterns]
+            : [],
+        fallbackModelIds: overrides.fallbackModelIds ? [...overrides.fallbackModelIds] : [],
+        contextWindowOverride: overrides.contextWindowOverride ?? null,
+        fallbackContextWindow: normalizeFallbackContextWindow(
+            overrides.fallbackContextWindow
+        ),
+        createdAt: overrides.createdAt ?? now,
+        updatedAt: overrides.updatedAt ?? now,
+        lastFetchedAt: overrides.lastFetchedAt,
+        lastFetchError: overrides.lastFetchError,
+    };
 }
 
 export function getDefaultCustomAiProviderSettings(): CustomAiProviderSettings {
     const seed = readEnvProviderSeed();
-    const hasKey = Boolean(seed.apiKey) && seed.apiKey !== 'YOUR_NANO_GPT_API_KEY'
-        && seed.apiKey !== 'YOUR_OMNIROUTE_DATA_PLANE_KEY';
+    const seededKey = seed.apiKey && !isPlaceholderSecret(seed.apiKey) ? seed.apiKey : '';
+    const profile = createProviderProfile({
+        label: seed.baseUrl ? 'Default provider' : 'Provider',
+        baseUrl: seed.baseUrl,
+        apiKey: seededKey,
+        selectedModelId: seed.model ?? null,
+        flashModelId: seed.flashModel ?? null,
+    });
     return {
+        schemaVersion: PROVIDER_SETTINGS_SCHEMA_VERSION,
         enabled: false,
-        baseUrl: seed.baseUrl || DEFAULT_AI_BASE_URL,
-        apiKey: hasKey ? seed.apiKey : '',
-        selectedModelId: null,
-        models: [],
-        freeOnly: false,
-        recentModelIds: [],
-        fallbackContextWindow: DEFAULT_FALLBACK_CONTEXT_WINDOW,
+        activeProfileId: profile.id,
+        profiles: [profile],
         updatedAt: 0,
     };
+}
+
+export function getActiveProfile(
+    settings: CustomAiProviderSettings
+): ProviderProfile | null {
+    return settings.profiles.find((profile) => profile.id === settings.activeProfileId)
+        ?? settings.profiles[0]
+        ?? null;
 }
 
 function isRecord(value: unknown): value is ModelRecord {
@@ -252,7 +361,10 @@ function isContextWindowSource(value: unknown): value is ContextWindowSource {
     return value === 'api' || value === 'known' || value === 'fallback';
 }
 
-function sanitizeStoredModel(record: unknown, fallbackContextWindow: number): CustomAiModel | null {
+function sanitizeStoredModel(
+    record: unknown,
+    fallbackContextWindow: number
+): CustomAiModel | null {
     if (!isRecord(record) || typeof record.id !== 'string' || !record.id.trim()) {
         return null;
     }
@@ -305,47 +417,138 @@ function sanitizeRecentIds(value: unknown): string[] {
         .slice(0, 3);
 }
 
-/**
- * Apply free-only policy: clear invalid selection; never drop models from cache
- * (UI filters). Selection must be free when freeOnly is on.
- */
-export function applyFreeOnlyPolicy(settings: CustomAiProviderSettings): CustomAiProviderSettings {
-    if (!settings.freeOnly) return settings;
-    const selected = settings.selectedModelId;
-    if (selected && !isFreeModelId(selected)) {
-        return { ...settings, selectedModelId: null };
-    }
-    return settings;
+function sanitizeStringList(value: unknown, limit: number): string[] {
+    if (!Array.isArray(value)) return [];
+    return value
+        .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+        .map((item) => item.trim())
+        .slice(0, limit);
 }
 
-function sanitizeSettings(value: unknown): CustomAiProviderSettings {
-    const defaults = getDefaultCustomAiProviderSettings();
-    if (!isRecord(value)) return defaults;
-    const fallback = normalizeFallbackContextWindow(value.fallbackContextWindow);
-    const selectedModelId = typeof value.selectedModelId === 'string'
-        ? value.selectedModelId
-        : null;
-    const freeOnly = value.freeOnly !== false;
-    const baseUrl = typeof value.baseUrl === 'string' && value.baseUrl.trim()
-        ? value.baseUrl
-        : defaults.baseUrl;
+function sanitizeProfile(value: unknown, index: number): ProviderProfile | null {
+    if (!isRecord(value)) return null;
 
-    const next: CustomAiProviderSettings = {
-        enabled: value.enabled === true,
-        baseUrl,
-        apiKey: typeof value.apiKey === 'string' ? value.apiKey : defaults.apiKey,
+    const fallbackContextWindow = normalizeFallbackContextWindow(value.fallbackContextWindow);
+    const id = typeof value.id === 'string' && value.id.trim()
+        ? value.id.trim()
+        : generateProfileId();
+    const label = typeof value.label === 'string' && value.label.trim()
+        ? value.label.trim()
+        : `Provider ${index + 1}`;
+    const models = sanitizeModels(value.models, fallbackContextWindow);
+
+    // A selection that is not in the cached catalogue is dropped rather than
+    // silently sent to an endpoint that may no longer serve it.
+    const selectedRaw = typeof value.selectedModelId === 'string' ? value.selectedModelId : null;
+    const selectedModelId = selectedRaw && models.some((m) => m.id === selectedRaw)
+        ? selectedRaw
+        : null;
+    const flashRaw = typeof value.flashModelId === 'string' ? value.flashModelId : null;
+    const flashModelId = flashRaw && models.some((m) => m.id === flashRaw) ? flashRaw : null;
+
+    const override = toPositiveInteger(value.contextWindowOverride);
+
+    return {
+        id,
+        label,
+        baseUrl: typeof value.baseUrl === 'string' ? value.baseUrl.trim() : '',
+        apiKey: typeof value.apiKey === 'string' ? value.apiKey : '',
         selectedModelId,
-        models: sanitizeModels(value.models, fallback),
-        freeOnly,
+        flashModelId,
+        models,
         recentModelIds: sanitizeRecentIds(value.recentModelIds),
-        fallbackContextWindow: fallback,
-        updatedAt: toPositiveInteger(value.updatedAt) ?? defaults.updatedAt,
+        modelFilterPatterns: sanitizeStringList(value.modelFilterPatterns, 12),
+        fallbackModelIds: sanitizeStringList(value.fallbackModelIds, 12),
+        contextWindowOverride: override ? normalizeFallbackContextWindow(override) : null,
+        fallbackContextWindow,
+        createdAt: toPositiveInteger(value.createdAt) ?? Date.now(),
+        updatedAt: toPositiveInteger(value.updatedAt) ?? Date.now(),
         lastFetchedAt: toPositiveInteger(value.lastFetchedAt),
         lastFetchError: typeof value.lastFetchError === 'string'
             ? value.lastFetchError
             : undefined,
     };
-    return applyFreeOnlyPolicy(next);
+}
+
+/**
+ * Fold a v1 flat record (`baseUrl`/`apiKey`/`freeOnly`/`models` at the top
+ * level) into a single v2 profile. This is the only place v1 is understood.
+ */
+function migrateV1ToV2(value: ModelRecord): CustomAiProviderSettings {
+    const fallbackContextWindow = normalizeFallbackContextWindow(value.fallbackContextWindow);
+    const models = sanitizeModels(value.models, fallbackContextWindow);
+    const selectedRaw = typeof value.selectedModelId === 'string' ? value.selectedModelId : null;
+    const updatedAt = toPositiveInteger(value.updatedAt) ?? Date.now();
+
+    const profile = createProviderProfile({
+        label: 'Provider',
+        baseUrl: typeof value.baseUrl === 'string' ? value.baseUrl.trim() : '',
+        apiKey: typeof value.apiKey === 'string' ? value.apiKey : '',
+        selectedModelId: selectedRaw && models.some((m) => m.id === selectedRaw)
+            ? selectedRaw
+            : null,
+        models,
+        recentModelIds: sanitizeRecentIds(value.recentModelIds),
+        fallbackContextWindow,
+        createdAt: updatedAt,
+        updatedAt,
+        lastFetchedAt: toPositiveInteger(value.lastFetchedAt),
+        lastFetchError: typeof value.lastFetchError === 'string'
+            ? value.lastFetchError
+            : undefined,
+    });
+
+    // v1's `freeOnly` flag is intentionally NOT carried over as a policy — the
+    // concept is gone. `freeOnly: true` becomes an equivalent `:free` picker
+    // filter, so the user keeps the view they had without the app holding a
+    // pricing opinion or blocking model ids.
+    const migrated: ProviderProfile = value.freeOnly === true
+        ? { ...profile, modelFilterPatterns: [':free'] }
+        : profile;
+
+    return {
+        schemaVersion: PROVIDER_SETTINGS_SCHEMA_VERSION,
+        enabled: value.enabled === true,
+        activeProfileId: migrated.id,
+        profiles: [migrated],
+        updatedAt,
+    };
+}
+
+export function migrateProviderSettings(value: unknown): CustomAiProviderSettings {
+    const defaults = getDefaultCustomAiProviderSettings();
+    if (!isRecord(value)) return defaults;
+
+    const version = toPositiveInteger(value.schemaVersion) ?? 1;
+    const rawProfiles = Array.isArray(value.profiles) ? value.profiles : null;
+
+    if (version < PROVIDER_SETTINGS_SCHEMA_VERSION || !rawProfiles) {
+        // A v1 flat payload — or a v2-shaped record that lost its profiles.
+        if (typeof value.baseUrl === 'string' || typeof value.apiKey === 'string') {
+            return migrateV1ToV2(value);
+        }
+        return defaults;
+    }
+
+    const profiles = rawProfiles
+        .map((profile, index) => sanitizeProfile(profile, index))
+        .filter((profile): profile is ProviderProfile => profile !== null)
+        .slice(0, MAX_PROVIDER_PROFILES);
+
+    if (profiles.length === 0) return defaults;
+
+    const activeProfileId = typeof value.activeProfileId === 'string'
+        && profiles.some((profile) => profile.id === value.activeProfileId)
+        ? value.activeProfileId
+        : profiles[0].id;
+
+    return {
+        schemaVersion: PROVIDER_SETTINGS_SCHEMA_VERSION,
+        enabled: value.enabled === true,
+        activeProfileId,
+        profiles,
+        updatedAt: toPositiveInteger(value.updatedAt) ?? 0,
+    };
 }
 
 export async function loadCustomAiProviderSettings(): Promise<CustomAiProviderSettings> {
@@ -353,7 +556,7 @@ export async function loadCustomAiProviderSettings(): Promise<CustomAiProviderSe
         const json = await storageAdapter.getItem(CUSTOM_AI_SETTINGS_KEY);
         if (!json) return getDefaultCustomAiProviderSettings();
         try {
-            return sanitizeSettings(JSON.parse(json));
+            return migrateProviderSettings(JSON.parse(json));
         } catch {
             return getDefaultCustomAiProviderSettings();
         }
@@ -364,7 +567,7 @@ export async function saveCustomAiProviderSettings(
     settings: CustomAiProviderSettings
 ): Promise<CustomAiProviderSettings> {
     return withSettingsMutation(async () => {
-        const normalized = sanitizeSettings({ ...settings, updatedAt: Date.now() });
+        const normalized = migrateProviderSettings({ ...settings, updatedAt: Date.now() });
         await storageAdapter.setItem(CUSTOM_AI_SETTINGS_KEY, JSON.stringify(normalized));
         notifyCustomAiSettingsChanged();
         return normalized;
@@ -378,24 +581,20 @@ export async function clearCustomAiProviderSettings(): Promise<void> {
     });
 }
 
-export function assertModelAllowed(modelId: string, freeOnly: boolean): void {
-    if (freeOnly && !isFreeModelId(modelId)) {
-        throw new CustomModelSettingsError(
-            'Free models only. Paid model ids are blocked while Free only is on.'
-        );
-    }
-}
-
 export async function fetchOpenAiCompatibleModels(input: {
     readonly baseUrl: string;
     readonly apiKey: string;
     readonly fallbackContextWindow?: number;
-    readonly freeOnly?: boolean;
+    readonly modelFilterPatterns?: ModelFilterPatterns;
     readonly signal?: AbortSignal;
-}): Promise<{ readonly baseUrl: string; readonly models: CustomAiModel[]; readonly fetchedAt: number }> {
+}): Promise<{
+    readonly baseUrl: string;
+    readonly models: CustomAiModel[];
+    readonly fetchedAt: number;
+}> {
     const baseUrl = normalizeOpenAiBaseUrl(input.baseUrl);
     const apiKey = normalizeApiKey(input.apiKey);
-    const freeOnly = input.freeOnly === true;
+    const patterns = input.modelFilterPatterns ?? [];
     const response = await fetch(`${baseUrl}/models`, {
         method: 'GET',
         headers: {
@@ -418,14 +617,14 @@ export async function fetchOpenAiCompatibleModels(input: {
     const json = await response.json().catch(() => {
         throw new CustomModelSettingsError('Model endpoint did not return valid JSON.');
     });
-    let models = parseOpenAiCompatibleModels(json, input.fallbackContextWindow);
-    if (freeOnly) {
-        models = filterFreeModels(models);
-    }
+
+    const models = parseOpenAiCompatibleModels(json, input.fallbackContextWindow)
+        .filter((model) => matchesModelFilter(model.id, patterns));
+
     if (models.length === 0) {
         throw new CustomModelSettingsError(
-            freeOnly
-                ? 'No free models were returned. Free mode only keeps ids with :free (or openrouter/free legacy ids).'
+            patterns.length > 0
+                ? 'No models matched your filter patterns. Adjust them in Settings.'
                 : 'No usable models were returned.'
         );
     }
@@ -434,19 +633,18 @@ export async function fetchOpenAiCompatibleModels(input: {
 }
 
 export function withSelectedModel(
-    settings: CustomAiProviderSettings,
+    profile: ProviderProfile,
     modelId: string
-): CustomAiProviderSettings {
-    assertModelAllowed(modelId, settings.freeOnly);
-    const selected = settings.models.find((model) => model.id === modelId);
+): ProviderProfile {
+    const selected = profile.models.find((model) => model.id === modelId);
     if (!selected) {
         throw new CustomModelSettingsError('Selected model is not available.');
     }
     return {
-        ...settings,
-        enabled: true,
+        ...profile,
         selectedModelId: modelId,
-        recentModelIds: pushRecentModelId(settings.recentModelIds, modelId),
+        recentModelIds: pushRecentModelId(profile.recentModelIds, modelId),
+        updatedAt: Date.now(),
     };
 }
 
@@ -455,16 +653,16 @@ export function pickModelAfterFetch(
     previousSelectedId: string | null,
     preferredEnvModel?: string
 ): string | null {
-    return preferFreeModelId(models, previousSelectedId)
-        ?? preferFreeModelId(models, preferredEnvModel)
-        ?? models[0]?.id
-        ?? null;
+    const ids = new Set(models.map((model) => model.id));
+    if (previousSelectedId && ids.has(previousSelectedId)) return previousSelectedId;
+    if (preferredEnvModel && ids.has(preferredEnvModel)) return preferredEnvModel;
+    return models[0]?.id ?? null;
 }
 
 /**
- * Build a custom model entry from a hand-typed id (escape hatch when the
- * provider's `/models` response can't be fetched or parsed). Context window
- * is the fallback value; it is never marked as API-detected.
+ * Build a model entry from a hand-typed id (escape hatch when the endpoint's
+ * `/models` response can't be fetched or parsed). Context window is the
+ * fallback value; it is never marked as API-detected.
  */
 export function buildManualModel(id: string, fallbackContextWindow: number): CustomAiModel {
     const normalizedId = id.trim();
@@ -476,52 +674,115 @@ export function buildManualModel(id: string, fallbackContextWindow: number): Cus
     };
 }
 
-/**
- * Add (or refresh) a manually-entered model, select it, and enable the provider.
- * Honors the free-only policy: paid ids are rejected while freeOnly is on.
- */
+/** Add (or refresh) a manually-entered model and select it on the profile. */
 export function withManualModel(
-    settings: CustomAiProviderSettings,
+    profile: ProviderProfile,
     id: string,
     fallbackContextWindow: number
-): CustomAiProviderSettings {
+): ProviderProfile {
     const model = buildManualModel(id, fallbackContextWindow);
-    assertModelAllowed(model.id, settings.freeOnly);
-    const exists = settings.models.some((entry) => entry.id === model.id);
+    const exists = profile.models.some((entry) => entry.id === model.id);
     const models = exists
-        ? settings.models.map((entry) => (entry.id === model.id
+        ? profile.models.map((entry) => (entry.id === model.id
             ? { ...entry, ...model, name: entry.name, ownedBy: entry.ownedBy }
             : entry))
-        : [...settings.models, model];
+        : [...profile.models, model];
     return {
-        ...settings,
-        enabled: true,
+        ...profile,
         models,
         selectedModelId: model.id,
-        recentModelIds: pushRecentModelId(settings.recentModelIds, model.id),
+        recentModelIds: pushRecentModelId(profile.recentModelIds, model.id),
+        updatedAt: Date.now(),
     };
+}
+
+/** Replace one profile in a settings object, leaving its siblings intact. */
+export function withUpdatedProfile(
+    settings: CustomAiProviderSettings,
+    profile: ProviderProfile
+): CustomAiProviderSettings {
+    return {
+        ...settings,
+        profiles: settings.profiles.map((entry) => (
+            entry.id === profile.id ? profile : entry
+        )),
+        updatedAt: Date.now(),
+    };
+}
+
+export function addProviderProfile(
+    settings: CustomAiProviderSettings,
+    profile: ProviderProfile
+): CustomAiProviderSettings {
+    if (settings.profiles.length >= MAX_PROVIDER_PROFILES) {
+        throw new CustomModelSettingsError(
+            `You can save up to ${MAX_PROVIDER_PROFILES} providers. Remove one first.`
+        );
+    }
+    return {
+        ...settings,
+        activeProfileId: profile.id,
+        profiles: [...settings.profiles, profile],
+        updatedAt: Date.now(),
+    };
+}
+
+export function removeProviderProfile(
+    settings: CustomAiProviderSettings,
+    profileId: string
+): CustomAiProviderSettings {
+    const profiles = settings.profiles.filter((profile) => profile.id !== profileId);
+    if (profiles.length === 0) {
+        throw new CustomModelSettingsError('At least one provider must remain.');
+    }
+    return {
+        ...settings,
+        profiles,
+        activeProfileId: settings.activeProfileId === profileId
+            ? profiles[0].id
+            : settings.activeProfileId,
+        updatedAt: Date.now(),
+    };
+}
+
+export function setActiveProfile(
+    settings: CustomAiProviderSettings,
+    profileId: string
+): CustomAiProviderSettings {
+    if (!settings.profiles.some((profile) => profile.id === profileId)) {
+        throw new CustomModelSettingsError('Provider not found.');
+    }
+    return { ...settings, activeProfileId: profileId, updatedAt: Date.now() };
 }
 
 export async function getActiveCustomModelConfig(): Promise<ActiveCustomModelConfig | null> {
     const settings = await loadCustomAiProviderSettings();
     if (!settings.enabled) return null;
 
-    const apiBaseUrl = normalizeOpenAiBaseUrl(settings.baseUrl);
-    const apiKey = normalizeApiKey(settings.apiKey);
-    const selected = settings.models.find((model) => model.id === settings.selectedModelId);
+    const profile = getActiveProfile(settings);
+    if (!profile) return null;
+
+    const apiBaseUrl = normalizeOpenAiBaseUrl(profile.baseUrl);
+    const apiKey = normalizeApiKey(profile.apiKey);
+    const selected = profile.models.find((model) => model.id === profile.selectedModelId);
     if (!selected) {
-        throw new CustomModelSettingsError('Custom provider is enabled but no model is selected.');
+        throw new CustomModelSettingsError('A provider is enabled but no model is selected.');
     }
-    assertModelAllowed(selected.id, settings.freeOnly);
+
+    const contextWindow = profile.contextWindowOverride ?? selected.contextWindow;
+    const contextWindowSource: ContextWindowSource = profile.contextWindowOverride
+        ? 'fallback'
+        : selected.contextWindowSource;
 
     return {
+        profileId: profile.id,
+        label: profile.label,
         apiBaseUrl,
         apiKey,
         model: selected.id,
-        flashModel: selected.id,
-        contextWindow: selected.contextWindow,
-        contextWindowSource: selected.contextWindowSource,
+        flashModel: profile.flashModelId ?? selected.id,
+        contextWindow,
+        contextWindowSource,
+        fallbackModelIds: profile.fallbackModelIds,
     };
 }
-
-export { isFreeModelId, filterFreeModels };

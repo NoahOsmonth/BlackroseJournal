@@ -66,11 +66,11 @@ describe('intentionsStorage', () => {
         mockAsyncStorageStore.clear();
         setMemoryStorageAdapter(createMemoryAdapter());
         mockedDigest.mockClear();
-        // Clear the direct AI key so a live .env EXPO_PUBLIC_NANO_GPT_API_KEY
+        // Clear the direct AI key so a live .env EXPO_PUBLIC_AI_CUSTOM_API_KEY
         // cannot make saveIntentionCheckInMemories hit the real AI provider
         // (extractCheckInMemoryAtoms is not mocked here) and hang the suite.
-        delete process.env.EXPO_PUBLIC_NANO_GPT_API_KEY;
-        delete process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL;
+        delete process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY;
+        delete process.env.EXPO_PUBLIC_AI_CUSTOM_BASE;
         await activateAccount('test-account');
     });
 

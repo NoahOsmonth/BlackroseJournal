@@ -1,8 +1,8 @@
 /**
  * Offline-first memory E2E (local-only build): real Expo web app + live
- * OmniRoute model, with **every host except the LLM gateway request-blocked**
- * — there is no Supabase or Hindsight anymore, so the old per-host block lists
- * became "nothing but the model provider may be reached".
+ * provider model, with **every host except the configured chat provider
+ * request-blocked** — there is no Supabase or Hindsight anymore, so the old
+ * per-host block lists became "nothing but the model provider may be reached".
  *
  * Run: node scripts/e2e/pw-memory-recall-offline.mjs   (Expo web must serve :8081)
  * Env: E2E_BASE_URL, E2E_HEADLESS=0 to watch.
@@ -22,6 +22,8 @@ import { chromium } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { isProviderUrl, providerHost } from './providerHost.mjs';
+
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const HEADLESS = process.env.E2E_HEADLESS !== '0';
 const onlyDemoClear = process.env.E2E_ONLY_DEMO_CLEAR === '1';
@@ -34,8 +36,11 @@ const LOG_PATH = path.join(OUT_DIR, `memory-recall-offline-${Date.now()}.log`);
 
 /** Fixed device-local account so account-scoped keys are stable across runs. */
 const ACCOUNT_ID = 'e2e-local-account';
-/** The only host the app is allowed to reach: the chat provider. */
-const ALLOWED_HOST_RE = /:20128\//;
+/** The only host the app is allowed to reach: the configured chat provider. */
+const PROVIDER_HOST = providerHost();
+const ALLOWED_HOST_RE = PROVIDER_HOST
+    ? new RegExp(`//${PROVIDER_HOST.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/`)
+    : /\/chat\/completions/;
 
 const ENTRY_TEXT =
     "Tonight I finally told Mara about the copper lighthouse tattoo I've been hiding since the Reykjavik trip. " +
@@ -238,7 +243,7 @@ async function main() {
         if (/agent[-_]|tool|memory|error|failed/i.test(text)) consoleLines.push(text.slice(0, 300));
     });
     page.on('request', (req) => {
-        if (!/:20128/.test(req.url())) return;
+        if (!isProviderUrl(req.url())) return;
         try {
             const payload = JSON.parse(req.postData() || '{}');
             const names = (payload.tools || []).map((t) => t.function?.name || t.name).filter(Boolean);
@@ -249,7 +254,7 @@ async function main() {
         }
     });
     page.on('response', async (res) => {
-        if (!/:20128/.test(res.url())) return;
+        if (!isProviderUrl(res.url())) return;
         try {
             const text = await res.text();
             const record = (message) => {

@@ -4,7 +4,7 @@
  *   set PROBE_LLM=1
  *   npx jest --runInBand __tests__/integration/pr8cListRecentDaysLive.test.ts --forceExit
  *
- * Model: tencent/hy3:free (or EXPO_PUBLIC_NANO_GPT_MODEL). First take; attempt count logged.
+ * Model: tencent/hy3:free (or EXPO_PUBLIC_AI_CUSTOM_MODEL). First take; attempt count logged.
  */
 
 import fs from 'fs';
@@ -81,26 +81,25 @@ function readEnvFile(): Record<string, string> {
 function applyLiveEnv(): { model: string; apiBaseUrl: string } {
     const fileEnv = readEnvFile();
     const apiKey =
-        process.env.EXPO_PUBLIC_NANO_GPT_API_KEY ?? fileEnv.EXPO_PUBLIC_NANO_GPT_API_KEY;
+        process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_API_KEY;
     if (!apiKey) {
-        throw new Error('Missing EXPO_PUBLIC_NANO_GPT_API_KEY for PR8c live test.');
+        throw new Error('Missing EXPO_PUBLIC_AI_CUSTOM_API_KEY for PR8c live test.');
     }
     const apiBaseUrl = (
-        process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL
-        ?? fileEnv.EXPO_PUBLIC_NANO_GPT_API_BASE_URL
-        ?? 'http://100.107.7.52:20128/v1'
+        process.env.EXPO_PUBLIC_AI_CUSTOM_BASE
+        ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_BASE
     ).replace(/\/+$/, '');
     const model =
-        process.env.EXPO_PUBLIC_NANO_GPT_MODEL
-        ?? fileEnv.EXPO_PUBLIC_NANO_GPT_MODEL
+        process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL
+        ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_MODEL
         ?? 'tencent/hy3:free';
 
-    process.env.EXPO_PUBLIC_NANO_GPT_API_KEY = apiKey;
-    process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL = apiBaseUrl;
-    process.env.EXPO_PUBLIC_NANO_GPT_MODEL = model;
-    process.env.EXPO_PUBLIC_NANO_GPT_FLASH_MODEL =
-        process.env.EXPO_PUBLIC_NANO_GPT_FLASH_MODEL
-        ?? fileEnv.EXPO_PUBLIC_NANO_GPT_FLASH_MODEL
+    process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY = apiKey;
+    process.env.EXPO_PUBLIC_AI_CUSTOM_BASE = apiBaseUrl;
+    process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL = model;
+    process.env.EXPO_PUBLIC_AI_CUSTOM_FLASH_MODEL =
+        process.env.EXPO_PUBLIC_AI_CUSTOM_FLASH_MODEL
+        ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_FLASH_MODEL
         ?? model;
     return { model, apiBaseUrl };
 }

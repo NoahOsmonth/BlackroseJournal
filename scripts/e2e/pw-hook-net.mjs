@@ -1,4 +1,4 @@
-// Attach OmniRoute network logger for multi-tool observation.
+// Attach the provider network logger for multi-tool observation.
 if (!state.netHooked) {
   state.netHooked = true;
   state.toolLog = state.toolLog || [];
@@ -11,7 +11,7 @@ if (!state.netHooked) {
   });
   state.page.on('request', (req) => {
     const url = req.url();
-    if (!/20128|chat\/completions|100\.107\.7\.52/i.test(url)) return;
+    if (!/chat\/completions/i.test(url)) return;
     try {
       const post = req.postData();
       const parsed = post ? JSON.parse(post) : null;
@@ -22,7 +22,7 @@ if (!state.netHooked) {
   });
   state.page.on('response', async (res) => {
     const url = res.url();
-    if (!/20128|chat\/completions|100\.107\.7\.52/i.test(url)) return;
+    if (!/chat\/completions/i.test(url)) return;
     try {
       const text = await res.text();
       const names = [];

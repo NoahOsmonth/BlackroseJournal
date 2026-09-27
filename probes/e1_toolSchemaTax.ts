@@ -5,7 +5,7 @@
 import { writeJsonArtifact, writeArtifact } from './shared/artifacts';
 import { chatCompletion, type ChatUsage } from './shared/chatClient';
 import { applyProbeEnv } from './shared/loadEnv';
-import { ROSTER_VERBATIM } from './shared/roster';
+import { resolveProbeSelection } from './shared/roster';
 import { PROBE_TOOL_SPECS } from './shared/fixtureTools';
 
 /** ~1k-token fixed prompt (wordy on purpose for stable usage). */
@@ -46,7 +46,7 @@ export interface E1ModelResult {
 
 export async function runE1(): Promise<{ results: E1ModelResult[]; artifactPath: string }> {
     const env = applyProbeEnv();
-    const models = [...ROSTER_VERBATIM.probeSelection.e1];
+    const models = resolveProbeSelection().e1;
     const results: E1ModelResult[] = [];
 
     for (const model of models) {
@@ -64,7 +64,7 @@ export async function runE1(): Promise<{ results: E1ModelResult[]; artifactPath:
         });
 
         // Offer tools with tool_choice auto (still instruct "do not call tools").
-        // tool_choice:'none' was observed to yield delta=0 on OpenRouter free —
+        // tool_choice:'none' was observed to yield delta=0 on some free routes —
         // some hosts appear not to bill schema when tools cannot be selected.
         const withTools = await chatCompletion({
             model,

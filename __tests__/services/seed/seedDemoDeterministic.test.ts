@@ -54,16 +54,16 @@ describe('seedDemoData — deterministic, progressing seed (DEF-013)', () => {
         setDemoSeedEnabledForTests(true);
         // Deliberately PRESENT: a configured provider is exactly the case that
         // used to make the seed slow. The deterministic scope must win anyway.
-        process.env.EXPO_PUBLIC_NANO_GPT_API_KEY = 'test-key';
-        process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL = 'http://127.0.0.1:9/v1';
+        process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY = 'test-key';
+        process.env.EXPO_PUBLIC_AI_CUSTOM_BASE = 'http://127.0.0.1:9/v1';
         await activateAccount('seed-det-user');
     });
 
     afterEach(async () => {
         await clearActiveAccount();
         setDemoSeedEnabledForTests(null);
-        delete process.env.EXPO_PUBLIC_NANO_GPT_API_KEY;
-        delete process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL;
+        delete process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY;
+        delete process.env.EXPO_PUBLIC_AI_CUSTOM_BASE;
         jest.clearAllMocks();
     });
 

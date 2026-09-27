@@ -41,24 +41,16 @@ import { AgentStatusLine, StreamingMessage } from '../types';
 const PERSIST_DEBOUNCE_MS = 600;
 
 const getFriendlyErrorMessage = (error: Error): string => {
+    // DirectConfigError already carries an actionable, Settings-pointed
+    // message, so surface it rather than re-deriving one from env names.
     if (error instanceof DirectConfigError) {
-        if (error.message.includes('EXPO_PUBLIC_NANO_GPT_API_KEY')) {
-            return 'Missing or invalid NanoGPT API key. Set EXPO_PUBLIC_NANO_GPT_API_KEY and restart the app.';
-        }
-        if (error.message.includes('EXPO_PUBLIC_NANO_GPT_API_BASE_URL')) {
-            return 'Missing NanoGPT base URL. Set EXPO_PUBLIC_NANO_GPT_API_BASE_URL and restart the app.';
-        }
         return error.message;
     }
 
     const message = error.message.toLowerCase();
 
-    if (message.includes('expo_public_nano_gpt_api_key') || message.includes('authorization') || message.includes('unauthorized')) {
-        return 'Missing or invalid NanoGPT API key. Set EXPO_PUBLIC_NANO_GPT_API_KEY and restart the app.';
-    }
-
-    if (message.includes('expo_public_nano_gpt_api_base_url')) {
-        return 'Missing NanoGPT base URL. Set EXPO_PUBLIC_NANO_GPT_API_BASE_URL and restart the app.';
+    if (message.includes('authorization') || message.includes('unauthorized')) {
+        return 'Missing or invalid API key. Set it in Settings → AI Model.';
     }
 
     if (message.includes('failed to fetch') || message.includes('network')) {

@@ -2,9 +2,9 @@ import fs from 'fs';
 import path from 'path';
 
 import { completeChat, Message, streamChat } from '../../services/ai';
+import { makeProviderSettings } from '../mocks/providerSettings';
 import {
     fetchOpenAiCompatibleModels,
-    getDefaultCustomAiProviderSettings,
     resetCustomModelStorageAdapter,
     saveCustomAiProviderSettings,
     setCustomModelStorageAdapter,
@@ -45,28 +45,27 @@ function readEnvFile(): Record<string, string> {
 
 function getNanoEnv(): NanoEnv {
     const fileEnv = readEnvFile();
-    const apiKey = process.env.EXPO_PUBLIC_NANO_GPT_API_KEY
-        ?? fileEnv.EXPO_PUBLIC_NANO_GPT_API_KEY;
-    if (!apiKey) throw new Error('Missing EXPO_PUBLIC_NANO_GPT_API_KEY for integration test.');
+    const apiKey = process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY
+        ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_API_KEY;
+    if (!apiKey) throw new Error('Missing EXPO_PUBLIC_AI_CUSTOM_API_KEY for integration test.');
 
     return {
         apiKey,
         apiBaseUrl: (
-            process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL
-            ?? fileEnv.EXPO_PUBLIC_NANO_GPT_API_BASE_URL
-            ?? 'http://100.107.7.52:20128/v1'
-        ).replace(/\/+$/, ''),
-        model: process.env.EXPO_PUBLIC_NANO_GPT_MODEL
-            ?? fileEnv.EXPO_PUBLIC_NANO_GPT_MODEL
+            process.env.EXPO_PUBLIC_AI_CUSTOM_BASE
+            ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_BASE
+            ).replace(/\/+$/, ''),
+        model: process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL
+            ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_MODEL
             ?? 'nvidia/nemotron-3-ultra-550b-a55b',
     };
 }
 
 function applyNanoEnv(env: NanoEnv): void {
-    process.env.EXPO_PUBLIC_NANO_GPT_API_KEY = env.apiKey;
-    process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL = env.apiBaseUrl;
-    process.env.EXPO_PUBLIC_NANO_GPT_MODEL = env.model;
-    process.env.EXPO_PUBLIC_NANO_GPT_FLASH_MODEL = env.model;
+    process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY = env.apiKey;
+    process.env.EXPO_PUBLIC_AI_CUSTOM_BASE = env.apiBaseUrl;
+    process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL = env.model;
+    process.env.EXPO_PUBLIC_AI_CUSTOM_FLASH_MODEL = env.model;
 }
 
 function createStorageAdapter() {
@@ -143,14 +142,13 @@ describeMaybe('integration: NanoGPT real key', () => {
             ?? fetched.models[0];
         expect(selected).toBeTruthy();
 
-        await saveCustomAiProviderSettings({
-            ...getDefaultCustomAiProviderSettings(),
+        await saveCustomAiProviderSettings(makeProviderSettings({
             enabled: true,
             baseUrl: fetched.baseUrl,
             apiKey: env.apiKey,
             selectedModelId: selected.id,
             models: fetched.models,
-        });
+        }));
 
         const messages: Message[] = [{
             id: 'integration-user',

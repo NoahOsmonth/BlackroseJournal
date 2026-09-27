@@ -78,19 +78,21 @@ function memoryAdapter() {
 function applyLiveEnv(): string {
     const fileEnv = readEnvFile();
     const apiKey =
-        process.env.EXPO_PUBLIC_NANO_GPT_API_KEY ?? fileEnv.EXPO_PUBLIC_NANO_GPT_API_KEY;
-    if (!apiKey) throw new Error('Missing EXPO_PUBLIC_NANO_GPT_API_KEY for live promise probe.');
-    process.env.EXPO_PUBLIC_NANO_GPT_API_KEY = apiKey;
-    process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL =
-        process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL
-        ?? fileEnv.EXPO_PUBLIC_NANO_GPT_API_BASE_URL
-        ?? 'http://100.107.7.52:20128/v1';
-    process.env.EXPO_PUBLIC_NANO_GPT_MODEL =
-        process.env.EXPO_PUBLIC_NANO_GPT_MODEL
-        ?? fileEnv.EXPO_PUBLIC_NANO_GPT_MODEL
+        process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_API_KEY;
+    if (!apiKey) throw new Error('Missing EXPO_PUBLIC_AI_CUSTOM_API_KEY for live promise probe.');
+    process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY = apiKey;
+    process.env.EXPO_PUBLIC_AI_CUSTOM_BASE =
+        process.env.EXPO_PUBLIC_AI_CUSTOM_BASE
+        ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_BASE;
+    if (!process.env.EXPO_PUBLIC_AI_CUSTOM_BASE) {
+        throw new Error('Missing EXPO_PUBLIC_AI_CUSTOM_BASE for live integration test.');
+    }
+    process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL =
+        process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL
+        ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_MODEL
         ?? 'merge/deepseek/deepseek-v4-flash-0731';
-    process.env.EXPO_PUBLIC_NANO_GPT_FLASH_MODEL = process.env.EXPO_PUBLIC_NANO_GPT_MODEL;
-    return process.env.EXPO_PUBLIC_NANO_GPT_MODEL;
+    process.env.EXPO_PUBLIC_AI_CUSTOM_FLASH_MODEL = process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL;
+    return process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL;
 }
 
 function yesterdayEntry(): Omit<JournalEntry, 'id'> {
@@ -176,7 +178,7 @@ describeMaybe('integration: Pi promise keep-alive (RUN_INTEGRATION_TESTS=1)', ()
     beforeAll(() => {
         liveModel = applyLiveEnv();
         console.log(
-            `[promise-live] provider=${process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL} `
+            `[promise-live] provider=${process.env.EXPO_PUBLIC_AI_CUSTOM_BASE} `
             + `model=${liveModel} today=${getLocalDateKey()}`
         );
     });

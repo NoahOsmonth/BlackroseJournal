@@ -5,7 +5,7 @@
 ## Rules
 
 - Gated by `PROBE_LLM=1` (default skip, same pattern as `RUN_INTEGRATION_TESTS`).
-- Uses `EXPO_PUBLIC_NANO_GPT_*` from `.env` — never hardcode or commit keys.
+- Uses `EXPO_PUBLIC_AI_CUSTOM_*` from `.env` — never hardcode or commit keys.
 - `app/` and `services/` must not import anything under `probes/` (guarded by `__tests__/probes/isolation.test.ts`).
 - Probes may import services for real functions (`shouldEnableHistoryTools`, `embed` constants, etc.).
 - Embedding vectors cache under `.probe-cache/` (gitignored).

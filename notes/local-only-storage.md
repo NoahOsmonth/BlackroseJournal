@@ -21,7 +21,7 @@ one-time migration gate (`components/auth/LegacyDataOwnershipGate.tsx`).
 
 Only the device-direct (BYOK) transport exists. `services/ai/aiTransport.ts`
 talks straight to the configured OpenAI-compatible provider
-(`EXPO_PUBLIC_NANO_GPT_*`); there is no managed gateway fallback.
+(`EXPO_PUBLIC_AI_CUSTOM_*`); there is no managed gateway fallback.
 
 ## Memory
 

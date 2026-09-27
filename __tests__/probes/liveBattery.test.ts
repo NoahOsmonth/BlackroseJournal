@@ -4,7 +4,7 @@
  *   set PROBE_LLM=1
  *   npx jest --runInBand __tests__/probes/liveBattery.test.ts --forceExit
  *
- * Uses EXPO_PUBLIC_NANO_GPT_* from .env (same as app). Never hardcodes keys.
+ * Uses EXPO_PUBLIC_AI_CUSTOM_* from .env (same as app). Never hardcodes keys.
  */
 
 import fs from 'fs';

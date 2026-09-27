@@ -46,7 +46,6 @@ describe('IntentionChatHeader', () => {
 
         expect(getByText('Blackrose')).toBeTruthy();
         expect(getByText(/262k/i)).toBeTruthy();
-        expect(getByText('Free')).toBeTruthy();
         expect(getByLabelText('Choose persona')).toBeTruthy();
         // Persona chrome is a text line with a rose mark, not a filled pill.
         expect(classNameFor(getByLabelText('Choose persona'))).toContain('flex-1');

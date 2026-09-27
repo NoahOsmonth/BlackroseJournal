@@ -6,8 +6,6 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { useActiveModelContext } from '@/hooks/settings/useActiveModelContext';
 import { formatContextWindow, formatModelName } from '@/services/ai/modelContext';
-import { isFreeModelId } from '@/utils/ai/modelDisplay';
-import { FreeModelBadge } from './FreeModelBadge';
 
 type ModelHeaderControlProps = {
     readonly onPress?: () => void;
@@ -22,11 +20,9 @@ export function ModelHeaderControl({ onPress, disabled = false }: ModelHeaderCon
     const interactive = Boolean(onPress) && !disabled;
 
     let label: string;
-    let free = false;
     if (isLoading && !context) {
         label = 'Detecting model…';
     } else if (context) {
-        free = isFreeModelId(context.model);
         label = `${formatModelName(context.model)} · ${formatContextWindow(context.contextWindow)}`;
     } else {
         label = 'Choose model';
@@ -47,7 +43,6 @@ export function ModelHeaderControl({ onPress, disabled = false }: ModelHeaderCon
                 disabled ? 'opacity-50' : ''
             }`}
         >
-            {free ? <FreeModelBadge compact /> : null}
             <Text
                 numberOfLines={1}
                 ellipsizeMode="tail"

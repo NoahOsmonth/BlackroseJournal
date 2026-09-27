@@ -26,9 +26,8 @@ jest.mock('../../hooks/settings/useActiveModelContext', () => ({
 }));
 
 describe('ModelHeaderControl', () => {
-    it('shows free badge and truncated model label', () => {
+    it('shows the truncated model label and its context window', () => {
         render(<ModelHeaderControl onPress={jest.fn()} />);
-        expect(screen.getByText('Free')).toBeTruthy();
         expect(screen.getByText(/hy3/i)).toBeTruthy();
         expect(screen.getByText(/262k/i)).toBeTruthy();
     });

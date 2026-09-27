@@ -5,7 +5,7 @@ import { listGoals } from '../services/goals/goalsStorage';
 jest.mock('../services/ai/directConfig', () => ({
     getDirectConfig: () => ({
         apiKey: 'sk-direct-test-key',
-        apiBaseUrl: 'https://nano-gpt.com/api/v1',
+        apiBaseUrl: 'https://api.example.com/v1',
         model: 'moonshotai/kimi-k2.5:thinking',
         flashModel: 'moonshotai/kimi-k2.5',
     }),

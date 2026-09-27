@@ -1,16 +1,14 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useState } from 'react';
-import { Alert, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 import { ChatModelPickerSheet } from '@/components/ai/ChatModelPickerSheet';
-import { FreeOnlyPill } from '@/components/ai/FreeModelBadge';
 import { LoadingBar } from '@/components/ui/LoadingBar';
 import { AnimatedSwitch } from '@/components/ui/AnimatedSwitch';
-import { webConfirm } from '@/components/ui/webConfirm';
 import type { UseCustomAiModelsReturn } from '@/hooks/settings/useCustomAiModels';
 import { BLACKROSE_PALETTE } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { DEFAULT_AI_BASE_URL, filterFreeModels, formatPickerModelName, hostLabelFromBaseUrl } from '@/utils/ai/modelDisplay';
+import { formatPickerModelName, hostLabelFromBaseUrl } from '@/utils/ai/modelDisplay';
 import { SettingsSection } from './SettingsSection';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -70,20 +68,25 @@ function ActionButton({
 export function CustomModelSettingsSection(props: CustomModelSettingsSectionProps) {
     const {
         settings,
+        profile,
         draft,
         isLoading,
         isFetching,
         isSaving,
         status,
+        setLabel,
         setBaseUrl,
         setApiKey,
         setFallbackContextWindow,
+        setModelFilterPatterns,
         fetchModels,
         saveSettings,
         selectModel,
         addManualModel,
         setEnabled,
-        setFreeOnly,
+        addProfile,
+        removeActiveProfile,
+        selectProfile,
         embedded = false,
     } = props;
     const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -94,42 +97,15 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
     const placeholderColor = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
     const chevronColor = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
 
-    const models = settings.freeOnly ? filterFreeModels(settings.models) : settings.models;
-    const selected = models.find((model) => model.id === settings.selectedModelId)
-        ?? settings.models.find((model) => model.id === settings.selectedModelId);
-    const hostLabel = hostLabelFromBaseUrl(draft.baseUrl || settings.baseUrl);
+    const models = profile?.models ?? [];
+    const selected = models.find((model) => model.id === profile?.selectedModelId);
+    const hostLabel = hostLabelFromBaseUrl(draft.baseUrl || profile?.baseUrl || '');
     const selectedLabel = selected
         ? (selected.name ?? formatPickerModelName(selected.id))
-        : settings.selectedModelId
-            ? formatPickerModelName(settings.selectedModelId)
+        : profile?.selectedModelId
+            ? formatPickerModelName(profile.selectedModelId)
             : 'Choose model';
-
-    const handleFreeOnlyToggle = (value: boolean) => {
-        if (!value) {
-            const message = 'Paid models can incur provider charges. Blackrose defaults to free models only.';
-            const confirmed = webConfirm(`${message} Show all models?`);
-            if (confirmed !== null) {
-                if (confirmed) void setFreeOnly(false);
-                return;
-            }
-            Alert.alert(
-                'Show paid models?',
-                message,
-                [
-                    { text: 'Keep free', style: 'cancel' },
-                    {
-                        text: 'Show all models',
-                        style: 'destructive',
-                        onPress: () => {
-                            void setFreeOnly(false);
-                        },
-                    },
-                ]
-            );
-            return;
-        }
-        void setFreeOnly(true);
-    };
+    const canRemoveProvider = settings.profiles.length > 1;
 
     const handleAddManualModel = () => {
         const id = manualModelId.trim();
@@ -149,7 +125,7 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                         Use a custom AI provider
                     </Text>
                     <Text className={`text-xs mt-1 ${SECONDARY_TEXT}`}>
-                        Free models by default. Optional custom base URL and API key.
+                        Any OpenAI-compatible endpoint. Base URL, key and model are yours to set.
                     </Text>
                 </View>
                 <AnimatedSwitch
@@ -159,6 +135,50 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                     accessibilityLabel="Enable custom AI provider"
                 />
             </View>
+
+            {settings.profiles.length > 1 ? (
+                <View className="mb-4 gap-2">
+                    <Text className={`text-[13px] ${SECONDARY_TEXT}`}>Saved providers</Text>
+                    <View className="flex-row flex-wrap gap-2">
+                        {settings.profiles.map((entry) => {
+                            const active = entry.id === profile?.id;
+                            return (
+                                <TouchableOpacity
+                                    key={entry.id}
+                                    onPress={() => {
+                                        void selectProfile(entry.id);
+                                    }}
+                                    className="min-w-0 max-w-full shrink"
+                                    accessibilityRole="button"
+                                    accessibilityState={{ selected: active }}
+                                    accessibilityLabel={`Use provider ${entry.label}`}
+                                >
+                                    {/* Chrome and the width guard live on a plain child
+                                        View: pressables in this codebase have silently
+                                        dropped `className` before (AGENTS.md), and this
+                                        guard is what stops a long label from running off
+                                        a phone screen. */}
+                                    <View
+                                        testID={`provider-chip-${entry.id}`}
+                                        className={`min-w-0 max-w-full shrink rounded-control border px-3 py-2 ${
+                                            active
+                                                ? 'border-bone-light dark:border-bone-dark'
+                                                : 'border-hairline-light dark:border-hairline-dark'
+                                        }`}
+                                    >
+                                        <Text
+                                            numberOfLines={1}
+                                            className="text-[14px] text-text-light dark:text-text-dark"
+                                        >
+                                            {entry.label}
+                                        </Text>
+                                    </View>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+                </View>
+            ) : null}
 
             <TouchableOpacity
                 onPress={() => setPickerOpen(true)}
@@ -180,12 +200,34 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                         </Text>
                         <View className="flex-row items-center gap-2 mt-1">
                             <Text className={`text-xs ${SECONDARY_TEXT}`}>{hostLabel}</Text>
-                            {settings.freeOnly ? <FreeOnlyPill /> : null}
+                            {profile && profile.modelFilterPatterns.length > 0 ? (
+                                <Text className="text-[10px] uppercase tracking-[1.2px] text-text-secondary-light dark:text-text-secondary-dark">
+                                    Filtered
+                                </Text>
+                            ) : null}
                         </View>
                     </View>
                     <Ionicons name="chevron-forward" size={18} color={chevronColor} />
                 </View>
             </TouchableOpacity>
+
+            {/* Provider name is in the main form as well. It is the title of the
+                provider you are editing, and it used to live behind "Advanced",
+                so a freshly added provider kept its generated "Provider 2" name
+                unless you went hunting for the field. */}
+            <Text className="mb-2 text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
+                Provider name
+            </Text>
+            <TextInput
+                value={draft.label}
+                onChangeText={setLabel}
+                placeholder="Provider"
+                placeholderTextColor={placeholderColor}
+                autoCapitalize="words"
+                autoCorrect={false}
+                className={`${INPUT_CLASS} mb-4`}
+                accessibilityLabel="Provider name"
+            />
 
             <Text className="mb-2 text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
                 API key
@@ -202,22 +244,22 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                 accessibilityLabel="Custom AI API key"
             />
 
-            <View className="flex-row items-center justify-between mb-4">
-                <View className="flex-1 pr-4">
-                    <Text className="text-[16px] text-text-light dark:text-text-dark">
-                        Free models only
-                    </Text>
-                    <Text className={`text-xs mt-1 ${SECONDARY_TEXT}`}>
-                        Only models with :free in the id (and openrouter/free). Recommended.
-                    </Text>
-                </View>
-                <AnimatedSwitch
-                    value={settings.freeOnly}
-                    onValueChange={handleFreeOnlyToggle}
-                    disabled={isLoading}
-                    accessibilityLabel="Free models only"
-                />
-            </View>
+            {/* Base URL sits in the main form, not behind "Advanced": it is the
+                one field you cannot add a provider without. Hidden here, "Add
+                provider" offered a key field and no endpoint. */}
+            <Text className="mb-2 text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
+                Base URL
+            </Text>
+            <TextInput
+                value={draft.baseUrl}
+                onChangeText={setBaseUrl}
+                placeholder="https://host/v1"
+                placeholderTextColor={placeholderColor}
+                autoCapitalize="none"
+                autoCorrect={false}
+                className={`${INPUT_CLASS} mb-4`}
+                accessibilityLabel="Custom AI base URL"
+            />
 
             <View className="flex-row gap-3 mb-4">
                 <ActionButton
@@ -231,7 +273,7 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                     label="Save"
                     icon="save-outline"
                     busy={isSaving}
-                    disabled={isLoading || isFetching || settings.models.length === 0}
+                    disabled={isLoading || isFetching || models.length === 0}
                     onPress={saveSettings}
                 />
             </View>
@@ -244,13 +286,11 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                 </Text>
             ) : null}
 
-            {settings.models.length > 0 ? (
+            {models.length > 0 ? (
                 <Text className={`text-xs mb-4 ${SECONDARY_TEXT}`}>
-                    {settings.freeOnly
-                        ? `${models.length} free models cached.`
-                        : `${settings.models.length} models cached.`}
-                    {settings.lastFetchedAt
-                        ? ` Last fetched ${new Date(settings.lastFetchedAt).toLocaleString()}.`
+                    {`${models.length} model${models.length === 1 ? '' : 's'} cached.`}
+                    {profile?.lastFetchedAt
+                        ? ` Last fetched ${new Date(profile.lastFetchedAt).toLocaleString()}.`
                         : ''}
                 </Text>
             ) : (
@@ -258,6 +298,27 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                     Fetch models to verify the endpoint and select a model.
                 </Text>
             )}
+
+            <View className="flex-row gap-3 mb-2">
+                <ActionButton
+                    label="Add provider"
+                    icon="add-outline"
+                    disabled={isLoading || isSaving}
+                    onPress={() => {
+                        void addProfile();
+                    }}
+                />
+                {canRemoveProvider ? (
+                    <ActionButton
+                        label="Remove"
+                        icon="trash-outline"
+                        disabled={isLoading || isSaving}
+                        onPress={() => {
+                            void removeActiveProfile();
+                        }}
+                    />
+                ) : null}
+            </View>
 
             <TouchableOpacity
                 onPress={() => setAdvancedOpen((open) => !open)}
@@ -279,18 +340,21 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                 <View className="gap-3 mb-2">
                     <View>
                         <Text className="mb-2 text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
-                            Base URL
+                            Model filters
                         </Text>
                         <TextInput
-                            value={draft.baseUrl}
-                            onChangeText={setBaseUrl}
-                            placeholder={DEFAULT_AI_BASE_URL}
+                            value={draft.modelFilterPatterns}
+                            onChangeText={setModelFilterPatterns}
+                            placeholder="gpt-4o, claude-"
                             placeholderTextColor={placeholderColor}
                             autoCapitalize="none"
                             autoCorrect={false}
                             className={INPUT_CLASS}
-                            accessibilityLabel="Custom AI base URL"
+                            accessibilityLabel="Model filter patterns"
                         />
+                        <Text className={`text-xs mt-2 ${SECONDARY_TEXT}`}>
+                            Comma-separated substrings. Only matching ids load. Leave empty for all.
+                        </Text>
                     </View>
                     <View>
                         <Text className="mb-2 text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
@@ -311,13 +375,13 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                             Add model manually
                         </Text>
                         <Text className={`text-xs mt-1 mb-2 ${SECONDARY_TEXT}`}>
-                            Type a model id when fetch cannot list it (e.g. qwen-web/qwen3.8-max).
+                            Type a model id when fetch cannot list it (e.g. gpt-4o-mini).
                         </Text>
                         <View className="flex-row gap-2">
                             <TextInput
                                 value={manualModelId}
                                 onChangeText={setManualModelId}
-                                placeholder="qwen-web/qwen3.8-max"
+                                placeholder="gpt-4o-mini"
                                 placeholderTextColor={placeholderColor}
                                 autoCapitalize="none"
                                 autoCorrect={false}
@@ -348,13 +412,12 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
 
             <ChatModelPickerSheet
                 visible={pickerOpen}
-                mode="byok"
                 models={models}
-                recentModels={settings.recentModelIds
+                recentModels={(profile?.recentModelIds ?? [])
                     .map((id) => models.find((model) => model.id === id))
                     .filter((model): model is NonNullable<typeof model> => Boolean(model))}
-                selectedId={settings.selectedModelId}
-                freeOnly={settings.freeOnly}
+                selectedId={profile?.selectedModelId ?? null}
+                filterPatterns={profile?.modelFilterPatterns ?? []}
                 hostLabel={hostLabel}
                 hasApiKey={Boolean(draft.apiKey.trim())}
                 isLoading={isLoading}

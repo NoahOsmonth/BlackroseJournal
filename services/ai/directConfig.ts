@@ -1,19 +1,21 @@
 /**
  * Direct OpenAI-compatible provider configuration.
  *
- * Reads the EXPO_PUBLIC_NANO_GPT_* env vars that the phone-side app needs
- * to talk to an OpenAI-compatible API without going through the local
- * Express backend. Naming is legacy; the only supported provider is the
- * local OmniRoute gateway (OpenAI-compatible).
+ * The app talks to exactly one thing: the OpenAI-compatible endpoint the user
+ * configured. No vendor host, key or model id is baked into this module.
  *
- * Env vars (all read at call time, not at module load):
- *   EXPO_PUBLIC_NANO_GPT_API_KEY       (required; OmniRoute data-plane key, stored locally for device builds)
- *   EXPO_PUBLIC_NANO_GPT_API_BASE_URL  (optional; defaults to the OmniRoute gateway)
- *   EXPO_PUBLIC_NANO_GPT_MODEL         (optional; defaults to merge/deepseek/deepseek-v4-flash-0731)
- *   EXPO_PUBLIC_NANO_GPT_FLASH_MODEL   (optional; defaults to merge/deepseek/deepseek-v4-flash-0731)
+ * These env vars are a **first-run seed only**. Expo inlines `EXPO_PUBLIC_*` at
+ * build time, so they cannot change at runtime — the persisted provider profile
+ * is the source of truth once the user saves one (see `customModels.ts`).
+ *
+ *   EXPO_PUBLIC_AI_CUSTOM_BASE         (optional; e.g. https://host/v1)
+ *   EXPO_PUBLIC_AI_CUSTOM_API_KEY      (optional; seeded into the first profile)
+ *   EXPO_PUBLIC_AI_CUSTOM_MODEL        (optional)
+ *   EXPO_PUBLIC_AI_CUSTOM_FLASH_MODEL  (optional)
+ *
+ * All read at call time, not at module load.
  */
 
-import { DEFAULT_AI_BASE_URL } from '@/utils/ai/modelDisplay';
 import { getActiveCustomModelConfig, type ContextWindowSource } from './customModels';
 
 export interface DirectConfig {
@@ -27,15 +29,9 @@ export interface ResolvedDirectConfig extends DirectConfig {
     source: 'env' | 'custom';
     contextWindow?: number;
     contextWindowSource?: ContextWindowSource;
+    /** Ids to try if the selected model is rejected as missing. */
+    fallbackModelIds?: readonly string[];
 }
-
-const DEFAULT_API_BASE_URL = DEFAULT_AI_BASE_URL;
-const DEFAULT_MODEL = 'merge/deepseek/deepseek-v4-flash-0731';
-const DEFAULT_FLASH_MODEL = 'merge/deepseek/deepseek-v4-flash-0731';
-const PLACEHOLDER_KEYS = new Set([
-    'YOUR_NANO_GPT_API_KEY',
-    'YOUR_OMNIROUTE_DATA_PLANE_KEY',
-]);
 
 export class DirectConfigError extends Error {
     constructor(message: string) {
@@ -45,13 +41,19 @@ export class DirectConfigError extends Error {
 }
 
 function readVar(value: string | undefined): string | undefined {
-    return value && value.length > 0 ? value : undefined;
+    const trimmed = (value ?? '').trim();
+    return trimmed.length > 0 ? trimmed : undefined;
 }
 
-/** True when a real (non-placeholder) direct API key is configured in the env. */
+/** Placeholder values shipped in `.env.example` must never count as configured. */
+function isPlaceholder(value: string): boolean {
+    return /^YOUR_/i.test(value);
+}
+
+/** True when a real (non-placeholder) API key is seeded in the env. */
 export function hasEnvDirectApiKey(): boolean {
-    const apiKey = readVar(process.env.EXPO_PUBLIC_NANO_GPT_API_KEY);
-    return Boolean(apiKey) && !PLACEHOLDER_KEYS.has(apiKey);
+    const apiKey = readVar(process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY);
+    return Boolean(apiKey) && !isPlaceholder(apiKey ?? '');
 }
 
 function throwIfConfigResolutionAborted(signal?: AbortSignal): void {
@@ -61,32 +63,52 @@ function throwIfConfigResolutionAborted(signal?: AbortSignal): void {
     throw error;
 }
 
+/**
+ * Resolve the env-seeded provider. Throws when the seed is incomplete rather
+ * than silently falling back to a host the user never chose.
+ */
 export function getDirectConfig(): DirectConfig {
     // Expo inlines EXPO_PUBLIC_* env vars at build time, so we must read
     // each one with a static key (no dynamic `process.env[key]`).
-    const apiKey = readVar(process.env.EXPO_PUBLIC_NANO_GPT_API_KEY);
+    const apiKey = readVar(process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY);
+    const apiBaseUrl = readVar(process.env.EXPO_PUBLIC_AI_CUSTOM_BASE);
+    const model = readVar(process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL);
+    const flashModel = readVar(process.env.EXPO_PUBLIC_AI_CUSTOM_FLASH_MODEL);
 
     if (!apiKey) {
         throw new DirectConfigError(
-            'Missing EXPO_PUBLIC_NANO_GPT_API_KEY. Set it in .env (OmniRoute gateway key recommended).'
+            'No AI provider is configured. Add a base URL, API key and model in Settings, '
+            + 'or set EXPO_PUBLIC_AI_CUSTOM_BASE / EXPO_PUBLIC_AI_CUSTOM_API_KEY in .env.'
         );
     }
-    if (PLACEHOLDER_KEYS.has(apiKey)) {
+    if (isPlaceholder(apiKey)) {
         throw new DirectConfigError(
-            `EXPO_PUBLIC_NANO_GPT_API_KEY is still a placeholder ("${apiKey}"). ` +
-            'Replace it with a real OmniRoute data-plane key.'
+            `EXPO_PUBLIC_AI_CUSTOM_API_KEY is still a placeholder ("${apiKey}"). `
+            + 'Replace it with a real key, or configure the provider in Settings.'
+        );
+    }
+    if (!apiBaseUrl) {
+        throw new DirectConfigError(
+            'EXPO_PUBLIC_AI_CUSTOM_BASE is not set. Configure the provider in Settings.'
+        );
+    }
+    if (!model) {
+        throw new DirectConfigError(
+            'EXPO_PUBLIC_AI_CUSTOM_MODEL is not set. Configure the provider in Settings.'
         );
     }
 
     return {
         apiKey,
-        apiBaseUrl: readVar(process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL) ?? DEFAULT_API_BASE_URL,
-        model: readVar(process.env.EXPO_PUBLIC_NANO_GPT_MODEL) ?? DEFAULT_MODEL,
-        flashModel: readVar(process.env.EXPO_PUBLIC_NANO_GPT_FLASH_MODEL) ?? DEFAULT_FLASH_MODEL,
+        apiBaseUrl,
+        model,
+        flashModel: flashModel ?? model,
     };
 }
 
-export async function getResolvedDirectConfig(signal?: AbortSignal): Promise<ResolvedDirectConfig> {
+export async function getResolvedDirectConfig(
+    signal?: AbortSignal
+): Promise<ResolvedDirectConfig> {
     throwIfConfigResolutionAborted(signal);
     const custom = await getActiveCustomModelConfig();
     throwIfConfigResolutionAborted(signal);
@@ -99,6 +121,7 @@ export async function getResolvedDirectConfig(signal?: AbortSignal): Promise<Res
             source: 'custom',
             contextWindow: custom.contextWindow,
             contextWindowSource: custom.contextWindowSource,
+            fallbackModelIds: custom.fallbackModelIds,
         };
     }
 

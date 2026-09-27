@@ -1,11 +1,11 @@
 /**
- * Live integration: capability tiers are per-MODEL on OmniRoute (Plan v2 §4.3).
+ * Live integration: capability tiers are per-MODEL on the configured provider (Plan v2 §4.3).
  *
  * The same gateway URL serves weak cookie models that dump tool syntax as text
  * and strong API models that return native structured `tool_calls`. A tier
  * probe must show the difference, otherwise the tiers are just decoration.
  *
- * Tier A case: a Claude model routed through OmniRoute must resolve to
+ * Tier A case: a Claude model routed through the gateway must resolve to
  * `structured`, deliver `origin: 'structured'` calls, produce a real answer,
  * and — because its dumps are never rejected by the tools API — never need the
  * free-model dump nudge.
@@ -52,7 +52,7 @@ const describeMaybe = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : des
 const TIER_A_MODEL = process.env.TIER_A_MODEL ?? 'antigravity/claude-sonnet-4-6';
 /**
  * A genuinely dump-prone free route — the hybrid tier. Pinned explicitly
- * rather than read from EXPO_PUBLIC_NANO_GPT_MODEL: the app default is now a
+ * rather than read from EXPO_PUBLIC_AI_CUSTOM_MODEL: the app default is now a
  * structured route (native tool_calls + native json_object).
  */
 const TIER_B_MODEL = process.env.TIER_B_MODEL ?? 'merge/zai/glm-5.3-flash';
@@ -85,18 +85,20 @@ function memoryAdapter() {
 function applyLiveEnv(): void {
     const fileEnv = readEnvFile();
     const apiKey =
-        process.env.EXPO_PUBLIC_NANO_GPT_API_KEY ?? fileEnv.EXPO_PUBLIC_NANO_GPT_API_KEY;
-    if (!apiKey) throw new Error('Missing EXPO_PUBLIC_NANO_GPT_API_KEY for live tier probe.');
-    process.env.EXPO_PUBLIC_NANO_GPT_API_KEY = apiKey;
-    process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL =
-        process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL
-        ?? fileEnv.EXPO_PUBLIC_NANO_GPT_API_BASE_URL
-        ?? 'http://100.107.7.52:20128/v1';
-    process.env.EXPO_PUBLIC_NANO_GPT_MODEL =
-        process.env.EXPO_PUBLIC_NANO_GPT_MODEL
-        ?? fileEnv.EXPO_PUBLIC_NANO_GPT_MODEL
+        process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_API_KEY;
+    if (!apiKey) throw new Error('Missing EXPO_PUBLIC_AI_CUSTOM_API_KEY for live tier probe.');
+    process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY = apiKey;
+    process.env.EXPO_PUBLIC_AI_CUSTOM_BASE =
+        process.env.EXPO_PUBLIC_AI_CUSTOM_BASE
+        ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_BASE;
+    if (!process.env.EXPO_PUBLIC_AI_CUSTOM_BASE) {
+        throw new Error('Missing EXPO_PUBLIC_AI_CUSTOM_BASE for live integration test.');
+    }
+    process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL =
+        process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL
+        ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_MODEL
         ?? 'merge/deepseek/deepseek-v4-flash-0731';
-    process.env.EXPO_PUBLIC_NANO_GPT_FLASH_MODEL = process.env.EXPO_PUBLIC_NANO_GPT_MODEL;
+    process.env.EXPO_PUBLIC_AI_CUSTOM_FLASH_MODEL = process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL;
 }
 
 function workEntry(): Omit<JournalEntry, 'id'> {
@@ -162,10 +164,10 @@ describeMaybe('integration: per-model capability tiers (RUN_INTEGRATION_TESTS=1)
     beforeAll(() => {
         applyLiveEnv();
         console.log(
-            `[tier-live] base=${process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL} `
+            `[tier-live] base=${process.env.EXPO_PUBLIC_AI_CUSTOM_BASE} `
             + `tierA=${TIER_A_MODEL} (${resolveToolCapability(TIER_A_MODEL).mode}) `
-            + `tierB=${process.env.EXPO_PUBLIC_NANO_GPT_MODEL} `
-            + `(${resolveToolCapability(process.env.EXPO_PUBLIC_NANO_GPT_MODEL).mode})`
+            + `tierB=${process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL} `
+            + `(${resolveToolCapability(process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL).mode})`
         );
     });
 

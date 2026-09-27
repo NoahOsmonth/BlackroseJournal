@@ -3,11 +3,16 @@
 /**
  * Tests for services/ai/directConfig.ts.
  *
- * Each test sets up its own env snapshot so order doesn't matter and we
- * never leak values into other test files. We do NOT import the module
- * at the top of the file — instead, we use `jest.isolateModules` +
- * `require()` so that getDirectConfig reads the *current* process.env
- * at call time, which is exactly how the production code works.
+ * `getDirectConfig()` reads the four `EXPO_PUBLIC_AI_CUSTOM_*` vars at call
+ * time, so this suite drives it through `process.env` directly.
+ *
+ * That only works because `jest.config.js` pins `NODE_ENV=test` before Jest
+ * transforms anything: `babel-preset-expo` inlines `process.env.EXPO_PUBLIC_*`
+ * at *transform* time, and with a `production` ambient env it freezes every
+ * read to a literal (making the module's reads ignore runtime mutations). Six
+ * tests here were red at HEAD for that reason alone. If this suite starts
+ * failing with "received undefined" on every env case, check the ambient
+ * `NODE_ENV` before touching the code under test.
  */
 jest.mock('@react-native-async-storage/async-storage', () => ({
     __esModule: true,
@@ -25,127 +30,39 @@ import {
     hasEnvDirectApiKey,
 } from '../../../services/ai/directConfig';
 import {
-    getDefaultCustomAiProviderSettings,
     resetCustomModelStorageAdapter,
     saveCustomAiProviderSettings,
     setCustomModelStorageAdapter,
 } from '../../../services/ai/customModels';
+import { activateAccount, clearActiveAccount } from '../../../services/account/accountRuntime';
+import { makeProviderSettings, testModel, TEST_PROVIDER_HOST } from '../../mocks/providerSettings';
 
-const KEY = 'EXPO_PUBLIC_NANO_GPT_API_KEY';
-const BASE = 'EXPO_PUBLIC_NANO_GPT_API_BASE_URL';
-const MODEL = 'EXPO_PUBLIC_NANO_GPT_MODEL';
-const FLASH = 'EXPO_PUBLIC_NANO_GPT_FLASH_MODEL';
+const ENV_KEYS = [
+    'EXPO_PUBLIC_AI_CUSTOM_API_KEY',
+    'EXPO_PUBLIC_AI_CUSTOM_BASE',
+    'EXPO_PUBLIC_AI_CUSTOM_MODEL',
+    'EXPO_PUBLIC_AI_CUSTOM_FLASH_MODEL',
+] as const;
 
-const VARS = [KEY, BASE, MODEL, FLASH] as const;
+/** Clear the seed before each test; restore whatever the runner had after. */
+function useIsolatedEnvSeed(): void {
+    const saved = new Map<string, string | undefined>();
 
-function snapshotEnv(): Record<string, string | undefined> {
-    const snap: Record<string, string | undefined> = {};
-    for (const v of VARS) {
-        snap[v] = process.env[v];
-    }
-    return snap;
-}
-
-function restoreEnv(snap: Record<string, string | undefined>): void {
-    for (const v of VARS) {
-        if (snap[v] === undefined) {
-            delete process.env[v];
-        } else {
-            process.env[v] = snap[v];
+    beforeEach(() => {
+        for (const key of ENV_KEYS) {
+            saved.set(key, process.env[key]);
+            delete process.env[key];
         }
-    }
-}
-
-function clearNanoEnv(): void {
-    for (const v of VARS) {
-        delete process.env[v];
-    }
-}
-
-describe('directConfig — getDirectConfig', () => {
-    let snap: Record<string, string | undefined>;
-
-    beforeEach(() => {
-        snap = snapshotEnv();
-        clearNanoEnv();
     });
 
     afterEach(() => {
-        restoreEnv(snap);
+        for (const key of ENV_KEYS) {
+            const value = saved.get(key);
+            if (value === undefined) delete process.env[key];
+            else process.env[key] = value;
+        }
     });
-
-    it('1. returns parsed apiKey, apiBaseUrl, model, and flashModel from env', () => {
-        process.env[KEY] = 'sk-test-1234';
-        process.env[BASE] = 'https://example.com/api/v1';
-        process.env[MODEL] = 'custom/thinking';
-        process.env[FLASH] = 'custom/fast';
-
-        const cfg = getDirectConfig();
-
-        expect(cfg).toEqual({
-            apiKey: 'sk-test-1234',
-            apiBaseUrl: 'https://example.com/api/v1',
-            model: 'custom/thinking',
-            flashModel: 'custom/fast',
-        });
-    });
-
-    it('2. throws DirectConfigError when EXPO_PUBLIC_NANO_GPT_API_KEY is missing', () => {
-        // All env cleared in beforeEach. apiKey is the only required var.
-        expect(() => getDirectConfig()).toThrow(DirectConfigError);
-        expect(() => getDirectConfig()).toThrow(/EXPO_PUBLIC_NANO_GPT_API_KEY/);
-    });
-
-    it('3. throws DirectConfigError when apiKey is the placeholder YOUR_NANO_GPT_API_KEY', () => {
-        process.env[KEY] = 'YOUR_NANO_GPT_API_KEY';
-
-        expect(() => getDirectConfig()).toThrow(DirectConfigError);
-        expect(() => getDirectConfig()).toThrow(/placeholder/i);
-    });
-
-    it('4. falls back to the OmniRoute gateway when base URL env is missing', () => {
-        process.env[KEY] = 'sk-test-key';
-
-        const cfg = getDirectConfig();
-
-        expect(cfg.apiBaseUrl).toBe('http://100.107.7.52:20128/v1');
-    });
-
-    it('5. falls back to the OmniRoute deepseek model defaults', () => {
-        process.env[KEY] = 'sk-test-key';
-
-        const cfg = getDirectConfig();
-
-        expect(cfg.model).toBe('merge/deepseek/deepseek-v4-flash-0731');
-        expect(cfg.flashModel).toBe('merge/deepseek/deepseek-v4-flash-0731');
-    });
-});
-
-describe('directConfig — hasEnvDirectApiKey', () => {
-    beforeEach(() => {
-        // Clear to a known state so a live .env key leaked from other suites
-        // (which restore it in afterEach) can't flip the "missing" assertion.
-        delete process.env.EXPO_PUBLIC_NANO_GPT_API_KEY;
-    });
-
-    afterEach(() => {
-        delete process.env.EXPO_PUBLIC_NANO_GPT_API_KEY;
-    });
-
-    it('is false when the env key is missing', () => {
-        expect(hasEnvDirectApiKey()).toBe(false);
-    });
-
-    it('is false for placeholder keys', () => {
-        process.env.EXPO_PUBLIC_NANO_GPT_API_KEY = 'YOUR_OMNIROUTE_DATA_PLANE_KEY';
-        expect(hasEnvDirectApiKey()).toBe(false);
-    });
-
-    it('is true for a real key', () => {
-        process.env.EXPO_PUBLIC_NANO_GPT_API_KEY = 'sk-real-key';
-        expect(hasEnvDirectApiKey()).toBe(true);
-    });
-});
+}
 
 describe('directConfig — DirectConfigError', () => {
     it('is a subclass of Error with name === "DirectConfigError"', () => {
@@ -156,8 +73,82 @@ describe('directConfig — DirectConfigError', () => {
     });
 });
 
+describe('directConfig — env seed', () => {
+    useIsolatedEnvSeed();
+
+    it('throws a configuration error instead of falling back to a vendor host', () => {
+        expect(() => getDirectConfig()).toThrow(DirectConfigError);
+        expect(() => getDirectConfig()).toThrow(/No AI provider is configured/);
+    });
+
+    it('points the user at the two places a provider can be configured', () => {
+        expect(() => getDirectConfig()).toThrow(/Settings/);
+        expect(() => getDirectConfig()).toThrow(/EXPO_PUBLIC_AI_CUSTOM_API_KEY/);
+    });
+
+    it('reports no env API key when the seed is absent', () => {
+        expect(hasEnvDirectApiKey()).toBe(false);
+    });
+
+    it('returns the seeded provider once key, base and model are present', () => {
+        process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY = 'sk-seeded';
+        process.env.EXPO_PUBLIC_AI_CUSTOM_BASE = 'https://api.example.com/v1';
+        process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL = 'qwen-web/qwen3.8-max';
+
+        expect(getDirectConfig()).toEqual({
+            apiKey: 'sk-seeded',
+            apiBaseUrl: 'https://api.example.com/v1',
+            model: 'qwen-web/qwen3.8-max',
+            flashModel: 'qwen-web/qwen3.8-max',
+        });
+        expect(hasEnvDirectApiKey()).toBe(true);
+    });
+
+    it('uses the seeded flash model when one is given', () => {
+        process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY = 'sk-seeded';
+        process.env.EXPO_PUBLIC_AI_CUSTOM_BASE = 'https://api.example.com/v1';
+        process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL = 'qwen-web/qwen3.8-max';
+        process.env.EXPO_PUBLIC_AI_CUSTOM_FLASH_MODEL = 'tencent/hy3';
+
+        expect(getDirectConfig().flashModel).toBe('tencent/hy3');
+    });
+
+    it('treats blank and whitespace-only values as unset', () => {
+        process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY = '   ';
+
+        expect(hasEnvDirectApiKey()).toBe(false);
+        expect(() => getDirectConfig()).toThrow(/No AI provider is configured/);
+    });
+
+    it('rejects a placeholder key rather than trying to use it', () => {
+        process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY = 'YOUR_API_KEY_HERE';
+        process.env.EXPO_PUBLIC_AI_CUSTOM_BASE = 'https://api.example.com/v1';
+        process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL = 'qwen-web/qwen3.8-max';
+
+        expect(hasEnvDirectApiKey()).toBe(false);
+        expect(() => getDirectConfig()).toThrow(/still a placeholder/);
+    });
+
+    it('names the missing base URL', () => {
+        process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY = 'sk-seeded';
+        process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL = 'qwen-web/qwen3.8-max';
+
+        expect(() => getDirectConfig()).toThrow(/EXPO_PUBLIC_AI_CUSTOM_BASE is not set/);
+    });
+
+    it('names the missing model', () => {
+        process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY = 'sk-seeded';
+        process.env.EXPO_PUBLIC_AI_CUSTOM_BASE = 'https://api.example.com/v1';
+
+        expect(() => getDirectConfig()).toThrow(/EXPO_PUBLIC_AI_CUSTOM_MODEL is not set/);
+    });
+});
+
 describe('directConfig — getResolvedDirectConfig', () => {
-    beforeEach(() => {
+    useIsolatedEnvSeed();
+
+    beforeEach(async () => {
+        await activateAccount('account-direct-config');
         setCustomModelStorageAdapter({
             getItem: jest.fn().mockResolvedValue(null),
             setItem: jest.fn().mockResolvedValue(undefined),
@@ -165,11 +156,12 @@ describe('directConfig — getResolvedDirectConfig', () => {
         });
     });
 
-    afterEach(() => {
+    afterEach(async () => {
         resetCustomModelStorageAdapter();
+        await clearActiveAccount();
     });
 
-    it('uses enabled custom provider settings before NanoGPT env config', async () => {
+    it('uses enabled custom provider settings before the env seed', async () => {
         const storage = new Map<string, string>();
         setCustomModelStorageAdapter({
             getItem: (key) => Promise.resolve(storage.get(key) ?? null),
@@ -182,44 +174,47 @@ describe('directConfig — getResolvedDirectConfig', () => {
                 return Promise.resolve();
             },
         });
-        await saveCustomAiProviderSettings({
-            ...getDefaultCustomAiProviderSettings(),
+        await saveCustomAiProviderSettings(makeProviderSettings({
             enabled: true,
-            freeOnly: true,
-            baseUrl: 'http://100.107.7.52:20128/v1',
-            apiKey: 'omni-test',
+            baseUrl: TEST_PROVIDER_HOST,
+            apiKey: 'sk-saved',
             selectedModelId: 'tencent/hy3:free',
-            models: [{
-                id: 'tencent/hy3:free',
-                contextWindow: 262000,
-                contextWindowSource: 'api',
-            }],
-        });
+            models: [testModel('tencent/hy3:free', 262_000)],
+            fallbackModelIds: ['meta/llama-70b-instruct:free'],
+        }));
 
         await expect(getResolvedDirectConfig()).resolves.toEqual({
-            apiKey: 'omni-test',
-            apiBaseUrl: 'http://100.107.7.52:20128/v1',
+            apiKey: 'sk-saved',
+            apiBaseUrl: TEST_PROVIDER_HOST,
             model: 'tencent/hy3:free',
             flashModel: 'tencent/hy3:free',
             source: 'custom',
-            contextWindow: 262000,
+            contextWindow: 262_000,
             contextWindowSource: 'api',
+            fallbackModelIds: ['meta/llama-70b-instruct:free'],
+        });
+    });
+
+    it('falls back to the env seed when no custom provider is saved', async () => {
+        process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY = 'sk-seeded';
+        process.env.EXPO_PUBLIC_AI_CUSTOM_BASE = 'https://api.example.com/v1';
+        process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL = 'qwen-web/qwen3.8-max';
+
+        await expect(getResolvedDirectConfig()).resolves.toEqual({
+            apiKey: 'sk-seeded',
+            apiBaseUrl: 'https://api.example.com/v1',
+            model: 'qwen-web/qwen3.8-max',
+            flashModel: 'qwen-web/qwen3.8-max',
+            source: 'env',
         });
     });
 
     it('rejects an already-aborted config resolution before reading BYOK credentials', async () => {
-        const previousKey = process.env.EXPO_PUBLIC_NANO_GPT_API_KEY;
-        process.env.EXPO_PUBLIC_NANO_GPT_API_KEY = 'sk-env-test';
         const controller = new AbortController();
         controller.abort();
-        try {
-            await expect(getResolvedDirectConfig(controller.signal)).rejects.toMatchObject({
-                name: 'AbortError',
-                message: 'AI config resolution was cancelled by an account switch.',
-            });
-        } finally {
-            if (previousKey === undefined) delete process.env.EXPO_PUBLIC_NANO_GPT_API_KEY;
-            else process.env.EXPO_PUBLIC_NANO_GPT_API_KEY = previousKey;
-        }
+        await expect(getResolvedDirectConfig(controller.signal)).rejects.toMatchObject({
+            name: 'AbortError',
+            message: 'AI config resolution was cancelled by an account switch.',
+        });
     });
 });

@@ -42,8 +42,8 @@ describe('seedDemoData clear + ledger', () => {
         mockStore.clear();
         mockWriteObserver = null;
         setDemoSeedEnabledForTests(true);
-        delete process.env.EXPO_PUBLIC_NANO_GPT_API_KEY;
-        delete process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL;
+        delete process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY;
+        delete process.env.EXPO_PUBLIC_AI_CUSTOM_BASE;
         await activateAccount('seed-user');
     });
 

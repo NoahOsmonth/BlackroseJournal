@@ -8,6 +8,7 @@
 import { loadCustomAiProviderSettings } from '../../../services/ai/customModels';
 import { getResolvedDirectConfig } from '../../../services/ai/directConfig';
 import { activateAccount, clearActiveAccount } from '../../../services/account/accountRuntime';
+import { makeProviderSettings } from '../../mocks/providerSettings';
 import {
     clearModelUnavailableCache,
     fetchDirectChatCompletion,
@@ -18,7 +19,7 @@ import {
 
 const TEST_ENV_RESOLVED_CONFIG = {
     apiKey: 'sk-direct-test-key',
-    apiBaseUrl: 'https://nano-gpt.com/api/v1',
+    apiBaseUrl: 'https://api.example.com/v1',
     model: 'moonshotai/kimi-k2.5:thinking',
     flashModel: 'moonshotai/kimi-k2.5',
     source: 'env',
@@ -27,13 +28,13 @@ const TEST_ENV_RESOLVED_CONFIG = {
 jest.mock('../../../services/ai/directConfig', () => ({
     getDirectConfig: () => ({
         apiKey: 'sk-direct-test-key',
-        apiBaseUrl: 'https://nano-gpt.com/api/v1',
+        apiBaseUrl: 'https://api.example.com/v1',
         model: 'moonshotai/kimi-k2.5:thinking',
         flashModel: 'moonshotai/kimi-k2.5',
     }),
     getResolvedDirectConfig: jest.fn(() => Promise.resolve({
         apiKey: 'sk-direct-test-key',
-        apiBaseUrl: 'https://nano-gpt.com/api/v1',
+        apiBaseUrl: 'https://api.example.com/v1',
         model: 'moonshotai/kimi-k2.5:thinking',
         flashModel: 'moonshotai/kimi-k2.5',
         source: 'env',
@@ -44,28 +45,24 @@ jest.mock('../../../services/ai/customModels', () => {
     const actual = jest.requireActual('../../../services/ai/customModels') as typeof import('../../../services/ai/customModels');
     return {
         ...actual,
-        loadCustomAiProviderSettings: jest.fn(() => Promise.resolve({
-            enabled: false,
-            baseUrl: 'https://openrouter.ai/api/v1',
-            apiKey: '',
-            selectedModelId: null,
-            models: [
-                {
-                    id: 'meta/llama-70b-instruct:free',
-                    contextWindow: 128_000,
-                    contextWindowSource: 'known' as const,
-                },
-                {
-                    id: 'org/tiny-3b:free',
-                    contextWindow: 8_000,
-                    contextWindowSource: 'fallback' as const,
-                },
-            ],
-            freeOnly: true,
-            recentModelIds: [],
-            fallbackContextWindow: 128_000,
-            updatedAt: 0,
-        })),
+        loadCustomAiProviderSettings: jest.fn(() => Promise.resolve(
+            (jest.requireActual('../../mocks/providerSettings') as typeof import('../../mocks/providerSettings'))
+                .makeProviderSettings({
+                    models: [
+                        {
+                            id: 'meta/llama-70b-instruct:free',
+                            contextWindow: 128_000,
+                            contextWindowSource: 'known' as const,
+                        },
+                        {
+                            id: 'org/tiny-3b:free',
+                            contextWindow: 8_000,
+                            contextWindowSource: 'fallback' as const,
+                        },
+                    ],
+                    recentModelIds: [],
+                })
+        )),
     };
 });
 
@@ -80,6 +77,17 @@ function deferred<T>() {
     const promise = new Promise<T>((nextResolve) => { resolve = nextResolve; });
     return { promise, resolve };
 }
+
+// directTransport's fallback/self-heal paths are account-bound, so every test
+// needs a live account lease. Individual suites that exercise account switching
+// clear and re-activate it themselves.
+beforeEach(async () => {
+    await activateAccount('account-direct-transport');
+});
+
+afterEach(async () => {
+    await clearActiveAccount();
+});
 
 describe('directTransport — fetchDirectChatCompletion', () => {
     const originalFetch = global.fetch;
@@ -103,7 +111,7 @@ describe('directTransport — fetchDirectChatCompletion', () => {
 
         expect(fetchMock).toHaveBeenCalledTimes(1);
         const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
-        expect(url).toBe('https://nano-gpt.com/api/v1/chat/completions');
+        expect(url).toBe('https://api.example.com/v1/chat/completions');
     });
 
     it('2. sets Authorization: Bearer ${apiKey}', async () => {
@@ -124,10 +132,10 @@ describe('directTransport — fetchDirectChatCompletion', () => {
             .toThrow(/Could not connect to AI provider/);
         await expect(fetchDirectChatCompletion(BASE_PAYLOAD))
             .rejects
-            .toThrow('https://nano-gpt.com/api/v1/chat/completions');
+            .toThrow('https://api.example.com/v1/chat/completions');
         await expect(fetchDirectChatCompletion(BASE_PAYLOAD))
             .rejects
-            .toThrow(/EXPO_PUBLIC_NANO_GPT_API_BASE_URL/);
+            .toThrow(/EXPO_PUBLIC_AI_CUSTOM_BASE/);
     });
 
     it('rejects a prepared account A request instead of sending it after switching to account B', async () => {
@@ -248,7 +256,7 @@ describe('directTransport — fetchDirectChatCompletion', () => {
     it('10. always uses the selected custom provider model when custom config is enabled', async () => {
         jest.mocked(getResolvedDirectConfig).mockResolvedValue({
             apiKey: 'sk-custom-test-key',
-            apiBaseUrl: 'https://openrouter.ai/api/v1',
+            apiBaseUrl: 'https://api.example.com/v1',
             model: 'openai/gpt-4o',
             flashModel: 'openai/gpt-4o',
             source: 'custom',
@@ -261,7 +269,7 @@ describe('directTransport — fetchDirectChatCompletion', () => {
             model: 'moonshotai/kimi-k2.5:thinking',
         });
 
-        expect(request.url).toBe('https://openrouter.ai/api/v1/chat/completions');
+        expect(request.url).toBe('https://api.example.com/v1/chat/completions');
         expect(request.headers.Authorization).toBe('Bearer sk-custom-test-key');
         expect(request.body.model).toBe('openai/gpt-4o');
     });
@@ -328,33 +336,28 @@ describe('directTransport — self-heal retries + model cascade', () => {
         global.fetch = fetchMock as unknown as typeof fetch;
         jest.mocked(getResolvedDirectConfig).mockResolvedValue({
             apiKey: 'sk-or',
-            apiBaseUrl: 'https://openrouter.ai/api/v1',
+            apiBaseUrl: 'https://api.example.com/v1',
             model: 'dead/missing-7b:free',
             flashModel: 'dead/missing-7b:free',
             source: 'env',
         });
-        jest.mocked(loadCustomAiProviderSettings).mockResolvedValue({
-            enabled: false,
-            baseUrl: 'https://openrouter.ai/api/v1',
-            apiKey: '',
-            selectedModelId: null,
-            models: [
-                {
-                    id: 'meta/llama-70b-instruct:free',
-                    contextWindow: 128_000,
-                    contextWindowSource: 'known',
-                },
-                {
-                    id: 'org/tiny-3b:free',
-                    contextWindow: 8_000,
-                    contextWindowSource: 'fallback',
-                },
-            ],
-            freeOnly: true,
-            recentModelIds: [],
-            fallbackContextWindow: 128_000,
-            updatedAt: 0,
-        });
+        jest.mocked(loadCustomAiProviderSettings).mockResolvedValue(
+            makeProviderSettings({
+                models: [
+                    {
+                        id: 'meta/llama-70b-instruct:free',
+                        contextWindow: 128_000,
+                        contextWindowSource: 'known',
+                    },
+                    {
+                        id: 'org/tiny-3b:free',
+                        contextWindow: 8_000,
+                        contextWindowSource: 'fallback',
+                    },
+                ],
+                recentModelIds: [],
+            })
+        );
     });
 
     afterEach(() => {
@@ -383,7 +386,7 @@ describe('directTransport — self-heal retries + model cascade', () => {
         }
     }, 30_000);
 
-    it('cascades to a higher-parameter free model when the primary is missing', async () => {
+    it('cascades to the highest-parameter model in the profile pool when the primary is missing', async () => {
         fetchMock
             .mockResolvedValueOnce(
                 new Response(
@@ -404,8 +407,9 @@ describe('directTransport — self-heal retries + model cascade', () => {
         const secondBody = JSON.parse(
             String((fetchMock.mock.calls[1][1] as RequestInit).body)
         ) as { model: string };
-        // Highest-parameter free alternate first (builtin 550b > cached 70b)
-        expect(secondBody.model).toBe('nvidia/nemotron-3-ultra-550b-a55b:free');
+        // The pool is the profile's own cached models — 70b beats the 3b entry.
+        // There is no built-in vendor roster to outrank it.
+        expect(secondBody.model).toBe('meta/llama-70b-instruct:free');
     });
 
     it('does not retry non-retryable 401 auth failures', async () => {
@@ -434,28 +438,23 @@ describe('directTransport — model unavailability cache (Fix 1)', () => {
         global.fetch = fetchMock as unknown as typeof fetch;
         jest.mocked(getResolvedDirectConfig).mockResolvedValue({
             apiKey: 'sk-or',
-            apiBaseUrl: 'https://openrouter.ai/api/v1',
+            apiBaseUrl: 'https://api.example.com/v1',
             model: 'dead/missing-7b:free',
             flashModel: 'dead/missing-7b:free',
             source: 'env',
         });
-        jest.mocked(loadCustomAiProviderSettings).mockResolvedValue({
-            enabled: false,
-            baseUrl: 'https://openrouter.ai/api/v1',
-            apiKey: '',
-            selectedModelId: null,
-            models: [
-                {
-                    id: 'meta/llama-70b-instruct:free',
-                    contextWindow: 128_000,
-                    contextWindowSource: 'known',
-                },
-            ],
-            freeOnly: true,
-            recentModelIds: [],
-            fallbackContextWindow: 128_000,
-            updatedAt: 0,
-        });
+        jest.mocked(loadCustomAiProviderSettings).mockResolvedValue(
+            makeProviderSettings({
+                models: [
+                    {
+                        id: 'meta/llama-70b-instruct:free',
+                        contextWindow: 128_000,
+                        contextWindowSource: 'known',
+                    },
+                ],
+                recentModelIds: [],
+            })
+        );
     });
 
     afterEach(() => {
@@ -584,22 +583,17 @@ describe('directTransport — getLastResolvedModel (Fix 2)', () => {
         global.fetch = fetchMock as unknown as typeof fetch;
         jest.mocked(getResolvedDirectConfig).mockResolvedValue({
             apiKey: 'sk-or',
-            apiBaseUrl: 'https://openrouter.ai/api/v1',
+            apiBaseUrl: 'https://api.example.com/v1',
             model: 'dead/missing-7b:free',
             flashModel: 'dead/missing-7b:free',
             source: 'env',
         });
-        jest.mocked(loadCustomAiProviderSettings).mockResolvedValue({
-            enabled: false,
-            baseUrl: 'https://openrouter.ai/api/v1',
-            apiKey: '',
-            selectedModelId: null,
-            models: [],
-            freeOnly: true,
-            recentModelIds: [],
-            fallbackContextWindow: 128_000,
-            updatedAt: 0,
-        });
+        jest.mocked(loadCustomAiProviderSettings).mockResolvedValue(
+            makeProviderSettings({
+                models: [],
+                recentModelIds: [],
+            })
+        );
     });
 
     afterEach(() => {

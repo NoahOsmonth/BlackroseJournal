@@ -160,9 +160,9 @@ Every change updates or adds tests. If a test isn't feasible, document why in `P
 
 **Recall is purely lexical — there are no embeddings.** Earlier versions of this file claimed Gemini (`gemini-embedding-001`, 768-dim) did embeddings. That string appears **nowhere** in the codebase, and nothing writes a vector: `memoryRetrieval.ts` ("lexical edition"), `keywordRanking.ts` ("no vectors"), `sessionRecall.ts` ("no app-side embeddings"), and `sessionDigestBuild.ts` ("No embeddings — recall ranks by keyword") all rank by keyword overlap plus recency fading (`memoryFade.ts`). Some type comments still mention historical 2048-d nvidia vectors and a `@rosebud_session_digest:<id>` "full row including embedding[]" — that is **vestigial commentary, not live behavior**. Do not add an embedding provider without a plan; ranking quality work means improving keyword scoring, not reaching for vectors.
 
-All LLM work goes to the configured chat gateway (structured default `merge/deepseek/deepseek-v4-flash-0731`; free dump-prone models are fallback only).
+All LLM work goes to the provider the user configured (a structured tool-calling model by default; free dump-prone models are fallback only).
 
-**Removed 2026-09-18 — never resurrect:** Hindsight (vectorize-io long-term memory + its `recall_memory` tool and the `services/memory/hindsight/` client), Supabase (auth, app-data remote sync, the `EXPO_PUBLIC_DATA_PROVIDER` toggle, `services/supabase/`, `services/*/*Remote.ts`, `supabase/migrations/`), and the managed AI gateway (`backend/`, `@blackrose/ai-control-plane-contracts`, `managedTransport`/`managedCatalog`). The app is now a local-only build: no auth screens, no remote sync, no server. Earlier retirements still hold: the custom cloud-memory platform (`LOCAL → MIRROR → SHADOW → CLOUD`) went 2026-08-18 (never restore its storage keys `@rosebud_cloud_memory_mirror_outbox`, `@rosebud_memory_dataset_binding`), and OpenRouter went 2026-09-10 (do not re-add openrouter.ai defaults).
+**Removed 2026-09-18 — never resurrect:** Hindsight (vectorize-io long-term memory + its `recall_memory` tool and the `services/memory/hindsight/` client), Supabase (auth, app-data remote sync, the `EXPO_PUBLIC_DATA_PROVIDER` toggle, `services/supabase/`, `services/*/*Remote.ts`, `supabase/migrations/`), and the managed AI gateway (`backend/`, `@blackrose/ai-control-plane-contracts`, `managedTransport`/`managedCatalog`). The app is now a local-only build: no auth screens, no remote sync, no server. Earlier retirements still hold: the custom cloud-memory platform (`LOCAL → MIRROR → SHADOW → CLOUD`) went 2026-08-18 (never restore its storage keys `@rosebud_cloud_memory_mirror_outbox`, `@rosebud_memory_dataset_binding`), and OpenRouter went 2026-09-10 (do not re-add openrouter.ai defaults). **The hardcoded OmniRoute gateway went 2026-09-26**, together with the entire free-only concept: `freeOnly`, `isFreeModelId`, `filterFreeModels`, `preferFreeModelId`, `FreeOnlyPill`, `FreeModelBadge`, `BUILTIN_FREE_FALLBACK_MODELS`, `FREE_WEB_PROVIDER_PREFIXES`, `DEFAULT_AI_BASE_URL`, `PREFERRED_FREE_MODEL_ID` and `resolveManagedToolCapability`. Provider choice is now the user's own saved profile, so never re-add a baked-in host, a built-in model roster, or a free/paid opinion about models — the per-profile pattern filter (`modelFilterPatterns`) is the only narrowing mechanism.
 
 Guard: `__tests__/services/memoryFiles.test.ts`, `__tests__/services/memoryRetrieval.test.ts`, `__tests__/services/memory/memoryFileTools.test.ts`, `__tests__/services/ai/toolSchemaPin.test.ts` (removed-tool boundary). Note the first two sit at `__tests__/services/` root, **not** under `__tests__/services/memory/` — this file cited them wrongly for a while, so a `npm test -- --testPathPattern` on the wrong path silently matched nothing.
 
@@ -226,7 +226,7 @@ Guard tests: `__tests__/services/account/*` (registry/ownership), Boot gate: the
 | `@rosebud_memory_rollup_attempts` (last LLM attempt per period — offline backoff) | `services/memory/memoryRollupBuild.ts` |
 | `@blackrose_local_backup_session_digest:<backupId>:<sessionId>` (backup bodies only; meta in `@blackrose_local_backups`) | `services/backup/localBackup.ts` |
 | `@blackrose_memory_manifest` (header index) + `@blackrose_memory_file:<id>` (body, one key per file) — offline file memories; staged on finish, promoted by Dream | `services/memory/memoryFiles.ts` |
-| `@blackrose_custom_ai_provider` (OmniRoute/custom provider, freeOnly, recentModelIds, selected model) | `services/ai/customModels.ts` |
+| `@blackrose_custom_ai_provider` (provider-profile store, **schema v2**: `enabled`, `activeProfileId`, `profiles[]` — each with `baseUrl`/`apiKey`/`selectedModelId`/`flashModelId`/`models[]`/`modelFilterPatterns`/`fallbackModelIds`; v1 flat records fold in on load) | `services/ai/customModels.ts` |
 | `@blackrose_generation_settings` | `services/ai/generationSettings.ts` |
 | `@blackrose_model_context_cache` | `services/ai/modelContext.ts` |
 | chat autosave sessions | `services/ai/sessionStorage.ts` |
@@ -290,10 +290,10 @@ npm test -- --watch / --verbose
 # Unit: history / prompt / tools / compact
 npx jest --runInBand __tests__/utils/date.test.ts __tests__/services/dayDigestStorage.test.ts __tests__/services/ai/historyTools.test.ts __tests__/services/ai/agentLoop.test.ts __tests__/services/ai/conversationCompact.test.ts __tests__/constants/rosebudCompanionPrompt.test.ts __tests__/features/chatFlows.test.ts
 
-# Live AI (real OmniRoute data-plane key in gitignored .env) — PowerShell:
+# Live AI (real provider key in gitignored .env) — PowerShell:
 #   $env:RUN_INTEGRATION_TESTS='1'
 #   npx jest --runInBand __tests__/integration/rosebudHistoryLive.test.ts --forceExit
-# Also: __tests__/integration/nanoGptRealKey.test.ts
+# Also: __tests__/integration/customProviderRealKey.test.ts
 RUN_INTEGRATION_TESTS=1 npx jest --runInBand --testPathPattern="integration" --forceExit
 
 # Regenerate long companion prompt (keep 5k–8k words)
@@ -318,14 +318,14 @@ npm run check:design
 
 Project root `.env` (gitignored):
 ```
-EXPO_PUBLIC_NANO_GPT_API_KEY=...          # OmniRoute data-plane key
-EXPO_PUBLIC_NANO_GPT_API_BASE_URL=http://100.107.7.52:20128/v1
-EXPO_PUBLIC_NANO_GPT_MODEL=merge/deepseek/deepseek-v4-flash-0731
-EXPO_PUBLIC_NANO_GPT_FLASH_MODEL=merge/deepseek/deepseek-v4-flash-0731
+EXPO_PUBLIC_AI_CUSTOM_API_KEY=...          # provider key (first-run seed)
+EXPO_PUBLIC_AI_CUSTOM_BASE=https://host/v1
+EXPO_PUBLIC_AI_CUSTOM_MODEL=<model-id>
+EXPO_PUBLIC_AI_CUSTOM_FLASH_MODEL=<model-id>
 ```
-Names are legacy (`NANO_GPT_*`); the local OmniRoute gateway is the only supported provider (OpenRouter removed 2026-09-10).
+`EXPO_PUBLIC_*` is **inlined at build time**, so these are a **first-run seed only** — they cannot change without a rebuild. Once the app launches, the source of truth is the provider profile saved in Settings → AI Model (`services/ai/customModels.ts`, schema v2; several profiles, per-profile base URL/key/model/filter). Any OpenAI-compatible endpoint works: no vendor host, key or model id is baked into the code. Leave the seed blank to configure everything in-app.
 
-**Agent harness doctrine (overrides older free-model advice):** design for **structured tool calling** like Pi/Claude Code — native `tool_calls`, multi-round turn loop, live activity. Default chat models must be **tool-capable** (e.g. `merge/deepseek/deepseek-v4-flash-0731`, GPT/Claude/Gemini routes). Do **not** center new work on free dump-prone models (`*:free`, dots-3, GLM flash). Text-dump repair + promise-continue exist only as a **fallback tier** for those weak routes; they are not the product path. Long freeform prompt still needs **≥32k** context on whatever structured model you pick.
+**Agent harness doctrine (overrides older free-model advice):** design for **structured tool calling** like Pi/Claude Code — native `tool_calls`, multi-round turn loop, live activity. Default chat models must be **tool-capable** (a structured tool-calling model — GPT/Claude/Gemini-class, or an equivalent route on the user's own gateway). Do **not** center new work on free dump-prone models (`*:free`, dots-3, GLM flash). Text-dump repair + promise-continue exist only as a **fallback tier** for those weak routes; they are not the product path. Long freeform prompt still needs **≥32k** context on whatever structured model you pick.
 
 There is no backend and no managed gateway: the app talks to the provider above and nothing else. `directTransport.ts` is the only chat path.
 
@@ -429,3 +429,4 @@ This file grows from real incidents only. When an agent does something wrong, ad
   - Its `--testPathPattern` examples (`ChatScreen`, `KeyThemes`) matched no file — jest exits 0 having run nothing, which looks like a pass.
   - It hardcoded a Windows path (`C:\Users\...`) for `.agents/skills`, wrong on this machine.
   - It said concepts must never be deleted, then the user retired one. Deletion now requires an explicit instruction **and** a same-change `UI_MAP.md` update, so the "open the concept first" rule can never point at a deleted file.
+- **The ambient shell exports `NODE_ENV=production`, and `babel-preset-expo` inlines `process.env.NODE_ENV` and every `process.env.EXPO_PUBLIC_*` read at *transform* time.** So the shell's value, not the test runner's, decided the test build: React resolved to `react.production.js` (which exports no `act`), every `@testing-library/react-native` `render`/`renderHook` threw, and RN's own `if (process.env.NODE_ENV === 'test')` Animated guard was baked to `'production'` — a sibling disabled `TouchableOpacity` then *threw* `Unable to locate attached view in the native tree` instead of degrading. This reads exactly like a React-19/RNTL version mismatch and is not one. `jest.config.js` now sets `process.env.NODE_ENV = "test"` on its first line: that is the only point early enough, because `setupFiles` runs *after* transforms. A `setupFiles`-based fix (`jest.env.js`) was tried and does not work. Same mechanism also freezes `EXPO_PUBLIC_*` to `undefined` in tests unless the var is set before the transform — which is why env-driven tests looked impossible here until this was found.

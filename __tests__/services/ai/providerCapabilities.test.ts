@@ -12,7 +12,8 @@ import {
 describe('providerCapabilities — resolveProviderHost', () => {
     it('parses the hostname from a base URL', () => {
         expect(resolveProviderHost('https://zenmux.ai/api/v1')).toBe('zenmux.ai');
-        expect(resolveProviderHost('https://nano-gpt.com/api/v1')).toBe('nano-gpt.com');
+        expect(resolveProviderHost('https://api.example.com/v1')).toBe('api.example.com');
+        expect(resolveProviderHost('http://192.0.2.10:8080/v1')).toBe('192.0.2.10');
     });
 
     it('returns null for an unparseable URL', () => {
@@ -33,15 +34,15 @@ describe('providerCapabilities — getProviderCapabilities', () => {
         expect(caps.extraHeaders).toEqual({});
     });
 
-    it('defaults unknown hosts (including the OmniRoute gateway) to plain OpenAI behavior', () => {
-        const caps = getProviderCapabilities('http://100.107.7.52:20128/v1');
+    it('defaults unknown hosts (including a bare-IP gateway) to plain OpenAI behavior', () => {
+        const caps = getProviderCapabilities('http://192.0.2.10:8080/v1');
         expect(caps.maxTokensField).toBe('max_tokens');
         expect(caps.extraHeaders).toEqual({});
         expect(caps.retryableStatuses.has(429)).toBe(true);
     });
 
-    it('maps NanoGPT to the OpenAI schema', () => {
-        const caps = getProviderCapabilities('https://nano-gpt.com/api/v1');
+    it('maps an unknown named host to the OpenAI schema', () => {
+        const caps = getProviderCapabilities('https://api.example.com/v1');
         expect(caps.maxTokensField).toBe('max_tokens');
     });
 

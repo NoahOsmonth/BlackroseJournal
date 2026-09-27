@@ -100,24 +100,31 @@ describe('SettingsAccordionSection', () => {
         expect(cls).toContain('overflow-hidden');
     });
 
-    it('lets the value pill absorb the squeeze so the label stays readable', () => {
+    it('caps the value pill so a long summary cannot starve the label column', () => {
         render(
             <SettingsAccordionSection
-                id="a" title="Data Management" hint="Everything stays on device"
-                summary="Export · Backup" index={0} expanded={false} onToggle={jest.fn()}
+                id="a" title="AI Model" hint="Bring your own provider"
+                summary="Home gateway · claude-sonnet-4.5" index={3} expanded={false} onToggle={jest.fn()}
             >
                 <Text>x</Text>
             </SettingsAccordionSection>
         );
 
-        // The prototype keeps the label readable and clips the value instead, so
-        // the pill carries `shrink` + a single line, and the label is free to
-        // wrap rather than being cut off at 320px.
-        const summary = screen.getByText('Export · Backup');
+        // The pill still wins the space contest (it carries the changing state)
+        // and is clipped to one line...
+        const summary = screen.getByText('Home gateway · claude-sonnet-4.5');
         expect(summary.props.numberOfLines).toBe(1);
         expect(summary.props.className).toContain('shrink');
+        // ...but it must not take the whole row. This test previously asserted the
+        // title was free to wrap (`numberOfLines` undefined); with a summary this
+        // long that wrapped the title mid-word — "AI" / "Mode" / "l" on a 390px
+        // screen, measured in the browser. The cap is the fix.
+        expect(summary.props.className).toContain('max-w-[55%]');
+        expect(summary.props.className).toContain('min-w-0');
 
-        expect(screen.getByText('Data Management').props.numberOfLines).toBeUndefined();
+        // Title and hint are single-line so they ellipsise instead of stacking.
+        expect(screen.getByText('AI Model').props.numberOfLines).toBe(1);
+        expect(screen.getByText('Bring your own provider').props.numberOfLines).toBe(1);
         expect(screen.getByTestId('settings-row-text-a').props.className).toContain('min-w-0');
     });
 

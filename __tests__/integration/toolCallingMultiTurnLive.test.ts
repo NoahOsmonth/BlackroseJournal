@@ -1,6 +1,6 @@
 /**
  * Live integration: 4-turn sequential conversation — tool-calling ACCURACY probe.
- * Real OmniRoute model + real Rosebud freeform prompt weave + real agent loop +
+ * Real configured-provider model + real Rosebud freeform prompt weave + real agent loop +
  * real tool validate/execute pipeline over real seeded on-device digests.
  *
  * Nothing is stubbed at the recall boundary anymore: long-term recall runs on
@@ -74,19 +74,21 @@ function memoryAdapter() {
 function applyLiveEnv(): string {
     const fileEnv = readEnvFile();
     const apiKey =
-        process.env.EXPO_PUBLIC_NANO_GPT_API_KEY ?? fileEnv.EXPO_PUBLIC_NANO_GPT_API_KEY;
-    if (!apiKey) throw new Error('Missing EXPO_PUBLIC_NANO_GPT_API_KEY for live tool-accuracy probe.');
-    process.env.EXPO_PUBLIC_NANO_GPT_API_KEY = apiKey;
-    process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL =
-        process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL
-        ?? fileEnv.EXPO_PUBLIC_NANO_GPT_API_BASE_URL
-        ?? 'http://100.107.7.52:20128/v1';
-    process.env.EXPO_PUBLIC_NANO_GPT_MODEL =
-        process.env.EXPO_PUBLIC_NANO_GPT_MODEL
-        ?? fileEnv.EXPO_PUBLIC_NANO_GPT_MODEL
+        process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_API_KEY;
+    if (!apiKey) throw new Error('Missing EXPO_PUBLIC_AI_CUSTOM_API_KEY for live tool-accuracy probe.');
+    process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY = apiKey;
+    process.env.EXPO_PUBLIC_AI_CUSTOM_BASE =
+        process.env.EXPO_PUBLIC_AI_CUSTOM_BASE
+        ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_BASE;
+    if (!process.env.EXPO_PUBLIC_AI_CUSTOM_BASE) {
+        throw new Error('Missing EXPO_PUBLIC_AI_CUSTOM_BASE for live integration test.');
+    }
+    process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL =
+        process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL
+        ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_MODEL
         ?? 'merge/deepseek/deepseek-v4-flash-0731';
-    process.env.EXPO_PUBLIC_NANO_GPT_FLASH_MODEL = process.env.EXPO_PUBLIC_NANO_GPT_MODEL;
-    return process.env.EXPO_PUBLIC_NANO_GPT_MODEL;
+    process.env.EXPO_PUBLIC_AI_CUSTOM_FLASH_MODEL = process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL;
+    return process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL;
 }
 
 function yesterdayEntry(): JournalEntry {
@@ -173,7 +175,7 @@ async function runTurn(
         const agent = await runAgentTurnWithTools({
             systemPrompt,
             messages,
-            model: process.env.EXPO_PUBLIC_NANO_GPT_MODEL,
+            model: process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL,
             generation: { temperature: 0.4, maxTokens: 1_024 },
         });
         probe.reply = agent.content;
@@ -197,7 +199,7 @@ async function runTurn(
 
 /**
  * Delays between whole-turn attempts. Spaced for free-gateway saturation
- * recovery: OmniRoute rejects with 504 ("requestQueue.maxWaitMs=15000ms")
+ * recovery: the gateway rejects with 504 ("requestQueue.maxWaitMs=15000ms")
  * while the model is cold/saturated, and the transport's fast self-heal
  * backoff (250/500ms) cannot outlast that window. Retries must wait on the
  * order of a minute, not seconds, or they just hit the same 504 wall.
@@ -247,7 +249,7 @@ describeMaybe('integration: 4-turn tool-calling accuracy (RUN_INTEGRATION_TESTS=
     beforeAll(() => {
         liveModel = applyLiveEnv();
          
-        console.log(`[multi-turn] provider=${process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL} model=${liveModel} today=${getLocalDateKey()}`);
+        console.log(`[multi-turn] provider=${process.env.EXPO_PUBLIC_AI_CUSTOM_BASE} model=${liveModel} today=${getLocalDateKey()}`);
     });
 
     beforeEach(() => {

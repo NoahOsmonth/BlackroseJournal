@@ -4,13 +4,13 @@ import { completeChat, Message, streamChat } from '../services/ai';
 jest.mock('../services/ai/directConfig', () => ({
     getDirectConfig: () => ({
         apiKey: 'sk-direct-test-key',
-        apiBaseUrl: 'https://nano-gpt.com/api/v1',
+        apiBaseUrl: 'https://api.example.com/v1',
         model: 'nvidia/nemotron-3-ultra-550b-a55b',
         flashModel: 'nvidia/nemotron-3-ultra-550b-a55b',
     }),
     getResolvedDirectConfig: () => Promise.resolve({
         apiKey: 'sk-direct-test-key',
-        apiBaseUrl: 'https://nano-gpt.com/api/v1',
+        apiBaseUrl: 'https://api.example.com/v1',
         model: 'nvidia/nemotron-3-ultra-550b-a55b',
         flashModel: 'nvidia/nemotron-3-ultra-550b-a55b',
         source: 'env',
@@ -362,7 +362,7 @@ describe('ai service fallback parsing', () => {
 
         expect(fetchMock).toHaveBeenCalledTimes(1);
         const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-        expect(url).toBe('https://nano-gpt.com/api/v1/chat/completions');
+        expect(url).toBe('https://api.example.com/v1/chat/completions');
         const headers = init.headers as Record<string, string>;
         expect(headers.Authorization).toBe('Bearer sk-direct-test-key');
         const body = JSON.parse(String(init.body)) as Record<string, unknown>;

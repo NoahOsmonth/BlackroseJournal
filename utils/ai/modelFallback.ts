@@ -2,14 +2,13 @@
  * Pure helpers for AI self-heal: detect missing/unavailable models and
  * rank alternate model ids by parameter size (higher billions preferred).
  * No I/O — safe for services and tests.
+ *
+ * The candidate pool is caller-supplied. There is deliberately no built-in
+ * fallback list: the app cannot know which model ids a given endpoint serves,
+ * so inventing ids would produce guaranteed 404s that burn latency and mask the
+ * provider's real error. When the pool is empty the caller surfaces the
+ * provider's own failure instead.
  */
-
-/** Curated free ids used when the user's cached model list is empty. */
-export const BUILTIN_FREE_FALLBACK_MODELS: readonly string[] = [
-    'cl/dots-studio/dots-3-note-preview:free',
-    'cl/tencent/hy3:free',
-    'nvidia/nemotron-3-ultra-550b-a55b:free',
-];
 
 /**
  * Extract the largest parameter-count marker from a model id (e.g. `70b`,
@@ -47,8 +46,8 @@ const MODEL_MISSING_HINTS = [
 ] as const;
 
 /**
- * True when the provider is rejecting the *model id* (gone, no routes, free
- * pool empty for that slug) rather than a generic request error.
+ * True when the provider is rejecting the *model id* (gone, no routes,
+ * unserved slug) rather than a generic request error.
  */
 export function isModelNotFoundError(status: number, bodyText: string): boolean {
     const lower = (bodyText || '').toLowerCase();
@@ -69,8 +68,6 @@ export function isModelNotFoundError(status: number, bodyText: string): boolean 
 }
 
 export interface FallbackRankOptions {
-    /** When true (default), only keep free-tier model ids. */
-    freeOnly?: boolean;
     /** Optional context windows keyed by model id (tie-break). */
     contextById?: ReadonlyMap<string, number> | Readonly<Record<string, number>>;
 }
@@ -84,24 +81,21 @@ function readContext(
     return contextById[id] ?? 0;
 }
 
-function isFreeId(id: string): boolean {
-    const n = id.trim().toLowerCase();
-    return n.includes(':free') || n === 'openrouter/free';
-}
-
 /**
  * Rank alternate models for self-heal after the active model is missing.
  * Prefers higher parameter counts (and higher context as a tie-break).
  * Excludes the failed model. When the failed model has a known size, models
  * with *at least* that many billions are preferred first; smaller ones still
  * follow so something is always tried.
+ *
+ * No price-tier filtering: the caller configured the endpoint, so every id it
+ * serves is a legitimate candidate.
  */
 export function rankFallbackModels(
     failedModelId: string,
     candidates: readonly string[],
     options: FallbackRankOptions = {}
 ): string[] {
-    const freeOnly = options.freeOnly !== false;
     const failed = failedModelId.trim();
     const failedParams = extractParameterBillions(failed);
 
@@ -109,7 +103,6 @@ export function rankFallbackModels(
     for (const raw of candidates) {
         const id = raw.trim();
         if (!id || id === failed) continue;
-        if (freeOnly && !isFreeId(id)) continue;
         const key = id.toLowerCase();
         if (!unique.has(key)) unique.set(key, id);
     }
@@ -138,28 +131,31 @@ export function rankFallbackModels(
 }
 
 /**
- * Build the ordered fallback list from cached provider models + builtins.
+ * Build the ordered fallback list from the active profile's own model pool:
+ * its declared fallbacks, its `/models` cache, its recent ids, and the
+ * configured default/flash models. Returns an empty list when the profile has
+ * no alternates — callers must surface the provider's own error in that case
+ * rather than substituting ids the provider may not serve.
  */
 export function buildModelFallbackQueue(
     failedModelId: string,
     pool: {
         cachedModelIds?: readonly string[];
         recentModelIds?: readonly string[];
+        declaredFallbackIds?: readonly string[];
         configModel?: string | null;
         flashModel?: string | null;
-        freeOnly?: boolean;
         contextById?: FallbackRankOptions['contextById'];
     }
 ): string[] {
     const candidates = [
+        ...(pool.declaredFallbackIds ?? []),
         ...(pool.cachedModelIds ?? []),
         ...(pool.recentModelIds ?? []),
         pool.configModel ?? '',
         pool.flashModel ?? '',
-        ...BUILTIN_FREE_FALLBACK_MODELS,
     ];
     return rankFallbackModels(failedModelId, candidates, {
-        freeOnly: pool.freeOnly,
         contextById: pool.contextById,
     });
 }

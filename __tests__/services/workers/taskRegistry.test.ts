@@ -27,13 +27,13 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 jest.mock('../../../services/ai/directConfig', () => ({
     getDirectConfig: () => ({
         apiKey: 'sk-test',
-        apiBaseUrl: 'https://nano-gpt.com/api/v1',
+        apiBaseUrl: 'https://api.example.com/v1',
         model: 'moonshotai/kimi-k2.5:thinking',
         flashModel: 'moonshotai/kimi-k2.5',
     }),
     getResolvedDirectConfig: () => Promise.resolve({
         apiKey: 'sk-test',
-        apiBaseUrl: 'https://nano-gpt.com/api/v1',
+        apiBaseUrl: 'https://api.example.com/v1',
         model: 'moonshotai/kimi-k2.5:thinking',
         flashModel: 'moonshotai/kimi-k2.5',
         source: 'env',

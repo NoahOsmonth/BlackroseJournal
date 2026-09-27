@@ -40,6 +40,11 @@ interface SettingsAccordionSectionProps {
  *   width, so at narrow widths a long *label* ellipsises rather than the value.
  *   The value is the part that changes and carries the state, so it wins the
  *   space contest; a clipped title is still recognizable.
+ *   Both title and hint are `numberOfLines={1}`, and the pill is capped at
+ *   `max-w-[55%]`: "wins the space contest" must not mean "takes the whole row".
+ *   A long summary (e.g. `Home gateway · claude-sonnet-4.5`) with an uncapped
+ *   pill starved the title column to roughly one word per line — legible as
+ *   data, illegible as a title.
  * - `overflow-hidden` clips the expanded body to the band's own width, which is
  *   what keeps nested swatch grids and segmented controls inside the edge.
  */
@@ -106,13 +111,17 @@ export function SettingsAccordionSection({
 
                 <View testID={`settings-row-text-${id}`} className="min-w-0 flex-1">
                     <Text
+                        numberOfLines={1}
                         className="text-[19px] text-text-light dark:text-text-dark"
                         style={{ fontFamily: 'PlayfairDisplayRegular' }}
                     >
                         {title}
                     </Text>
                     {hint ? (
-                        <Text className="mt-0.5 text-[12px] text-text-secondary-light dark:text-text-secondary-dark">
+                        <Text
+                            numberOfLines={1}
+                            className="mt-0.5 text-[12px] text-text-secondary-light dark:text-text-secondary-dark"
+                        >
                             {hint}
                         </Text>
                     ) : null}
@@ -121,7 +130,11 @@ export function SettingsAccordionSection({
                 {summary ? (
                     <Text
                         className={[
-                            'shrink rounded-full px-2.5 py-1 text-[13px] text-text-secondary-light dark:text-text-secondary-dark',
+                            // `max-w-[55%]` + `min-w-0`: the pill wins the space
+                            // contest (it carries the changing state) but cannot
+                            // take the whole row. Without the cap a long summary
+                            // starved the title column down to one word per line.
+                            'min-w-0 max-w-[55%] shrink rounded-full px-2.5 py-1 text-[13px] text-text-secondary-light dark:text-text-secondary-dark',
                             expanded
                                 ? 'bg-surface-2-light dark:bg-surface-2-dark'
                                 : 'bg-black/5 dark:bg-white/10',

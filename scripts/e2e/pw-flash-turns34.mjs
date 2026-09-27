@@ -11,7 +11,7 @@ if (!state.hooked) {
   });
   state.page.on('request', (req) => {
     const u = req.url();
-    if (!/20128|100\.107\.7\.52/i.test(u)) return;
+    if (!/chat\/completions/i.test(u)) return;
     try {
       const p = JSON.parse(req.postData() || '{}');
       const tools = (p.tools || []).map((t) => t.function?.name || t.name).filter(Boolean);
@@ -23,7 +23,7 @@ if (!state.hooked) {
   });
   state.page.on('response', async (res) => {
     const u = res.url();
-    if (!/20128|100\.107\.7\.52/i.test(u)) return;
+    if (!/chat\/completions/i.test(u)) return;
     try {
       const text = await res.text();
       const names = [];

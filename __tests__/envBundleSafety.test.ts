@@ -18,16 +18,19 @@ const ENV_FILE_GLOB = '**/.env*';
 
 /**
  * Vars that this project intentionally exposes to the client bundle.
- * The NanoGPT key is explicitly allowed only because this repo is now
- * configured for a local phone build with direct on-device AI calls and no
- * backend agent (and no remote auth or memory service).
+ * The custom-provider key is explicitly allowed only because this repo is a
+ * local-only phone build: it talks straight to the user's own OpenAI-compatible
+ * endpoint with no backend agent, no remote auth and no remote memory service,
+ * so the key never leaves the device except to the provider the user chose.
+ * It is a first-run seed — after launch the key lives in the on-device provider
+ * profile, not in the bundle.
  *
  * Keep this list tight. If you add an entry, document WHY it is safe to
  * ship in the mobile bundle (e.g., a third-party service's public
  * client identifier, a non-secret JWT audience claim, etc.).
  */
 const KNOWN_PUBLIC_EXPO_VARS: ReadonlySet<string> = new Set([
-    'EXPO_PUBLIC_NANO_GPT_API_KEY',
+    'EXPO_PUBLIC_AI_CUSTOM_API_KEY',
 ]);
 
 function findEnvFiles(): string[] {
@@ -117,8 +120,8 @@ describe('envBundleSafety — no EXPO_PUBLIC_* secrets in committed env files', 
         // Sanity: legitimate Expo-public vars (no secret suffix) must not
         // be flagged. The ESLint rule would not match these either.
         const safe = [
-            'EXPO_PUBLIC_NANO_GPT_API_BASE_URL=https://nano-gpt.com/api/v1',
-            'EXPO_PUBLIC_NANO_GPT_MODEL=merge/deepseek/deepseek-v4-flash-0731',
+            'EXPO_PUBLIC_AI_CUSTOM_BASE=https://api.example.com/v1',
+            'EXPO_PUBLIC_AI_CUSTOM_MODEL=merge/deepseek/deepseek-v4-flash-0731',
         ];
         for (const sample of safe) {
             expect(FORBIDDEN_ENV_PATTERN.test(sample)).toBe(false);

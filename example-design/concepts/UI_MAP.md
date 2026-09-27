@@ -49,7 +49,7 @@ Custom `BottomNav` (not system tabs): Today · Explore · + FAB (chat) · Insigh
 1. **Appearance** — theme (light/dark/system) + emoji style (native/flat/3D)
 2. **Color Studio** — color theme presets + custom picker modal
 3. **Generation** — temperature/topP presets
-4. **AI Model** — custom OmniRoute provider, model picker, free-only
+4. **AI Model** — custom provider profiles (base URL, key, model, flash model), model picker, per-profile filter patterns
 5. **Data Management** — backup, restore, export JSON, clear history, demo seed (dev)
 6. **Identity** — always-on identity profile rows + pending confirm/dismiss
 7. **Memory** — atom count, open Memory Hub

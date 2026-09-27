@@ -16,7 +16,7 @@ import {
 
 const TEST_ENV_RESOLVED_CONFIG = {
     apiKey: 'sk-direct-test-key',
-    apiBaseUrl: 'https://nano-gpt.com/api/v1',
+    apiBaseUrl: 'https://api.example.com/v1',
     model: 'moonshotai/kimi-k2.5:thinking',
     flashModel: 'moonshotai/kimi-k2.5',
     source: 'env',
@@ -25,7 +25,7 @@ const TEST_ENV_RESOLVED_CONFIG = {
 jest.mock('../../../services/ai/directConfig', () => ({
     getDirectConfig: () => ({
         apiKey: 'sk-direct-test-key',
-        apiBaseUrl: 'https://nano-gpt.com/api/v1',
+        apiBaseUrl: 'https://api.example.com/v1',
         model: 'moonshotai/kimi-k2.5:thinking',
         flashModel: 'moonshotai/kimi-k2.5',
     }),

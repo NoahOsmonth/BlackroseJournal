@@ -15,7 +15,7 @@ import {
     buildModelFallbackQueue,
     isModelNotFoundError,
 } from '@/utils/ai/modelFallback';
-import { loadCustomAiProviderSettings } from './customModels';
+import { getActiveProfile, loadCustomAiProviderSettings } from './customModels';
 import { getResolvedDirectConfig, type ResolvedDirectConfig } from './directConfig';
 import { getProviderCapabilities, type ProviderCapabilities } from './providerCapabilities';
 
@@ -167,7 +167,7 @@ function buildConnectionError(request: PreparedDirectChatRequest, source: Resolv
     const provider = source === 'custom' ? 'custom AI provider' : 'AI provider';
     const setting = source === 'custom'
         ? 'the AI Model Base URL in Settings'
-        : 'EXPO_PUBLIC_NANO_GPT_API_BASE_URL (defaults to the OmniRoute gateway)';
+        : 'EXPO_PUBLIC_AI_CUSTOM_BASE (seeded from .env)';
     return new Error(
         `Failed to fetch: Could not connect to ${provider} at ${request.url}. ` +
         `Check your network and ${setting}.`
@@ -236,7 +236,7 @@ function backoffMs(attempt: number): number {
 /**
  * Statuses that signal gateway/rate-limit congestion. Unlike a plain network
  * blip, retrying a few hundred ms later lands in the same saturated window
- * (e.g. OmniRoute expires queued requests at maxWaitMs=15s), so the backoff
+ * (gateways commonly expire queued requests within ~15s), so the backoff
  * must be on the order of seconds, not milliseconds.
  */
 const CONGESTION_STATUSES = new Set([429, 503, 504]);
@@ -390,19 +390,21 @@ async function resolveModelFallbacks(
     try {
         const settings = await loadCustomAiProviderSettings();
         throwIfAccountLeaseAborted({ signal: accountSignal });
+        const profile = getActiveProfile(settings);
+        const cachedModels = profile?.models ?? [];
         const contextById: Record<string, number> = {};
-        for (const model of settings.models) {
+        for (const model of cachedModels) {
             contextById[model.id] = model.contextWindow;
         }
         if (config.contextWindow && config.model) {
             contextById[config.model] = config.contextWindow;
         }
         const queue = buildModelFallbackQueue(failedModel, {
-            cachedModelIds: settings.models.map((m) => m.id),
-            recentModelIds: settings.recentModelIds,
+            cachedModelIds: cachedModels.map((m) => m.id),
+            recentModelIds: profile?.recentModelIds ?? [],
+            declaredFallbackIds: config.fallbackModelIds,
             configModel: config.model,
             flashModel: config.flashModel,
-            freeOnly: settings.freeOnly !== false,
             contextById,
         });
         return queue.slice(0, MAX_MODEL_FALLBACKS);
@@ -411,7 +413,7 @@ async function resolveModelFallbacks(
         return buildModelFallbackQueue(failedModel, {
             configModel: config.model,
             flashModel: config.flashModel,
-            freeOnly: true,
+            declaredFallbackIds: config.fallbackModelIds,
         }).slice(0, MAX_MODEL_FALLBACKS);
     }
 }

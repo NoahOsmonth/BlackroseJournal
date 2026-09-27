@@ -12,14 +12,17 @@ A React Native/Expo chat journal application with AI integration.
 
 2. Configure local AI environment variables
 
-   Copy `.env.example` to `.env` and set your API key:
+   Copy `.env.example` to `.env` and set your provider. These are a **first-run
+   seed only** — once the app has launched, the provider you saved in
+   Settings → AI Model is the source of truth:
 
-   - `EXPO_PUBLIC_NANO_GPT_API_KEY` (required for direct on-phone AI calls; use an OmniRoute data-plane key)
-   - `EXPO_PUBLIC_NANO_GPT_API_BASE_URL` (defaults to the local OmniRoute gateway `http://100.107.7.52:20128/v1`)
-   - `EXPO_PUBLIC_NANO_GPT_MODEL` (defaults to `merge/deepseek/deepseek-v4-flash-0731`)
-   - `EXPO_PUBLIC_NANO_GPT_FLASH_MODEL` (defaults to `merge/deepseek/deepseek-v4-flash-0731`)
+   - `EXPO_PUBLIC_AI_CUSTOM_API_KEY` (your OpenAI-compatible provider's key)
+   - `EXPO_PUBLIC_AI_CUSTOM_BASE` (e.g. `https://your-host/v1`)
+   - `EXPO_PUBLIC_AI_CUSTOM_MODEL`
+   - `EXPO_PUBLIC_AI_CUSTOM_FLASH_MODEL` (optional; falls back to the model above)
 
-   The app no longer requires Railway, SimpleMem, or a backend agent for chat.
+   Any OpenAI-compatible endpoint works — no vendor host, key or model id is
+   baked in. Leave them blank to configure everything in-app instead.
    The key is bundled into local device builds, so keep `.env` uncommitted and
    use this setup only for the local phone build you control.
 

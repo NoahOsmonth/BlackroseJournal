@@ -15,18 +15,20 @@ import { LoadingBar } from '@/components/ui/LoadingBar';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { ChatModelOption } from '@/features/chat/modelPicker.types';
-import { FreeOnlyPill } from './FreeModelBadge';
 import { ModelPickerRow } from './ModelPickerRow';
 
 export type ChatModelPickerSheetProps = {
     readonly visible: boolean;
-    readonly mode?: 'managed' | 'byok';
     readonly models: readonly ChatModelOption[];
     readonly recentModels?: readonly ChatModelOption[];
     readonly selectedId: string | null;
-    readonly freeOnly: boolean;
     readonly hostLabel: string;
-    readonly hasApiKey: boolean;
+    /**
+     * The active profile's filter patterns. Shown so the user can tell a
+     * filtered list from a genuinely short catalogue.
+     */
+    readonly filterPatterns?: readonly string[];
+    readonly hasApiKey?: boolean;
     readonly isLoading?: boolean;
     readonly isFetching?: boolean;
     readonly error?: string | null;
@@ -52,15 +54,28 @@ function ModelRowSkeleton({ index }: { index: number }) {
     );
 }
 
+/** Quiet marker that the list below is narrowed by the user's own patterns. */
+function FilterPill({ patterns }: { patterns: readonly string[] }) {
+    return (
+        <View
+            className="rounded-control border border-hairline-light px-2 py-0.5 dark:border-hairline-dark"
+            accessibilityLabel={`Filtered by ${patterns.join(', ')}`}
+        >
+            <Text className="text-[10px] uppercase tracking-[1.2px] text-text-secondary-light dark:text-text-secondary-dark">
+                {patterns.length === 1 ? patterns[0] : `${patterns.length} filters`}
+            </Text>
+        </View>
+    );
+}
+
 export function ChatModelPickerSheet({
     visible,
-    mode = 'byok',
     models,
     recentModels = [],
     selectedId,
-    freeOnly,
     hostLabel,
-    hasApiKey,
+    filterPatterns = [],
+    hasApiKey = false,
     isLoading = false,
     isFetching = false,
     error = null,
@@ -94,20 +109,13 @@ export function ChatModelPickerSheet({
                 items.push({ type: 'model', model });
             }
         }
-        items.push({
-            type: 'section',
-            title: mode === 'managed' ? 'Managed models' : freeOnly ? 'All free models' : 'All models',
-        });
+        items.push({ type: 'section', title: 'All models' });
         for (const model of filtered) {
             if (showRecent && recentIds.has(model.id)) continue;
             items.push({ type: 'model', model });
         }
         return items;
-    }, [filtered, freeOnly, mode, query, recentModels]);
-
-    const selectedManagedModelMissing = mode === 'managed'
-        && Boolean(selectedId)
-        && !models.some((model) => model.id === selectedId);
+    }, [filtered, query, recentModels]);
 
     const maxHeight = Math.round(height * 0.72);
 
@@ -134,18 +142,16 @@ export function ChatModelPickerSheet({
                             >
                                 {hostLabel}
                             </Text>
-                            {mode === 'managed' ? null : freeOnly ? <FreeOnlyPill /> : (
-                                <Text className="text-[10px] uppercase tracking-[1.2px] text-text-secondary-light dark:text-text-secondary-dark">
-                                    Includes paid
-                                </Text>
-                            )}
+                            {filterPatterns.length > 0 ? (
+                                <FilterPill patterns={filterPatterns} />
+                            ) : null}
                         </View>
 
                         <View className="flex-row items-center gap-2">
                             <TextInput
                                 value={query}
                                 onChangeText={setQuery}
-                                placeholder={freeOnly ? 'Search free models' : 'Search models'}
+                                placeholder="Search models"
                                 placeholderTextColor={placeholderColor}
                                 autoCapitalize="none"
                                 autoCorrect={false}
@@ -173,14 +179,9 @@ export function ChatModelPickerSheet({
                         {error ? (
                             <Text className="text-[14px] text-danger-light dark:text-danger-dark">{error}</Text>
                         ) : null}
-                        {selectedManagedModelMissing ? (
-                            <Text className="text-center text-[14px] text-text-secondary-light dark:text-text-secondary-dark">
-                                Your selected managed model is no longer available. Choose another model to continue.
-                            </Text>
-                        ) : null}
                     </View>
 
-                    {mode === 'byok' && !hasApiKey ? (
+                    {!hasApiKey ? (
                         <View className="px-4 py-8 items-center gap-3">
                             <Ionicons name="key-outline" size={26} color={iconColor} />
                             <Text
@@ -190,7 +191,7 @@ export function ChatModelPickerSheet({
                                 Add an API key
                             </Text>
                             <Text className="text-center text-[15px] leading-[23px] text-text-secondary-light dark:text-text-secondary-dark">
-                                Set your OpenRouter (or custom) key in Settings to load free models.
+                                Set your provider base URL and API key in Settings to load models.
                             </Text>
                             {onOpenSettings ? (
                                 <Pressable
@@ -220,20 +221,18 @@ export function ChatModelPickerSheet({
                                 No models loaded
                             </Text>
                             <Text className="text-center text-[15px] leading-[23px] text-text-secondary-light dark:text-text-secondary-dark">
-                                {freeOnly
-                                    ? 'Fetch free models to choose one. Only ids with :free are shown.'
-                                    : 'Fetch models from your provider to choose one.'}
+                                Fetch models from your provider to choose one.
                             </Text>
                             {onRefresh ? (
                                 <Pressable
                                     onPress={onRefresh}
                                     disabled={isFetching}
                                     accessibilityRole="button"
-                                    accessibilityLabel="Fetch free models"
+                                    accessibilityLabel="Fetch models"
                                     className="mt-2 min-h-12 items-center justify-center rounded-control border border-bone-light px-5 dark:border-bone-dark"
                                 >
                                     <Text className="text-[16px] text-text-light dark:text-text-dark">
-                                        {isFetching ? 'Fetching…' : 'Fetch free models'}
+                                        {isFetching ? 'Fetching…' : 'Fetch models'}
                                     </Text>
                                 </Pressable>
                             ) : null}

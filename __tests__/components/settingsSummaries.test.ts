@@ -12,6 +12,7 @@ import {
 import { DEFAULT_COLOR_THEME } from '@/constants/theme';
 import { DEFAULT_GENERATION } from '@/services/ai/generationSettings';
 import { getDefaultCustomAiProviderSettings } from '@/services/ai/customModels';
+import { makeProviderSettings, testModel } from '../mocks/providerSettings';
 
 describe('settingsSummaries', () => {
     it('formats appearance, generation, and color summaries', () => {
@@ -24,18 +25,11 @@ describe('settingsSummaries', () => {
     it('formats custom AI, memory, account, data, and about', () => {
         const off = getDefaultCustomAiProviderSettings();
         expect(customAiSummary(off)).toBe('Off');
-        expect(customAiSummary({
-            ...off,
+        expect(customAiSummary(makeProviderSettings({
             enabled: true,
-            freeOnly: true,
             selectedModelId: 'gpt-test',
-            models: [{
-                id: 'gpt-test',
-                name: 'GPT Test',
-                contextWindow: 8000,
-                contextWindowSource: 'fallback',
-            }],
-        })).toBe('Free · GPT Test');
+            models: [{ ...testModel('gpt-test'), name: 'GPT Test' }],
+        }))).toBe('GPT Test');
 
         expect(memorySummary(0)).toBe('No memories yet');
         expect(memorySummary(1)).toBe('1 memory');

@@ -4,9 +4,8 @@ import { Pressable, Text, View } from 'react-native';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { formatContextWindow } from '@/services/ai/modelContext';
 import type { ChatModelOption } from '@/features/chat/modelPicker.types';
-import { formatPickerModelName, isFreeModelId } from '@/utils/ai/modelDisplay';
+import { formatPickerModelName } from '@/utils/ai/modelDisplay';
 import { BLACKROSE_PALETTE } from '@/constants/theme';
-import { FreeModelBadge } from './FreeModelBadge';
 
 type ModelPickerRowProps = {
     readonly model: ChatModelOption;
@@ -19,7 +18,6 @@ export function ModelPickerRow({ model, selected, onPress }: ModelPickerRowProps
     const isDark = useColorScheme() === 'dark';
     const ink = isDark ? BLACKROSE_PALETTE.dark.text : BLACKROSE_PALETTE.light.text;
     const quietInk = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
-    const free = isFreeModelId(model.id);
     const displayName = model.name ?? formatPickerModelName(model.id);
     const unavailable = model.availability === 'unavailable';
 
@@ -43,7 +41,6 @@ export function ModelPickerRow({ model, selected, onPress }: ModelPickerRowProps
                     >
                         {displayName}
                     </Text>
-                    {free ? <FreeModelBadge compact /> : null}
                     <Text className="shrink-0 text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
                         {formatContextWindow(model.contextWindow)}
                     </Text>

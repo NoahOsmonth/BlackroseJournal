@@ -10,8 +10,9 @@
 Long-term memory is **fully on-device** — `services/memory/` (memory atoms,
 memory files, digests, rollups, identity). Recall is **tool-driven**: the AI
 calls the offline `memory_search` agent tool on demand — the send path never
-awaits recall and no always-on recall block is injected. Gemini is
-embeddings-only (768-dim); all LLM work is OpenRouter. Everything is soft-fail.
+awaits recall and no always-on recall block is injected. There are **no
+embeddings** — recall is purely lexical (keyword overlap + recency fading) —
+and all LLM work goes to the provider the user configured. Everything is soft-fail.
 
 The earlier custom cloud-memory platform (`LOCAL → MIRROR → SHADOW → CLOUD`)
 was removed on 2026-08-18; do not resurrect it or its storage keys
@@ -21,8 +22,9 @@ Its documents were deleted in `f2415ff` and recovered read-only into
 
 > **Superseded details in this file.** Hindsight is now the **fallback** tier,
 > not long-term memory; the primary long-term layer is the offline memory files
-> (`services/memory/memoryFiles.ts` → `memoryRetrieval.ts`). OpenRouter was
-> removed 2026-09-10 — the local OmniRoute gateway is the only chat provider.
+> (`services/memory/memoryFiles.ts` → `memoryRetrieval.ts`). OpenRouter went
+> 2026-09-10 and the hardcoded OmniRoute gateway went 2026-09-26 — the chat
+> provider is whatever the user saved in Settings → AI Model.
 > See AGENTS.md rule 9.
 
 ## Implemented Local Baseline

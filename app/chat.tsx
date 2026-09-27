@@ -468,11 +468,11 @@ export default function ChatScreen() {
                     onSelect={setActive}
                 />
 
-                <ChatModelPickerSheet visible={modelPicker.visible} mode={modelPicker.mode}
+                <ChatModelPickerSheet visible={modelPicker.visible}
                     models={modelPicker.models}
                     recentModels={modelPicker.recentModels}
                     selectedId={modelPicker.selectedModelId}
-                    freeOnly={modelPicker.freeOnly}
+                    filterPatterns={modelPicker.filterPatterns}
                     hostLabel={modelPicker.hostLabel}
                     hasApiKey={modelPicker.hasApiKey}
                     isLoading={modelPicker.isLoading}

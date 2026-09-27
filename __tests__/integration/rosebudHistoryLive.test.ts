@@ -1,11 +1,11 @@
 /**
- * Live integration: real OmniRoute gateway model + Rosebud prompt + day digests + tools.
+ * Live integration: real configured-provider model + Rosebud prompt + day digests + tools.
  *
  * Run:
  *   set RUN_INTEGRATION_TESTS=1
  *   npx jest --runInBand __tests__/integration/rosebudHistoryLive.test.ts --forceExit
  *
- * Reads EXPO_PUBLIC_NANO_GPT_* from process env or project .env (gitignored).
+ * Reads EXPO_PUBLIC_AI_CUSTOM_* from process env or project .env (gitignored).
  */
 
 import fs from 'fs';
@@ -38,7 +38,7 @@ import {
 import { HISTORY_TOOLS_POLICY } from '../../services/ai/tools';
 import { executeToolCall } from '../../services/ai/tools/executeTool';
 
-// Skipped unless RUN_INTEGRATION_TESTS=1: hits the real OmniRoute gateway with a live API key.
+// Skipped unless RUN_INTEGRATION_TESTS=1: hits the real configured provider with a live API key.
 // Not a silent product gap — unit suites cover digests/tools/prompt weave offline.
 // TODO(follow-up): keep offline. Do not un-skip in default CI without a secret + quota budget.
 const describeMaybe = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
@@ -62,26 +62,28 @@ function readEnvFile(): Record<string, string> {
 function applyLiveEnv(): { model: string; apiBaseUrl: string } {
     const fileEnv = readEnvFile();
     const apiKey =
-        process.env.EXPO_PUBLIC_NANO_GPT_API_KEY ?? fileEnv.EXPO_PUBLIC_NANO_GPT_API_KEY;
+        process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_API_KEY;
     if (!apiKey) {
-        throw new Error('Missing EXPO_PUBLIC_NANO_GPT_API_KEY for live Rosebud test.');
+        throw new Error('Missing EXPO_PUBLIC_AI_CUSTOM_API_KEY for live Rosebud test.');
     }
     const apiBaseUrl = (
-        process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL
-        ?? fileEnv.EXPO_PUBLIC_NANO_GPT_API_BASE_URL
-        ?? 'http://100.107.7.52:20128/v1'
+        process.env.EXPO_PUBLIC_AI_CUSTOM_BASE
+        ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_BASE
     ).replace(/\/+$/, '');
+    if (!apiBaseUrl) {
+        throw new Error('Missing EXPO_PUBLIC_AI_CUSTOM_BASE for live Rosebud test.');
+    }
     const model =
-        process.env.EXPO_PUBLIC_NANO_GPT_MODEL
-        ?? fileEnv.EXPO_PUBLIC_NANO_GPT_MODEL
+        process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL
+        ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_MODEL
         ?? 'tencent/hy3:free';
 
-    process.env.EXPO_PUBLIC_NANO_GPT_API_KEY = apiKey;
-    process.env.EXPO_PUBLIC_NANO_GPT_API_BASE_URL = apiBaseUrl;
-    process.env.EXPO_PUBLIC_NANO_GPT_MODEL = model;
-    process.env.EXPO_PUBLIC_NANO_GPT_FLASH_MODEL =
-        process.env.EXPO_PUBLIC_NANO_GPT_FLASH_MODEL
-        ?? fileEnv.EXPO_PUBLIC_NANO_GPT_FLASH_MODEL
+    process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY = apiKey;
+    process.env.EXPO_PUBLIC_AI_CUSTOM_BASE = apiBaseUrl;
+    process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL = model;
+    process.env.EXPO_PUBLIC_AI_CUSTOM_FLASH_MODEL =
+        process.env.EXPO_PUBLIC_AI_CUSTOM_FLASH_MODEL
+        ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_FLASH_MODEL
         ?? model;
 
     return { model, apiBaseUrl };
@@ -179,7 +181,7 @@ describeMaybe('integration: Rosebud prompt + history live', () => {
             method: 'POST',
             headers: {
                 Accept: 'application/json',
-                Authorization: `Bearer ${process.env.EXPO_PUBLIC_NANO_GPT_API_KEY}`,
+                Authorization: `Bearer ${process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY}`,
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({

@@ -1,83 +1,92 @@
 /**
  * Full model roster/config as used by the app — assembled for probe artifacts.
- * Source files: constants/aiModels.ts, services/ai/directConfig.ts,
- * services/ai/customModels.ts KNOWN_CONTEXT_WINDOWS, utils/ai/modelFallback.ts,
- * utils/ai/modelDisplay.ts.
+ * Source files: services/ai/customModels.ts (provider store + KNOWN_CONTEXT_WINDOWS),
+ * services/ai/directConfig.ts, utils/ai/modelDisplay.ts, utils/ai/modelFallback.ts.
+ *
+ * There is no vendor roster. The app ships no base URL, no preferred model id
+ * and no built-in fallback model list — everything below is either a value the
+ * user configured or a heuristic.
  */
 
 export const ROSTER_VERBATIM = {
     source: 'BlackroseJournal app AI model roster (design probe artifact)',
     capturedFrom: [
-        'constants/aiModels.ts',
-        'services/ai/directConfig.ts',
         'services/ai/customModels.ts',
+        'services/ai/directConfig.ts',
         'utils/ai/modelDisplay.ts',
         'utils/ai/modelFallback.ts',
-        'backend/src/config/aiConfig.ts',
     ],
     envKeys: {
-        EXPO_PUBLIC_NANO_GPT_API_KEY: '(from .env / process.env — never committed)',
-        EXPO_PUBLIC_NANO_GPT_API_BASE_URL: 'optional; default http://100.107.7.52:20128/v1',
-        EXPO_PUBLIC_NANO_GPT_MODEL: 'optional; default merge/deepseek/deepseek-v4-flash-0731',
-        EXPO_PUBLIC_NANO_GPT_FLASH_MODEL: 'optional; default merge/deepseek/deepseek-v4-flash-0731',
+        EXPO_PUBLIC_AI_CUSTOM_API_KEY: '(from .env / process.env — never committed; first-run seed only)',
+        EXPO_PUBLIC_AI_CUSTOM_BASE: 'optional; no default — user-configured',
+        EXPO_PUBLIC_AI_CUSTOM_MODEL: 'optional; no default',
+        EXPO_PUBLIC_AI_CUSTOM_FLASH_MODEL: 'optional; falls back to the selected model',
     },
-    directConfigDefaults: {
-        DEFAULT_API_BASE_URL: 'http://100.107.7.52:20128/v1',
-        DEFAULT_MODEL: 'merge/deepseek/deepseek-v4-flash-0731',
-        DEFAULT_FLASH_MODEL: 'merge/deepseek/deepseek-v4-flash-0731',
+    providerStore: {
+        storageKey: '@blackrose_custom_ai_provider',
+        schemaVersion: 2,
+        shape: 'profiles[] + activeProfileId (a flat single-provider v1 record migrates on load)',
+        maxProfiles: 12,
+        perProfileFields: [
+            'label',
+            'baseUrl',
+            'apiKey',
+            'selectedModelId',
+            'flashModelId',
+            'models',
+            'recentModelIds',
+            'modelFilterPatterns',
+            'fallbackModelIds',
+            'contextWindowOverride',
+            'fallbackContextWindow',
+        ],
     },
-    preferredFreeModelId: 'merge/deepseek/deepseek-v4-flash-0731',
-    openrouterDefaultBaseUrl: 'https://openrouter.ai/api/v1',
-    personaModels: [
-        'nvidia/nemotron-3-ultra-550b-a55b',
-        'moonshotai/kimi-k2.5:thinking',
-        'moonshotai/kimi-k2.5',
-    ] as const,
-    personaModelLabels: {
-        'nvidia/nemotron-3-ultra-550b-a55b': 'NVIDIA Nemotron 3 Ultra 550B',
-        'moonshotai/kimi-k2.5:thinking': 'Kimi K2.5 Thinking',
-        'moonshotai/kimi-k2.5': 'Kimi K2.5',
-    } as const,
-    defaultPersonaModel: 'nvidia/nemotron-3-ultra-550b-a55b',
+    vendorDefaults: 'none — no base URL, model id or fallback list is hardcoded',
+    modelFilter: {
+        mechanism: 'per-profile case-insensitive substring patterns',
+        emptyMeans: 'show every model the endpoint returns',
+        note: 'the app holds no opinion about which models are worth showing',
+    },
+    selfHeal: {
+        pool: 'declared fallbackModelIds -> cached models -> recent models -> configured model',
+        builtinFallbacks: 'none',
+    },
     knownContextWindows: {
         'nvidia/nemotron-3-ultra-550b-a55b': 1_000_000,
-        'nvidia/nemotron-3-ultra-550b-a55b:free': 1_000_000,
-        'dots-studio/dots-3-note-preview:free': 512_000,
-        'cl/dots-studio/dots-3-note-preview:free': 128_000,
-        'merge/deepseek/deepseek-v4-flash-0731': 128_000,
-        'moonshotai/kimi-k2.5:thinking': 128_000,
+        'dots-studio/dots-3-note-preview': 512_000,
+        'deepseek/deepseek-v4-flash': 128_000,
         'moonshotai/kimi-k2.5': 128_000,
+        'moonshotai/kimi-k2.5:thinking': 128_000,
     } as const,
     defaultFallbackContextWindow: 128_000,
-    builtinFreeFallbackModels: [
-        'cl/tencent/hy3:free',
-        'nvidia/nemotron-3-ultra-550b-a55b:free',
-    ] as const,
-    backendDefaults: {
-        DEFAULT_MODEL: 'nvidia/nemotron-3-ultra-550b-a55b',
-        note: 'Backend optional; device-direct is source of truth for freeform.',
-    },
-    freeOnlyPolicy: {
-        default: true,
-        freeIdRule: "id includes ':free' OR id === 'openrouter/free'",
-    },
-    /** Models selected for live probes (must include flash). */
-    probeSelection: {
-        e1: [
-            'merge/deepseek/deepseek-v4-flash-0731',
-            'nvidia/nemotron-3-ultra-550b-a55b:free',
-            'openrouter/free',
-        ],
-        e2: [
-            'merge/deepseek/deepseek-v4-flash-0731',
-            'nvidia/nemotron-3-ultra-550b-a55b:free',
-            'openrouter/free',
-            'moonshotai/kimi-k2.5',
-        ],
-        flashRequired: 'merge/deepseek/deepseek-v4-flash-0731',
-    },
 } as const;
 
 export function formatRosterArtifact(): string {
     return JSON.stringify(ROSTER_VERBATIM, null, 2);
+}
+
+/**
+ * Probe model selection. There is no built-in roster — the probes run against
+ * whatever the configured provider serves, so the ids come from the same env
+ * the app seeds from. This throws rather than returning an empty list, because
+ * an empty selection reads exactly like "probe ran, found nothing".
+ */
+export function resolveProbeSelection(): {
+    e1: string[];
+    e2: string[];
+    flashRequired: string;
+} {
+    const read = (key: string) => (process.env[key] ?? '').trim();
+    const primary = read('EXPO_PUBLIC_AI_CUSTOM_MODEL');
+    if (!primary) {
+        throw new Error(
+            'EXPO_PUBLIC_AI_CUSTOM_MODEL is required — the probes carry no built-in model roster.'
+        );
+    }
+    const extras = read('PROBE_EXTRA_MODELS')
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean);
+    const flash = read('EXPO_PUBLIC_AI_CUSTOM_FLASH_MODEL') || primary;
+    return { e1: [primary, ...extras], e2: [primary, ...extras], flashRequired: flash };
 }

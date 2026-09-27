@@ -20,13 +20,13 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 jest.mock('../../../services/ai/directConfig', () => ({
     getDirectConfig: jest.fn(() => ({
         apiKey: 'sk-test',
-        apiBaseUrl: 'https://nano-gpt.com/api/v1',
+        apiBaseUrl: 'https://api.example.com/v1',
         model: 'moonshotai/kimi-k2.5:thinking',
         flashModel: 'moonshotai/kimi-k2.5',
     })),
     getResolvedDirectConfig: jest.fn(() => Promise.resolve({
         apiKey: 'sk-test',
-        apiBaseUrl: 'https://nano-gpt.com/api/v1',
+        apiBaseUrl: 'https://api.example.com/v1',
         model: 'moonshotai/kimi-k2.5:thinking',
         flashModel: 'moonshotai/kimi-k2.5',
         source: 'env',
@@ -50,7 +50,7 @@ describe('local AI worker', () => {
         expect(key).toBe(LOCAL_AI_WORKER_LAST_RUN_KEY);
         expect(JSON.parse(raw)).toEqual({
             checkedAt: 123,
-            apiBaseUrl: 'https://nano-gpt.com/api/v1',
+            apiBaseUrl: 'https://api.example.com/v1',
             model: 'moonshotai/kimi-k2.5:thinking',
             flashModel: 'moonshotai/kimi-k2.5',
         });
