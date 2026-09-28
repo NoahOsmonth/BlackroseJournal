@@ -16,11 +16,14 @@ interface IntentionChatMessageProps {
     onCopy: (text: string) => void;
     onShare: (text: string) => void;
     onThumb: (id: string, value: 'up' | 'down') => void;
+    /** The "Show thinking" switch — false hides reasoning + tool calls. */
+    showThinking?: boolean;
 }
 
 /**
- * Check-in chat turn, same presentation law as the journal chat: your words on
- * a right-aligned surface slip, the companion's on a bone left rule.
+ * Check-in chat turn, same presentation law as the journal chat: both voices
+ * inline in the flow, the companion's behind a bone left rule. Nothing is a
+ * bubble — the transcript reads as a page, not a messenger.
  */
 export function IntentionChatMessage({
     message,
@@ -29,6 +32,7 @@ export function IntentionChatMessage({
     onCopy,
     onShare,
     onThumb,
+    showThinking = true,
 }: IntentionChatMessageProps) {
     const colorScheme = useColorScheme();
     const { colorTheme } = useThemeSettings();
@@ -80,8 +84,11 @@ export function IntentionChatMessage({
                 <View className="flex-row">
                     <View className="mr-4 w-px self-stretch bg-bone-light dark:bg-bone-dark" />
                     <View className="min-w-0 flex-1 gap-2">
-                        {!!message.toolActivity?.length && (
-                            <AgentToolActivity toolActivity={message.toolActivity} compact />
+                        {showThinking && (!!message.toolActivity?.length || !!message.reasoning?.trim()) && (
+                            <AgentToolActivity
+                                toolActivity={message.toolActivity ?? []}
+                                reasoning={message.reasoning}
+                            />
                         )}
                         <Text
                             testID="intention-chat-message-text"
@@ -94,16 +101,14 @@ export function IntentionChatMessage({
                     </View>
                 </View>
             ) : (
-                <View className="items-end">
-                    <View className="max-w-[320px] rounded-card bg-surface-2-light px-4 py-3 dark:bg-surface-2-dark">
-                        <Text
-                            testID="intention-chat-message-text"
-                            className="text-[17px] leading-relaxed text-user-text dark:text-user-text-dark"
-                            style={{ color: messageTextColor }}
-                        >
-                            {displayContent}
-                        </Text>
-                    </View>
+                <View className="w-full">
+                    <Text
+                        testID="intention-chat-message-text"
+                        className="text-[17px] leading-relaxed text-user-text dark:text-user-text-dark"
+                        style={{ color: messageTextColor }}
+                    >
+                        {displayContent}
+                    </Text>
                 </View>
             )}
         </Animated.View>

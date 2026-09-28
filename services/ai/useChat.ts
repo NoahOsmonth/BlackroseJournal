@@ -21,11 +21,14 @@ import {
     reduceAgentToolSnapshots,
 } from './agentEvents';
 import { createTemporalMessage } from './messageTemporalMetadata';
+import type { PickedChatImage } from './chatImage';
 
 export { buildDailyCheckInSystemPrompt };
 
 export interface SendMessageExtras {
     onAgentActivity?: AgentActivityListener;
+    /** Photo attached to this turn (vision). Bytes are resolved at request time. */
+    image?: PickedChatImage;
 }
 
 function appendAssistantMessage(
@@ -83,6 +86,18 @@ export function useChat() {
                 id: Date.now().toString(),
                 role: 'user',
                 content,
+                // Only the uri/mimeType/dimensions ride on the message: base64
+                // here would be JSON-persisted into the journal (2 MB/key cap).
+                ...(extras?.image
+                    ? {
+                        image: {
+                            uri: extras.image.uri,
+                            mimeType: extras.image.mimeType,
+                            width: extras.image.width,
+                            height: extras.image.height,
+                        },
+                    }
+                    : {}),
             });
             messagesRef.current = [...messagesRef.current, userMessage];
             const basePrompt = systemPromptRef.current || THERAPIST_SYSTEM_PROMPT;

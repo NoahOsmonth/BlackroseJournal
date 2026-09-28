@@ -13,6 +13,10 @@ interface IntentionChatHeaderProps {
     onClose: () => void;
     onOpenModelPicker?: () => void;
     modelPickerDisabled?: boolean;
+    /** Whether the transcript shows the companion's reasoning + tool calls. */
+    showThinking?: boolean;
+    /** Flips the transcript's thinking/tool layer. Omit to hide the control. */
+    onToggleThinking?: () => void;
 }
 
 /**
@@ -26,10 +30,14 @@ export function IntentionChatHeader({
     onClose,
     onOpenModelPicker,
     modelPickerDisabled = false,
+    showThinking = true,
+    onToggleThinking,
 }: IntentionChatHeaderProps) {
     const isDark = useColorScheme() === 'dark';
     const markColor = isDark ? BLACKROSE_PALETTE.dark.accent : BLACKROSE_PALETTE.light.accent;
     const closeIconColor = isDark ? BLACKROSE_PALETTE.dark.text : BLACKROSE_PALETTE.light.text;
+    const thinkingOnColor = isDark ? BLACKROSE_PALETTE.dark.accent : BLACKROSE_PALETTE.light.accent;
+    const thinkingOffColor = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
 
     return (
         <View className="border-b border-hairline-light px-4 pb-3 pt-4 dark:border-hairline-dark">
@@ -78,12 +86,39 @@ export function IntentionChatHeader({
             </View>
 
             {/* Model picker stays reachable without a second chrome band: it is
-                the only model entry point on this surface. */}
-            <View className="self-center">
+                the only model entry point on this surface. The thinking switch
+                rides beside it — one row, two view controls. */}
+            <View className="flex-row items-center justify-center gap-3">
                 <ModelHeaderControl
                     onPress={onOpenModelPicker}
                     disabled={modelPickerDisabled}
                 />
+                {onToggleThinking ? (
+                    <Pressable
+                        onPress={onToggleThinking}
+                        accessibilityRole="switch"
+                        accessibilityState={{ checked: showThinking }}
+                        accessibilityLabel={showThinking
+                            ? 'Hide thinking and tool calls'
+                            : 'Show thinking and tool calls'}
+                        hitSlop={8}
+                        className="flex-row items-center gap-1 rounded-control border border-hairline-light px-2 py-1 dark:border-hairline-dark"
+                    >
+                        <MaterialIcons
+                            name="psychology"
+                            size={14}
+                            color={showThinking ? thinkingOnColor : thinkingOffColor}
+                            accessibilityElementsHidden
+                        />
+                        <Text
+                            className="text-[11px] text-text-secondary-light dark:text-text-secondary-dark"
+                            style={showThinking ? { color: thinkingOnColor } : undefined}
+                            numberOfLines={1}
+                        >
+                            {showThinking ? 'Thinking' : 'Thinking off'}
+                        </Text>
+                    </Pressable>
+                ) : null}
             </View>
         </View>
     );

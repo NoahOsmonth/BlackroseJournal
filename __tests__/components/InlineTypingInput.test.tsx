@@ -78,4 +78,17 @@ describe('InlineTypingInput', () => {
 
         expect(onSubmit).not.toHaveBeenCalled();
     });
+
+    it('reports focus changes so the screen can lift the verbs above the keyboard', () => {
+        const onFocusChange = jest.fn();
+
+        render(<InlineTypingInput onSubmit={jest.fn()} onFocusChange={onFocusChange} />);
+
+        const input = screen.getByPlaceholderText("Write what's true…");
+        fireEvent(input, 'focus');
+        expect(onFocusChange).toHaveBeenLastCalledWith(true);
+
+        fireEvent(input, 'blur');
+        expect(onFocusChange).toHaveBeenLastCalledWith(false);
+    });
 });

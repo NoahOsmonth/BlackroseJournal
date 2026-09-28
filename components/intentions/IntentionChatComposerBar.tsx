@@ -1,17 +1,14 @@
 import React from 'react';
-import { View } from 'react-native';
+import { Text, View } from 'react-native';
 
-import { InlineTypingInput, InlineTypingInputRef } from '@/components/InlineTypingInput';
-import { IntentionChatFooter } from './IntentionChatFooter';
+import { ChatComposerBar } from '@/components/chat/ChatComposerBar';
+import type { ChatImageAttachment } from '@/services/ai/chatImage';
 
 interface IntentionChatComposerBarProps {
-    readonly inputRef: React.Ref<InlineTypingInputRef>;
     readonly isMuted: boolean;
     readonly onToggleMuted: () => void;
-    readonly onSubmitInput: (text: string) => void;
-    readonly onInputTextChange: (text: string) => void;
     readonly onGoDeeper: () => void;
-    readonly onFinishEntry: () => void;
+    readonly onFinishEntry?: () => void;
     readonly disabled?: boolean;
     readonly canGoDeeper?: boolean;
     readonly canFinish?: boolean;
@@ -19,19 +16,21 @@ interface IntentionChatComposerBarProps {
     readonly savingLabel?: string;
     readonly isStreaming?: boolean;
     readonly onStop?: () => void;
+    readonly pendingImage?: ChatImageAttachment | null;
+    readonly onPickImage?: () => void;
+    readonly onRemoveImage?: () => void;
+    readonly isPickingImage?: boolean;
 }
 
 /**
- * The pinned block below a check-in transcript: outline verbs, then the shared
- * writing slip — same order as the journal chat so both surfaces read as one
- * product (AGENTS rule 5).
+ * The pinned block below a check-in transcript, same order as the journal chat
+ * (AGENTS rule 5): photo + voice icons, a hairline, then the two verbs. The
+ * writing slip itself lives inline in the transcript above, so this bar stays
+ * short and rides above the keyboard.
  */
 export function IntentionChatComposerBar({
-    inputRef,
     isMuted,
     onToggleMuted,
-    onSubmitInput,
-    onInputTextChange,
     onGoDeeper,
     onFinishEntry,
     disabled = false,
@@ -41,29 +40,39 @@ export function IntentionChatComposerBar({
     savingLabel,
     isStreaming = false,
     onStop,
+    pendingImage,
+    onPickImage,
+    onRemoveImage,
+    isPickingImage = false,
 }: IntentionChatComposerBarProps) {
     return (
-        <View className="gap-3 border-t border-hairline-light px-5 pt-3 dark:border-hairline-dark">
-            <IntentionChatFooter
-                isMuted={isMuted}
-                onToggleMuted={onToggleMuted}
-                onGoDeeper={onGoDeeper}
-                onFinishEntry={onFinishEntry}
-                disabled={disabled}
-                canGoDeeper={canGoDeeper}
-                canFinish={canFinish}
-                isSaving={isSaving}
-                savingLabel={savingLabel}
-            />
-            <InlineTypingInput
-                ref={inputRef}
-                onSubmit={onSubmitInput}
-                onTextChange={onInputTextChange}
-                disabled={disabled}
-                isStreaming={isStreaming}
-                onStop={onStop}
-                placeholder="Write what's true…"
-            />
-        </View>
+        <ChatComposerBar
+            onGoDeeper={onGoDeeper}
+            onFinishEntry={onFinishEntry}
+            disabled={disabled}
+            canGoDeeper={canGoDeeper}
+            canFinish={canFinish}
+            isSaving={isSaving}
+            savingLabel={savingLabel}
+            isStreaming={isStreaming}
+            onStop={onStop}
+            pendingImage={pendingImage}
+            onPickImage={onPickImage}
+            onRemoveImage={onRemoveImage}
+            isPickingImage={isPickingImage}
+            voice={{
+                enabled: !isMuted,
+                label: isMuted ? 'Read replies aloud' : 'Stop reading replies aloud',
+                onPress: onToggleMuted,
+            }}
+        >
+            {/* This surface has no concept of its own, so the honesty line
+                stays where it has always sat: beside the voice control. */}
+            <View className="flex-row items-center justify-between">
+                <Text className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
+                    Blackrose can make mistakes.
+                </Text>
+            </View>
+        </ChatComposerBar>
     );
 }

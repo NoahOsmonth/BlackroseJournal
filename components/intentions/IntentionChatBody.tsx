@@ -14,7 +14,7 @@ import { useThemeSettings } from '@/hooks/useThemeSettings';
 import type { Message } from '@/services/ai/ai';
 import type { StreamingMessage } from '@/features/chat';
 import { AgentToolActivity } from '@/components/ai/AgentToolActivity';
-import { InlineTypingInputRef } from '@/components/InlineTypingInput';
+import { InlineTypingInput, InlineTypingInputRef } from '@/components/InlineTypingInput';
 import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { IntentionChatMessage } from './IntentionChatMessage';
 
@@ -34,6 +34,10 @@ interface IntentionChatBodyProps {
     readonly onCopy: (text: string) => void;
     readonly onShare: (text: string) => void;
     readonly onThumb: (id: string, value: 'up' | 'down') => void;
+    /** The "Show thinking" switch — false hides reasoning + tool calls. */
+    readonly showThinking?: boolean;
+    /** Tapping the writing slip asks the transcript to come to its end. */
+    readonly onInputFocus?: () => void;
     readonly onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
     readonly onContentSizeChange?: () => void;
 }
@@ -54,6 +58,8 @@ export function IntentionChatBody({
     onCopy,
     onShare,
     onThumb,
+    showThinking = true,
+    onInputFocus,
     onScroll,
     onContentSizeChange,
 }: IntentionChatBodyProps) {
@@ -97,15 +103,19 @@ export function IntentionChatBody({
                         onCopy={onCopy}
                         onShare={onShare}
                         onThumb={onThumb}
+                        showThinking={showThinking}
                     />
                 ))}
 
-                {(!!streamingMessage?.toolActivity?.length
-                    || !!streamingMessage?.statusLines?.length) && (
+                {showThinking
+                    && (!!streamingMessage?.toolActivity?.length
+                        || !!streamingMessage?.statusLines?.length
+                        || !!streamingMessage?.reasoning?.trim()) && (
                     <AgentToolActivity
-                        toolActivity={streamingMessage.toolActivity ?? []}
-                        statusLines={streamingMessage.statusLines}
-                        compact={false}
+                        toolActivity={streamingMessage?.toolActivity ?? []}
+                        statusLines={streamingMessage?.statusLines}
+                        reasoning={streamingMessage?.reasoning}
+                        isStreaming
                     />
                 )}
 
@@ -129,12 +139,22 @@ export function IntentionChatBody({
                     bare typing indicator only when no tool timeline is visible. */}
                 {isLoading
                     && !streamingMessage?.content
-                    && !streamingMessage?.toolActivity?.length
-                    && !streamingMessage?.statusLines?.length && (
+                    && (!showThinking || (!streamingMessage?.toolActivity?.length
+                        && !streamingMessage?.statusLines?.length)) && (
                     <View accessibilityLabel="Blackrose is thinking">
                         <TypingIndicator label="Thinking" />
                     </View>
                 )}
+
+                {/* The writing slip is part of the transcript, exactly as on the
+                    journal chat: your line joins the flow, the verbs wait below. */}
+                <InlineTypingInput
+                    ref={inputRef}
+                    onSubmit={onSubmitInput}
+                    onTextChange={onInputTextChange}
+                    onFocusChange={(focused) => { if (focused) onInputFocus?.(); }}
+                    disabled={isLoading}
+                />
             </View>
 
         </ScrollView>

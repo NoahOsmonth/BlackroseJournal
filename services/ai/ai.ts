@@ -19,6 +19,7 @@ import {
     StreamingCallback,
 } from './chatTypes';
 import { beginChatTurn, endChatTurn } from './chatTurnActivity';
+import { resolveImageDataUrls } from './chatImage';
 import {
     compactConversationIfNeeded,
     DEFAULT_COMPACT_CONTEXT_WINDOW,
@@ -163,6 +164,11 @@ export async function streamChat(
             outputReserve,
         });
         const outboundMessages = compactResult.messages;
+        // Vision: encode attached photos only when a turn actually carries one,
+        // so text-only conversations never pay for the file read.
+        const imageUrls = outboundMessages.some((message) => message.image?.uri)
+            ? await resolveImageDataUrls(outboundMessages)
+            : undefined;
 
         let eagerAugmentationText: string | undefined;
         let lastUsage: { prompt_tokens?: number } | null = null;
@@ -198,6 +204,7 @@ export async function streamChat(
                             ? { onActivity: resolved.onAgentActivity }
                             : {}),
                         ...(resolved.signal ? { signal: resolved.signal } : {}),
+                        ...(imageUrls ? { imageUrls } : {}),
                     });
                     lastUsage = agentResult.usage ?? null;
                     logPromptBudget(attachRealUsage(preLedger, lastUsage));
@@ -276,7 +283,8 @@ export async function streamChat(
             systemPrompt,
             true,
             resolved.conversationId,
-            resolved.generation
+            resolved.generation,
+            imageUrls
         );
 
         // Fix 3: strip any residual tool syntax from the final streamed content.
@@ -338,13 +346,18 @@ export async function completeChat(
         systemPrompt,
         contextWindow,
     });
+    const outboundMessages = compactResult.messages;
+    const imageUrls = outboundMessages.some((message) => message.image?.uri)
+        ? await resolveImageDataUrls(outboundMessages)
+        : undefined;
     const payload = buildChatPayload(
         activeModelId,
-        compactResult.messages,
+        outboundMessages,
         systemPrompt,
         false,
         options?.conversationId,
-        options?.generation
+        options?.generation,
+        imageUrls
     );
     const response = await fetchChatCompletion(payload);
     if (!response.ok) {

@@ -21,8 +21,17 @@ import { getProviderCapabilities, type ProviderCapabilities } from './providerCa
 
 export interface DirectChatRequest {
     model: string;
-    /** OpenAI-style messages; content may be null for tool-call assistant turns. */
-    messages: { role: string; content: string | null; tool_calls?: unknown; tool_call_id?: string; name?: string }[];
+    /**
+     * OpenAI-style messages. `content` is a string for text turns, an array of
+     * content parts for vision turns, and null on tool-call assistant turns.
+     */
+    messages: {
+        role: string;
+        content: string | { type: string; text?: string; image_url?: { url: string } }[] | null;
+        tool_calls?: unknown;
+        tool_call_id?: string;
+        name?: string;
+    }[];
     stream?: boolean;
     temperature?: number;
     top_p?: number;

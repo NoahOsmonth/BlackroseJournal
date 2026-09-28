@@ -193,6 +193,8 @@ interface AgentLoopOptions {
     onActivity?: AgentActivityListener;
     /** Abort signal (user Stop): stops after the current round and cancels in-flight requests. */
     signal?: AbortSignal;
+    /** messageId → data URL for vision turns (see chatImage.ts). */
+    imageUrls?: Map<string, string>;
 }
 
 /**
@@ -288,13 +290,26 @@ function extractAssistantContent(data: unknown): { content: string; reasoning: s
     };
 }
 
-function buildAgentMessages(systemPrompt: string, messages: Message[]): AgentMessage[] {
+function buildAgentMessages(
+    systemPrompt: string,
+    messages: Message[],
+    imageUrls?: Map<string, string>
+): AgentMessage[] {
     return [
         { role: 'system', content: systemPrompt },
-        ...messages.map((m) => ({
-            role: m.role as 'user' | 'assistant',
-            content: m.content,
-        })),
+        ...messages.map((m) => {
+            const dataUrl = imageUrls?.get(m.id);
+            return {
+                role: m.role as 'user' | 'assistant',
+                // Vision turn: text plus the photo, as OpenAI content parts.
+                content: dataUrl
+                    ? [
+                        { type: 'text' as const, text: m.content },
+                        { type: 'image_url' as const, image_url: { url: dataUrl } },
+                    ]
+                    : m.content,
+            };
+        }),
     ];
 }
 
@@ -608,7 +623,7 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
         return emptyResult(capability.mode);
     }
 
-    const agentMessages = buildAgentMessages(options.systemPrompt, options.messages);
+    const agentMessages = buildAgentMessages(options.systemPrompt, options.messages, options.imageUrls);
     const executedKeys = new Set<string>();
     // Idempotency scope for this turn: identical calls share one execution.
     const runId = `agent_${Date.now().toString(36)}_${(agentTurnSeq += 1)}`;

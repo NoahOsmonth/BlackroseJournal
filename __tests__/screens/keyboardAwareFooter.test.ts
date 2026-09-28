@@ -58,16 +58,36 @@ describe('keyboard-aware chat footer', () => {
         const src = readSource('app/chat.tsx');
         expectConcreteBehavior(src, 'app/chat.tsx');
         const jsxStart = src.indexOf('return (');
-        expect(src.indexOf('<KeyboardAvoidingView')).toBeLessThan(src.indexOf('<ScrollView', jsxStart));
-        // Footer must live inside the avoiding view so it rides above the keyboard.
-        expect(src.indexOf('</KeyboardAvoidingView')).toBeGreaterThan(src.indexOf('<FooterActions'));
+        const avoidOpen = src.indexOf('<KeyboardAvoidingView', jsxStart);
+        const avoidClose = src.indexOf('</KeyboardAvoidingView', jsxStart);
+        expect(avoidOpen).toBeGreaterThan(-1);
+        // Both the transcript and the composer live inside the avoiding view: the
+        // composer is what has to ride above the keyboard so "Go deeper" stays
+        // reachable while the slip is focused.
+        expect(src.indexOf('<ChatTranscript', jsxStart)).toBeGreaterThan(avoidOpen);
+        const composer = src.indexOf('<ChatComposerBar', jsxStart);
+        expect(composer).toBeGreaterThan(avoidOpen);
+        expect(composer).toBeLessThan(avoidClose);
+        // The scroller moved into the transcript; it is still the surface the
+        // avoiding view must keep clear of the pinned composer.
+        expect(readSource('components/chat/ChatTranscript.tsx')).toContain('<ScrollView');
     });
 
     it('gives the intentions chat a behavior that works on Android, not just iOS', () => {
         const src = readSource('app/intentions/chat.tsx');
         expectConcreteBehavior(src, 'app/intentions/chat.tsx');
-        expect(src.indexOf('<KeyboardAvoidingView')).toBeLessThan(src.indexOf('<IntentionChatBody'));
-        expect(src.indexOf('</KeyboardAvoidingView')).toBeGreaterThan(src.indexOf('<IntentionChatFooter'));
+        const jsxStart = src.indexOf('return (');
+        const avoidOpen = src.indexOf('<KeyboardAvoidingView', jsxStart);
+        const avoidClose = src.indexOf('</KeyboardAvoidingView', jsxStart);
+        // Assert existence first: `-1 < positive` is true, so a missing tag used to
+        // satisfy the ordering comparisons below without proving anything.
+        expect(avoidOpen).toBeGreaterThan(-1);
+        expect(avoidClose).toBeGreaterThan(avoidOpen);
+        const body = src.indexOf('<IntentionChatBody', jsxStart);
+        const composer = src.indexOf('<IntentionChatComposerBar', jsxStart);
+        expect(body).toBeGreaterThan(avoidOpen);
+        expect(composer).toBeGreaterThan(avoidOpen);
+        expect(composer).toBeLessThan(avoidClose);
     });
 
     it('covers the remaining keyboard-bearing surface (ask-rosebud)', () => {

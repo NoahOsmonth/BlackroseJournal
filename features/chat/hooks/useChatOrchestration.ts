@@ -24,6 +24,7 @@ import { DAILY_PROMPTS, DailyPrompt, PromptPeriod } from '../../../constants/dai
 import { DirectConfigError } from '../../../services/ai/directConfig';
 import { isChatAbortedError, Message, useChat } from '../../../services/ai';
 import { createTemporalMessage } from '../../../services/ai/messageTemporalMetadata';
+import type { PickedChatImage } from '../../../services/ai/chatImage';
 import { resolveGenerationSettings } from '../../../services/ai/generationSettings';
 import {
     ChatSessionMode,
@@ -108,7 +109,7 @@ export interface UseChatOrchestrationReturn {
     isLoading: boolean;
     errorMessage: string | null;
     canRetry: boolean;
-    handleSendMessage: (text: string) => Promise<void>;
+    handleSendMessage: (text: string, image?: PickedChatImage) => Promise<void>;
     /** Aborts the active generation; partial text (if any) stays as a message. */
     stopGeneration: () => void;
     retryLastMessage: () => Promise<void>;
@@ -546,7 +547,7 @@ export function useChatOrchestration({
         }
     }, [mode, currentPrompt, sendInitialPrompt, scrollToBottom, focusInput, beginStreaming, clearError, handleAiError]);
 
-    const handleSendMessage = useCallback(async (text: string) => {
+    const handleSendMessage = useCallback(async (text: string, image?: PickedChatImage) => {
         if (Platform.OS === 'web') console.warn(`[ORCH] handleSendMessage len=${text.length} isLoading=${isLoading}`);
         Keyboard.dismiss();
 
@@ -554,6 +555,16 @@ export function useChatOrchestration({
             id: Date.now().toString(),
             role: 'user',
             content: text,
+            ...(image
+                ? {
+                    image: {
+                        uri: image.uri,
+                        mimeType: image.mimeType,
+                        width: image.width,
+                        height: image.height,
+                    },
+                }
+                : {}),
         });
 
         clearError();
@@ -593,7 +604,7 @@ export function useChatOrchestration({
                     focusInput();
                 },
                 handleAiError,
-                { onAgentActivity: handleAgentActivity }
+                { onAgentActivity: handleAgentActivity, ...(image ? { image } : {}) }
             );
         } catch (error) {
             handleAiError(error instanceof Error ? error : new Error('Unknown error'));
@@ -632,7 +643,10 @@ export function useChatOrchestration({
                     focusInput();
                 },
                 handleAiError,
-                { onAgentActivity: handleAgentActivity }
+                {
+                    onAgentActivity: handleAgentActivity,
+                    ...(lastUserMessage.image ? { image: lastUserMessage.image } : {}),
+                }
             );
         } catch (error) {
             handleAiError(error instanceof Error ? error : new Error('Unknown error'));

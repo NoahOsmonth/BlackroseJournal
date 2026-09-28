@@ -18,15 +18,6 @@ import {
 import { Intention, IntentionArea, IntentionCheckInType } from '@/services/intentions/intentionsStorage.types';
 import { getIntentionAreaConfig } from '@/constants/intentions';
 import { hasContent } from '@/hooks/journal/useEntryUtils';
-import { markIntentionGoalComplete } from '@/services/goals/goalsStorage';
-import {
-    finishIntentionChat,
-    saveIntentionChatDraft,
-    shouldMarkIntentionGoalComplete,
-    withPendingInput,
-} from '@/services/intentions/intentionChatCompletion';
-import { generateEntryTitle } from '@/services/ai';
-import { getLocalDateKey } from '@/utils/date';
 import { ChatModelPickerSheet } from '@/components/ai/ChatModelPickerSheet';
 import { IntentionChatHeader } from '@/components/intentions/IntentionChatHeader';
 import { IntentionChatComposerBar } from '@/components/intentions/IntentionChatComposerBar';
@@ -35,9 +26,13 @@ import { IntentionChatOverlays } from '@/components/intentions/IntentionChatOver
 import { useAiFeedback } from '@/hooks/feedback/useAiFeedback';
 import { useIntentionFeedbackModal } from '@/hooks/feedback/useIntentionFeedbackModal';
 import { useChatModelPicker } from '@/hooks/settings/useChatModelPicker';
+import { useChatViewSettings } from '@/hooks/settings/useChatViewSettings';
+import { useChatImagePicker } from '@/hooks/chat/useChatImagePicker';
+import { useKeyboardAwareScroll } from '@/hooks/chat/useKeyboardAwareScroll';
 import type { AiFeedbackValue } from '@/services/feedback/feedbackStorage';
 import { usePersonaSettingsActions } from '@/hooks/personas/usePersonaSettingsActions';
 import { useIntentionChatPersist } from '@/hooks/intentions/useIntentionChatPersist';
+import { useIntentionChatFinish } from '@/hooks/intentions/useIntentionChatFinish';
 export default function IntentionChatScreen() {
     const router = useRouter();
     const params = useLocalSearchParams();
@@ -59,9 +54,9 @@ export default function IntentionChatScreen() {
     const [draftUpdatedAt, setDraftUpdatedAt] = useState<number | null>(null);
     const [personaSheetOpen, setPersonaSheetOpen] = useState(false);
     const modelPicker = useChatModelPicker();
+    const { showThinking, toggleShowThinking } = useChatViewSettings();
+    const { pendingImage, isPicking, pickImage, removeImage, consumeImage } = useChatImagePicker();
     const [isMuted, setIsMuted] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
-    const [finishStage, setFinishStage] = useState('Preparing your check-in');
 
     const areaParam = Array.isArray(params.area) ? params.area[0] : params.area;
     const intentionId = Array.isArray(params.intentionId) ? params.intentionId[0] : params.intentionId;
@@ -176,6 +171,10 @@ export default function IntentionChatScreen() {
         getComposerDraft: () => inputValue,
     });
 
+    // The composer bar rides above the keyboard via the avoiding view; this
+    // keeps the writing slip itself in view when the keyboard covers it.
+    useKeyboardAwareScroll(scrollToBottom);
+
     const { handleThumb, feedbackModalProps } = useIntentionFeedbackModal({
         conversationId,
         feedbackByMessageId,
@@ -232,138 +231,49 @@ export default function IntentionChatScreen() {
         scrollToBottom();
     }, [messages, streamingMessage, scrollToBottom]);
 
-    const handleClose = useCallback(async () => {
-        finalize();
-        const hasDraftContent = hasContent(messages) || inputValue.trim().length > 0;
-        if (hasDraftContent) {
-            const draftId = await saveIntentionChatDraft({
-                messages,
-                inputValue,
-                draftCheckInId,
-                intentionId,
-                checkInType,
-                personaId: activePersona?.id,
-            });
-            if (draftId) setDraftCheckInId(draftId);
-        }
-
-        // Saved as an explicit check-in draft — drop the autosave session.
-        await clearPersistedSession();
-
-        handleNewChat();
-        router.replace('/(tabs)/today');
-    }, [
-        activePersona?.id,
-        checkInType,
-        clearPersistedSession,
-        draftCheckInId,
-        finalize,
-        handleNewChat,
-        inputValue,
-        intentionId,
+    // Ending a check-in (draft or complete) is orchestration, not screen state.
+    const { handleClose, handleFinish, isSaving, finishStage } = useIntentionChatFinish({
         messages,
-        router,
-    ]);
-
-    const handleFinish = useCallback(async () => {
-        if ((!hasContent(messages) && !inputValue.trim()) || isSaving) {
-            return;
-        }
-
-        finalize();
-        setIsSaving(true);
-        setFinishStage('Preparing your check-in');
-        try {
-            const finalMessages = withPendingInput(messages, inputValue);
-            const entryText = finalMessages
-                .filter((message) => message.role === 'user')
-                .map((message) => message.content)
-                .join('\n\n');
-
-            let generatedTitle: string | undefined;
-            if (entryText.trim()) {
-                try {
-                    setFinishStage('Finding a title');
-                    generatedTitle = await generateEntryTitle({ entryText });
-                } catch (error) {
-                    console.warn('AI title generation failed, using summary fallback', error);
-                }
-            }
-
-            setFinishStage('Saving your check-in');
-            const { resolvedIntention, checkIn } = await finishIntentionChat({
-                messages,
-                inputValue,
-                draftCheckInId,
-                intentionId,
-                checkInType,
-                personaId: activePersona?.id,
-                intention,
-                areaParam,
-                isRefineMode,
-                title: generatedTitle,
-            });
-
-            // Only stamp a completed goal when this finish produced a completed
-            // check-in; refine mode creates none and must not duplicate a goal.
-            if (resolvedIntention && shouldMarkIntentionGoalComplete(checkIn, checkInType)) {
-                await markIntentionGoalComplete(
-                    resolvedIntention.title,
-                    getLocalDateKey(new Date()),
-                    resolvedIntention.id
-                );
-            }
-
-            // Completed check-in must not linger as an active session.
-            await removeSession(conversationId);
-
-            handleNewChat();
-            if (resolvedIntention) {
-                router.replace({ pathname: '/intentions/detail', params: { id: resolvedIntention.id } });
-            } else {
-                router.replace('/(tabs)/today');
-            }
-        } finally {
-            setIsSaving(false);
-            setFinishStage('Preparing your check-in');
-        }
-    }, [
-        activePersona?.id,
-        areaParam,
-        checkInType,
+        inputValue,
         conversationId,
+        checkInType,
         draftCheckInId,
-        finalize,
-        handleNewChat,
-        inputValue,
-        intention,
         intentionId,
+        intention,
+        areaParam,
+        personaId: activePersona?.id,
         isRefineMode,
-        isSaving,
-        messages,
-        router,
-    ]);
+        finalize,
+        clearPersistedSession,
+        removeSession,
+        handleNewChat,
+        onDraftSaved: setDraftCheckInId,
+    });
 
     const handleSubmitInput = useCallback(async (text: string) => {
         const trimmed = text.trim();
         if (!trimmed || isLoading) {
             return;
         }
+        const image = pendingImage ?? undefined;
         setInputValue('');
         clearError();
-        await handleSendMessage(trimmed);
-    }, [clearError, handleSendMessage, isLoading]);
+        if (image) consumeImage();
+        await handleSendMessage(trimmed, image);
+    }, [clearError, handleSendMessage, isLoading, pendingImage, consumeImage]);
 
     const handleGoDeeper = useCallback(async () => {
-        if (!trimmedInput || isLoading) {
+        if ((!trimmedInput && !pendingImage) || isLoading) {
             return;
         }
         const text = trimmedInput;
+        const image = pendingImage ?? undefined;
         setInputValue('');
         inputRef.current?.clear();
         clearError();
-        await handleSendMessage(text);
-    }, [clearError, handleSendMessage, isLoading, trimmedInput]);
+        if (image) consumeImage();
+        await handleSendMessage(text, image);
+    }, [clearError, handleSendMessage, isLoading, trimmedInput, pendingImage, consumeImage]);
 
     const handlePlay = (text: string) => {
         if (isMuted) return;
@@ -420,6 +330,8 @@ export default function IntentionChatScreen() {
                         modelPicker.open();
                     }}
                     modelPickerDisabled={isLoading}
+                    showThinking={showThinking}
+                    onToggleThinking={() => { void toggleShowThinking(); }}
                 />
 
                 <IntentionChatBody
@@ -432,31 +344,34 @@ export default function IntentionChatScreen() {
                     isLoading={isLoading}
                     feedback={feedback}
                     onSubmitInput={handleSubmitInput}
-                    onInputTextChange={setInputValue}
+                    onInputTextChange={(text) => { setInputValue(text); noteComposerActivity(); }}
                     onSettingsPress={personaSettings.openActiveSettings}
                     onPlay={handlePlay}
                     onCopy={handleCopy}
                     onShare={handleShare}
                     onThumb={handleThumb}
+                    showThinking={showThinking}
+                    onInputFocus={() => scrollToBottom({ force: true })}
                     onScroll={handleScroll}
                     onContentSizeChange={() => scrollToBottom()}
                 />
 
                 <IntentionChatComposerBar
-                    inputRef={inputRef}
                     isMuted={isMuted}
                     onToggleMuted={handleToggleMuted}
-                    onSubmitInput={handleSubmitInput}
-                    onInputTextChange={(text) => { setInputValue(text); noteComposerActivity(); }}
                     onGoDeeper={handleGoDeeper}
                     onFinishEntry={handleFinish}
                     disabled={isLoading || isSaving}
-                    canGoDeeper={trimmedInput.length > 0}
+                    canGoDeeper={trimmedInput.length > 0 || Boolean(pendingImage)}
                     canFinish={hasContent(messages) || trimmedInput.length > 0}
                     isSaving={isSaving}
                     savingLabel={finishStage}
                     isStreaming={isLoading}
                     onStop={stopGeneration}
+                    pendingImage={pendingImage}
+                    onPickImage={() => { void pickImage(); }}
+                    onRemoveImage={removeImage}
+                    isPickingImage={isPicking}
                 />
 
                 <IntentionChatOverlays

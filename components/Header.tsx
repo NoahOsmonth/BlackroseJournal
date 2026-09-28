@@ -19,6 +19,10 @@ interface HeaderProps {
   modelPickerDisabled?: boolean;
   /** Serif title for this sitting (e.g. “Evening close”). */
   title?: string;
+  /** Whether the transcript shows the companion's reasoning + tool calls. */
+  showThinking?: boolean;
+  /** Flips the transcript's thinking/tool layer. Omit to hide the control. */
+  onToggleThinking?: () => void;
 }
 
 /**
@@ -32,12 +36,16 @@ export function Header({
   personaName,
   onPersonaPress,
   title,
+  showThinking = true,
+  onToggleThinking,
 }: HeaderProps) {
   const isDark = useColorScheme() === 'dark';
   const pillLabel = personaName ?? 'Blackrose';
   const isPersonaPill = Boolean(onPersonaPress);
   const closeIconColor = isDark ? BLACKROSE_PALETTE.dark.text : BLACKROSE_PALETTE.light.text;
   const markColor = isDark ? BLACKROSE_PALETTE.dark.accent : BLACKROSE_PALETTE.light.accent;
+  const thinkingOnColor = isDark ? BLACKROSE_PALETTE.dark.accent : BLACKROSE_PALETTE.light.accent;
+  const thinkingOffColor = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
   const heading = title ?? pillLabel;
 
   return (
@@ -82,6 +90,33 @@ export function Header({
               style={{ fontFamily: 'PlayfairDisplayRegular' }}
             >
               Drafts
+            </Text>
+          </Pressable>
+        ) : onToggleThinking ? (
+          /* The transcript's work layer (reasoning + tool calls) is one switch
+             away: off hides every trace of it, so the sitting reads as prose. */
+          <Pressable
+            onPress={onToggleThinking}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: showThinking }}
+            accessibilityLabel={showThinking
+              ? 'Hide thinking and tool calls'
+              : 'Show thinking and tool calls'}
+            hitSlop={8}
+            className="flex-row items-center gap-1 rounded-control border border-hairline-light px-2 py-1 dark:border-hairline-dark"
+          >
+            <MaterialIcons
+              name="psychology"
+              size={14}
+              color={showThinking ? thinkingOnColor : thinkingOffColor}
+              accessibilityElementsHidden
+            />
+            <Text
+              className="text-[11px] text-text-secondary-light dark:text-text-secondary-dark"
+              style={showThinking ? { color: thinkingOnColor } : undefined}
+              numberOfLines={1}
+            >
+              {showThinking ? 'Thinking' : 'Thinking off'}
             </Text>
           </Pressable>
         ) : (

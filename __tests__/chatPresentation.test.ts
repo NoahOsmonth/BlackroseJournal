@@ -2,10 +2,11 @@ import fs from 'fs';
 import path from 'path';
 
 /**
- * Chat presentation law (plan §4): both chat surfaces share one look —
- * user slip on the right with no bubble tail, companion paragraph beside a
- * bone left rule, complete prose (no typewriter), bone thinking dots, the
- * “Write what's true…” composer, outline footer actions, and the mistake line.
+ * Chat presentation law: both chat surfaces share one look — the companion's
+ * paragraph beside a bone left rule, the writer's line inline in the flow (no
+ * bubble, no right-aligned slip), complete prose (no typewriter), bone thinking
+ * dots, the “Write what's true…” slip with the verbs in the pinned bar, and the
+ * mistake line on the surface that has no concept.
  *
  * These are source-level guards: they fail if a future edit forks the two
  * surfaces or reintroduces the pre-rewrite chat chrome.
@@ -34,15 +35,19 @@ const LEGACY_CHAT_CHROME = [
 ];
 
 describe('chat presentation', () => {
-    it('gives the companion a bone left rule and the user a right-aligned slip', () => {
+    it('gives the companion a bone left rule and leaves the writer inline, never in a bubble', () => {
         const chatMessage = read('components', 'ChatMessage.tsx');
         expect(chatMessage).toContain('bg-bone-light dark:bg-bone-dark');
-        expect(chatMessage).toContain('bg-surface-2-light px-4 py-3 dark:bg-surface-2-dark');
+        // The reference transcript has no user bubble: the writer's line sits in
+        // the flow exactly like the companion's, so neither surface may paint a
+        // surface-filled, right-aligned slip.
+        expect(chatMessage).not.toContain('bg-surface-2-light');
+        expect(chatMessage).not.toContain('items-end');
 
         const intentionMessage = read('components', 'intentions', 'IntentionChatMessage.tsx');
         expect(intentionMessage).toContain('bg-bone-light dark:bg-bone-dark');
-        expect(intentionMessage).toContain('bg-surface-2-light px-4 py-3 dark:bg-surface-2-dark');
-        expect(intentionMessage).toContain('items-end');
+        expect(intentionMessage).not.toContain('bg-surface-2-light');
+        expect(intentionMessage).not.toContain('items-end');
     });
 
     it('ships no bubble tails, letter-by-letter typewriter, or legacy chat chrome', () => {
@@ -63,11 +68,19 @@ describe('chat presentation', () => {
     it('keeps one composer prompt on both surfaces', () => {
         const composer = read('components', 'InlineTypingInput.tsx');
         expect(composer).toContain("placeholder = \"Write what's true…\"");
-        expect(composer).toContain('accessibilityLabel="Send message"');
+        // No send disc in the transcript: the verbs live in the pinned bar, so the
+        // slip itself carries no send affordance to keep in sync across surfaces.
+        expect(composer).not.toContain('accessibilityLabel="Send message"');
+        expect(composer).toContain(`accessibilityLabel="Write what's true"`);
 
-        expect(read('app', 'chat.tsx')).toContain('placeholder="Write what\'s true…"');
-        expect(read('components', 'intentions', 'IntentionChatComposerBar.tsx'))
-            .toContain('placeholder="Write what\'s true…"');
+        // The prompt is written exactly once — as the slip's own default. Both
+        // surfaces render that slip, so neither carries a copy of the string.
+        const journalSlip = read('components', 'chat', 'ChatTranscript.tsx');
+        const intentionSlip = read('components', 'intentions', 'IntentionChatBody.tsx');
+        expect(journalSlip).toContain('<InlineTypingInput');
+        expect(intentionSlip).toContain('<InlineTypingInput');
+        expect(journalSlip).not.toContain("Write what's true");
+        expect(intentionSlip).not.toContain("Write what's true");
     });
 
     it('keeps the companion mistake line where the design keeps it', () => {
@@ -75,7 +88,7 @@ describe('chat presentation', () => {
         // float above the writing slip. The intention footer has no concept and
         // keeps its disclaimer beside the volume control.
         expect(read('app', 'chat.tsx')).not.toContain('can make mistakes');
-        expect(read('components', 'intentions', 'IntentionChatFooter.tsx'))
+        expect(read('components', 'intentions', 'IntentionChatComposerBar.tsx'))
             .toContain('Blackrose can make mistakes.');
     });
 

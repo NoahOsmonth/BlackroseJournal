@@ -2,6 +2,8 @@
  * Local tool-host types (MCP-like, device-executed).
  */
 
+import type { ChatContentPart } from '../chatTypes';
+
 export interface ToolJsonSchema {
     type: 'object';
     properties?: Record<string, unknown>;
@@ -68,7 +70,8 @@ export type AgentMessageRole = 'system' | 'user' | 'assistant' | 'tool';
 
 export interface AgentMessage {
     role: AgentMessageRole;
-    content: string | null;
+    /** A string, OpenAI content parts (vision turns), or null for tool-call turns. */
+    content: string | ChatContentPart[] | null;
     tool_calls?: {
         id: string;
         type: 'function';

@@ -4,6 +4,7 @@ import {
     sanitizeGenerationSettings,
 } from './generationSettings';
 import type { AgentActivityListener, AgentToolCallSnapshot } from './agentEvents';
+import type { ChatImageAttachment } from './chatImage';
 import type { ToolCapability } from './tools/toolCapability';
 
 export interface Message {
@@ -20,7 +21,17 @@ export interface Message {
     revision?: number;
     /** Tool timeline from the agent turn that produced this assistant reply. */
     toolActivity?: AgentToolCallSnapshot[];
+    /**
+     * Photo the writer attached to this turn (vision). Persisted as a local
+     * uri only — the base64 payload is derived at request time (chatImage.ts).
+     */
+    image?: ChatImageAttachment;
 }
+
+/** OpenAI content part: text, or an image the provider must fetch. */
+export type ChatContentPart =
+    | { type: 'text'; text: string }
+    | { type: 'image_url'; image_url: { url: string } };
 
 export interface StreamingCallback {
     (chunk: string, reasoning?: string): void;
@@ -77,7 +88,7 @@ export interface ChatUsage {
 
 export interface ChatRequestPayload {
     model: string;
-    messages: { role: 'system' | 'user' | 'assistant'; content: string }[];
+    messages: { role: 'system' | 'user' | 'assistant'; content: string | ChatContentPart[] }[];
     stream: boolean;
     temperature: number;
     top_p: number;
@@ -115,20 +126,42 @@ export function generateConversationId(): string {
     return `chat_${timestamp}_${random}`;
 }
 
+/**
+ * Map one stored message onto the wire. A turn that carries a photo is sent as
+ * content parts (text + image_url); everything else stays a plain string so
+ * text-only providers keep seeing exactly the payload they always have.
+ */
+function toWireMessage(
+    message: Message,
+    imageUrls?: Map<string, string>
+): { role: 'user' | 'assistant'; content: string | ChatContentPart[] } {
+    const dataUrl = imageUrls?.get(message.id);
+    if (!dataUrl) return { role: message.role, content: message.content };
+    return {
+        role: message.role,
+        content: [
+            { type: 'text', text: message.content },
+            { type: 'image_url', image_url: { url: dataUrl } },
+        ],
+    };
+}
+
 export function buildChatPayload(
     model: string,
     messages: Message[],
     systemPrompt: string,
     stream: boolean,
     conversationId?: string,
-    generation: Partial<GenerationSettings> = DEFAULT_GENERATION
+    generation: Partial<GenerationSettings> = DEFAULT_GENERATION,
+    /** messageId → data URL for turns that attached a photo (see chatImage.ts). */
+    imageUrls?: Map<string, string>
 ): ChatRequestPayload {
     const settings = sanitizeGenerationSettings(generation);
     return {
         model,
         messages: [
             { role: 'system', content: systemPrompt },
-            ...messages.map((m) => ({ role: m.role, content: m.content })),
+            ...messages.map((m) => toWireMessage(m, imageUrls)),
         ],
         stream,
         temperature: settings.temperature,

@@ -17,7 +17,22 @@ function makeCall(overrides: Partial<AgentToolCallSnapshot> = {}): AgentToolCall
 }
 
 describe('AgentToolActivity', () => {
-    it('renders a running tool row with label and a11y', () => {
+    it('renders nothing when the turn has no work to show', () => {
+        const { toJSON } = render(<AgentToolActivity toolActivity={[]} />);
+        expect(toJSON()).toBeNull();
+    });
+
+    it('renders nothing for a status line alone once the turn is no longer live', () => {
+        const { toJSON } = render(
+            <AgentToolActivity
+                toolActivity={[]}
+                statusLines={[{ id: 't1', round: 1, text: 'Let me dig.' }]}
+            />
+        );
+        expect(toJSON()).toBeNull();
+    });
+
+    it('opens itself while a tool is running', () => {
         const { getByLabelText, getByText } = render(
             <AgentToolActivity toolActivity={[makeCall()]} />
         );
@@ -27,13 +42,61 @@ describe('AgentToolActivity', () => {
         expect(getByText('yesterday')).toBeTruthy();
     });
 
-    it('renders ok and error statuses', () => {
+    it('collapses a finished turn behind one summary line', () => {
+        const { getByText, queryByLabelText } = render(
+            <AgentToolActivity
+                toolActivity={[
+                    makeCall({ toolCallId: 'a', status: 'ok', durationMs: 42 }),
+                    makeCall({ toolCallId: 'b', status: 'ok', label: 'Checking the time' }),
+                ]}
+            />
+        );
+
+        expect(getByText('Used 2 tools · 42ms')).toBeTruthy();
+        expect(queryByLabelText('Tool Reading a day: ok')).toBeNull();
+    });
+
+    it('expands the summary line to reveal the tools that ran', () => {
+        const { getByLabelText } = render(
+            <AgentToolActivity toolActivity={[makeCall({ status: 'ok' })]} />
+        );
+
+        fireEvent.press(getByLabelText('Show thinking and tools'));
+        expect(getByLabelText('Tool Reading a day: ok')).toBeTruthy();
+    });
+
+    it('counts reasoning in the summary line', () => {
+        const { getByText } = render(
+            <AgentToolActivity
+                toolActivity={[makeCall({ status: 'ok' })]}
+                reasoning="She sounded tired."
+            />
+        );
+
+        expect(getByText('Thought it through · Used 1 tool')).toBeTruthy();
+    });
+
+    it('shows the reasoning itself only once expanded', () => {
+        const { getByLabelText, queryByLabelText } = render(
+            <AgentToolActivity
+                toolActivity={[makeCall({ status: 'ok' })]}
+                reasoning="She sounded tired."
+            />
+        );
+
+        expect(queryByLabelText('Companion reasoning')).toBeNull();
+        fireEvent.press(getByLabelText('Show thinking and tools'));
+        expect(getByLabelText('Companion reasoning')).toBeTruthy();
+    });
+
+    it('renders a tool row per status with its own a11y label', () => {
         const { getByLabelText } = render(
             <AgentToolActivity
                 toolActivity={[
                     makeCall({ toolCallId: 'a', status: 'ok', durationMs: 42 }),
                     makeCall({ toolCallId: 'b', label: 'Searching your history', status: 'error' }),
                 ]}
+                isStreaming
             />
         );
 
@@ -41,7 +104,7 @@ describe('AgentToolActivity', () => {
         expect(getByLabelText('Tool Searching your history: error')).toBeTruthy();
     });
 
-    it('expands a finished row to show result preview', () => {
+    it('expands a finished tool row to show its result preview', () => {
         const { getByLabelText, getByText, queryByText } = render(
             <AgentToolActivity
                 toolActivity={[
@@ -51,6 +114,7 @@ describe('AgentToolActivity', () => {
                         durationMs: 12,
                     }),
                 ]}
+                isStreaming
             />
         );
 
@@ -59,59 +123,45 @@ describe('AgentToolActivity', () => {
         expect(getByText('summary: Sleep was rough')).toBeTruthy();
     });
 
-    it('collapses to a compact chip when prose is streaming', () => {
-        const { getByLabelText, queryByLabelText } = render(
-            <AgentToolActivity
-                toolActivity={[
-                    makeCall({ toolCallId: 'a', status: 'ok' }),
-                    makeCall({ toolCallId: 'b', status: 'ok', label: 'Checking the time' }),
-                ]}
-                compact
-            />
-        );
-
-        const chip = getByLabelText('Used 2 tools. Show details.');
-        expect(chip).toBeTruthy();
-        expect(queryByLabelText('Tool Reading a day: ok')).toBeNull();
-
-        fireEvent.press(chip);
-        expect(getByLabelText('Tool Reading a day: ok')).toBeTruthy();
-    });
-
-    it('uses both light and dark hairline tokens on the tool row', () => {
+    it('hangs the detail off the companion rail instead of drawing a second one', () => {
         const { getByLabelText } = render(
-            <AgentToolActivity toolActivity={[makeCall({ status: 'ok' })]} />
-        );
-        const row = getByLabelText('Tool Reading a day: ok');
-        const className = String(row.props.className ?? '');
-        expect(className).toContain('border-hairline-light');
-        expect(className).toContain('dark:border-hairline-dark');
-    });
-
-    it('stays expanded (not a chip) when compact is false during live work', () => {
-        const { getByLabelText, queryByLabelText } = render(
             <AgentToolActivity
-                toolActivity={[makeCall({ status: 'running' })]}
-                compact={false}
+                toolActivity={[makeCall({ status: 'ok' })]}
+                reasoning="thought about it"
+                isStreaming
             />
         );
-        expect(getByLabelText('Tool Reading a day: running')).toBeTruthy();
-        expect(queryByLabelText(/Used \d+ tools/)).toBeNull();
+        // Walk up from the tool row to the detail block that holds it. The
+        // companion column already draws the bone rail, so a second rule 12px
+        // inside it reads as noise — indent only.
+        let block = getByLabelText('Tool Reading a day: ok').parent;
+        while (block && !String(block.props.className ?? '').includes('pl-3')) {
+            block = block.parent;
+        }
+        const className = String(block?.props.className ?? '');
+        expect(className).toContain('pl-3');
+        expect(className).not.toContain('border-l');
     });
 
-    it('renders nothing for empty activity', () => {
-        const { toJSON } = render(<AgentToolActivity toolActivity={[]} />);
-        expect(toJSON()).toBeNull();
+    it('paints the reasoning with both scheme tokens', () => {
+        const { getByLabelText } = render(
+            <AgentToolActivity toolActivity={[]} reasoning="thought about it" isStreaming />
+        );
+        const className = String(getByLabelText('Companion reasoning').props.className ?? '');
+        expect(className).toContain('text-bone-light');
+        expect(className).toContain('dark:text-bone-dark');
     });
 
-    it('shows the working status line above the tool rows while live', () => {
+    it('says Working… and shows the status line while the turn is live', () => {
         const { getByLabelText, getByText } = render(
             <AgentToolActivity
                 toolActivity={[makeCall({ status: 'running' })]}
                 statusLines={[{ id: 't1', round: 1, text: 'Let me go dig rather than guess.' }]}
+                isStreaming
             />
         );
 
+        expect(getByText('Working…')).toBeTruthy();
         expect(getByText('Let me go dig rather than guess.')).toBeTruthy();
         expect(getByLabelText('Working: Let me go dig rather than guess.')).toBeTruthy();
         expect(getByLabelText('Tool Reading a day: running')).toBeTruthy();
@@ -125,6 +175,7 @@ describe('AgentToolActivity', () => {
                     { id: 't1', round: 1, text: 'Digging.' },
                     { id: 't2', round: 2, text: 'Looking at that day.' },
                 ]}
+                isStreaming
             />
         );
 
@@ -132,39 +183,15 @@ describe('AgentToolActivity', () => {
         expect(queryByText('Digging.')).toBeNull();
     });
 
-    it('renders status lines with no tools at all (promise-only turn)', () => {
-        const { getByText, queryByLabelText } = render(
+    it('renders a status line with no tools at all (promise-only turn)', () => {
+        const { getByText } = render(
             <AgentToolActivity
                 toolActivity={[]}
                 statusLines={[{ id: 't1', round: 1, text: 'One sec — checking yesterday.' }]}
+                isStreaming
             />
         );
 
         expect(getByText('One sec — checking yesterday.')).toBeTruthy();
-        expect(queryByLabelText(/Used \d+ tools/)).toBeNull();
-    });
-
-    it('never shows status lines on the committed compact chip', () => {
-        const { getByLabelText, queryByText } = render(
-            <AgentToolActivity
-                toolActivity={[makeCall({ status: 'ok' })]}
-                statusLines={[{ id: 't1', round: 1, text: 'Let me dig.' }]}
-                compact
-            />
-        );
-
-        expect(getByLabelText('Used 1 tool. Show details.')).toBeTruthy();
-        expect(queryByText('Let me dig.')).toBeNull();
-    });
-
-    it('renders nothing (not a chip) when compact and only a status line exists', () => {
-        const { toJSON } = render(
-            <AgentToolActivity
-                toolActivity={[]}
-                statusLines={[{ id: 't1', round: 1, text: 'Let me dig.' }]}
-                compact
-            />
-        );
-        expect(toJSON()).toBeNull();
     });
 });

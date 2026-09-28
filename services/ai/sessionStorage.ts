@@ -12,6 +12,7 @@
 
 import { accountScopedStorage as AsyncStorage } from '@/services/account/accountScopedStorage';
 import { runAccountBoundOperation } from '@/services/account/accountRuntime';
+import type { AgentToolCallOrigin, AgentToolCallSnapshot, AgentToolStatus } from './agentEvents';
 import type { Message } from './chatTypes';
 import { normalizeTemporalMessageMetadata } from './messageTemporalMetadata';
 
@@ -89,6 +90,57 @@ function isSessionMode(value: unknown): value is ChatSessionMode {
     return typeof value === 'string' && SESSION_MODES.has(value as ChatSessionMode);
 }
 
+/**
+ * A finished turn's tool trace is part of what the reader sees — the quiet
+ * "Thought it through · Used 2 tools" line above a reply — so it has to survive
+ * a resume. Bounded hard, because this is a display artifact and never a
+ * transcript: 12 calls per turn, 200 chars per preview.
+ */
+const MAX_PERSISTED_TOOL_CALLS = 12;
+const MAX_TOOL_PREVIEW_CHARS = 200;
+const TOOL_STATUSES: AgentToolStatus[] = ['running', 'ok', 'error', 'refused'];
+const TOOL_ORIGINS: AgentToolCallOrigin[] = ['structured', 'text'];
+
+function clipPreview(value: unknown): string {
+    if (typeof value !== 'string') return '';
+    return value.length > MAX_TOOL_PREVIEW_CHARS
+        ? `${value.slice(0, MAX_TOOL_PREVIEW_CHARS - 1)}…`
+        : value;
+}
+
+function sanitizeToolCall(value: unknown): AgentToolCallSnapshot | null {
+    if (!isRecord(value)) return null;
+    if (typeof value.toolCallId !== 'string' || !value.toolCallId) return null;
+    if (typeof value.name !== 'string' || !value.name) return null;
+    // A call stored as `running` is stale by definition: no agent loop survives
+    // a relaunch, and a stuck spinner would make a finished turn look live.
+    const stored = TOOL_STATUSES.includes(value.status as AgentToolStatus)
+        ? (value.status as AgentToolStatus)
+        : 'ok';
+    return {
+        toolCallId: value.toolCallId,
+        name: value.name,
+        label: typeof value.label === 'string' && value.label ? value.label : value.name,
+        argsPreview: clipPreview(value.argsPreview),
+        status: stored === 'running' ? 'ok' : stored,
+        durationMs: toPositiveInteger(value.durationMs),
+        resultPreview:
+            typeof value.resultPreview === 'string' ? clipPreview(value.resultPreview) : undefined,
+        round: toPositiveInteger(value.round) ?? 1,
+        origin: TOOL_ORIGINS.includes(value.origin as AgentToolCallOrigin)
+            ? (value.origin as AgentToolCallOrigin)
+            : undefined,
+    };
+}
+
+function sanitizeToolActivity(value: unknown): AgentToolCallSnapshot[] | undefined {
+    if (!Array.isArray(value)) return undefined;
+    const calls = value
+        .map(sanitizeToolCall)
+        .filter((call): call is AgentToolCallSnapshot => call !== null);
+    return calls.length > 0 ? calls.slice(-MAX_PERSISTED_TOOL_CALLS) : undefined;
+}
+
 function sanitizeMessage(value: unknown): Message | null {
     if (!isRecord(value)) return null;
     if (typeof value.id !== 'string' || !value.id) return null;
@@ -100,6 +152,7 @@ function sanitizeMessage(value: unknown): Message | null {
         role: value.role,
         content: value.content,
         reasoning: typeof value.reasoning === 'string' ? value.reasoning : undefined,
+        toolActivity: sanitizeToolActivity(value.toolActivity),
         ...normalizeTemporalMessageMetadata({
             ...value,
             timestamp: toPositiveInteger(value.timestamp) ?? Date.now(),

@@ -33,8 +33,8 @@ jest.mock('@/hooks/useThemeSettings', () => ({
 }));
 
 describe('IntentionChatBody', () => {
-    it('renders the flow label header without owning the composer', () => {
-        const { getByText, queryByPlaceholderText } = render(
+    it('renders the flow label header and carries the writing slip in the transcript', () => {
+        const { getByText, getByPlaceholderText } = render(
             <IntentionChatBody
                 scrollViewRef={createRef<ScrollView>()}
                 inputRef={createRef<InlineTypingInputRef>()}
@@ -55,8 +55,9 @@ describe('IntentionChatBody', () => {
         );
 
         expect(getByText(/Intention Setting/)).toBeTruthy();
-        // The composer is pinned below the transcript by the screen, not here.
-        expect(queryByPlaceholderText("Write what's true…")).toBeNull();
+        // The slip lives in the flow (the reference transcript), while the verbs
+        // stay pinned below it in the composer bar the screen renders.
+        expect(getByPlaceholderText("Write what's true…")).toBeTruthy();
     });
 
     it('shows the Thinking indicator only when loading and no streaming message', () => {

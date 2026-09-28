@@ -1,5 +1,5 @@
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { fireEvent, render } from '@testing-library/react-native';
 import { ChatMessage } from '../components/ChatMessage';
 import type { AgentToolCallSnapshot } from '../services/ai/agentEvents';
 
@@ -58,6 +58,22 @@ function hasEmptyTextChild(node: unknown): boolean {
     return Array.isArray(children) && children.some(hasEmptyTextChild);
 }
 
+const runningTool: AgentToolCallSnapshot = {
+    toolCallId: 'c1',
+    name: 'get_day',
+    label: 'Reading a day',
+    argsPreview: 'yesterday',
+    status: 'running',
+    round: 1,
+};
+
+const finishedTool: AgentToolCallSnapshot = {
+    ...runningTool,
+    status: 'ok',
+    durationMs: 18,
+    resultPreview: 'summary: Sleep',
+};
+
 describe('ChatMessage streaming visibility', () => {
     beforeEach(() => {
         mockMarkdownRender.mockClear();
@@ -80,14 +96,16 @@ describe('ChatMessage streaming visibility', () => {
         expect(getByTestId('typing-indicator')).toBeTruthy();
     });
 
-    it('shows streamed reasoning when content has not started', () => {
-        const { queryByTestId, getByText } = render(
+    it('shows streamed reasoning while the reply has not started', () => {
+        const { queryByTestId, getByLabelText, getByText } = render(
             <ChatMessage isAi text="" reasoning="1. thinking." isStreaming={true} />
         );
 
-        expect(queryByTestId('typing-indicator')).toBeNull();
-        expect(getByText('Companion reasoning (live)')).toBeTruthy();
+        expect(getByLabelText('Companion reasoning')).toBeTruthy();
         expect(getByText('1. thinking.')).toBeTruthy();
+        // Reasoning with no tools is already summarised — no separate Working line.
+        expect(getByText('Thought it through')).toBeTruthy();
+        expect(queryByTestId('typing-indicator')).toBeTruthy();
         expect(mockMarkdownRender).not.toHaveBeenCalled();
     });
 
@@ -127,58 +145,42 @@ describe('ChatMessage streaming visibility', () => {
         expect(mockMarkdownRender).toHaveBeenCalledWith('**done**');
     });
 
-    it('keeps live tool cards expanded while streaming and skips a second bare typing indicator', () => {
-        const running: AgentToolCallSnapshot = {
-            toolCallId: 'c1',
-            name: 'get_day',
-            label: 'Reading a day',
-            argsPreview: 'yesterday',
-            status: 'running',
-            round: 1,
-        };
+    it('opens the work rail while a tool runs and skips a second bare typing indicator', () => {
         const { getByLabelText, getAllByTestId } = render(
-            <ChatMessage isAi text="" isStreaming toolActivity={[running]} />
+            <ChatMessage isAi text="" isStreaming toolActivity={[runningTool]} />
         );
 
         expect(getByLabelText('Tool Reading a day: running')).toBeTruthy();
-        // One indicator only — the tool stack's Thinking footer, not ChatMessage's bare one.
+        // One indicator only — the rail's Thinking footer, not ChatMessage's bare one.
         expect(getAllByTestId('typing-indicator')).toHaveLength(1);
     });
 
-    it('collapses finished tool cards to a chip above completed prose', () => {
-        const finished: AgentToolCallSnapshot = {
-            toolCallId: 'c1',
-            name: 'get_day',
-            label: 'Reading a day',
-            argsPreview: 'yesterday',
-            status: 'ok',
-            durationMs: 18,
-            resultPreview: 'summary: Sleep',
-            round: 1,
-        };
-        const { getByLabelText, getByText } = render(
-            <ChatMessage isAi text="You talked about sleep." toolActivity={[finished]} />
+    it('folds a finished tool behind one summary line above completed prose', () => {
+        const { getByText, queryByLabelText } = render(
+            <ChatMessage isAi text="You talked about sleep." toolActivity={[finishedTool]} />
         );
 
-        expect(getByLabelText('Used 1 tool. Show details.')).toBeTruthy();
+        expect(getByText('Used 1 tool · 18ms')).toBeTruthy();
+        expect(queryByLabelText('Tool Reading a day: ok')).toBeNull();
         expect(getByText('You talked about sleep.')).toBeTruthy();
     });
 
+    it('expands the summary line into the tool that ran', () => {
+        const { getByLabelText } = render(
+            <ChatMessage isAi text="You talked about sleep." toolActivity={[finishedTool]} />
+        );
+
+        fireEvent.press(getByLabelText('Show thinking and tools'));
+        expect(getByLabelText('Tool Reading a day: ok')).toBeTruthy();
+    });
+
     it('shows the live working status line between tool batches', () => {
-        const running: AgentToolCallSnapshot = {
-            toolCallId: 'c1',
-            name: 'get_day',
-            label: 'Reading a day',
-            argsPreview: 'yesterday',
-            status: 'ok',
-            round: 1,
-        };
         const { getByText, queryAllByTestId } = render(
             <ChatMessage
                 isAi
                 text=""
                 isStreaming
-                toolActivity={[running]}
+                toolActivity={[finishedTool]}
                 statusLines={[{ id: 't1', round: 1, text: 'Let me go dig rather than guess.' }]}
             />
         );
@@ -189,24 +191,48 @@ describe('ChatMessage streaming visibility', () => {
     });
 
     it('drops status lines from a committed message even if passed in', () => {
-        const finished: AgentToolCallSnapshot = {
-            toolCallId: 'c1',
-            name: 'get_day',
-            label: 'Reading a day',
-            argsPreview: 'yesterday',
-            status: 'ok',
-            round: 1,
-        };
-        const { queryByText, getByLabelText } = render(
+        const { queryByText, getByText } = render(
             <ChatMessage
                 isAi
                 text="Yesterday was about sleep."
-                toolActivity={[finished]}
+                toolActivity={[finishedTool]}
                 statusLines={[{ id: 't1', round: 1, text: 'Let me go dig.' }]}
             />
         );
 
-        expect(getByLabelText('Used 1 tool. Show details.')).toBeTruthy();
+        expect(getByText('Used 1 tool · 18ms')).toBeTruthy();
         expect(queryByText('Let me go dig.')).toBeNull();
+    });
+
+    it('hides the whole work layer — reasoning, tools and summary — when thinking is off', () => {
+        const { queryByLabelText, queryByText, getByText } = render(
+            <ChatMessage
+                isAi
+                text="Yesterday was about sleep."
+                toolActivity={[finishedTool]}
+                reasoning="She sounded tired."
+                showThinking={false}
+            />
+        );
+
+        expect(queryByText('Used 1 tool · 18ms')).toBeNull();
+        expect(queryByLabelText('Companion reasoning')).toBeNull();
+        expect(queryByLabelText('Show thinking and tools')).toBeNull();
+        expect(getByText('Yesterday was about sleep.')).toBeTruthy();
+    });
+
+    it('still shows the bare typing indicator on a live turn with thinking off', () => {
+        const { getByTestId, queryByText } = render(
+            <ChatMessage
+                isAi
+                text=""
+                isStreaming
+                toolActivity={[runningTool]}
+                showThinking={false}
+            />
+        );
+
+        expect(queryByText('Working…')).toBeNull();
+        expect(getByTestId('typing-indicator')).toBeTruthy();
     });
 });

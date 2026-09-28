@@ -1,5 +1,14 @@
 /**
- * Cursor/Pi-style live tool activity timeline for chat.
+ * The companion's *work* for one turn — its reasoning and the tools it ran.
+ *
+ * Inline presentation (matches the reference transcript): one quiet summary
+ * line in the flow, expandable into a hairline rail. Nothing here is a card:
+ * the transcript stays prose, and the work reads as a margin note beside it.
+ *
+ * Visibility is the caller's decision. When the reader turns "Show thinking"
+ * off, ChatMessage renders none of this — no summary line, no tool rows, no
+ * reasoning — so the switch hides the whole layer, not just its detail.
+ *
  * Shared by journal freeform chat and intention chat (one surface, rule 5).
  */
 
@@ -20,12 +29,10 @@ interface AgentToolActivityProps {
      * rather than guess. One sec."). Live-only: dropped once the reply commits.
      */
     statusLines?: AgentStatusLine[];
-    /**
-     * When true (finished transcript / prose well underway), collapse to a
-     * compact expandable chip so the reply stays primary. Live tool work
-     * should pass false so cards stay visible while the agent runs.
-     */
-    compact?: boolean;
+    /** The companion's reasoning for this turn, when the provider sent any. */
+    reasoning?: string;
+    /** Live turn: the rail opens itself so the work is watchable as it happens. */
+    isStreaming?: boolean;
 }
 
 /** Newest status line only — a turn's earlier line is superseded, not stacked. */
@@ -65,18 +72,32 @@ function statusIconName(
     }
 }
 
+function formatDuration(ms: number): string {
+    if (ms < 1000) return `${Math.round(ms)}ms`;
+    return `${(ms / 1000).toFixed(1)}s`;
+}
+
+/** "Thought it through · Used 2 tools · 1.4s" — only facts we actually have. */
+function summarizeWork(tools: AgentToolCallSnapshot[], hasReasoning: boolean): string {
+    const parts: string[] = [];
+    if (hasReasoning) parts.push('Thought it through');
+    if (tools.length > 0) {
+        parts.push(`Used ${tools.length} ${tools.length === 1 ? 'tool' : 'tools'}`);
+    }
+    const totalMs = tools.reduce((sum, call) => sum + (call.durationMs ?? 0), 0);
+    if (totalMs > 0) parts.push(formatDuration(totalMs));
+    return parts.join(' · ');
+}
+
 function ToolRow({ call }: { call: AgentToolCallSnapshot }) {
     const [expanded, setExpanded] = useState(false);
     const isDark = useColorScheme() === 'dark';
     const iconColor = statusIconColor(call.status, isDark);
     const isRunning = call.status === 'running';
-    const showExpand = call.status !== 'running' && (call.argsPreview || call.resultPreview);
+    const showExpand = call.status !== 'running' && Boolean(call.argsPreview || call.resultPreview);
 
     return (
-        <View
-            accessibilityLabel={`Tool ${call.label}: ${call.status}`}
-            className="gap-1 rounded-control border border-hairline-light px-3 py-2 dark:border-hairline-dark"
-        >
+        <View accessibilityLabel={`Tool ${call.label}: ${call.status}`}>
             <Pressable
                 disabled={!showExpand}
                 onPress={() => setExpanded((prev) => !prev)}
@@ -89,23 +110,26 @@ function ToolRow({ call }: { call: AgentToolCallSnapshot }) {
                 ) : (
                     <MaterialIcons
                         name={statusIconName(call.status)}
-                        size={14}
+                        size={13}
                         color={iconColor}
                         accessibilityElementsHidden
                     />
                 )}
-                <Text className="min-w-0 flex-1 text-[13px] text-text-light dark:text-text-dark" numberOfLines={1}>
+                <Text
+                    className="min-w-0 flex-1 text-[12px] text-text-secondary-light dark:text-text-secondary-dark"
+                    numberOfLines={1}
+                >
                     {call.label}
                 </Text>
                 {typeof call.durationMs === 'number' && call.status !== 'running' && (
                     <Text className="text-[11px] text-text-secondary-light dark:text-text-secondary-dark">
-                        {call.durationMs}ms
+                        {formatDuration(call.durationMs)}
                     </Text>
                 )}
                 {showExpand && (
                     <MaterialIcons
                         name={expanded ? 'expand-less' : 'expand-more'}
-                        size={16}
+                        size={14}
                         color={isDark ? ToolStatusColors.idleDark : ToolStatusColors.idleLight}
                         accessibilityElementsHidden
                     />
@@ -115,14 +139,14 @@ function ToolRow({ call }: { call: AgentToolCallSnapshot }) {
                 never truncates to an ellipsis in the narrow companion column. */}
             {!!call.argsPreview && call.argsPreview !== '—' && (
                 <Text
-                    className="text-[11px] text-text-secondary-light dark:text-text-secondary-dark"
+                    className="pl-[21px] text-[11px] text-text-secondary-light dark:text-text-secondary-dark"
                     numberOfLines={1}
                 >
                     {call.argsPreview}
                 </Text>
             )}
             {expanded && (
-                <View className="mt-1 gap-1 border-t border-hairline-light pt-2 dark:border-hairline-dark">
+                <View className="mt-1 gap-1 pl-[21px]">
                     {!!call.argsPreview && call.argsPreview !== '—' && (
                         <Text className="text-[12px] text-text-secondary-light dark:text-text-secondary-dark">
                             Args: {call.argsPreview}
@@ -139,82 +163,76 @@ function ToolRow({ call }: { call: AgentToolCallSnapshot }) {
     );
 }
 
-function CompactChip({
-    toolActivity,
-    onPress,
-}: {
-    toolActivity: AgentToolCallSnapshot[];
-    onPress: () => void;
-}) {
-    const count = toolActivity.length;
-    const noun = count === 1 ? 'tool' : 'tools';
-    return (
-        <Pressable
-            onPress={onPress}
-            accessibilityRole="button"
-            accessibilityLabel={`Used ${count} ${noun}. Show details.`}
-            className="self-start rounded-control border border-hairline-light px-3 py-1 dark:border-hairline-dark"
-        >
-            <Text className="text-[11px] text-text-secondary-light dark:text-text-secondary-dark">
-                Used {count} {noun} · details
-            </Text>
-        </Pressable>
-    );
-}
-
-function StatusLine({ line }: { line: AgentStatusLine }) {
-    return (
-        <Text
-            accessibilityLabel={`Working: ${line.text}`}
-            className="text-[13px] italic leading-5 text-text-secondary-light dark:text-text-secondary-dark"
-        >
-            {line.text}
-        </Text>
-    );
-}
-
 export function AgentToolActivity({
     toolActivity,
     statusLines,
-    compact = false,
+    reasoning,
+    isStreaming = false,
 }: AgentToolActivityProps) {
-    const [showDetails, setShowDetails] = useState(false);
+    // null = follow the turn's state; a boolean = the reader chose.
+    const [expandedOverride, setExpandedOverride] = useState<boolean | null>(null);
+    const isDark = useColorScheme() === 'dark';
+    const secondaryColor = isDark ? ToolStatusColors.idleDark : ToolStatusColors.idleLight;
 
     const live = latestStatusLine(statusLines);
-    // Status lines are working UI: never on the committed compact chip.
-    if (compact && !live && (!toolActivity || toolActivity.length === 0)) return null;
-    if (!compact && (!toolActivity || toolActivity.length === 0) && !live) return null;
+    const tools = toolActivity ?? [];
+    const hasReasoning = Boolean(reasoning && reasoning.trim().length > 0);
+    const anyRunning = tools.some((call) => call.status === 'running');
+    const isWorking = isStreaming && (anyRunning || Boolean(live));
+    const expanded = expandedOverride ?? (anyRunning || isStreaming);
 
-    const anyRunning = toolActivity.some((call) => call.status === 'running');
+    if (!isWorking && tools.length === 0 && !hasReasoning) return null;
 
-    if (compact && !showDetails) {
-        // Only status lines and no tools: nothing to collapse into a chip.
-        if (toolActivity.length === 0) return null;
-        return <CompactChip toolActivity={toolActivity} onPress={() => setShowDetails(true)} />;
-    }
+    const summary = isWorking ? 'Working…' : summarizeWork(tools, hasReasoning);
 
     return (
-        <View accessibilityLabel="Tool activity" className="gap-2">
-            {compact && (
-                <Pressable
-                    onPress={() => setShowDetails(false)}
-                    accessibilityRole="button"
-                    accessibilityLabel="Hide tool details"
-                    className="self-start"
-                >
-                    <Text className="text-[11px] text-text-secondary-light dark:text-text-secondary-dark">
-                        Hide tool details
-                    </Text>
-                </Pressable>
-            )}
-            {/* Pi order: the assistant's words for the turn, then its tools. */}
-            {live && <StatusLine line={live} />}
-            {toolActivity.map((call) => (
-                <ToolRow key={call.toolCallId} call={call} />
-            ))}
-            {anyRunning && (
-                <View className="flex-row items-center gap-2 pl-1">
-                    <TypingIndicator label="Thinking" sizeClassName="text-xs" />
+        <View accessibilityLabel="Tool activity" className="gap-1">
+            <Pressable
+                onPress={() => setExpandedOverride(!expanded)}
+                accessibilityRole="button"
+                accessibilityLabel={expanded ? 'Hide thinking and tools' : 'Show thinking and tools'}
+                accessibilityState={{ expanded }}
+                hitSlop={6}
+                className="flex-row items-center gap-1.5 self-start py-0.5"
+            >
+                {isWorking ? (
+                    <ActivityIndicator size="small" color={secondaryColor} />
+                ) : (
+                    <MaterialIcons name="psychology" size={13} color={secondaryColor} accessibilityElementsHidden />
+                )}
+                <Text className="text-[12px] text-text-secondary-light dark:text-text-secondary-dark">
+                    {summary}
+                </Text>
+                <MaterialIcons
+                    name={expanded ? 'expand-less' : 'expand-more'}
+                    size={14}
+                    color={secondaryColor}
+                    accessibilityElementsHidden
+                />
+            </Pressable>
+
+            {expanded && (
+                <View className="gap-2 pl-3">
+                    {live && (
+                        <Text
+                            accessibilityLabel={`Working: ${live.text}`}
+                            className="text-[12px] italic leading-5 text-text-secondary-light dark:text-text-secondary-dark"
+                        >
+                            {live.text}
+                        </Text>
+                    )}
+                    {hasReasoning && (
+                        <Text
+                            accessibilityLabel="Companion reasoning"
+                            className="text-[13px] italic leading-5 text-bone-light dark:text-bone-dark"
+                        >
+                            {reasoning}
+                        </Text>
+                    )}
+                    {tools.map((call) => (
+                        <ToolRow key={call.toolCallId} call={call} />
+                    ))}
+                    {anyRunning && <TypingIndicator label="Thinking" sizeClassName="text-xs" />}
                 </View>
             )}
         </View>

@@ -118,6 +118,68 @@ suites passed / 9 skipped (282 discovered), 1490 tests green**, tsc / lint /
   and `E2E_OFFLINE_WALK=1` both PASS — 12 routes rendered, 0 blocked requests,
   0 page errors, `@blackrose_account_registry` intact, and the app's
   provider-unreachable copy is vendor-free.
+- **Cross-platform hardening (both Windows and Linux are dev machines here).**
+  Two suites had been green here and red on Windows in the same week:
+  `metro-phosphor-resolve.test.ts` shelled out to `grep` (`execFile ENOENT`), and
+  `bottomSheetKeyboard.test.ts` compared `path.relative()` output to
+  forward-slash literals. Both are now portable, all repo-relative paths in tests
+  go through `relPosix()` (`__tests__/mocks/repoPath.ts`), and
+  `__tests__/crossPlatformGuards.test.ts` enforces the three rules (no POSIX-only
+  spawns, no raw `path.relative` in tests, no absolute path from either OS),
+  sabotage-verified both ways. Also recorded: no `.gitattributes` and
+  `core.autocrlf` unset, with 8 tracked files already CRLF — so a guard test must
+  not depend on line endings.
+- **Chat screen redesigned to the Blackrose inline design (not Rosebud).** Turns
+  are no longer bubbles: the writer's line sits in the flow at full width and the
+  companion's is set off by a single 1px bone rule, on both surfaces
+  (`components/ChatMessage.tsx`, `components/intentions/IntentionChatMessage.tsx`),
+  pinned by `__tests__/chatPresentation.test.ts`. The microphone is gone; the
+  speaker is now read-aloud (`hooks/chat/useReadAloud.ts`, expo-speech) and the
+  only other control is photo attach (`services/ai/chatImage.ts` +
+  `hooks/chat/useChatImagePicker.ts`). A photo persists as `uri`/`mimeType`/
+  dimensions only — the bytes are re-derived per request via
+  `resolveImageDataUrls`, because a 2 MP base64 blob would blow Android's per-key
+  ceiling. The composer is pinned and rides the keyboard
+  (`KeyboardAvoidingView behavior="padding"`), and the writing slip moved into the
+  transcript (`components/chat/ChatTranscript.tsx`) so the input and both verbs
+  stay in one reachable block.
+- **Show-thinking is one persisted preference gating the whole work layer**, not
+  just its detail: with it off, the summary line, the expand control, the
+  reasoning and every tool row are absent together
+  (`services/ai/chatViewSettings.ts`, `hooks/settings/useChatViewSettings.ts`).
+  A streaming turn still shows its bare `Thinking` indicator — that is a loading
+  affordance, not a tool trace, and it is asserted as such.
+- **A finished turn's tool trace now survives a resume.** `sanitizeMessage`
+  (`services/ai/sessionStorage.ts`) persisted `reasoning` but silently dropped
+  `toolActivity`, so reopening a session lost the tool rows — found by expanding
+  the layer in a real browser, fixed by round-tripping the typed snapshot array.
+  Guard: `__tests__/services/ai/sessionStorageToolActivity.test.ts`.
+- **The 500-line design gate forced real extraction, not reformatting.**
+  `app/chat.tsx` 535 → 384 and `app/intentions/chat.tsx` 509 → 407 by moving
+  finish orchestration into `hooks/chat/useJournalChatFinish.ts` and
+  `hooks/intentions/useIntentionChatFinish.ts` and the transcript into
+  `components/chat/ChatTranscript.tsx`.
+- **Rendered-surface gate (rule: Jest green is not sufficient).** New committed
+  harness `scripts/e2e/pw-chat-surface-verify.mjs` drives the real app at
+  3 viewports × 2 schemes: 6 combinations, 6 distinct hashes, 0 page errors, and
+  per-combination assertions on composer bottom vs viewport, document overflow,
+  the three left edges (writer / rail / reply), reasoning colour and the icon row.
+  `E2E_SABOTAGE=1` injects a microphone control and translates the composer past
+  the fold — both guards are proven able to fail, without editing source.
+  Measured rather than eyeballed: transcript bottom meets composer top at exactly
+  0px, the desktop column is centred 496/496, and the placeholder renders at
+  ≈5.3:1. Three confident vision-model "defects" (content behind the composer,
+  off-centre column, invisible placeholder) were all false and were settled by
+  the DOM.
+- **Found while adding the missing coverage: read-aloud outlived its screen.**
+  `useReadAloud`'s doc claimed speech is cleared on unmount but no unmount effect
+  existed, so navigating away mid-reply kept talking. The new test was red first
+  (`Speech.stop` never called), then the effect was added; the cleanup clears the
+  utterance ref before stopping so a late `onDone` cannot touch state on an
+  unmounted screen. New suites: `__tests__/services/ai/chatImage.test.ts`,
+  `__tests__/hooks/useReadAloud.test.tsx`,
+  `__tests__/hooks/useChatImagePicker.test.tsx` (38 tests) — the image send path
+  and read-aloud previously had none.
 - **Not verified, and not runnable here.** The live recall probe and
   `RUN_INTEGRATION_TESTS=1` need a reachable provider; the endpoint the owner
   removed now refuses TCP, so the provider-profile write path has unit coverage
