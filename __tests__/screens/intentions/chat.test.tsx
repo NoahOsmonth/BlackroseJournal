@@ -51,8 +51,8 @@ jest.mock('@/components/intentions/IntentionChatBody', () => ({
     IntentionChatBody: () => null,
 }));
 
-jest.mock('@/components/intentions/IntentionChatFooter', () => ({
-    IntentionChatFooter: () => null,
+jest.mock('@/components/intentions/IntentionChatComposerBar', () => ({
+    IntentionChatComposerBar: () => null,
 }));
 
 jest.mock('@/components/intentions/IntentionChatOverlays', () => ({

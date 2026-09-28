@@ -2,6 +2,8 @@ import fs from "fs";
 import path from "path";
 import { glob } from "glob";
 
+import { relPosix } from "./mocks/repoPath";
+
 import { BLACKROSE_PALETTE } from "../constants/blackrose";
 
 /**
@@ -35,7 +37,7 @@ describe("dark mode contrast safety", () => {
                     (line.includes("Icons") || line.includes("Icon"))
                 ) {
                     violations.push(
-                        `${path.relative(process.cwd(), file)}:${i + 1}`
+                        `${relPosix(process.cwd(), file)}:${i + 1}`
                     );
                 }
             });
@@ -50,7 +52,7 @@ describe("dark mode contrast safety", () => {
             const lines = content.split("\n");
             lines.forEach((line, i) => {
                 if (line.includes("<MaterialIcons") && line.includes("className=")) {
-                    violations.push(`${path.relative(process.cwd(), file)}:${i + 1}`);
+                    violations.push(`${relPosix(process.cwd(), file)}:${i + 1}`);
                 }
             });
         }
@@ -138,7 +140,7 @@ describe("dark mode contrast safety", () => {
                 bannedHexes.forEach((hex) => {
                     if (line.toUpperCase().includes(hex)) {
                         violations.push(
-                            `${path.relative(process.cwd(), file)}:${i + 1} ${hex}`
+                            `${relPosix(process.cwd(), file)}:${i + 1} ${hex}`
                         );
                     }
                 });

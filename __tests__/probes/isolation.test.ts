@@ -5,6 +5,8 @@
 import fs from 'fs';
 import path from 'path';
 
+import { relPosix } from '../mocks/repoPath';
+
 function walkTsFiles(dir: string, out: string[] = []): string[] {
     if (!fs.existsSync(dir)) return out;
     for (const name of fs.readdirSync(dir)) {
@@ -31,7 +33,7 @@ describe('probe isolation', () => {
         for (const root of roots) {
             for (const file of walkTsFiles(root)) {
                 const text = fs.readFileSync(file, 'utf-8');
-                if (importRe.test(text)) offenders.push(path.relative(process.cwd(), file));
+                if (importRe.test(text)) offenders.push(relPosix(process.cwd(), file));
             }
         }
         expect(offenders).toEqual([]);

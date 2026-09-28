@@ -1,6 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+import { relPosix } from '../mocks/repoPath';
+
 /**
  * The composer's preview must clip and match themes exactly as the write path
  * does — which is why it needs the pure `keywordRanking` helpers — but it must
@@ -101,7 +103,7 @@ function importedModules(file: string): string[] {
 }
 
 function relativeModule(file: string): string {
-    return path.relative(ROOT, file).replace(/\\/g, '/').replace(/\.tsx?$/, '');
+    return relPosix(ROOT, file).replace(/\.tsx?$/, '');
 }
 
 /**

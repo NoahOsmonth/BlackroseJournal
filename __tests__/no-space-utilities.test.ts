@@ -1,6 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+import { relPosix } from './mocks/repoPath';
+
 const ROOTS = ['app', 'components'];
 const PATTERN = /\bspace-[xy]-(?:\d+|px|reverse)\b/;
 
@@ -22,7 +24,7 @@ describe('NativeWind v4 dead utilities', () => {
             collectTsxFiles(rootPath).forEach((file) => {
                 const content = fs.readFileSync(file, 'utf8');
                 if (PATTERN.test(content)) {
-                    offenders.push(path.relative(process.cwd(), file));
+                    offenders.push(relPosix(process.cwd(), file));
                 }
             });
         });

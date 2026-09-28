@@ -1,6 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+import { relPosix } from '../mocks/repoPath';
+
 /**
  * Success criterion 3 of the spec: no model call fires at write time.
  *
@@ -104,7 +106,7 @@ function importedModules(file: string): string[] {
 }
 
 function relativeModule(file: string): string {
-    return path.relative(ROOT, file).replace(/\\/g, '/').replace(/\.tsx?$/, '');
+    return relPosix(ROOT, file).replace(/\.tsx?$/, '');
 }
 
 describe('Explore write path cannot reach a model', () => {

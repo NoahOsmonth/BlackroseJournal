@@ -18,6 +18,8 @@
 import fs from 'fs';
 import path from 'path';
 
+import { relPosix } from '../mocks/repoPath';
+
 const root = path.resolve(__dirname, '../..');
 
 /** Every .tsx under the given dirs, excluding tests and node_modules. */
@@ -43,7 +45,7 @@ const sheets = files
     // Normalize to POSIX separators so the expectations below are platform-stable
     // (path.relative yields backslashes on Windows).
     .map((file) => ({
-        file: path.relative(root, file).split(path.sep).join('/'),
+        file: relPosix(root, file),
         src: fs.readFileSync(file, 'utf8'),
     }))
     .filter(({ src }) => SHEET_BACKDROP.test(src));
