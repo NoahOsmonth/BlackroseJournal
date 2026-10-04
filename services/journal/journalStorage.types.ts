@@ -62,3 +62,19 @@ export interface StorageAdapter {
     setItem(key: string, value: string): Promise<void>;
     removeItem(key: string): Promise<void>;
 }
+
+/**
+ * Lightweight projection stored in the journal index key — never message
+ * bodies. `@journal_entries` holds one of these per entry so a list/summary
+ * read (History, Today, history tools) touches the index alone instead of
+ * loading every shard. `JournalEntry` remains the full stored row.
+ */
+export interface JournalEntrySummary {
+    id: string;
+    title: string;
+    emoji: string;
+    status: EntryStatus;
+    createdAt: number;
+    updatedAt: number;
+    origin?: NoteOrigin;
+}
