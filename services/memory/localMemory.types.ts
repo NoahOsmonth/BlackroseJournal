@@ -40,6 +40,21 @@ export interface LocalMemoryAtom {
      * when extraction resolved one. Absent/null on undatable or older atoms.
      */
     eventDate?: string | null;
+    /**
+     * Declared importance (0..1) — the extractor's own judgement, captured at the
+     * first write and raised (never lowered) when a later write declares more.
+     * Deliberately NOT inflated by re-writes: the recurrence bonus lives on
+     * `salience` (see `mergeAtom`), so the profile cap can rank by what matters
+     * rather than by how often a topic was written about.
+     */
+    importance?: number;
+    /**
+     * Epoch ms when the profile cap retired this atom. Retired atoms are kept in
+     * storage (and therefore in a backup bundle) and filtered out of every read
+     * path — the soft-delete `memoryFiles.ts` does with `deprecated` and
+     * `identityProfile.ts` does with `invalidatedAt`. A re-write clears it.
+     */
+    retiredAt?: number;
 }
 
 export interface LocalMemoryAtomInput {

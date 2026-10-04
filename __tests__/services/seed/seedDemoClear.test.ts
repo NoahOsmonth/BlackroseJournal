@@ -90,10 +90,16 @@ describe('seedDemoData clear + ledger', () => {
             expect(recordWriteAt.get(id)).toBeLessThan(rowWrite);
         }
 
-        // And every staged file is therefore clearable by the ledger.
-        const record = JSON.parse(seedStorageValue(DEMO_SEED_RECORD_KEY) ?? '{}') as { checkInIds?: string[] };
-        const recorded = new Set(record.checkInIds ?? []);
-        expect(recorded.size).toBe((record.checkInIds ?? []).length);
+        // And every staged file is therefore clearable by the ledger. The ledger
+        // records check-in ids and memory atom ids; a manual note's file is keyed
+        // on its atom id, so both sets are clearable.
+        const record = JSON.parse(seedStorageValue(DEMO_SEED_RECORD_KEY) ?? '{}') as {
+            checkInIds?: string[];
+            memoryAtomIds?: string[];
+        };
+        const ledgerKeys = [...(record.checkInIds ?? []), ...(record.memoryAtomIds ?? [])];
+        const recorded = new Set(ledgerKeys);
+        expect(recorded.size).toBe(ledgerKeys.length);
         const staged = await listTmpFiles();
         expect(staged.length).toBeGreaterThan(0);
         expect(staged.filter((header) => header.sourceSessionKey && !recorded.has(header.sourceSessionKey))).toEqual([]);

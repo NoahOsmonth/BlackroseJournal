@@ -13,6 +13,7 @@ import {
     extractFirstJsonObject,
     fetchDirectJsonCompletion,
 } from '@/services/ai/jsonCompletion';
+import { isDirectConfigError, warnDirectConfigErrorOnce } from '@/services/ai/directConfig';
 import { INSIGHTS_TEMPERATURE } from '@/services/ai/generationSettings';
 import {
     getLocalDateKey,
@@ -142,6 +143,11 @@ async function requestSummaryTopics(
             if (parsed) return parsed;
             lastFail = new Error('unparseable digest JSON');
         } catch (error) {
+            // Permanent configuration error: fail fast, no retry/backoff.
+            if (isDirectConfigError(error)) {
+                warnDirectConfigErrorOnce(error);
+                return null;
+            }
             lastFail = error;
         }
     }

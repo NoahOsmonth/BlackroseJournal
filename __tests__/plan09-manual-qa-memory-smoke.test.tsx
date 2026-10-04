@@ -49,7 +49,7 @@ import { act, renderHook, waitFor } from '@testing-library/react-native';
 
 import { useLocalMemories } from '../hooks/memory/useLocalMemories';
 import { useLocalMemoryContext } from '../hooks/memory/useLocalMemoryContext';
-import { saveJournalEntryMemories } from '../services/memory/localMemory';
+import { LOCAL_MEMORY_SCHEMA_VERSION, saveJournalEntryMemories } from '../services/memory/localMemory';
 import type { JournalEntry } from '../services/journal/journalStorage.types';
 import { activateAccount, clearActiveAccount } from '../services/account/accountRuntime';
 import { getAccountScopedStorageKey } from '../services/account/accountScopedStorage';
@@ -195,7 +195,7 @@ describe('Plan 09 manual-QA memory smoke test', () => {
         });
 
         const index = JSON.parse(store.get(memoryKey) ?? '{}');
-        expect(index.schemaVersion).toBe(3);
+        expect(index.schemaVersion).toBe(LOCAL_MEMORY_SCHEMA_VERSION);
         expect(index.atomCount).toBe(1);
         expect(index.atoms).toBeUndefined();
 

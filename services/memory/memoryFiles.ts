@@ -81,6 +81,16 @@ interface MemoryFilesStorageAdapter {
 export const MEMORY_FILES_MANIFEST_KEY = '@blackrose_memory_manifest';
 export const MEMORY_FILE_BODY_PREFIX = '@blackrose_memory_file:';
 export const MEMORY_FILES_SCHEMA_VERSION = 1;
+/**
+ * Where an unreadable manifest payload is preserved before the store falls back
+ * to empty. The manifest is the index `memory_search` reads, so losing it to a
+ * silent `{}` loses the entire searchable layer; this key keeps the raw bytes
+ * for diagnosis and the loss is announced (mirrors `localMemory`'s
+ * `LOCAL_MEMORY_CORRUPT_BACKUP_KEY` and `dayDigestStorage`'s
+ * `DAY_DIGEST_CORRUPT_BACKUP_KEY`). Additive: the manifest's own shape is
+ * unchanged.
+ */
+export const MEMORY_FILES_CORRUPT_BACKUP_KEY = '@blackrose_memory_manifest_corrupt';
 export const TMP_PROJECT_ID = '_tmp';
 
 const HEADER_PREVIEW_CHARS = 220;
@@ -199,7 +209,7 @@ async function idWithoutOverwriting(
 function normalizeProjectId(value: string | undefined): string {
     const trimmed = normalizeText(value ?? '');
     if (!trimmed || trimmed === TMP_PROJECT_ID) return TMP_PROJECT_ID;
-    return trimmed.toLowerCase().replace(/[^a-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || TMP_PROJECT_ID;
+    return trimmed.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff_-]+/g, '_').replace(/^_+|_+$/g, '') || TMP_PROJECT_ID;
 }
 
 function isHeader(value: unknown): value is MemoryFileHeader {
@@ -224,18 +234,74 @@ function sanitizeManifest(value: unknown): ManifestDoc {
     return out;
 }
 
+/**
+ * Preserve a manifest payload that cannot be read and announce the loss.
+ *
+ * Mirrors `localMemory.readAtomsFromPayload` / `dayDigestStorage.loadEnvelope`:
+ * stash the raw bytes under the corrupt-backup key, drop the unreadable key so
+ * the next save writes a fresh manifest, and `console.warn`. The manifest is
+ * the index `memory_search` reads, so a silent `{}` here loses the whole
+ * searchable layer with no trace — this makes that loss recoverable and loud.
+ * Best-effort: a failed backup must not take the reader down.
+ */
+async function preserveCorruptManifest(json: string, reason: string): Promise<void> {
+    try {
+        await storageAdapter.setItem(MEMORY_FILES_CORRUPT_BACKUP_KEY, json);
+        await storageAdapter.removeItem(MEMORY_FILES_MANIFEST_KEY);
+        console.warn(
+            `Memory files: corrupt manifest (${reason}) preserved under `
+            + `${MEMORY_FILES_CORRUPT_BACKUP_KEY} and treated as empty.`,
+        );
+    } catch {
+        // Best effort only.
+    }
+}
+
 async function loadManifest(): Promise<ManifestDoc> {
     const json = await storageAdapter.getItem(MEMORY_FILES_MANIFEST_KEY);
     if (!json) return {};
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(json);
+    } catch {
+        await preserveCorruptManifest(json, 'unparseable JSON');
+        return {};
+    }
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        await preserveCorruptManifest(json, 'not a manifest object');
+        return {};
+    }
+    if ('schemaVersion' in (parsed as Record<string, unknown>)) {
+        const files = (parsed as { files?: unknown }).files;
+        if (typeof files !== 'object' || files === null || Array.isArray(files)) {
+            await preserveCorruptManifest(json, 'envelope has no files map');
+            return {};
+        }
+        return sanitizeManifest(files);
+    }
+    return sanitizeManifest(parsed);
+}
+
+/**
+ * The ids a stored manifest payload indexes, in stored order.
+ *
+ * Deliberately not `loadManifest`: a backup snapshot may carry a header
+ * this build would sanitize away, and backup/restore must still shard that
+ * file's body so the round trip stays byte-faithful. Same shape tolerance as the
+ * loader — `{schemaVersion, files}` or a bare map.
+ */
+function parseManifestIds(json: string | null): string[] {
+    if (!json) return [];
     try {
         const parsed: unknown = JSON.parse(json);
-        if (typeof parsed !== 'object' || parsed === null) return {};
-        if ('schemaVersion' in (parsed as Record<string, unknown>)) {
-            return sanitizeManifest((parsed as { files?: unknown }).files);
-        }
-        return sanitizeManifest(parsed);
+        if (typeof parsed !== 'object' || parsed === null) return [];
+        const doc = 'schemaVersion' in parsed
+            ? (parsed as { files?: unknown }).files
+            : parsed;
+        if (typeof doc !== 'object' || doc === null) return [];
+        return Object.keys(doc);
     } catch {
-        return {};
+        return [];
     }
 }
 
@@ -256,10 +322,14 @@ function previewText(body: string, max: number): string {
 }
 
 /**
- * Stage a new memory into the `_tmp` project (ClawX `_tmp` pattern).
- * Dream (Wave 2) promotes tmp files into formal thread projects.
+ * The staging write itself, run against an already-loaded manifest so it can be
+ * composed into a larger locked transaction (see `refreshMemoryFilesForSession`)
+ * without re-entering the lock. Does not save — the caller owns the save.
  */
-export async function stageTmpMemory(input: StageMemoryInput): Promise<MemoryFileRecord> {
+async function stageTmpMemoryWithinLock(
+    input: StageMemoryInput,
+    manifest: ManifestDoc,
+): Promise<MemoryFileRecord> {
     const name = normalizeText(input.name).slice(0, 120) || 'memory-item';
     const description = normalizeText(input.description).slice(0, 320) || name;
     const body = input.body.trim();
@@ -273,29 +343,38 @@ export async function stageTmpMemory(input: StageMemoryInput): Promise<MemoryFil
     const capturedAt = input.capturedAt && Number.isFinite(Date.parse(input.capturedAt))
         ? input.capturedAt
         : timestamp;
+    const id = await idWithoutOverwriting(manifest, body, baseId);
+    const header: MemoryFileHeader = {
+        id,
+        relativePath: id,
+        name,
+        description,
+        type: input.type,
+        scope: 'project',
+        projectId,
+        updatedAt: timestamp,
+        capturedAt,
+        ...(input.sourceSessionKey ? { sourceSessionKey: input.sourceSessionKey } : {}),
+    };
+    // Body first, header second. An orphan body key is unreferenced and
+    // reclaimable; a header with no bytes is an unreachable memory, because
+    // every reader skips a missing body in silence.
+    await storageAdapter.setItem(bodyKey(id), body);
+    manifest[id] = header;
+    return { ...header, content: body, preview: previewText(body, HEADER_PREVIEW_CHARS) };
+}
+
+/**
+ * Stage a new memory into the `_tmp` project (ClawX `_tmp` pattern).
+ * Dream (Wave 2) promotes tmp files into formal thread projects.
+ */
+export async function stageTmpMemory(input: StageMemoryInput): Promise<MemoryFileRecord> {
+    if (!input.body.trim()) throw new Error('body is required');
     let record: MemoryFileRecord | undefined;
     await withFilesLock(async () => {
         const manifest = await loadManifest();
-        const id = await idWithoutOverwriting(manifest, body, baseId);
-        const header: MemoryFileHeader = {
-            id,
-            relativePath: id,
-            name,
-            description,
-            type: input.type,
-            scope: 'project',
-            projectId,
-            updatedAt: timestamp,
-            capturedAt,
-            ...(input.sourceSessionKey ? { sourceSessionKey: input.sourceSessionKey } : {}),
-        };
-        // Body first, header second. An orphan body key is unreferenced and
-        // reclaimable; a header with no bytes is an unreachable memory, because
-        // every reader skips a missing body in silence.
-        await storageAdapter.setItem(bodyKey(id), body);
-        manifest[id] = header;
+        record = await stageTmpMemoryWithinLock(input, manifest);
         await saveManifest(manifest);
-        record = { ...header, content: body, preview: previewText(body, HEADER_PREVIEW_CHARS) };
     });
     // Assignment happens inside the locked task, so this is only undefined if the
     // lock never ran — which would mean the write did not happen either.
@@ -441,6 +520,28 @@ export async function listAllMemoryHeaders(): Promise<MemoryFileHeader[]> {
 export async function listMemoryHeadersForThread(projectId: string): Promise<MemoryFileHeader[]> {
     const target = normalizeProjectId(projectId);
     return (await listAllMemoryHeaders()).filter((header) => header.projectId === target);
+}
+
+/**
+ * Live (non-deprecated) headers staged from one session key, oldest capture
+ * first.
+ *
+ * The edit-refresh path needs the files an entry already owns so it can rewrite
+ * them in place. Deprecated headers are skipped on purpose: a superseded or
+ * promoted-away original is audit history, not a target to rewrite. Note this
+ * differs from `hasStagedSession`/`listStagedSessionKeys`, which count
+ * deprecated headers — those guard "have we staged this session at all", which
+ * must stay true after a file is retired.
+ */
+export async function listLiveMemoryHeadersBySourceSession(
+    sourceSessionKey: string,
+): Promise<MemoryFileHeader[]> {
+    const key = sourceSessionKey.trim();
+    if (!key) return [];
+    const manifest = await withFilesLock(loadManifest);
+    return Object.values(manifest)
+        .filter((header) => !header.deprecated && header.sourceSessionKey === key)
+        .sort(byCapturedAsc);
 }
 
 /**
@@ -648,6 +749,125 @@ export async function promoteTmpRecord(id: string, targetProjectId: string): Pro
     });
 }
 
+export interface MemoryFileBodyUpdate {
+    /** Id of an existing, non-deprecated file to rewrite in place. */
+    id: string;
+    body: string;
+    /** Optional header refresh; omitted fields keep their stored value. */
+    name?: string;
+    description?: string;
+}
+
+/**
+ * Rewrite existing files in place against an already-loaded manifest: same id,
+ * same projectId/thread, same manifest slot, `capturedAt` preserved. Does not
+ * save — the caller owns the save, so this composes into a larger locked
+ * transaction (see `refreshMemoryFilesForSession`) without re-entering the lock.
+ */
+async function applyBodyUpdatesWithinLock(
+    updates: readonly MemoryFileBodyUpdate[],
+    manifest: ManifestDoc,
+): Promise<MemoryFileRecord[]> {
+    const timestamp = nowIso();
+    const records: MemoryFileRecord[] = [];
+    for (const update of updates) {
+        if (!update.id || !update.body.trim()) continue;
+        const existing = manifest[update.id];
+        if (!existing || existing.deprecated) continue;
+        const body = update.body.trim();
+        await storageAdapter.setItem(bodyKey(update.id), body);
+        const header: MemoryFileHeader = {
+            ...existing,
+            ...(update.name ? { name: update.name } : {}),
+            ...(update.description ? { description: update.description } : {}),
+            updatedAt: timestamp,
+        };
+        manifest[update.id] = header;
+        records.push({ ...header, content: body, preview: previewText(body, HEADER_PREVIEW_CHARS) });
+    }
+    return records;
+}
+
+/**
+ * Rewrite the bodies (and optionally the name/description) of existing files in
+ * place: same id, same projectId/thread, same manifest slot. Nothing is deleted
+ * and no id is re-minted, so a Dream-promoted file keeps its thread membership
+ * and stays visible to thread-scoped recall.
+ *
+ * This is the edit path's counterweight to `deleteMemoryFilesBySourceSessions`:
+ * that matcher hits *every* file carrying a session key, including a promoted
+ * thread file (promotion spreads the source header, `sourceSessionKey`
+ * included), so deleting and re-staging here would retire the promoted memory
+ * from its thread and replace it with a `_tmp` file the resolved thread never
+ * scans — strictly worse than the staleness it set out to fix.
+ *
+ * Ordering matches every other writer: body first, manifest second. An orphan
+ * body is reclaimable; a header with no bytes is an unreachable memory.
+ * `capturedAt` is preserved — recall fades by capture date and an edit is not a
+ * re-capture.
+ */
+export async function updateMemoryFileBodiesInPlace(
+    updates: readonly MemoryFileBodyUpdate[],
+): Promise<MemoryFileRecord[]> {
+    const wanted = updates.filter((update) => update.id && update.body.trim());
+    if (wanted.length === 0) return [];
+    return withFilesLock(async () => {
+        const manifest = await loadManifest();
+        const records = await applyBodyUpdatesWithinLock(wanted, manifest);
+        await saveManifest(manifest);
+        return records;
+    });
+}
+
+export interface MemoryFileSessionState {
+    /** Non-deprecated files this session owns, oldest capture first. */
+    live: readonly MemoryFileHeader[];
+    /** True when any header — deprecated included — carries this session key. */
+    staged: boolean;
+}
+
+export interface MemoryFileSessionRefreshPlan {
+    /** Existing files to rewrite in place (same id, same thread). */
+    updates: readonly MemoryFileBodyUpdate[];
+    /** New `_tmp` drafts to stage. */
+    fresh: readonly StageMemoryInput[];
+}
+
+/**
+ * One locked read-modify-write for a single session's files.
+ *
+ * The edit path used to read its live headers, decide, then write in separate
+ * `withFilesLock` sections. Two concurrent refreshes could each observe zero
+ * live files and each stage one, producing two divergent files for one entry —
+ * the exact interleaved load->save pair rule 4 forbids. The whole decision runs
+ * inside a single lock here: the planner sees the live headers and the staged
+ * flag, and its plan is applied before any other writer can run.
+ *
+ * The planner must be synchronous and pure — it runs while the lock is held, so
+ * it must not call back into this module (nested `withFilesLock` deadlocks).
+ */
+export async function refreshMemoryFilesForSession(
+    sourceSessionKey: string,
+    plan: (state: MemoryFileSessionState) => MemoryFileSessionRefreshPlan | null,
+): Promise<MemoryFileRecord[]> {
+    const key = sourceSessionKey.trim();
+    if (!key) return [];
+    return withFilesLock(async () => {
+        const manifest = await loadManifest();
+        const owned = Object.values(manifest).filter((header) => header.sourceSessionKey === key);
+        const live = owned.filter((header) => !header.deprecated).sort(byCapturedAsc);
+        const planned = plan({ live, staged: owned.length > 0 });
+        if (!planned) return [];
+
+        const records = await applyBodyUpdatesWithinLock(planned.updates, manifest);
+        for (const draft of planned.fresh) {
+            records.push(await stageTmpMemoryWithinLock(draft, manifest));
+        }
+        await saveManifest(manifest);
+        return records;
+    });
+}
+
 export interface DeprecateRecordAudit {
     /** Id of the newer memory that restated this one (supersession audit). */
     supersededBy?: string;
@@ -739,6 +959,82 @@ export async function importMemoryFiles(records: unknown): Promise<{ imported: n
         skipped += result.batchSkipped;
     }
     return { imported, skipped };
+}
+
+export interface MemoryFileSnapshot {
+    /**
+     * The exact stored manifest payload, so a backup round trip preserves the
+     * bytes it captured rather than re-serializing a sanitized view.
+     */
+    manifestJson: string | null;
+    /** Bodies for the ids the manifest indexes, keyed by id. */
+    bodies: ReadonlyMap<string, string>;
+}
+
+/**
+ * Read the whole offline memory-file store for a backup, through this module's
+ * lock. Backup creation must not read the manifest/body keys itself — they are
+ * this module's keys, and the same one-owner rule that makes the restore path
+ * delegate applies to reading a consistent snapshot of them.
+ */
+export async function exportMemoryFileSnapshot(): Promise<MemoryFileSnapshot> {
+    return withFilesLock(async () => {
+        const manifestJson = await storageAdapter.getItem(MEMORY_FILES_MANIFEST_KEY);
+        const bodies = new Map<string, string>();
+        for (const id of parseManifestIds(manifestJson)) {
+            const body = await storageAdapter.getItem(bodyKey(id));
+            if (typeof body === 'string') bodies.set(id, body);
+        }
+        return { manifestJson, bodies };
+    });
+}
+
+/**
+ * Replace the offline memory-file store from a backup snapshot, under this
+ * module's lock.
+ *
+ * Restore must not write the manifest or body keys itself: a raw write sits
+ * outside `withFilesLock`, so it can interleave with a staging operation's
+ * read-modify-write and silently drop one side (rule 4 — the failure that lost
+ * atoms in production). `manifestJson` is the backup's manifest item (null = the
+ * snapshot captured zero files, which clears the store); `readBackupBody`
+ * resolves a file body from wherever the backup sharded it — that storage is the
+ * caller's, not ours.
+ *
+ * Ordering matches every writer here: bodies first, manifest last. A header with
+ * no bytes is an unreachable memory; an orphan body is reclaimable.
+ */
+export async function restoreMemoryFileSnapshot(
+    manifestJson: string | null,
+    readBackupBody: (id: string) => Promise<string | null>,
+): Promise<void> {
+    const backupIds = new Set(parseManifestIds(manifestJson));
+    await withFilesLock(async () => {
+        const runtime = await loadManifest();
+        const runtimeIds = Object.keys(runtime);
+
+        for (const id of backupIds) {
+            const body = await readBackupBody(id);
+            if (body === null) {
+                await storageAdapter.removeItem(bodyKey(id));
+            } else {
+                await storageAdapter.setItem(bodyKey(id), body);
+            }
+        }
+
+        // Bodies the snapshot does not contain must not linger: drop runtime
+        // bodies whose ids are outside the backup manifest.
+        for (const id of runtimeIds) {
+            if (backupIds.has(id)) continue;
+            await storageAdapter.removeItem(bodyKey(id));
+        }
+
+        if (!manifestJson) {
+            await storageAdapter.removeItem(MEMORY_FILES_MANIFEST_KEY);
+        } else {
+            await storageAdapter.setItem(MEMORY_FILES_MANIFEST_KEY, manifestJson);
+        }
+    });
 }
 
 /**

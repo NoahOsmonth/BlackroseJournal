@@ -7,6 +7,7 @@ import {
     extractFirstJsonObject,
     fetchDirectJsonCompletion,
 } from '@/services/ai/jsonCompletion';
+import { isDirectConfigError, warnDirectConfigErrorOnce } from '@/services/ai/directConfig';
 import { INSIGHTS_TEMPERATURE } from '@/services/ai/generationSettings';
 import type { Message } from '@/services/ai';
 import type { JournalEntry } from '@/services/journal/journalStorage.types';
@@ -290,6 +291,12 @@ export async function extractMemoryAtoms(
     try {
         return await requestExtraction(ctx);
     } catch (error) {
+        // Permanent configuration error: report the actionable message once
+        // (deduped across the finish path) instead of a wrapper per step.
+        if (isDirectConfigError(error)) {
+            warnDirectConfigErrorOnce(error);
+            return [];
+        }
         console.warn('AI memory extraction failed:', error);
         return [];
     }

@@ -20,6 +20,7 @@ import {
     extractCheckInMemoryAtoms,
     extractJournalMemoryAtoms,
 } from './memoryAtomExtraction';
+import { stageUserNoteMemory } from './memoryFiles';
 import { migrateAtomProvenance, resolveRootSource } from './memoryProvenance';
 
 /**
@@ -36,7 +37,7 @@ import { migrateAtomProvenance, resolveRootSource } from './memoryProvenance';
 export const LOCAL_MEMORY_STORAGE_KEY = '@rosebud_local_memory';
 export const LOCAL_MEMORY_SHARD_KEY_PREFIX = '@rosebud_local_memory_shard:';
 export const LOCAL_MEMORY_CORRUPT_BACKUP_KEY = '@rosebud_local_memory_corrupt';
-export const LOCAL_MEMORY_SCHEMA_VERSION = 3;
+export const LOCAL_MEMORY_SCHEMA_VERSION = 4;
 export const LOCAL_MEMORY_SHARD_COUNT = 8;
 
 /**
@@ -64,6 +65,18 @@ export function resetMemoryStorageAdapter(): void {
 // All read-modify-write cycles must run through this queue. AsyncStorage has no
 // transactions; two interleaved load->save pairs silently drop one side's atoms.
 let memoryWriteQueue: Promise<unknown> = Promise.resolve();
+
+/**
+ * Disambiguates manual-note ids written within the same millisecond.
+ *
+ * `saveManualMemoryNote` keys its atom on `note:<Date.now()>`, and the atom id
+ * is `${source}:${layer}:${sourceId}` — so two notes written inside one
+ * millisecond produced the SAME id and the second merged into the first,
+ * silently losing it. A tight caller (the demo seed writes several notes in a
+ * loop) hits this; a person typing cannot. The `note:` prefix is preserved
+ * because `memoryProvenance` matches on it.
+ */
+let manualNoteSequence = 0;
 
 function withMemoryLock<T>(task: () => Promise<T>): Promise<T> {
     return runAccountBoundOperation('local-memory', async () => {
@@ -143,10 +156,22 @@ function sanitizeAtoms(value: unknown): Record<string, LocalMemoryAtom> {
                 : rawEvent === null
                     ? null
                     : undefined;
+            // Pull the two optional v4 fields out of the spread so a corrupt value
+            // (NaN, a string) cannot survive: an invalid `retiredAt` must not hide
+            // a live atom, and an invalid `importance` must not rank it.
+            const { importance: rawImportance, retiredAt: rawRetiredAt, ...rest } = candidate;
+            const importance = typeof rawImportance === 'number' && Number.isFinite(rawImportance)
+                ? clampScore(rawImportance)
+                : undefined;
+            const retiredAt = typeof rawRetiredAt === 'number' && Number.isFinite(rawRetiredAt)
+                ? rawRetiredAt
+                : undefined;
             const base: LocalMemoryAtom = {
-                ...candidate,
+                ...rest,
                 accessCount: typeof candidate.accessCount === 'number' ? candidate.accessCount : 0,
                 ...(eventDate !== undefined ? { eventDate } : {}),
+                ...(importance !== undefined ? { importance } : {}),
+                ...(retiredAt !== undefined ? { retiredAt } : {}),
             };
             result[key] = migrateAtomProvenance(base);
         }
@@ -333,21 +358,40 @@ async function saveMemoryStore(
 
 const EMPTY_QUERY_TOKENS = new Set<string>();
 
+/** A retired atom is soft-deleted: kept in storage, hidden from every read path. */
+function isRetired(atom: LocalMemoryAtom): boolean {
+    return typeof atom.retiredAt === 'number' && Number.isFinite(atom.retiredAt);
+}
+
 interface PruneOutcome {
     map: Record<string, LocalMemoryAtom>;
     evicted: number;
 }
 
 /**
- * Bound the atom store at `MAX_MEMORY_ATOMS`, lowest-salience first. Manual notes
- * are never auto-evicted.
+ * Weakest-first ordering for eviction: retired atoms before live ones (they are
+ * already inactive), then lowest `rankAtom`.
+ */
+function weakestFirst(a: LocalMemoryAtom, b: LocalMemoryAtom, now: number): number {
+    const retiredA = isRetired(a) ? 0 : 1;
+    const retiredB = isRetired(b) ? 0 : 1;
+    if (retiredA !== retiredB) return retiredA - retiredB;
+    return rankAtom(a, EMPTY_QUERY_TOKENS, now) - rankAtom(b, EMPTY_QUERY_TOKENS, now);
+}
+
+/**
+ * Bound the atom store at `MAX_MEMORY_ATOMS`, lowest-salience first.
  *
- * The cap itself is a deliberate product decision and stays. What could not stay is
- * its silence: this used to drop atoms and return only the surviving map, so the
- * store simply stopped growing at 400 with no log, no count, and nothing in a
- * return value — the same shape as every other bound this sweep has fixed. It now
- * reports how many it dropped and says so, so a shrinking store is an event rather
- * than a mystery.
+ * Manual notes are protected **first**: they claim slots before any
+ * auto-extracted atom. But the cap is a hard storage bound, so when manual notes
+ * alone exceed it the weakest manual notes are evicted too. Previously
+ * `keepCount = max(0, MAX - protected.length)` let the protected set crowd out
+ * every auto atom *and* left the store unbounded — 4001 manual notes all
+ * survived a 4000 cap. The bound now always holds.
+ *
+ * The cap itself is a deliberate product decision and stays. What could not stay
+ * is its silence: it reports how many it dropped and says so, so a shrinking
+ * store is an event rather than a mystery.
  */
 function pruneMemoryMap(
     map: Record<string, LocalMemoryAtom>,
@@ -356,16 +400,21 @@ function pruneMemoryMap(
     const atoms = Object.values(map);
     if (atoms.length <= MAX_MEMORY_ATOMS) return { map, evicted: 0 };
 
-    // Manual notes are explicit user input — never auto-evicted.
-    const protectedAtoms = atoms.filter((atom) => atom.source === 'manual');
-    const evictable = atoms
+    const manual = atoms.filter((atom) => atom.source === 'manual');
+    const auto = atoms
         .filter((atom) => atom.source !== 'manual')
-        .sort((a, b) => rankAtom(a, EMPTY_QUERY_TOKENS, now) - rankAtom(b, EMPTY_QUERY_TOKENS, now));
+        .sort((a, b) => weakestFirst(a, b, now));
 
-    const keepCount = Math.max(0, MAX_MEMORY_ATOMS - protectedAtoms.length);
-    const kept = keepCount > 0 ? evictable.slice(evictable.length - keepCount) : [];
+    // Manual notes take their slots first, strongest first; only when they alone
+    // exceed the cap does the weakest manual note lose.
+    const keptManual = manual.length <= MAX_MEMORY_ATOMS
+        ? manual
+        : [...manual].sort((a, b) => -weakestFirst(a, b, now)).slice(0, MAX_MEMORY_ATOMS);
+    const autoBudget = Math.max(0, MAX_MEMORY_ATOMS - keptManual.length);
+    const keptAuto = autoBudget > 0 ? auto.slice(auto.length - autoBudget) : [];
+
     const result: Record<string, LocalMemoryAtom> = {};
-    [...protectedAtoms, ...kept].forEach((atom) => {
+    [...keptManual, ...keptAuto].forEach((atom) => {
         result[atom.id] = atom;
     });
     const evicted = atoms.length - Object.keys(result).length;
@@ -373,7 +422,7 @@ function pruneMemoryMap(
         console.warn(
             'Local memory: evicted ' + String(evicted) + ' lowest-salience atom(s) to stay within '
             + String(MAX_MEMORY_ATOMS) + ' (kept ' + String(Object.keys(result).length)
-            + '; manual notes are never evicted).',
+            + '; manual notes are protected while they fit the cap).',
         );
     }
     return { map: result, evicted };
@@ -394,6 +443,17 @@ function mergeAtom(existing: LocalMemoryAtom | undefined, input: LocalMemoryAtom
         ? input.eventDate
         : existing?.eventDate;
 
+    // Declared importance is recurrence-independent: recurrence matures
+    // `salience`, but the profile cap must rank by what matters, not by how often
+    // a topic was written about. Captured at the first write, raised (never
+    // lowered) if a later write declares more.
+    const declaredImportance = typeof input.salience === 'number'
+        ? clampScore(input.salience)
+        : existing?.importance ?? clampScore(existing?.salience ?? 0.55);
+    const importance = clampScore(Math.max(existing?.importance ?? 0, declaredImportance));
+
+    // `retiredAt` is deliberately not carried over: re-writing a retired atom
+    // brings it back live, and the profile cap re-evaluates it on this same write.
     return {
         id: atomId(input),
         layer: input.layer,
@@ -406,6 +466,7 @@ function mergeAtom(existing: LocalMemoryAtom | undefined, input: LocalMemoryAtom
         tags: uniqueValues([...(existing?.tags ?? []), ...(input.tags ?? [])]),
         salience,
         confidence,
+        importance,
         createdAt: existing?.createdAt ?? input.createdAt ?? now,
         updatedAt: now,
         lastAccessedAt: existing?.lastAccessedAt,
@@ -416,28 +477,47 @@ function mergeAtom(existing: LocalMemoryAtom | undefined, input: LocalMemoryAtom
 
 const MAX_PROFILE_ATOMS = 3;
 
+/** Cap ranking key: declared importance, with a salience fallback for legacy atoms. */
+function profileImportance(atom: LocalMemoryAtom): number {
+    return atom.importance ?? atom.salience;
+}
+
 /**
- * Keep only the strongest `MAX_PROFILE_ATOMS` profile atoms.
+ * Retire the weakest profile atoms so at most `MAX_PROFILE_ATOMS` stay live.
  *
- * Same doctrine as `pruneMemoryMap`: the cap is the product decision and stays, the
- * silence does not. This deleted the losers and returned nothing, so a profile atom
- * could disappear between two reads with no trace anywhere.
+ * Soft-delete, not destroy: a loser gets `retiredAt` and stays in storage, so it
+ * survives into `exportMemoryBundle` and can be recovered from a backup. This is
+ * the same retire-not-destroy doctrine `memoryFiles.ts` (`deprecated`) and
+ * `identityProfile.ts` (`invalidatedAt`) already use; the atom store was the only
+ * one of the three that hard-deleted, and the only one whose cap was invisible.
+ *
+ * Ranking rewards importance, not recurrence: it uses the recurrence-independent
+ * `importance` (see `mergeAtom`), so a topic mentioned once because it matters
+ * outranks one mentioned six times because it is easy to repeat. Ties keep the
+ * most recently updated atom — the previous code kept insertion order, which
+ * destroyed the newest memory on an equal score.
  */
-function enforceProfileCap(map: Record<string, LocalMemoryAtom>): number {
+function enforceProfileCap(map: Record<string, LocalMemoryAtom>, now: number = Date.now()): number {
     const profiles = Object.values(map)
-        .filter((atom) => atom.layer === 'profile')
-        .sort((a, b) => (b.salience + b.confidence) - (a.salience + a.confidence));
-    const dropped = profiles.slice(MAX_PROFILE_ATOMS);
-    dropped.forEach((atom) => {
-        delete map[atom.id];
+        .filter((atom) => atom.layer === 'profile' && !isRetired(atom))
+        .sort((a, b) => {
+            const diff = profileImportance(b) - profileImportance(a);
+            return diff !== 0 ? diff : b.updatedAt - a.updatedAt;
+        });
+    const retired = profiles.slice(MAX_PROFILE_ATOMS);
+    retired.forEach((atom) => {
+        const current = map[atom.id];
+        if (current && !isRetired(current)) {
+            map[atom.id] = { ...current, retiredAt: now };
+        }
     });
-    if (dropped.length > 0) {
+    if (retired.length > 0) {
         console.warn(
-            'Local memory: dropped ' + String(dropped.length) + ' weaker profile atom(s) to stay within '
-            + String(MAX_PROFILE_ATOMS) + ' (lowest salience+confidence first).',
+            'Local memory: retired ' + String(retired.length) + ' weaker profile atom(s) to stay within '
+            + String(MAX_PROFILE_ATOMS) + ' (kept in storage; recoverable from a backup).',
         );
     }
-    return dropped.length;
+    return retired.length;
 }
 
 function titleCaseTopic(topic: string): string {
@@ -469,8 +549,9 @@ export async function upsertMemoryAtom(input: LocalMemoryAtomInput): Promise<Loc
         const id = atomId(input);
         const merged = mergeAtom(map[id], input);
         map[id] = merged;
-        enforceProfileCap(map);
-        await saveMemoryStore(store, pruneMemoryMap(map, Date.now()).map);
+        const now = Date.now();
+        enforceProfileCap(map, now);
+        await saveMemoryStore(store, pruneMemoryMap(map, now).map);
         return map[id] ?? merged;
     });
     notifyMemoryChanged();
@@ -478,10 +559,17 @@ export async function upsertMemoryAtom(input: LocalMemoryAtomInput): Promise<Loc
     return atom;
 }
 
+/**
+ * Every live (non-retired) atom, newest update first. Retired atoms stay in
+ * storage but are hidden here, so the capsule, the graph and the memory hub all
+ * stop showing a memory the profile cap set aside.
+ */
 export async function listMemoryAtoms(): Promise<LocalMemoryAtom[]> {
     return runAccountBoundOperation('local-memory-read', async () => {
         const store = await loadMemoryStore();
-        return Object.values(store.map).sort((a, b) => b.updatedAt - a.updatedAt);
+        return Object.values(store.map)
+            .filter((atom) => !isRetired(atom))
+            .sort((a, b) => b.updatedAt - a.updatedAt);
     });
 }
 
@@ -563,10 +651,10 @@ export async function deleteMemoryAtom(id: string): Promise<boolean> {
 
 export async function saveManualMemoryNote(content: string): Promise<LocalMemoryAtom> {
     const trimmed = trimText(content, 600);
-    return upsertMemoryAtom({
+    const atom = await upsertMemoryAtom({
         layer: 'note',
         source: 'manual',
-        sourceId: `note:${Date.now()}`,
+        sourceId: `note:${Date.now()}:${(manualNoteSequence += 1)}`,
         rootSourceKind: 'manual',
         title: trimText(trimmed, 60) || 'Memory note',
         content: trimmed,
@@ -574,6 +662,22 @@ export async function saveManualMemoryNote(content: string): Promise<LocalMemory
         salience: 0.9,
         confidence: 1,
     });
+    // Two stores, one bridge (AGENTS.md rule 9): the atom is passively visible in
+    // the capsule, but `memory_search` reads ONLY the memory-file manifest, so an
+    // atom-only note is unreachable by recall. Keyed on the atom id, so the file
+    // is unique per write and clearable by the demo ledger. Best effort: a file
+    // failure must never lose the atom the user just wrote.
+    try {
+        await stageUserNoteMemory({
+            text: trimmed,
+            threadHint: atom.tags[0],
+            sourceEntryId: atom.id,
+            capturedAt: new Date(atom.createdAt).toISOString(),
+        });
+    } catch (error) {
+        console.warn('Local memory: manual note saved as an atom but not staged as a memory file:', error);
+    }
+    return atom;
 }
 
 /**
@@ -653,11 +757,13 @@ async function saveAtomBatch(atoms: readonly LocalMemoryAtomInput[]): Promise<Lo
             map[id] = atom;
             return atom;
         });
-        enforceProfileCap(map);
+        const now = Date.now();
+        enforceProfileCap(map, now);
         // Filter against the pruned map, not `map`: prune returns a new map and
         // never mutates its input, so reading `map` here reported atoms that had
-        // just been evicted as saved.
-        const pruned = pruneMemoryMap(map, Date.now()).map;
+        // just been evicted as saved. Retired atoms stay in `pruned` (soft-delete),
+        // so a retired profile still counts as saved.
+        const pruned = pruneMemoryMap(map, now).map;
         await saveMemoryStore(store, pruned);
         return merged.filter((atom) => Boolean(pruned[atom.id]));
     });
@@ -688,6 +794,12 @@ export async function importMemoryAtoms(
  * Merge the whole store into one payload for a local-backup item. Assembled in
  * memory only — it is never written back to a runtime key, because a single
  * value holding every atom is exactly what sharding exists to avoid.
+ *
+ * Retired atoms are INCLUDED on purpose. This is the recovery path: the whole
+ * reason the profile cap became a soft-delete is so a backup can bring back an
+ * atom the cap set aside. Filtering them here would re-create the
+ * "unrecoverable from backup" harm this fix removes. Live-only views (the
+ * capsule, the graph, the memory hub) filter through `listMemoryAtoms` instead.
  */
 export async function exportMemoryBundle(): Promise<string | null> {
     const store = await loadMemoryStore();
@@ -698,7 +810,15 @@ export async function exportMemoryBundle(): Promise<string | null> {
     } satisfies LocalMemoryEnvelope);
 }
 
-/** Replace the store from a local-backup payload. `null` clears it. */
+/**
+ * Replace the store from a local-backup payload. `null` clears it.
+ *
+ * Goes through the same caps as every other write path: a 4-profile bundle is
+ * retired down to `MAX_PROFILE_ATOMS` live profiles and the whole store is
+ * bounded at `MAX_MEMORY_ATOMS`, exactly as an equivalent batch of upserts would
+ * be. Retired atoms in the bundle stay retired (and stay in storage). Returns
+ * the number of atoms the store now holds.
+ */
 export async function importMemoryBundle(json: string | null): Promise<number> {
     let parsed: unknown = null;
     if (json) {
@@ -712,8 +832,11 @@ export async function importMemoryBundle(json: string | null): Promise<number> {
     const atoms = parsed === null ? {} : atomsFromPayload(parsed);
     const kept = await withMemoryLock(async () => {
         const store = await loadMemoryStore();
-        await saveMemoryStore(store, atoms);
-        return Object.keys(atoms).length;
+        const now = Date.now();
+        enforceProfileCap(atoms, now);
+        const pruned = pruneMemoryMap(atoms, now).map;
+        await saveMemoryStore(store, pruned);
+        return Object.keys(pruned).length;
     });
     notifyMemoryChanged();
     return kept;

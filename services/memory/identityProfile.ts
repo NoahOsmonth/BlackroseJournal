@@ -356,9 +356,26 @@ function mergePeople(
         });
     });
 
-    return Array.from(map.values())
-        .sort((a, b) => b.updatedAt - a.updatedAt)
-        .slice(0, MAX_KEY_PEOPLE);
+    const sorted = Array.from(map.values())
+        .sort((a, b) => b.updatedAt - a.updatedAt);
+    const kept = sorted.slice(0, MAX_KEY_PEOPLE);
+    // Cap eviction is a bounded-context event, not a supersession — it is not
+    // what `invalidatedAt` records (that field marks a value replaced by a newer
+    // confirmed one, via `mergeField`). Facts are dropped on cap eviction and the
+    // drop is announced; people must behave the same way rather than vanish in
+    // silence. A dropped person is re-created from scratch if mentioned again
+    // (`mergePeople` treats an invalidated/absent key as new), so nothing is
+    // permanently unrecoverable, and retaining tombstones here would let the
+    // stored array grow past the cap that bounds prompt context.
+    const evicted = sorted.length - kept.length;
+    if (evicted > 0) {
+        console.warn(
+            'Identity profile: evicted ' + String(evicted) + ' least-recent key people to stay within '
+            + String(MAX_KEY_PEOPLE) + ' (kept ' + String(kept.length)
+            + '; oldest-updated people are dropped first).',
+        );
+    }
+    return kept;
 }
 
 function mergeFacts(
@@ -396,9 +413,18 @@ function mergeFacts(
         });
     });
 
-    return Array.from(map.values())
-        .sort((a, b) => b.updatedAt - a.updatedAt)
-        .slice(0, MAX_FACTS);
+    const sorted = Array.from(map.values())
+        .sort((a, b) => b.updatedAt - a.updatedAt);
+    const kept = sorted.slice(0, MAX_FACTS);
+    const evicted = sorted.length - kept.length;
+    if (evicted > 0) {
+        console.warn(
+            'Identity profile: evicted ' + String(evicted) + ' least-recent fact(s) to stay within '
+            + String(MAX_FACTS) + ' (kept ' + String(kept.length)
+            + '; oldest-updated facts are dropped first).',
+        );
+    }
+    return kept;
 }
 
 export function profileHasIdentity(profile: IdentityProfile): boolean {

@@ -2,9 +2,11 @@ import {
     clearMemoryFiles,
     deleteMemoryFilesBySourceSessions,
     getMemoryRecordsByIds,
+    listFormalProjectIds,
     listMemoryFiles,
     listTmpFiles,
     MEMORY_FILE_BODY_PREFIX,
+    MEMORY_FILES_CORRUPT_BACKUP_KEY,
     MEMORY_FILES_MANIFEST_KEY,
     promoteTmpRecord,
     resetMemoryFilesStorageAdapter,
@@ -230,6 +232,120 @@ describe('memoryFiles (offline file-semantic store)', () => {
             });
         } finally {
             await clearMemoryFiles();
+            resetMemoryFilesStorageAdapter();
+        }
+    });
+
+    // ---- Silent-data-loss guard: a corrupt manifest must not vanish. ----
+    it.each([
+        '{ this is not json',
+        'null',
+        '123',
+        '{"schemaVersion":1,"files":"nope"}',
+    ])('preserves an unreadable manifest payload (%s) instead of losing it silently', async (payload) => {
+        const adapter = createAdapter();
+        setMemoryFilesStorageAdapter(adapter);
+        const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+        try {
+            // A live store, then the payload is corrupted out of band.
+            await stageTmpMemory({
+                type: 'project', name: 'Survivor', description: 'd', body: '## Current Stage\nkeep me',
+            });
+            expect(await listMemoryFiles({})).toHaveLength(1);
+
+            adapter.store.set(MEMORY_FILES_MANIFEST_KEY, payload);
+
+            // The reader still degrades to empty rather than throwing…
+            await expect(listMemoryFiles({})).resolves.toEqual([]);
+            // …but the loss is now recoverable and loud.
+            expect(adapter.store.get(MEMORY_FILES_CORRUPT_BACKUP_KEY)).toBe(payload);
+            expect(adapter.store.has(MEMORY_FILES_MANIFEST_KEY)).toBe(false);
+            expect(warn).toHaveBeenCalledWith(expect.stringContaining(MEMORY_FILES_CORRUPT_BACKUP_KEY));
+        } finally {
+            warn.mockRestore();
+            resetMemoryFilesStorageAdapter();
+        }
+    });
+
+    // ---- CJK threads: normalizeProjectId must keep CJK like the slug helpers. ----
+    it('promotes a CJK project id and round-trips it through listFormalProjectIds', async () => {
+        const adapter = createAdapter();
+        setMemoryFilesStorageAdapter(adapter);
+        try {
+            const staged = await stageTmpMemory({
+                type: 'project',
+                name: '工作压力',
+                description: '压力很大，睡不好。',
+                body: '## Current Stage\n工作压力持续了一段时间。',
+            });
+            expect(staged.projectId).toBe('_tmp');
+
+            const promoted = await promoteTmpRecord(staged.id, '工作压力');
+            expect(promoted).not.toBeNull();
+            expect(promoted?.projectId).toBe('工作压力');
+            expect(promoted?.id).toContain('projects/工作压力/');
+
+            // The round-trip the defect broke: promote -> listFormalProjectIds.
+            expect(await listFormalProjectIds()).toEqual(['工作压力']);
+            // And the thread is addressable by its own id.
+            expect((await listMemoryFiles({ projectId: '工作压力' })).map((h) => h.name)).toEqual(['工作压力']);
+        } finally {
+            await clearMemoryFiles();
+            resetMemoryFilesStorageAdapter();
+        }
+    });
+
+    it('keeps a CJK project id when staging directly into it', async () => {
+        const adapter = createAdapter();
+        setMemoryFilesStorageAdapter(adapter);
+        try {
+            const staged = await stageTmpMemory({
+                type: 'project',
+                name: '直接归档',
+                description: '直接写入正式线索',
+                body: '## Current Stage\n直接归档到正式线程。',
+                projectId: '工作压力',
+            });
+            expect(staged.projectId).toBe('工作压力');
+            expect(staged.id).toContain('projects/工作压力/');
+            expect(await listFormalProjectIds()).toEqual(['工作压力']);
+        } finally {
+            await clearMemoryFiles();
+            resetMemoryFilesStorageAdapter();
+        }
+    });
+
+    it('normalizes every already-stored ASCII project id to itself (no thread changes meaning)', async () => {
+        const adapter = createAdapter();
+        setMemoryFilesStorageAdapter(adapter);
+        try {
+            // Ids exactly as the previous [a-z0-9_-] normalization would have
+            // written them — the class of ids a live store already holds.
+            const storedIds = ['workload', 'my-thread_2', 'deadlines'];
+            const files: Record<string, unknown> = {};
+            storedIds.forEach((projectId) => {
+                const id = `projects/${projectId}/Project/x.md`;
+                files[id] = {
+                    id,
+                    relativePath: id,
+                    name: 'Existing',
+                    description: 'existing thread',
+                    type: 'project',
+                    scope: 'project',
+                    projectId,
+                    updatedAt: '2026-09-01T00:00:00.000Z',
+                };
+            });
+            adapter.store.set(MEMORY_FILES_MANIFEST_KEY, JSON.stringify({ schemaVersion: 1, files }));
+
+            expect(await listFormalProjectIds()).toEqual(['deadlines', 'my-thread_2', 'workload']);
+            for (const projectId of storedIds) {
+                // The exact stored spelling must still resolve — if the new
+                // normalization altered any of these, the filter would miss.
+                const headers = await listMemoryFiles({ projectId });
+                expect(headers.map((h) => h.projectId)).toEqual([projectId]);
+            }
+        } finally {
             resetMemoryFilesStorageAdapter();
         }
     });

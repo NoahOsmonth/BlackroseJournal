@@ -554,10 +554,16 @@ async function clearDemoDataForAccount(
     }
 
     // Offline memory files staged from seeded sessions (createCheckIn /
-    // created journal entries stage on completion). Tracked ids only.
+    // created journal entries stage on completion). Tracked ids only. Manual
+    // notes now also stage a file (saveManualMemoryNote dual-writes), keyed on
+    // the atom id the ledger records, so memoryAtomIds clears those too.
     try {
         assertAccountOperationActive(context);
-        await deleteMemoryFilesBySourceSessions([...record.journalEntryIds, ...record.checkInIds]);
+        await deleteMemoryFilesBySourceSessions([
+            ...record.journalEntryIds,
+            ...record.checkInIds,
+            ...record.memoryAtomIds,
+        ]);
         assertAccountOperationActive(context);
     } catch (error) {
         if (context.signal.aborted) throw error;

@@ -31,6 +31,7 @@ import {
     extractFirstJsonObject,
     fetchDirectJsonCompletion,
 } from '@/services/ai/jsonCompletion';
+import { isDirectConfigError, warnDirectConfigErrorOnce } from '@/services/ai/directConfig';
 import { INSIGHTS_TEMPERATURE } from '@/services/ai/generationSettings';
 import { runAccountBoundOperation } from '@/services/account/accountRuntime';
 import {
@@ -281,6 +282,13 @@ async function requestLlmIdentityPatch(
             // Malformed or empty schema — retry once, then give up (no regex write).
             lastError = new Error('Identity extraction returned unparseable or invalid JSON');
         } catch (error) {
+            // A provider-configuration error is permanent: it is read from
+            // env/settings before any transport exists, so a retry cannot
+            // succeed. Fail fast and report it once instead of backing off.
+            if (isDirectConfigError(error)) {
+                warnDirectConfigErrorOnce(error);
+                return null;
+            }
             lastError = error;
         }
     }

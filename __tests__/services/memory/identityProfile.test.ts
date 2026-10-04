@@ -206,4 +206,41 @@ describe('identityProfile', () => {
         expect(profile.pronouns?.value).toBe('they/them');
         expect(profile.facts.some((f) => f.content.includes('Oslo'))).toBe(true);
     });
+
+    /**
+     * Facts are capped at 24 but only 8 are ever injected; the 25th silently
+     * drops the oldest-updated fact. The eviction must at least be visible in
+     * the logs, mirroring the atom-cap warning in localMemory.
+     */
+    it('warns when identity facts exceed MAX_FACTS and are evicted', async () => {
+        const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        const facts = Array.from({ length: 25 }, (_, i) => `fact number ${i + 1}`);
+        await applyIdentityPatch({ facts });
+
+        const profile = await getIdentityProfile();
+        expect(profile.facts.length).toBe(24);
+        expect(warn).toHaveBeenCalledWith(
+            expect.stringContaining('Identity profile: evicted 1'),
+        );
+        warn.mockRestore();
+    });
+
+    /**
+     * Key people are capped at 12 but the eviction was completely silent — a
+     * person the user cares about was dropped with zero trace. It must announce
+     * the drop the same way the facts path does (mirroring the atom-cap warning
+     * in localMemory), so a shrinking people list is an event, not a mystery.
+     */
+    it('warns when identity key people exceed MAX_KEY_PEOPLE and are evicted', async () => {
+        const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        const keyPeople = Array.from({ length: 15 }, (_, i) => ({ name: `Person ${i + 1}` }));
+        await applyIdentityPatch({ keyPeople });
+
+        const profile = await getIdentityProfile();
+        expect(profile.keyPeople.length).toBe(12);
+        expect(warn).toHaveBeenCalledWith(
+            expect.stringContaining('Identity profile: evicted 3'),
+        );
+        warn.mockRestore();
+    });
 });

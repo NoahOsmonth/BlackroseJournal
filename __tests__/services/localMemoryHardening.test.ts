@@ -16,6 +16,7 @@ jest.mock('@/services/memory/memoryAtomExtraction', () => ({
 
 import {
     LOCAL_MEMORY_CORRUPT_BACKUP_KEY,
+    LOCAL_MEMORY_SCHEMA_VERSION,
     LOCAL_MEMORY_SHARD_COUNT,
     LOCAL_MEMORY_SHARD_KEY_PREFIX,
     LOCAL_MEMORY_STORAGE_KEY,
@@ -163,7 +164,7 @@ describe('localMemory hardening', () => {
         // The single-value payload is gone: the index is a header only, and both
         // atoms live in shard keys.
         const index = JSON.parse(adapter.store.get(LOCAL_MEMORY_STORAGE_KEY)!);
-        expect(index.schemaVersion).toBe(3);
+        expect(index.schemaVersion).toBe(LOCAL_MEMORY_SCHEMA_VERSION);
         expect(index.shardCount).toBe(LOCAL_MEMORY_SHARD_COUNT);
         expect(index.atomCount).toBe(2);
         expect(index.atoms).toBeUndefined();
