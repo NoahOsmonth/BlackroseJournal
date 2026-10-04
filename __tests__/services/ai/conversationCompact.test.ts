@@ -63,4 +63,47 @@ describe('conversationCompact', () => {
         expect(SUMMARY_TOKEN_BUDGET_MAX).toBeGreaterThanOrEqual(10_000);
         expect(SUMMARY_TOKEN_BUDGET_MAX).toBeLessThanOrEqual(15_000);
     });
+
+    it('does not report a theme from a substring of a word (gloves ≠ love)', () => {
+        const older = [
+            msg('user', 'I bought gloves today', '1'),
+            msg('assistant', 'nice', '2'),
+            msg('user', 'they were warm', '3'),
+        ];
+        const summary = buildExtractiveConversationSummary(older, 5_000);
+        // No theme footer at all: "gloves" must not register as the "love" theme.
+        expect(summary).not.toContain('Recurring signals');
+    });
+
+    it('reports a theme when the whole word is present (I love this)', () => {
+        const older = [
+            msg('user', 'I love this', '1'),
+            msg('assistant', 'tell me more', '2'),
+        ];
+        const summary = buildExtractiveConversationSummary(older, 5_000);
+        expect(summary).toContain('Recurring signals');
+        expect(summary).toContain('love');
+    });
+
+    it('matches inflections without reintroducing substring false positives', () => {
+        // Inflection MUST fire: "working" → work, "stressed" → stress.
+        const inflected = [
+            msg('user', 'I have been working late and feeling stressed', '1'),
+            msg('assistant', 'that sounds heavy', '2'),
+        ];
+        const inflectedSummary = buildExtractiveConversationSummary(inflected, 5_000);
+        expect(inflectedSummary).toContain('Recurring signals');
+        expect(inflectedSummary).toContain('work');
+        expect(inflectedSummary).toContain('stress');
+
+        // False positive MUST NOT fire: "dangerous" contains "anger" as a
+        // substring but not at a word boundary.
+        const falsePositive = [
+            msg('user', 'that was a dangerous drive', '1'),
+            msg('assistant', 'glad you are safe', '2'),
+            msg('user', 'me too', '3'),
+        ];
+        const fpSummary = buildExtractiveConversationSummary(falsePositive, 5_000);
+        expect(fpSummary).not.toContain('Recurring signals');
+    });
 });

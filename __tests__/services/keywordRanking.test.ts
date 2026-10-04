@@ -6,8 +6,12 @@ describe('extractTags', () => {
             .toEqual(['mornings', 'calm', 'help', 'think']);
     });
 
-    it('returns an empty list when nothing survives tokenization', () => {
+    it('drops tokens below the floor', () => {
         expect(extractTags('it was a day')).toEqual([]);
+    });
+
+    it('returns an empty list when every token is below the floor', () => {
+        expect(extractTags('it is a we do')).toEqual([]);
     });
 
     it('keeps seed tags ahead of derived ones', () => {

@@ -24,8 +24,10 @@ jest.mock('../../../services/ai/aiTransport', () => ({
 import { fetchAiChatCompletion } from '../../../services/ai/aiTransport';
 import {
     WEEK_MIN_DAY_DIGESTS,
+    ROLLUP_ATTEMPTS_KEY,
     clearRollupAttemptsForTests,
     ensureMemoryRollupsUpToDate,
+    markRollupAttemptForTests,
     resetRollupAttemptsAdapter,
     setRollupAttemptsAdapter,
 } from '../../../services/memory/memoryRollupBuild';
@@ -38,11 +40,11 @@ import {
 } from '../../../services/memory/memoryRollupStorage';
 import {
     clearDayDigests,
+    DAY_DIGEST_STORAGE_KEY,
     resetDayDigestStorageAdapter,
     setDayDigestStorageAdapter,
 } from '../../../services/memory/dayDigestStorage';
 import type { DayDigest } from '../../../services/memory/dayDigest.types';
-import { DAY_DIGEST_STORAGE_KEY } from '../../../services/memory/dayDigestStorage';
 
 function createSharedAdapter() {
     const store = new Map<string, string>();
@@ -252,5 +254,37 @@ describe('ensureMemoryRollupsUpToDate', () => {
         expect(second.created).toHaveLength(0);
         // No additional LLM calls while backoff holds.
         expect(mockFetch.mock.calls.length).toBe(callsAfterFirst);
+    });
+
+    /**
+     * Concurrent attempt markers must not clobber each other. Without the
+     * serialized read-modify-write, both loads see an empty map and the later
+     * write drops the other period's marker, defeating the 12h backoff.
+     */
+    it('serializes attempt-map writes so concurrent marks do not clobber', async () => {
+        const store = new Map<string, string>();
+        const slowAdapter = {
+            getItem: async (key: string) => {
+                await new Promise((resolve) => setTimeout(resolve, 0));
+                return store.get(key) ?? null;
+            },
+            setItem: async (key: string, value: string) => {
+                await new Promise((resolve) => setTimeout(resolve, 0));
+                store.set(key, value);
+            },
+            removeItem: async (key: string) => {
+                store.delete(key);
+            },
+        };
+        setRollupAttemptsAdapter(slowAdapter);
+
+        await Promise.all([
+            markRollupAttemptForTests('week:2026-W23', 1_000),
+            markRollupAttemptForTests('week:2026-W24', 2_000),
+        ]);
+
+        const parsed = JSON.parse(store.get(ROLLUP_ATTEMPTS_KEY) ?? '{}');
+        expect(parsed.attempts['week:2026-W23']).toBe(1_000);
+        expect(parsed.attempts['week:2026-W24']).toBe(2_000);
     });
 });

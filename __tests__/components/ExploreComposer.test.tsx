@@ -37,12 +37,14 @@ describe('ExploreComposer', () => {
     });
 
     it('says so instead of inventing an observation when nothing is recognised', () => {
-        setup({ value: 'it was a day' });
+        // Unified 3-char floor: 'it was a day' is no longer theme-free
+        // ('was'/'day' survive), so use an all-sub-floor fixture. See SUMMARY.md.
+        setup({ value: 'it is a we do' });
         expect(screen.getByText(/Nothing recognised/)).toBeTruthy();
     });
 
     it('never blocks keeping a note it could not file', () => {
-        setup({ value: 'it was a day' });
+        setup({ value: 'it is a we do' });
         expect(screen.getByLabelText('Keep this note').props.accessibilityState.disabled).toBe(false);
     });
 

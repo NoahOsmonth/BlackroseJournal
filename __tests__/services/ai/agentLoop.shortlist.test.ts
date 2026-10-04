@@ -155,6 +155,7 @@ describe('runAgentTurnWithTools — refused mutating re-request', () => {
             'get_clock',
             'get_conversation',
             'get_day',
+            'get_live_session',
             'list_recent_days',
             'memory_list',
             'memory_search',
@@ -175,6 +176,6 @@ describe('runAgentTurnWithTools — refused mutating re-request', () => {
         const firstRequest = fetchMock.mock.calls[0][0] as {
             tools?: { function: { name: string } }[];
         };
-        expect((firstRequest.tools ?? []).map((t) => t.function.name)).toHaveLength(15);
+        expect((firstRequest.tools ?? []).map((t) => t.function.name)).toHaveLength(16);
     });
 });

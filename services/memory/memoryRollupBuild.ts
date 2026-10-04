@@ -82,6 +82,17 @@ export function resetRollupAttemptsAdapter(): void {
     attemptsAdapter = AsyncStorage;
 }
 
+// Serialized queue for the attempts map (@rosebud_memory_rollup_attempts).
+// AsyncStorage has no transactions; every mutation of this key — including the
+// clear — funnels through here so concurrent callers cannot clobber each other.
+let attemptsQueue: Promise<unknown> = Promise.resolve();
+
+function withRollupAttemptsLock<T>(task: () => Promise<T>): Promise<T> {
+    const run = attemptsQueue.then(task, task);
+    attemptsQueue = run.catch(() => undefined);
+    return run;
+}
+
 async function loadAttempts(): Promise<RollupAttemptMap> {
     try {
         const raw = await attemptsAdapter.getItem(ROLLUP_ATTEMPTS_KEY);
@@ -101,10 +112,19 @@ async function loadAttempts(): Promise<RollupAttemptMap> {
 }
 
 async function markRollupAttempt(periodId: string, now: number): Promise<void> {
-    const map = await loadAttempts();
-    map.attempts[periodId] = now;
-    await attemptsAdapter.setItem(ROLLUP_ATTEMPTS_KEY, JSON.stringify(map));
+    // Serialize the read-modify-write of the attempts map. Two overlapping
+    // ensureMemoryRollupsUpToDate runs would otherwise both load the map and
+    // the later write would clobber the other's period marker, defeating the
+    // 12-hour backoff (repeated failing LLM calls while offline).
+    await withRollupAttemptsLock(async () => {
+        const map = await loadAttempts();
+        map.attempts[periodId] = now;
+        await attemptsAdapter.setItem(ROLLUP_ATTEMPTS_KEY, JSON.stringify(map));
+    });
 }
+
+/** Test seam: exercise the serialized attempts read-modify-write directly. */
+export const markRollupAttemptForTests = markRollupAttempt;
 
 /**
  * True when we should call the LLM for this period.
@@ -122,14 +142,18 @@ export async function canAttemptRollup(
 
 /** Clear attempt markers (history clear + tests). */
 export async function clearRollupAttempts(): Promise<void> {
-    if (attemptsAdapter.removeItem) {
-        await attemptsAdapter.removeItem(ROLLUP_ATTEMPTS_KEY);
-        return;
-    }
-    await attemptsAdapter.setItem(ROLLUP_ATTEMPTS_KEY, JSON.stringify({
-        schemaVersion: 1,
-        attempts: {},
-    }));
+    // Same queue as markRollupAttempt: a clear landing between another caller's
+    // load and write would otherwise be undone by that write.
+    await withRollupAttemptsLock(async () => {
+        if (attemptsAdapter.removeItem) {
+            await attemptsAdapter.removeItem(ROLLUP_ATTEMPTS_KEY);
+            return;
+        }
+        await attemptsAdapter.setItem(ROLLUP_ATTEMPTS_KEY, JSON.stringify({
+            schemaVersion: 1,
+            attempts: {},
+        }));
+    });
 }
 
 /** @deprecated alias for tests */

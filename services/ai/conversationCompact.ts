@@ -154,7 +154,14 @@ export function buildExtractiveConversationSummary(
         ].join('\n');
     }
 
-    // Light theme extraction from user text
+    // Light theme extraction from user text. Word-prefix match (`\b` + theme +
+    // `\w*`): the leading boundary stops "gloves" firing "love", "dangerous"
+    // firing "anger", and "unhappy" firing "happy" (substring matching used to
+    // tell the model the user kept returning to themes they never wrote about),
+    // while the trailing `\w*` still catches SUFFIX inflections — "working" →
+    // work, "stressed" → stress, "loved" → love, "friendship" → friend. It does
+    // NOT catch stem changes ("loving", "happiness", "families"); those need
+    // stemming, not a regex.
     const userBlob = older
         .filter((m) => m.role === 'user')
         .map((m) => m.content)
@@ -164,7 +171,7 @@ export function buildExtractiveConversationSummary(
         'work', 'sleep', 'anxiety', 'relationship', 'family', 'health',
         'money', 'school', 'friend', 'anger', 'sad', 'happy', 'stress',
         'love', 'fear', 'goal', 'morning', 'night',
-    ].filter((t) => userBlob.includes(t));
+    ].filter((t) => new RegExp(`\\b${t}\\w*`).test(userBlob));
 
     const footer = themeHits.length
         ? `\n### Recurring signals\n${themeHits.slice(0, 8).join(', ')}`

@@ -11,6 +11,9 @@ jest.mock('../../../services/memory/localMemory', () => ({
 jest.mock('../../../services/memory/memoryFiles', () => ({
     deleteMemoryFilesBySourceSessions: jest.fn(async () => 1),
 }));
+jest.mock('../../../services/memory/memoryStage', () => ({
+    refreshJournalEntryMemoryFiles: jest.fn(async () => []),
+}));
 jest.mock('../../../services/memory/sessionDigestStorage', () => ({
     deleteSessionDigest: jest.fn(async () => true),
 }));
@@ -33,6 +36,7 @@ import {
     saveJournalEntryMemories,
 } from '../../../services/memory/localMemory';
 import { deleteMemoryFilesBySourceSessions } from '../../../services/memory/memoryFiles';
+import { refreshJournalEntryMemoryFiles } from '../../../services/memory/memoryStage';
 import { deleteSessionDigest } from '../../../services/memory/sessionDigestStorage';
 import { deleteEntry, getEntry, updateEntry } from '../../../services/journal/journalStorage';
 import type { JournalEntry } from '../../../services/journal/journalStorage.types';
@@ -50,6 +54,9 @@ const mockedDeleteAtoms = deleteMemoryAtomsByRootSource as jest.MockedFunction<
 const mockedRemoveDaySource = removeDayDigestSource as jest.MockedFunction<typeof removeDayDigestSource>;
 const mockedSaveMemories = saveJournalEntryMemories as jest.MockedFunction<typeof saveJournalEntryMemories>;
 const mockedUpsertDigest = upsertJournalDayDigest as jest.MockedFunction<typeof upsertJournalDayDigest>;
+const mockedRefreshMemoryFiles = refreshJournalEntryMemoryFiles as jest.MockedFunction<
+    typeof refreshJournalEntryMemoryFiles
+>;
 
 function entry(overrides: Partial<JournalEntry> = {}): JournalEntry {
     return {
@@ -127,6 +134,7 @@ describe('updateJournalEntryText', () => {
         mockedGetEntry.mockResolvedValue(entry());
         mockedUpsertDigest.mockResolvedValue(null);
         mockedSaveMemories.mockResolvedValue([]);
+        mockedRefreshMemoryFiles.mockResolvedValue([]);
     });
 
     it('persists the edited body as one authored turn and refreshes artifacts', async () => {
@@ -147,6 +155,7 @@ describe('updateJournalEntryText', () => {
             { id: 'm2', role: 'assistant', content: 'How did that feel?', timestamp: 1001 },
         ]);
         expect(mockedSaveMemories).toHaveBeenCalledWith(stored);
+        expect(mockedRefreshMemoryFiles).toHaveBeenCalledWith(stored);
         expect(mockedUpsertDigest).toHaveBeenCalledWith(stored);
     });
 
@@ -162,5 +171,6 @@ describe('updateJournalEntryText', () => {
         mockedGetEntry.mockResolvedValue(null);
         await expect(updateJournalEntryText('gone', 'text')).resolves.toBeNull();
         expect(mockedUpdateEntry).not.toHaveBeenCalled();
+        expect(mockedRefreshMemoryFiles).not.toHaveBeenCalled();
     });
 });

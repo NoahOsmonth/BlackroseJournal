@@ -2,6 +2,7 @@ import {
     getClockTool,
     getConversationTool,
     getDayTool,
+    getLiveSessionTool,
     listRecentDaysTool,
     searchHistoryTool,
 } from './historyTools';
@@ -16,6 +17,7 @@ const handlers: Record<string, ToolHandler> = {
     list_recent_days: listRecentDaysTool,
     get_day: getDayTool,
     get_conversation: getConversationTool,
+    get_live_session: getLiveSessionTool,
     search_history: searchHistoryTool,
     memory_search: memorySearchTool,
     memory_list: memoryListTool,

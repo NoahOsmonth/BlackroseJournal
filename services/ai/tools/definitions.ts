@@ -90,6 +90,22 @@ export const HISTORY_TOOL_DEFINITIONS: ToolDefinition[] = [
         execClass: 'pure',
     },
     {
+        name: 'get_live_session',
+        description:
+            'Read the CURRENT conversation\u2019s saved turns from the on-device session store. Use when the auto-compacted summary clipped a long turn or dropped older turns and you need the exact earlier words — the summary is lossy, the store is not. Do NOT use for finished journal entries or check-ins (use get_conversation). No arguments reads the active session; optionally pass conversationId. Example args: {}.',
+        parameters: {
+            type: 'object',
+            properties: {
+                conversationId: {
+                    type: 'string',
+                    description: 'Optional session id; omit to read the most recently updated active session.',
+                },
+            },
+            additionalProperties: false,
+        },
+        execClass: 'pure',
+    },
+    {
         name: 'search_history',
         description:
             'Search day digests and local memory for a topic or keyword across days. Use for recurring themes ("what do I keep writing about work?"). Do NOT use for one known day (use get_day) or exact transcripts (use get_conversation). Example args: {"query":"work stress"}.',
@@ -293,5 +309,5 @@ export const HISTORY_TOOLS_POLICY = [
     'Decision: get_clock (never invent time) → memory_search (offline file recall — be curious about it, a "remember when…" echo — one call costs nothing) → list_recent_days → get_day → get_conversation for exact words. memory_search first, memory_get exact ids. search_history: themes.',
     'Good: "work last week?" → get_clock, memory_search, get_day. Bad: answer from memory.',
     'Identity/goals (update_identity, list_goals): stated or explicit requests only; never invent.',
-    'STOP: never invent results; empty → say so. Never fake tool syntax. Status text OK only with tool_calls same turn — never end on "one sec" / "let me pull that up": call tools or answer fully. Past chat: get_day then get_conversation (not only get_clock). Use ## Identity name.',
+    'STOP: never invent results; empty → say so. Never fake tool syntax. Status text OK only with tool_calls same turn — never end on "one sec" / "let me pull that up": call tools or answer fully. Past chat: get_day then get_conversation (not only get_clock). Summary clipped or dropped a turn? get_live_session reads this chat\'s saved turns. Use ## Identity name.',
 ].join('\n');

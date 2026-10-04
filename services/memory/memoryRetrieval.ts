@@ -64,11 +64,12 @@ function normalizeQuery(query: string): string {
     return query.toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
+/** Query tokens for the recall gate. Unicode-aware; keeps this path's `>= 3` floor. */
 function tokenize(text: string): string[] {
     return text
         .toLowerCase()
         .split(/[\s/_-]+/)
-        .map((t) => t.replace(/[^a-z0-9']/g, ''))
+        .map((t) => t.replace(/[^\p{L}\p{N}\p{M}']/gu, ''))
         .filter((t) => t.length >= 3);
 }
 

@@ -85,6 +85,23 @@ const PINNED_OTHER_TOOLS_JSON = JSON.stringify([
     {
         "type": "function",
         "function": {
+            "name": "get_live_session",
+            "description": "Read the CURRENT conversation’s saved turns from the on-device session store. Use when the auto-compacted summary clipped a long turn or dropped older turns and you need the exact earlier words — the summary is lossy, the store is not. Do NOT use for finished journal entries or check-ins (use get_conversation). No arguments reads the active session; optionally pass conversationId. Example args: {}.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "conversationId": {
+                        "type": "string",
+                        "description": "Optional session id; omit to read the most recently updated active session."
+                    }
+                },
+                "additionalProperties": false
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "search_history",
             "description": "Search day digests and local memory for a topic or keyword across days. Use for recurring themes (\"what do I keep writing about work?\"). Do NOT use for one known day (use get_day) or exact transcripts (use get_conversation). Example args: {\"query\":\"work stress\"}.",
             "parameters": {
@@ -350,7 +367,7 @@ const PINNED_OTHER_TOOLS_JSON = JSON.stringify([
 ]);
 
 describe('PR8c tool schema pin (other than list_recent_days)', () => {
-    it('fourteen non-list_recent_days tools are byte-identical to the pin', () => {
+    it('fifteen non-list_recent_days tools are byte-identical to the pin', () => {
         const others = toOpenAiToolSpecs(
             HISTORY_TOOL_DEFINITIONS.filter((d) => d.name !== 'list_recent_days')
         );
@@ -374,12 +391,13 @@ describe('PR8c tool schema pin (other than list_recent_days)', () => {
         expect(def!.parameters.required).toBeUndefined();
     });
 
-    it('registry still exposes exactly 15 history tools', () => {
+    it('registry still exposes exactly 16 history tools', () => {
         expect(HISTORY_TOOL_DEFINITIONS.map((d) => d.name)).toEqual([
             'get_clock',
             'list_recent_days',
             'get_day',
             'get_conversation',
+            'get_live_session',
             'search_history',
             'memory_search',
             'memory_list',

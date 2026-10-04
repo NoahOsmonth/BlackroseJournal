@@ -109,6 +109,7 @@ const ALL_HISTORY_TOOL_NAMES = [
     'list_recent_days',
     'get_day',
     'get_conversation',
+    'get_live_session',
     'search_history',
     ...MEMORY_FILE_TOOLS,
     'get_identity',
@@ -122,6 +123,9 @@ const DAY_TOOLS = [
     'list_recent_days',
     'get_day',
     'get_conversation',
+    // The current session's own saved turns — reaches text the auto-compacted
+    // summary clipped or dropped.
+    'get_live_session',
     'search_history',
     // Offline-first: file memories ride along with digests.
     'memory_search',
@@ -188,6 +192,12 @@ export function shouldEnableHistoryTools(
  * Unions every matching subset so combined intents ("call me Maya, remember
  * that") keep both tools; unknown turns fall back to the full catalog.
  * get_clock rides along in every narrowed shortlist (chains start with it).
+ * get_live_session (reads THIS chat's saved turns) rides along only on the
+ * recall branches — remember-when, memory, history-days — where a compacted
+ * summary may have clipped the turn being asked about. It is deliberately NOT
+ * offered on the structured goal/identity lookups: those read the goals store
+ * and the identity profile, so the current transcript is never the target and
+ * the extra spec would cost prompt budget on every such turn.
  */
 export function selectToolShortlist(
     userText: string,
@@ -198,7 +208,10 @@ export function selectToolShortlist(
     const branches: ToolShortlist['branch'][] = [];
 
     if (LONG_TERM_RECALL_RE.test(text)) {
-        for (const name of ['get_clock', 'memory_search', 'search_history', 'list_recent_days', 'get_day', 'get_conversation']) {
+        // "first mentioned/told/chat", "back then" can point at an earlier turn
+        // of THIS conversation, not only a finished one — pair the current-chat
+        // reader with get_conversation (past sessions) and search_history.
+        for (const name of ['get_clock', 'memory_search', 'search_history', 'list_recent_days', 'get_day', 'get_conversation', 'get_live_session']) {
             names.add(name);
         }
         branches.push('remember-when');
@@ -206,6 +219,9 @@ export function selectToolShortlist(
     if (MEMORY_CUE_RE.test(text)) {
         names.add('get_clock');
         for (const name of MEMORY_FILE_TOOLS) names.add(name);
+        // "forget/forgot"/"memories" recall the current chat too; group the
+        // transcript reader with the read-side file tools, not flush/dream.
+        names.add('get_live_session');
         branches.push('memory');
     }
     if (detectHistoryIntent(text)) {

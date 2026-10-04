@@ -104,6 +104,11 @@ export const TOOL_UI_META: Record<string, ToolUiMeta> = {
         iconName: 'search',
         formatArgsPreview: (args) => firstPreviewArg(args, ['query', 'q']) || 'search',
     },
+    get_live_session: {
+        label: 'Re-reading this chat',
+        iconName: 'history',
+        formatArgsPreview: (args) => firstPreviewArg(args, ['conversationId']) || 'this session',
+    },
     memory_search: {
         label: 'Searching offline memory',
         iconName: 'saved-search',

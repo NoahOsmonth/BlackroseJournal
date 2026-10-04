@@ -51,6 +51,20 @@ describe('memoryRetrieval (gated lexical recall)', () => {
         expect(result.intent).toBe('user');
     });
 
+    it('resolves a thread from a 3-letter word through the shared tokenizer', async () => {
+        // Regression guard for the drift bug: the capsule/session path used a
+        // `> 3` floor while this path used `>= 3`, so 'job' (3) was invisible to
+        // one side. Both now tokenize through keywordRanking.tokenize.
+        await stageTmpMemory({
+            type: 'project', name: 'Job Hunt', description: 'job applications and interviews',
+            body: '## Current Stage\nApplied to three roles', projectId: 'job_hunt',
+        });
+        const result = await retrieveMemory('job update');
+        expect(result.intent).toBe('project_memory');
+        expect(result.debug.resolvedProjectId).toBe('job_hunt');
+        expect(result.context).toContain('Applied to three roles');
+    });
+
     it('resolves an exact thread mention to that project', async () => {
         await stageTmpMemory({
             type: 'project', name: 'Promotion Plan', description: 'holiday campaign stage',

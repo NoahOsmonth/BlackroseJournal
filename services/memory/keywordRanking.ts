@@ -30,12 +30,40 @@ const STOP_WORDS = new Set([
     'with',
 ]);
 
-/** Lowercase, strip punctuation/whitespace, keep apostrophes. */
+/**
+ * Lowercase, keep Unicode letters/digits, strip everything else.
+ *
+ * Was `[^a-z0-9']`, which collapsed every non-Latin script to nothing:
+ * `tokenize('我最近工作压力很大')` returned `[]` and `'café résumé naïve'`
+ * became `["rsum","nave"]`. The writer (`memoryFiles.slugify`) preserves CJK,
+ * so the reader has to agree with it.
+ */
 export function normalizeToken(value: string): string {
-    return value.toLowerCase().replace(/[^a-z0-9']/g, '');
+    return value.toLowerCase().replace(/[^\p{L}\p{N}\p{M}']/gu, '');
 }
 
-/** Split free text into usable query/candidate tokens (len > 3, non-stop-word). */
+/**
+ * Split free text into usable query/candidate tokens (len > 3, non-stop-word).
+ *
+ * Splitting on whitespace (rather than matching letter runs) is deliberate: the
+ * candidate text includes file ids like `cataloguing-the-fountain-pens.md`, and
+ * splitting those on `-` changes every score. A match-based variant (matching
+ * letter runs instead) was measured and rejected: it moved the R2 probe from
+ * precision 0.433 to 0.3999 and broke two assertions, so it was discarded.
+ *
+ * The floor stays `> 3` DELIBERATELY. Raising it to `>= 3` to match
+ * `memoryRetrieval` measurably regressed recall: for the probe query "Any notes
+ * about pens and ink lately?" the token `ink` enters the set, the needle and the
+ * distractor both score 0.5, and the deterministic id tie-break then hands it to
+ * the distractor (`.../Feedback/desk-notes-1.md` sorts before
+ * `.../Project/cataloguing-the-fountain-pens.md`). That broke
+ * `memoryFade.test.ts` and `probes/r2RecallDelta.test.ts`. Unifying the two
+ * floors needs length/IDF weighting first — see the fix plan.
+ *
+ * Tokens are normalized by `normalizeToken` above, whose strip is Unicode-aware
+ * (`\p{L}\p{N}\p{M}`) so non-Latin scripts survive instead of collapsing to
+ * nothing.
+ */
 export function tokenize(text: string): string[] {
     return text
         .split(/\s+/)

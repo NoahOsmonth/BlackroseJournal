@@ -4,6 +4,7 @@ export {
     getClockTool,
     getConversationTool,
     getDayTool,
+    getLiveSessionTool,
     listRecentDaysTool,
     searchHistoryTool,
 } from './historyTools';

@@ -11,6 +11,7 @@ import {
     getLocalDateKeyFromTimestamp,
     resolveRelativeDateKey,
 } from '@/utils/date';
+import { getMostRecentActiveSession, getSession } from '@/services/ai/sessionStorage';
 import type { ToolHandler } from './types';
 
 const MAX_CONVERSATION_CHARS = 8000;
@@ -170,6 +171,44 @@ export const getConversationTool: ToolHandler = async (args) => {
     }
 
     return 'Error: provide kind+id, or date and/or titleQuery.';
+};
+
+/**
+ * Read-only view of the CURRENT (in-flight) chat session's persisted turns.
+ *
+ * `conversationCompact.ts` replaces older turns in the OUTBOUND payload with an
+ * extractive summary — it clips any turn line past 480 chars and can drop older
+ * assistant turns — but `saveSession` persists the full transcript to the
+ * session store. This is the only tool that reads that store, so when the model
+ * sees a compacted summary and needs the exact earlier words it can fetch them
+ * instead of answering from the summary alone.
+ *
+ * With no argument it reads the most recently updated active session, which is
+ * the conversation being written to right now (saveSession bumps updatedAt on
+ * every autosave). Read-only: it never writes to the store.
+ */
+export const getLiveSessionTool: ToolHandler = async (args) => {
+    const conversationId = asString(args.conversationId);
+    const session = conversationId
+        ? await getSession(conversationId)
+        : await getMostRecentActiveSession();
+    if (!session) {
+        return conversationId
+            ? `No live session found for conversationId ${conversationId}.`
+            : 'No live session on device yet — nothing has been autosaved for this conversation.';
+    }
+    if (session.messages.length === 0) {
+        return `Live session ${session.conversationId} has no turns saved yet.`;
+    }
+    return [
+        'kind: live_session',
+        `conversationId: ${session.conversationId}`,
+        `mode: ${session.mode}`,
+        `updatedAt: ${new Date(session.updatedAt).toISOString()}`,
+        `turns: ${session.messages.length}`,
+        'messages:',
+        formatMessages(session.messages),
+    ].join('\n');
 };
 
 export const searchHistoryTool: ToolHandler = async (args) => {
