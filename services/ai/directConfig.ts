@@ -34,10 +34,57 @@ export interface ResolvedDirectConfig extends DirectConfig {
 }
 
 export class DirectConfigError extends Error {
+    /**
+     * Typed marker so retry helpers can recognise a configuration error without
+     * relying on `instanceof` across module realms / bundles.
+     */
+    readonly isDirectConfigError = true;
+
     constructor(message: string) {
         super(message);
         this.name = 'DirectConfigError';
     }
+}
+
+/**
+ * True for a provider-configuration error. This class is thrown purely from
+ * reading env/settings, *before any transport exists* — so it is a permanent
+ * condition that cannot succeed on retry. Retry helpers must fail fast on it
+ * rather than backing off like a transient network blip (same precedent as
+ * `fetchDirectJsonCompletion`, which only freeform-retries on 400/422).
+ */
+export function isDirectConfigError(error: unknown): error is DirectConfigError {
+    if (error instanceof DirectConfigError) return true;
+    return (
+        typeof error === 'object'
+        && error !== null
+        && (error as { isDirectConfigError?: unknown }).isDirectConfigError === true
+    );
+}
+
+/** Config messages already surfaced this process. */
+const warnedDirectConfigMessages = new Set<string>();
+
+/**
+ * Surface a configuration error ONCE, reusing its own actionable message
+ * (Settings / env vars). One finish turn can hit the same misconfiguration from
+ * several steps; this collapses them to a single line instead of six. The set
+ * clears whenever a config resolution succeeds, so a later regression warns
+ * again.
+ */
+export function warnDirectConfigErrorOnce(error: unknown): void {
+    if (!isDirectConfigError(error)) return;
+    const message = error instanceof Error && error.message
+        ? error.message
+        : String(error);
+    if (warnedDirectConfigMessages.has(message)) return;
+    warnedDirectConfigMessages.add(message);
+    console.warn(message);
+}
+
+/** Test seam: forget which configuration messages have been warned. */
+export function resetDirectConfigWarningForTests(): void {
+    warnedDirectConfigMessages.clear();
 }
 
 function readVar(value: string | undefined): string | undefined {
@@ -97,6 +144,10 @@ export function getDirectConfig(): DirectConfig {
             'EXPO_PUBLIC_AI_CUSTOM_MODEL is not set. Configure the provider in Settings.'
         );
     }
+
+    // Config resolved cleanly — forget past warnings so a later regression
+    // (user clears the provider again) is reported afresh.
+    warnedDirectConfigMessages.clear();
 
     return {
         apiKey,

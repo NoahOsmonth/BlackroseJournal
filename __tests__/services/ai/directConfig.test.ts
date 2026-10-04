@@ -28,6 +28,9 @@ import {
     getDirectConfig,
     getResolvedDirectConfig,
     hasEnvDirectApiKey,
+    isDirectConfigError,
+    resetDirectConfigWarningForTests,
+    warnDirectConfigErrorOnce,
 } from '../../../services/ai/directConfig';
 import {
     resetCustomModelStorageAdapter,
@@ -70,6 +73,43 @@ describe('directConfig — DirectConfigError', () => {
         expect(err).toBeInstanceOf(Error);
         expect(err.name).toBe('DirectConfigError');
         expect(err.message).toBe('boom');
+    });
+});
+
+describe('directConfig — error classification + once-only warning', () => {
+    afterEach(() => {
+        resetDirectConfigWarningForTests();
+    });
+
+    it('recognises DirectConfigError and the typed marker', () => {
+        expect(isDirectConfigError(new DirectConfigError('x'))).toBe(true);
+        const marked = Object.assign(new Error('y'), { isDirectConfigError: true });
+        expect(isDirectConfigError(marked)).toBe(true);
+        expect(isDirectConfigError(new Error('z'))).toBe(false);
+        expect(isDirectConfigError(null)).toBe(false);
+        expect(isDirectConfigError('nope')).toBe(false);
+    });
+
+    it('warns once per distinct configuration message', () => {
+        resetDirectConfigWarningForTests();
+        const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        const a = new DirectConfigError('message A');
+        warnDirectConfigErrorOnce(a);
+        warnDirectConfigErrorOnce(a);
+        warnDirectConfigErrorOnce(new DirectConfigError('message A'));
+        warnDirectConfigErrorOnce(new DirectConfigError('message B'));
+        expect(warnSpy).toHaveBeenCalledTimes(2);
+        expect(warnSpy).toHaveBeenNthCalledWith(1, 'message A');
+        expect(warnSpy).toHaveBeenNthCalledWith(2, 'message B');
+        warnSpy.mockRestore();
+    });
+
+    it('does not warn for a non-config error', () => {
+        resetDirectConfigWarningForTests();
+        const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        warnDirectConfigErrorOnce(new Error('network down'));
+        expect(warnSpy).not.toHaveBeenCalled();
+        warnSpy.mockRestore();
     });
 });
 
