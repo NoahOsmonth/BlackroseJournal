@@ -56,10 +56,19 @@ import {
     getAccountScopedStorageKeyForAccount,
 } from '../services/account/accountScopedStorage';
 import {
+    getEntry as getJournalEntry,
     resetStorageAdapter as resetJournalStorageAdapter,
     setStorageAdapter as setJournalStorageAdapter,
 } from '../services/journal/journalStorage';
 import { createGoal, subscribeGoalsChanges } from '../services/goals/goalsStorage';
+import {
+    MEMORY_FILE_BODY_PREFIX,
+    MEMORY_FILES_MANIFEST_KEY,
+    clearMemoryFiles,
+    getMemoryRecordsByIds,
+    listMemoryFiles,
+    stageTmpMemory,
+} from '../services/memory/memoryFiles';
 
 function deferred() {
     let resolve!: () => void;
@@ -148,7 +157,11 @@ describe('localBackup', () => {
         const result = await restoreLocalBackup(backup.id);
 
         expect(result.status).toBe('restored');
-        expect(mockStore.get(journalKey)).toBe('{"entry-1":{"title":"Morning"}}');
+        // The journal store is sharded: the scoped key now holds the lightweight
+        // index, and the entry body lives in a shard. Restore is verified through
+        // the owning module rather than by reading the raw key.
+        expect(mockStore.get(journalKey)).toContain('"shardCount"');
+        await expect(getJournalEntry('entry-1')).resolves.toEqual({ title: 'Morning' });
         expect(mockStore.has(goalsKey)).toBe(false);
     });
 
@@ -263,6 +276,154 @@ describe('localBackup', () => {
 
         expect(listener).toHaveBeenCalled();
         unsubscribe();
+    });
+
+    it('round-trips the offline memory files so a restore keeps search working', async () => {
+        const staged = await stageTmpMemory({
+            type: 'project',
+            name: 'Trip planning',
+            description: 'Notes about the Iceland trip',
+            body: '## Trip planning\nWe booked the blue lagoon for March.',
+        });
+        const manifestKey = getAccountScopedStorageKey(MEMORY_FILES_MANIFEST_KEY);
+        const runtimeBodyKey = getAccountScopedStorageKey(
+            `${MEMORY_FILE_BODY_PREFIX}${staged.id}`,
+        );
+        // Precondition: the searchable layer is actually present before the backup.
+        expect(mockStore.get(manifestKey)).toBeTruthy();
+        expect(mockStore.get(runtimeBodyKey)).toContain('blue lagoon');
+
+        const backup = await createLocalBackup('Memory files');
+        // The body is sharded into the backup under its own key, not packed in.
+        const shardedKey = getAccountScopedStorageKeyForAccount(
+            `@blackrose_local_backup_memory_file:${backup.id}:${staged.id}`,
+            'backup-user',
+        );
+        expect(mockStore.get(shardedKey)).toContain('blue lagoon');
+
+        // Wipe the on-device layer — what a fresh-install restore faces.
+        await clearMemoryFiles();
+        await expect(listMemoryFiles()).resolves.toEqual([]);
+        expect(mockStore.has(runtimeBodyKey)).toBe(false);
+
+        const result = await restoreLocalBackup(backup.id);
+
+        expect(result.status).toBe('restored');
+        // The manifest index is back...
+        const restoredHeaders = await listMemoryFiles();
+        expect(restoredHeaders.map((h) => h.id)).toContain(staged.id);
+        // ...and the body is readable — exactly what memory_search -> memory_get needs.
+        const records = await getMemoryRecordsByIds([staged.id]);
+        expect(records).toHaveLength(1);
+        expect(records[0].content).toContain('blue lagoon');
+    });
+
+    it('removes the runtime memory manifest when the backup captured none', async () => {
+        const backup = await createLocalBackup('No memory files');
+        await stageTmpMemory({
+            type: 'project',
+            name: 'After backup',
+            description: 'Staged after the snapshot',
+            body: '## After backup\nThis should not survive the restore.',
+        });
+        const manifestKey = getAccountScopedStorageKey(MEMORY_FILES_MANIFEST_KEY);
+        expect(mockStore.get(manifestKey)).toBeTruthy();
+
+        await restoreLocalBackup(backup.id);
+
+        expect(mockStore.has(manifestKey)).toBe(false);
+    });
+
+    it('leaves the runtime memory manifest intact when restoring a pre-change v2 backup', async () => {
+        const staged = await stageTmpMemory({
+            type: 'project',
+            name: 'Pre-change memory',
+            description: 'Captured before memory-file backups existed',
+            body: '## Pre-change\nA file the older format never captured.',
+        });
+        const manifestKey = getAccountScopedStorageKey(MEMORY_FILES_MANIFEST_KEY);
+        const backup = await createLocalBackup('Pre-change format');
+
+        // Downgrade the stored record to the pre-change v2 shape: it predates
+        // memory-file capture, so it carries no MEMORY_FILES_MANIFEST_KEY item.
+        const indexKey = getAccountScopedStorageKeyForAccount(
+            '@blackrose_local_backups',
+            'backup-user',
+        );
+        const stored = JSON.parse(mockStore.get(indexKey) ?? '[]') as Record<string, unknown>[];
+        stored[0].schemaVersion = 2;
+        stored[0].items = (stored[0].items as { key: string }[]).filter(
+            (item) => item.key !== MEMORY_FILES_MANIFEST_KEY,
+        );
+        mockStore.set(indexKey, JSON.stringify(stored));
+
+        const runtimeManifestBefore = mockStore.get(manifestKey);
+        expect(runtimeManifestBefore).toBeTruthy();
+        const runtimeBodyKey = getAccountScopedStorageKey(
+            `${MEMORY_FILE_BODY_PREFIX}${staged.id}`,
+        );
+        expect(mockStore.get(runtimeBodyKey)).toContain('older format never captured');
+
+        await restoreLocalBackup(backup.id);
+
+        // Absent item means "old format", not "empty snapshot": nothing is wiped.
+        expect(mockStore.get(manifestKey)).toBe(runtimeManifestBefore);
+        expect(mockStore.get(runtimeBodyKey)).toContain('older format never captured');
+    });
+
+    it('removes the runtime index and every body when a v3 backup captured zero files', async () => {
+        const backup = await createLocalBackup('No memory files at all');
+        const staged = await stageTmpMemory({
+            type: 'project',
+            name: 'Staged later',
+            description: 'Arrived after the empty snapshot',
+            body: '## Staged later\nThese bytes are outside the snapshot.',
+        });
+        const manifestKey = getAccountScopedStorageKey(MEMORY_FILES_MANIFEST_KEY);
+        const runtimeBodyKey = getAccountScopedStorageKey(
+            `${MEMORY_FILE_BODY_PREFIX}${staged.id}`,
+        );
+        expect(mockStore.get(manifestKey)).toBeTruthy();
+        expect(mockStore.has(runtimeBodyKey)).toBe(true);
+
+        await restoreLocalBackup(backup.id);
+
+        expect(mockStore.has(manifestKey)).toBe(false);
+        expect(mockStore.has(runtimeBodyKey)).toBe(false);
+    });
+
+    it('removes runtime bodies the v3 backup does not contain', async () => {
+        const captured = await stageTmpMemory({
+            type: 'project',
+            name: 'Captured memory',
+            description: 'Present when the backup was taken',
+            body: '## Captured\nThis body belongs to the snapshot.',
+        });
+        const backup = await createLocalBackup('Snapshot with one file');
+        const extra = await stageTmpMemory({
+            type: 'project',
+            name: 'Extra memory',
+            description: 'Staged after the backup was taken',
+            body: '## Extra\nThis body is not in the snapshot.',
+        });
+        const capturedBodyKey = getAccountScopedStorageKey(
+            `${MEMORY_FILE_BODY_PREFIX}${captured.id}`,
+        );
+        const extraBodyKey = getAccountScopedStorageKey(
+            `${MEMORY_FILE_BODY_PREFIX}${extra.id}`,
+        );
+        expect(mockStore.has(capturedBodyKey)).toBe(true);
+        expect(mockStore.has(extraBodyKey)).toBe(true);
+
+        const result = await restoreLocalBackup(backup.id);
+
+        expect(result.status).toBe('restored');
+        // The snapshot's body is back and readable...
+        expect(mockStore.get(capturedBodyKey)).toContain('belongs to the snapshot');
+        // ...and the body the snapshot never contained is gone, not left behind.
+        expect(mockStore.has(extraBodyKey)).toBe(false);
+        const headers = await listMemoryFiles({ limit: 50 });
+        expect(headers.map((h) => h.id)).toEqual([captured.id]);
     });
 });
 

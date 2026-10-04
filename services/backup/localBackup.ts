@@ -23,6 +23,11 @@ import {
     importMemoryBundle,
     LOCAL_MEMORY_STORAGE_KEY,
 } from '@/services/memory/localMemory';
+import {
+    exportMemoryFileSnapshot,
+    MEMORY_FILES_MANIFEST_KEY,
+    restoreMemoryFileSnapshot,
+} from '@/services/memory/memoryFiles';
 import type { SessionDigest } from '@/services/memory/sessionDigest.types';
 import {
     getAccountScopedStorageKey,
@@ -35,6 +40,7 @@ import {
     runAccountBoundOperation,
 } from '@/services/account/accountRuntime';
 import {
+    exportJournalEntriesBundle,
     importJournalEntriesForAccount,
     importJournalEntriesSnapshot,
 } from '@/services/journal/journalStorage';
@@ -51,8 +57,33 @@ import type { Intention, IntentionCheckIn } from '@/services/intentions/intentio
 
 export const LOCAL_BACKUP_INDEX_KEY = '@blackrose_local_backups';
 
+/**
+ * Backup-format version.
+ *
+ * v2 — did not capture the offline memory-file manifest at all.
+ * v3 — captures the memory-file manifest item. For v3 only, a null/missing
+ *      manifest means "the snapshot captured zero memory files", so restore may
+ *      remove the runtime manifest to match the snapshot. For v2 the runtime
+ *      manifest must be left untouched: the item is absent because the format
+ *      predates memory-file capture, NOT because the snapshot was empty.
+ *      Treating a missing item as "empty" wiped the searchable memory index.
+ */
+const LOCAL_BACKUP_SCHEMA_VERSION = 3;
+
+/** Backup formats whose memory-file item may drive runtime-manifest removal. */
+const MEMORY_FILE_CAPTURE_SCHEMA_VERSION = 3;
+
 /** Per-digest bodies for a named backup — never one mega-blob. */
 export const BACKUP_SESSION_DIGEST_KEY_PREFIX = '@blackrose_local_backup_session_digest:';
+
+/**
+ * Per-memory-file bodies for a named backup — same sharding discipline as the
+ * session digests above. The manifest item carries the index (ids + headers);
+ * each file's body lives under this prefix, keyed by backupId + memory-file id.
+ * Packing every body into one AsyncStorage value would reintroduce the ~2MB
+ * per-key ceiling that digest sharding exists to avoid.
+ */
+export const BACKUP_MEMORY_FILE_KEY_PREFIX = '@blackrose_local_backup_memory_file:';
 
 /**
  * Logical key only: the value is the memory module's merged payload, assembled
@@ -71,6 +102,14 @@ export const LOCAL_BACKUP_DATA_KEYS = [
     '@persona_draft_settings',
     '@ai_response_feedback',
     LOCAL_MEMORY_KEY,
+    /**
+     * The offline memory-file index — the ONLY layer `memory_search` reads
+     * (`memoryRetrieval.ts` imports `./memoryFiles`). Without it a restore
+     * returns atoms but every search is empty. File bodies live under
+     * `@blackrose_memory_file:<id>` and are sharded into the backup via
+     * BACKUP_MEMORY_FILE_KEY_PREFIX, keyed off this manifest.
+     */
+    MEMORY_FILES_MANIFEST_KEY,
     '@rosebud_identity_profile',
     '@blackrose_day_digests',
     /**
@@ -98,6 +137,7 @@ const ACCOUNT_SCOPED_BACKUP_KEYS = new Set<LocalBackupDataKey>([
     '@persona_draft_settings',
     '@ai_response_feedback',
     LOCAL_MEMORY_KEY,
+    MEMORY_FILES_MANIFEST_KEY,
     '@rosebud_identity_profile',
     '@blackrose_day_digests',
     SESSION_DIGEST_BACKUP_BUNDLE_KEY,
@@ -125,7 +165,8 @@ interface LocalBackupItem {
 }
 
 interface StoredLocalBackup extends LocalBackupManifest {
-    readonly schemaVersion: 2;
+    /** 2 = pre-memory-file-capture; 3 = captures the memory-file manifest. */
+    readonly schemaVersion: 2 | 3;
     readonly accountId: string;
     readonly items: readonly LocalBackupItem[];
 }
@@ -182,8 +223,11 @@ function isBackupItem(value: unknown): value is LocalBackupItem {
 }
 
 function isStoredBackup(value: unknown): value is StoredLocalBackup {
+    // Accept both formats: a v2 backup predates memory-file capture and must
+    // still load (and restore everything it does capture). Dropping it here
+    // would make every pre-upgrade backup disappear from the list.
     return isObject(value)
-        && value.schemaVersion === 2
+        && (value.schemaVersion === 2 || value.schemaVersion === 3)
         && typeof value.accountId === 'string'
         && typeof value.id === 'string'
         && typeof value.name === 'string'
@@ -360,6 +404,104 @@ async function restoreShardedDigestBackup(
     assertAccountOperationActive(context);
 }
 
+/**
+ * Ids indexed by a memory-file manifest. Accepts both stored shapes the owning
+ * module tolerates (`{schemaVersion, files}` and a bare `{id: header}` map) so a
+ * manifest written by an older build still has its bodies backed up.
+ */
+function parseMemoryFileIds(manifestJson: string | null | undefined): string[] {
+    if (!manifestJson) return [];
+    try {
+        const parsed: unknown = JSON.parse(manifestJson);
+        if (!isObject(parsed)) return [];
+        const doc = 'schemaVersion' in parsed
+            ? (parsed as { files?: unknown }).files
+            : parsed;
+        if (!isObject(doc)) return [];
+        return Object.keys(doc);
+    } catch {
+        return [];
+    }
+}
+
+function backupMemoryBodyKey(backupId: string, id: string, accountId: string): string {
+    return getAccountScopedStorageKeyForAccount(
+        `${BACKUP_MEMORY_FILE_KEY_PREFIX}${backupId}:${id}`,
+        accountId,
+    );
+}
+
+/**
+ * Persist each memory-file body under its own backup key, return the manifest
+ * JSON for the backup record. The manifest is the index recall scans; the bodies
+ * are what `memory_get` reads, so both must survive the round trip. Bounded by
+ * the manifest's own id set (no second enumeration), never a packed blob.
+ *
+ * Reads the store through the owning module (`exportMemoryFileSnapshot`) rather
+ * than touching `@blackrose_memory_manifest` / `@blackrose_memory_file:<id>`
+ * directly — rule 4: one module owns each key, and the same discipline that
+ * routes the restore write through it applies to reading a consistent snapshot.
+ * The returned manifest string is the store's own payload, so the backup bytes
+ * are unchanged by this routing.
+ */
+async function writeShardedMemoryFileBackup(
+    backupId: string,
+    accountId: string,
+    context: AccountOperationContext,
+): Promise<string | null> {
+    assertAccountOperationActive(context);
+    const snapshot = await exportMemoryFileSnapshot();
+    assertAccountOperationActive(context);
+    if (!snapshot.manifestJson) return null;
+
+    for (const [id, body] of snapshot.bodies) {
+        assertAccountOperationActive(context);
+        await AsyncStorage.setItem(backupMemoryBodyKey(backupId, id, accountId), body);
+        assertAccountOperationActive(context);
+    }
+    return snapshot.manifestJson;
+}
+
+async function removeShardedMemoryFileBackup(
+    backupId: string,
+    manifestJson: string | null,
+    accountId: string,
+    context: AccountOperationContext,
+): Promise<void> {
+    for (const id of parseMemoryFileIds(manifestJson)) {
+        assertAccountOperationActive(context);
+        await AsyncStorage.removeItem(backupMemoryBodyKey(backupId, id, accountId));
+        assertAccountOperationActive(context);
+    }
+}
+
+/**
+ * Restore a sharded memory-file backup through the owning module. The whole
+ * read-modify-write (runtime manifest read, body writes/removals, manifest
+ * write) runs inside `restoreMemoryFileSnapshot`'s single lock, so a concurrent
+ * staging operation cannot interleave and lose one side (rule 4).
+ *
+ * The backup's own sharded bodies are this module's (backup) keys and are read
+ * here; the runtime memory-file keys are written by `memoryFiles`, never raw.
+ * Bodies land first, manifest last. A null manifest (v3 backup that captured
+ * zero files) clears the store; v2 backups never reach here (see
+ * `restoreLocalBackup`).
+ */
+async function restoreShardedMemoryFileBackup(
+    manifestJson: string | null,
+    backupId: string,
+    accountId: string,
+    context: AccountOperationContext,
+): Promise<void> {
+    await restoreMemoryFileSnapshot(manifestJson, async (id) => {
+        assertAccountOperationActive(context);
+        const body = await AsyncStorage.getItem(backupMemoryBodyKey(backupId, id, accountId));
+        assertAccountOperationActive(context);
+        return body;
+    });
+    assertAccountOperationActive(context);
+}
+
 async function readBackupItem(
     key: LocalBackupDataKey,
     backupId: string,
@@ -369,6 +511,21 @@ async function readBackupItem(
     assertAccountOperationActive(context);
     if (key === SESSION_DIGEST_BACKUP_BUNDLE_KEY) {
         const value = await writeShardedDigestBackup(backupId, accountId, context);
+        assertAccountOperationActive(context);
+        return { key, value };
+    }
+    if (key === '@journal_entries') {
+        // Runtime stays sharded; the owning module packs every entry into one
+        // in-memory bundle string for the backup record only. Reading the raw
+        // key here would capture the lightweight index and lose every body.
+        const value = await exportJournalEntriesBundle();
+        assertAccountOperationActive(context);
+        return { key, value };
+    }
+    if (key === MEMORY_FILES_MANIFEST_KEY) {
+        // Manifest is the item; per-file bodies are sharded under
+        // BACKUP_MEMORY_FILE_KEY_PREFIX so the record never holds one mega-blob.
+        const value = await writeShardedMemoryFileBackup(backupId, accountId, context);
         assertAccountOperationActive(context);
         return { key, value };
     }
@@ -419,7 +576,7 @@ export function createLocalBackup(name?: string): Promise<LocalBackupManifest> {
                 name: resolveBackupName(name, createdAt),
                 createdAt,
                 itemCount: items.filter((item) => item.value !== null).length,
-                schemaVersion: 2,
+                schemaVersion: LOCAL_BACKUP_SCHEMA_VERSION,
                 items,
             };
             const backups = await loadStoredBackups(accountId, context);
@@ -507,6 +664,23 @@ export function restoreLocalBackup(
                     assertAccountOperationActive(context);
                     continue;
                 }
+                if (key === MEMORY_FILES_MANIFEST_KEY) {
+                    // The offline memory-file index + bodies — the layer memory_search
+                    // reads. Only a v3+ backup knows whether an absent item means
+                    // "captured zero files" (remove the index) or "this format
+                    // predates memory-file capture" (leave the runtime index alone).
+                    // A v2 backup must never reach the restore: doing so passed a
+                    // null manifest and wiped the user's searchable memory index.
+                    if (backup.schemaVersion >= MEMORY_FILE_CAPTURE_SCHEMA_VERSION) {
+                        await restoreShardedMemoryFileBackup(
+                            item?.value ?? null,
+                            backup.id,
+                            accountId,
+                            context,
+                        );
+                    }
+                    continue;
+                }
                 if (
                     key === '@journal_entries'
                     || key === '@goals'
@@ -547,6 +721,15 @@ export function deleteLocalBackup(backupId: string): Promise<boolean> {
             if (meta) {
                 await removeShardedDigestBackup(meta.backupId, meta.sessionIds, accountId, context);
             }
+            const memoryFileItem = target.items.find(
+                (item) => item.key === MEMORY_FILES_MANIFEST_KEY,
+            );
+            await removeShardedMemoryFileBackup(
+                target.id,
+                memoryFileItem?.value ?? null,
+                accountId,
+                context,
+            );
             assertAccountOperationActive(context);
             await saveStoredBackups(
                 backups.filter((backup) => backup.id !== backupId),
