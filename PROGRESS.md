@@ -23,7 +23,7 @@ directly to an OpenAI-compatible provider with a user-supplied key.
 | Local-only build | Hindsight, Supabase, managed AI gateway, and the auth surface deleted; device-local account id instead | 2026-09-18 | `services/auth/localAccount.ts`; contract in `notes/local-only-storage.md` |
 | Offline memory (Era 3) | File-semantic store with `_tmp` staging on finish; recall = intent gate → thread shortlist → manifest headers → top-K bodies, budgets 12k/file / 30k total / top-5 / 30s cache | 2026-09-12 | `services/memory/memoryFiles.ts`, `memoryRetrieval.ts`; plan in `.planning/offline-memory/` |
 | Consolidation | Idle Dream trigger (single-flight, never during a streaming turn) + fading + supersession with audit fields ("when unsure, keep separate") | 2026-09-16 | `memoryDreamTrigger.ts`, `memoryFade.ts`, `memorySupersession.ts` |
-| Atom store | Sharded 8-way header+shards store, cap 400 (a storage bound in disguise) → 4000; corrupt shard is quarantined, not fatal | 2026-09-16 | `services/memory/localMemory.ts` (`schemaVersion: 3`) |
+| Atom store | Sharded 8-way header+shards store, cap 400 (a storage bound in disguise) → 4000; corrupt shard is quarantined, not fatal | 2026-09-16 | `services/memory/localMemory.ts` (`schemaVersion: 4`; profile cap retires, never destroys) |
 | Identity | Always-on core memory (`@rosebud_identity_profile`), contradiction → `pendingCandidate`, never auto-applied | 2026-09 | `services/memory/identityProfile.ts`, `identityExtraction.ts` |
 | Explore write path | `/explore` ledger port; a note fans out to four stores (journal entry, atom, `'note'` memory file staged `_tmp`, day digest); recall proven live and verbatim | 2026-09-20/21 | `MemoryHubScreen.tsx`, `saveExploreNote` |
 | Today/insights UX | Insight "More options" modal replaced by an in-card Action Dock (variant C), measured 44px targets | 2026-09-19 | `components/today/InsightActionDock.tsx` |
@@ -35,11 +35,71 @@ directly to an OpenAI-compatible provider with a user-supplied key.
 
 Recall metrics on the frozen R0 ledger (`probes/shared/recallLedger.ts`):
 hit-rate 16.7% → **83.3%**, precision 0.167 → **0.433**, thread selection
-reproducible — the R1+R2 delta, stable across runs. Last full gate: **273
-suites passed / 9 skipped (282 discovered), 1490 tests green**, tsc / lint /
+reproducible — the R1+R2 delta, stable across runs. Last full gate: **288
+suites passed / 9 skipped (297 discovered), 1619 tests green**, tsc / lint /
 `check:design` clean.
 
 ## Dated log
+
+### 2026-10-04 — the memory system stopped destroying memories (rounds 2–3)
+
+A two-round audit-then-repair pass over the whole on-device memory path. Every
+claim below was reproduced on the **unfixed** tree first; three of this round's
+own probes passed the wrong way and were repaired before being trusted.
+
+- **The headline: the profile cap permanently deleted memories.** `localMemory.ts`
+  kept a 3-slot profile cap that sorted by `(salience + confidence)` and
+  `delete`d every atom past the third. Loss was permanent, `console.warn` only,
+  invisible in the UI, and **unrecoverable from a backup** because the cap ran
+  before any save or export. Measured: 5 topics written → 3 stored → **2
+  destroyed, 2 unrecoverable**. It was the only one of the three memory stores
+  that hard-deleted — `memoryFiles.ts` has `deprecated`, `identityProfile.ts`
+  has `invalidatedAt`. It now matches them: **retire (`retiredAt`), never
+  destroy**, `LOCAL_MEMORY_SCHEMA_VERSION` 3 → 4. After: 5 written → 5 stored →
+  **none destroyed**, 5/5 recoverable, and the injected capsule still bounded
+  (1200 chars). The cap was never wrong to limit what gets *injected*; it was
+  wrong to destroy what gets *stored*.
+- **`@journal_entries` was one AsyncStorage key**, so ~693 entries crossed
+  Android's ~2 MB per-key ceiling. Measured at 900 entries: **2,480,181 bytes on
+  a single key**. Now 16 shards + a lightweight index with a v1 → v2 migration:
+  biggest key **192,939 B**, 17 keys — a 12.9× reduction.
+- **A corrupt memory-file manifest was discarded in silence.** The payload is now
+  preserved under `@blackrose_memory_manifest_corrupt` and announced
+  (`preserved=true, warnings=1`).
+- **CJK project ids could never become threads** — `normalizeProjectId` now
+  keeps them (matching `slugify`); verified end-to-end
+  `stageTmpMemory → promoteTmpRecord → listFormalProjectIds` →
+  `["工作压力"]`.
+- **Key-people eviction announced** (still destroys — see the decision below);
+  15 submitted / 12 stored / **1 announcement** instead of a silent drop.
+- **Two writes outside their own lock**: `localBackup` wrote `memoryFiles` keys
+  directly, and `refreshJournalEntryMemoryFiles` spanned two lock sections
+  (measured: 2 divergent files → 1). Both now route through the owning module.
+- **`DirectConfigError` was retried like a transient failure** — 19 identical
+  lines in one boot (7 memory-extraction + 6 digest + 6 identity). It now
+  fail-fasts and prints once; transient errors still retry.
+- **Found by the merge, not by a lane: `saveManualMemoryNote` lost a note.**
+  The atom id was `note:${Date.now()}` at **millisecond** resolution, so two
+  notes in the same millisecond produced one id and the first was silently
+  merged away. Pre-existing at HEAD; only surfaced when the full suite ran
+  (passes in isolation — the tell for a timing bug). Fixed with a monotonic
+  sequence; the `note:` prefix must stay because `memoryProvenance` matches on
+  it.
+- **Decisions taken, not just bugs fixed.** (a) The profile cap still exists — it
+  bounds injection, not storage. (b) Evicted key people are still destroyed, only
+  announced: `invalidatedAt` means "superseded", not "evicted by a cap", and the
+  facts path is pinned by an existing test. Both are behaviour, not defects —
+  change them deliberately if wanted.
+- **Verification.** Acceptance harness (`_work/probes/acceptance.mts`, run
+  against the unfixed tree first): B1/B2/C1/C2 all FAIL before, all PASS after.
+  Four sabotage checks (break → red → restore → green). Gates: tsc 0, lint 78/0,
+  `check:design` 175 PASSED, **288 suites / 1619 tests / 0 failures** (baseline
+  283 / 1584).
+- **Not verified:** no AI provider is configured in this environment, so no live
+  model call ran; the boot log's 19 → 0 `DirectConfigError` count is confounded
+  (the demo seed may not have re-run) and is **not** claimed as proof — the unit
+  test is, and it goes red when reverted. `RUN_INTEGRATION_TESTS` suites
+  (9 suites / 25 tests) remain skipped.
 
 ### 2026-09-26 — provider profiles replace the baked-in gateway (+ the keyboard, and two hidden fields)
 
