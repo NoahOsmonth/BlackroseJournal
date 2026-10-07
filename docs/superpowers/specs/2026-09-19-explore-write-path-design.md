@@ -221,14 +221,14 @@ Port `example-design/blackrose/explore-variants/variant-a-index.html` into React
 
 ### The drifting theme strip
 
-The prototype drove `scrollLeft` because a CSS transform and native scroll cannot both own the offset. RN maps faithfully:
+The prototype drove `scrollLeft` because a CSS transform and native scroll cannot both own the offset. RN maps as follows (as shipped in `components/memory/ThemeDriftStrip.tsx`):
 
-- `Animated.ScrollView` (horizontal) whose `scrollTo({ x, animated: false })` is driven from a Reanimated frame callback.
-- Pause on `onScrollBeginDrag`; resync from `contentOffset.x` on drag end, so native momentum and flick are preserved.
-- Seamless wrap via periodic content: N identical runs, offset normalised modulo one run's width.
+- `Animated.ScrollView` (horizontal) whose `scrollTo(ref, x, 0, false)` is driven from a Reanimated `useFrameCallback`.
+- **The hold is a divergence check, not a drag event.** Each frame the callback compares the scroller's real position (from `onScroll`) against the offset it last drove, measured *around the wrap* (`circularDistance`); if they differ it adopts the reader's position and pauses, then resumes after `IDLE_RESUME_MS`. `onScrollBeginDrag` is deliberately **not** relied on: react-native-web passes the drag/momentum props through but never invokes them from a drag path, so on web the hold can only come from the divergence check.
+- Seamless wrap via periodic content: N identical runs, offset normalised modulo one run's width. `N` is computed so `(N - 1) * runWidth >= viewport` — two runs are not enough to reach the wrap point on a wide frame.
 - Gated on `useReducedMotion()` — the strip loses self-propulsion but stays fully scrollable, exactly as the prototype does.
 
-Fallback if JS/native jitter shows up on device: a pan-driven `translateX` on a doubled row. Jest's reanimated mock cannot observe motion, so this needs a real browser check (§9).
+The original plan's fallback (a pan-driven `translateX` on a doubled row) was not needed: the shipped divergence check handles wheel, trackpad and native drag. Jest's reanimated mock cannot observe motion, so this still needs a real browser check (§9).
 
 **One a11y rule learned from the prototype:** only the first run may contain focusable elements. Duplicated runs exist to make the offset periodic; putting buttons in them creates a focus trap (tabbing walks the same words repeatedly) and puts focusable content inside `aria-hidden`. Repeats are inert, and the strip itself is focusable so keyboard users can scroll it.
 

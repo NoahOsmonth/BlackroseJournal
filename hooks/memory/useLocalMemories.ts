@@ -8,6 +8,7 @@ import {
 import { saveExploreNote } from '@/services/memory/exploreNote';
 import type { ExploreNoteResult } from '@/services/memory/exploreNote';
 import type { LocalMemoryAtom } from '@/services/memory/localMemory.types';
+import { deleteJournalEntryWithTombstone } from '@/services/journal/journalEntryActions';
 
 interface UseLocalMemoriesReturn {
     atoms: LocalMemoryAtom[];
@@ -51,9 +52,25 @@ export function useLocalMemories(): UseLocalMemoriesReturn {
     }, [refresh]);
 
     const removeAtom = useCallback(async (id: string) => {
+        // A note written on Explore is authored text backed by a journal entry.
+        // Deleting only the atom leaves the note searchable: `memory_search`
+        // reads the offline memory FILES, not the atom shards. Route notes
+        // through the entry tombstone, which retires every derived artifact
+        // (session digest, memory files, atoms, day digest) and clears recall.
+        const atom = atoms.find((candidate) => candidate.id === id);
+        if (atom?.layer === 'note') {
+            const entryId = atom.sourceId ?? atom.rootSourceId;
+            if (entryId) {
+                await deleteJournalEntryWithTombstone(entryId);
+                await refresh();
+                return;
+            }
+        }
+        // Extracted atoms (episodic/semantic/profile/…) have no authored entry
+        // to tombstone — deleting the atom is the whole operation.
         await deleteMemoryAtom(id);
         await refresh();
-    }, [refresh]);
+    }, [atoms, refresh]);
 
     const clearAll = useCallback(async () => {
         await clearMemoryAtoms();

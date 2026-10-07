@@ -14,6 +14,7 @@
 
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import React from 'react';
+import { BackHandler, Platform } from 'react-native';
 
 jest.mock('@expo/vector-icons/MaterialIcons', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/hooks/use-color-scheme', () => ({ useColorScheme: () => 'light' }));
@@ -31,8 +32,8 @@ function renderDock() {
         onHide: jest.fn(),
         onDismiss: jest.fn(),
     };
-    render(<InsightActionDock {...handlers} />);
-    return handlers;
+    const { unmount } = render(<InsightActionDock {...handlers} />);
+    return { ...handlers, unmount };
 }
 
 describe('InsightActionDock', () => {
@@ -105,6 +106,89 @@ describe('InsightActionDock', () => {
                 clearsFloor: Number(box.minHeight) >= TOUCH_FLOOR,
                 flexGrow: box.flexGrow,
             }).toEqual({ label, clearsFloor: true, flexGrow: 1 });
+        }
+    });
+});
+
+/**
+ * The dock is deliberately not a `Modal`, so it inherits none of
+ * `onRequestClose`'s Escape/back dismissal. It is mounted only while open, so
+ * the effect that registers the platform listener *is* the dismissal contract.
+ * Both platforms are pinned here: web gets Escape, native gets Android hardware
+ * back, and unmounting removes whichever listener was registered.
+ */
+describe('InsightActionDock keyboard/back dismissal', () => {
+    const originalPlatform = Platform.OS;
+
+    afterEach(() => {
+        Object.defineProperty(Platform, 'OS', { configurable: true, value: originalPlatform });
+    });
+
+    it('closes on Escape from the keyboard on web', () => {
+        Object.defineProperty(Platform, 'OS', { configurable: true, value: 'web' });
+
+        type KeydownHandler = (event: { key: string }) => void;
+        const listeners: Record<string, KeydownHandler> = {};
+        const documentMock = {
+            addEventListener: jest.fn((type: string, handler: KeydownHandler) => {
+                listeners[type] = handler;
+            }),
+            removeEventListener: jest.fn(),
+        };
+        const originalDocument = (globalThis as { document?: unknown }).document;
+        Object.defineProperty(globalThis, 'document', {
+            configurable: true,
+            writable: true,
+            value: documentMock,
+        });
+
+        try {
+            const handlers = renderDock();
+
+            expect(documentMock.addEventListener).toHaveBeenCalledWith(
+                'keydown',
+                expect.any(Function)
+            );
+
+            listeners.keydown({ key: 'Escape' });
+            expect(handlers.onDismiss).toHaveBeenCalledTimes(1);
+
+            listeners.keydown({ key: 'Enter' });
+            expect(handlers.onDismiss).toHaveBeenCalledTimes(1);
+
+            handlers.unmount();
+            expect(documentMock.removeEventListener).toHaveBeenCalledWith(
+                'keydown',
+                listeners.keydown
+            );
+        } finally {
+            Object.defineProperty(globalThis, 'document', {
+                configurable: true,
+                writable: true,
+                value: originalDocument,
+            });
+        }
+    });
+
+    it('closes on Android hardware back and unregisters on unmount', () => {
+        const remove = jest.fn();
+        const addSpy = jest
+            .spyOn(BackHandler, 'addEventListener')
+            .mockImplementation(() => ({ remove }));
+
+        try {
+            const handlers = renderDock();
+
+            expect(addSpy).toHaveBeenCalledWith('hardwareBackPress', expect.any(Function));
+            const onBack = addSpy.mock.calls[0][1] as () => boolean;
+
+            expect(onBack()).toBe(true);
+            expect(handlers.onDismiss).toHaveBeenCalledTimes(1);
+
+            handlers.unmount();
+            expect(remove).toHaveBeenCalledTimes(1);
+        } finally {
+            addSpy.mockRestore();
         }
     });
 });

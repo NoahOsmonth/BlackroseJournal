@@ -4,7 +4,7 @@
  *   set PROBE_LLM=1
  *   npx jest --runInBand __tests__/integration/pr8cListRecentDaysLive.test.ts --forceExit
  *
- * Model: tencent/hy3:free (or EXPO_PUBLIC_AI_CUSTOM_MODEL). First take; attempt count logged.
+ * Model: from EXPO_PUBLIC_AI_CUSTOM_MODEL (required — no baked-in fallback). First take; attempt count logged.
  */
 
 import fs from 'fs';
@@ -91,8 +91,10 @@ function applyLiveEnv(): { model: string; apiBaseUrl: string } {
     ).replace(/\/+$/, '');
     const model =
         process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL
-        ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_MODEL
-        ?? 'tencent/hy3:free';
+        ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_MODEL;
+    if (!model) {
+        throw new Error('Missing EXPO_PUBLIC_AI_CUSTOM_MODEL for PR8c live test.');
+    }
 
     process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY = apiKey;
     process.env.EXPO_PUBLIC_AI_CUSTOM_BASE = apiBaseUrl;
@@ -145,7 +147,7 @@ function entryFromFixture(
 }
 
 describeMaybe('PR8c live list_recent_days + search regression (PROBE_LLM=1)', () => {
-    let model = 'tencent/hy3:free';
+    let model = '';
     let fixture: ReturnType<typeof buildProbeFixture>;
 
     beforeAll(async () => {

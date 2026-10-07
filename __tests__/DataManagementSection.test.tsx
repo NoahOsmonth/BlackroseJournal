@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render } from '@testing-library/react-native';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
 
 import { DataManagementSection } from '../components/settings/DataManagementSection';
 
@@ -11,7 +11,33 @@ jest.mock('../hooks/use-color-scheme', () => ({
     useColorScheme: () => 'light',
 }));
 
+// DEF-009: Alert.alert is a silent no-op on web, so Drive outcomes must route
+// through the web-safe notifier instead.
+const mockNotifyUser = jest.fn();
+jest.mock('@/components/ui/webConfirm', () => ({
+    notifyUser: (title: string, message?: string) => mockNotifyUser(title, message),
+}));
+
+const mockBackupNow = jest.fn();
+const mockRestoreLatest = jest.fn();
+jest.mock('@/hooks/backup/useDriveBackup', () => ({
+    useDriveBackup: () => ({
+        status: 'ready',
+        detail: null,
+        remoteFiles: [],
+        backupNow: mockBackupNow,
+        restoreLatest: mockRestoreLatest,
+        refreshRemote: jest.fn(),
+    }),
+}));
+
 describe('DataManagementSection', () => {
+    beforeEach(() => {
+        mockNotifyUser.mockClear();
+        mockBackupNow.mockReset();
+        mockRestoreLatest.mockReset();
+    });
+
     it('shows local backup controls and the latest backup label', () => {
         const { getByText, queryByText } = render(
             <DataManagementSection
@@ -98,5 +124,42 @@ describe('DataManagementSection', () => {
 
         fireEvent.press(getByText('Seed demo data'));
         expect(onSeedDemoData).not.toHaveBeenCalled();
+    });
+
+    /**
+     * DEF-009 / DEF-011: a Drive backup or restore that silently reported
+     * nothing was indistinguishable from success. Both outcomes must reach
+     * `notifyUser` (window.alert on web, Alert on native).
+     */
+    it('routes Drive backup and restore outcomes through the web-safe notifier', async () => {
+        mockBackupNow.mockResolvedValue('Backed up 3 atoms + 1 files as drive.json.');
+        mockRestoreLatest.mockResolvedValue(null);
+
+        const { getByText } = render(
+            <DataManagementSection
+                latestBackup={null}
+                isBusy={false}
+                onCreateBackup={jest.fn()}
+                onRestoreLatestBackup={jest.fn()}
+                onExportJournalJson={jest.fn()}
+                onClearHistory={jest.fn()}
+            />
+        );
+
+        fireEvent.press(getByText('Back up memory to Google Drive'));
+        await waitFor(() => {
+            expect(mockNotifyUser).toHaveBeenCalledWith(
+                'Drive backup done',
+                'Backed up 3 atoms + 1 files as drive.json.',
+            );
+        });
+
+        fireEvent.press(getByText('Restore memory from Google Drive'));
+        await waitFor(() => {
+            expect(mockNotifyUser).toHaveBeenCalledWith(
+                'Drive restore',
+                'Google Drive restore failed.',
+            );
+        });
     });
 });

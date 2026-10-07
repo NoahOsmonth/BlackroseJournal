@@ -87,6 +87,7 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
         addProfile,
         removeActiveProfile,
         selectProfile,
+        renameProfile,
         embedded = false,
     } = props;
     const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -221,6 +222,7 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
             <TextInput
                 value={draft.label}
                 onChangeText={setLabel}
+                onBlur={() => renameProfile(draft.label)}
                 placeholder="Provider"
                 placeholderTextColor={placeholderColor}
                 autoCapitalize="words"

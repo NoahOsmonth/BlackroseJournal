@@ -75,8 +75,10 @@ function applyLiveEnv(): { model: string; apiBaseUrl: string } {
     }
     const model =
         process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL
-        ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_MODEL
-        ?? 'tencent/hy3:free';
+        ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_MODEL;
+    if (!model) {
+        throw new Error('Missing EXPO_PUBLIC_AI_CUSTOM_MODEL for live Rosebud test.');
+    }
 
     process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY = apiKey;
     process.env.EXPO_PUBLIC_AI_CUSTOM_BASE = apiBaseUrl;

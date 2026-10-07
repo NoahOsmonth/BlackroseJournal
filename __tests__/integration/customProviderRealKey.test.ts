@@ -49,15 +49,17 @@ function getNanoEnv(): NanoEnv {
         ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_API_KEY;
     if (!apiKey) throw new Error('Missing EXPO_PUBLIC_AI_CUSTOM_API_KEY for integration test.');
 
+    const model = process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL
+        ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_MODEL;
+    if (!model) throw new Error('Missing EXPO_PUBLIC_AI_CUSTOM_MODEL for integration test.');
+
     return {
         apiKey,
         apiBaseUrl: (
             process.env.EXPO_PUBLIC_AI_CUSTOM_BASE
             ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_BASE
             ).replace(/\/+$/, ''),
-        model: process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL
-            ?? fileEnv.EXPO_PUBLIC_AI_CUSTOM_MODEL
-            ?? 'nvidia/nemotron-3-ultra-550b-a55b',
+        model,
     };
 }
 

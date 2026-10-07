@@ -378,8 +378,8 @@ export default function SettingsScreen() {
                     onToggle={toggleSection}
                 >
                     <AboutSettingsSection
-                        onAboutPress={() => Alert.alert('About', APP_ABOUT_COPY)}
-                        onPrivacyPress={() => Alert.alert('Privacy Policy', APP_PRIVACY_COPY)}
+                        onAboutPress={() => notifyUser('About', APP_ABOUT_COPY)}
+                        onPrivacyPress={() => notifyUser('Privacy Policy', APP_PRIVACY_COPY)}
                         embedded
                     />
                 </SettingsAccordionSection>

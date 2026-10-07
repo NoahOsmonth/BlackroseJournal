@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { parseFilterPatterns, useCustomAiModels } from '../../hooks/settings/useCustomAiModels';
 import {
     getActiveCustomModelConfig,
+    loadCustomAiProviderSettings,
     resetCustomModelStorageAdapter,
     setCustomModelStorageAdapter,
 } from '../../services/ai/customModels';
@@ -192,5 +193,35 @@ describe('useCustomAiModels', () => {
             message: 'Fetch and select a model first.',
         });
         expect(result.current.settings.enabled).toBe(false);
+    });
+
+    it('renames a provider with no model selected without touching enabled', async () => {
+        const { result } = await renderLoaded();
+        expect(result.current.profile?.models).toEqual([]);
+        expect(result.current.profile?.selectedModelId).toBeNull();
+        const enabledBefore = result.current.settings.enabled;
+        expect(enabledBefore).toBe(false);
+
+        await act(async () => { await result.current.renameProfile('  Renamed provider  '); });
+
+        // Trimmed and persisted to storage.
+        expect(result.current.profile?.label).toBe('Renamed provider');
+        const persisted = await loadCustomAiProviderSettings();
+        expect(persisted.profiles[0]?.label).toBe('Renamed provider');
+        // Rename must not create an "enabled but no model" state.
+        expect(result.current.settings.enabled).toBe(enabledBefore);
+        expect(persisted.enabled).toBe(enabledBefore);
+        expect(result.current.profile?.selectedModelId).toBeNull();
+    });
+
+    it('ignores a blank or unchanged provider rename', async () => {
+        const { result } = await renderLoaded();
+        const original = result.current.profile?.label;
+
+        await act(async () => { await result.current.renameProfile('   '); });
+        expect(result.current.profile?.label).toBe(original);
+
+        await act(async () => { await result.current.renameProfile(original ?? ''); });
+        expect(result.current.profile?.label).toBe(original);
     });
 });

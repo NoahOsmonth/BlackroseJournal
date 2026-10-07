@@ -12,8 +12,8 @@
  * Source: example-design/blackrose/insight-options-variants/variant-c-action-dock.html
  */
 
-import React from 'react';
-import { Pressable, Text } from 'react-native';
+import React, { useEffect } from 'react';
+import { BackHandler, Platform, Pressable, Text } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { BLACKROSE_PALETTE } from '@/constants/theme';
@@ -60,6 +60,25 @@ export function InsightActionDock({
         { label: 'Saved insights', icon: 'bookmark-border', onPress: onShowSavedInsights },
         { label: 'Hide for today', icon: 'visibility-off', onPress: onHide, danger: true },
     ];
+
+    /* The dock is not a Modal, so it gets none of `onRequestClose`'s platform
+       dismissal. It is mounted only while open, so an effect is the whole
+       contract: Escape closes it on web, Android hardware back closes it on
+       native, and unmounting removes whichever listener was registered. */
+    useEffect(() => {
+        if (Platform.OS === 'web') {
+            const handleKeyDown = (event: KeyboardEvent) => {
+                if (event.key === 'Escape') onDismiss();
+            };
+            document.addEventListener('keydown', handleKeyDown);
+            return () => document.removeEventListener('keydown', handleKeyDown);
+        }
+        const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+            onDismiss();
+            return true;
+        });
+        return () => subscription.remove();
+    }, [onDismiss]);
 
     return (
         <Pressable

@@ -59,6 +59,7 @@ export interface UseCustomAiModelsReturn {
     addProfile: () => Promise<void>;
     removeActiveProfile: () => Promise<void>;
     selectProfile: (profileId: string) => Promise<void>;
+    renameProfile: (label: string) => Promise<void>;
 }
 
 const EMPTY_STATUS: StatusState = { kind: 'idle', message: '' };
@@ -304,6 +305,20 @@ export function useCustomAiModels(): UseCustomAiModelsReturn {
         }
     }, [persist, settings]);
 
+    // Model-independent rename: a provider with no model selected can still be
+    // renamed. This never touches `enabled`/`selectedModelId`, so it cannot
+    // create an "enabled but no model" state.
+    const renameProfile = useCallback(async (label: string) => {
+        if (!profile) return;
+        const next = label.trim();
+        if (!next || next === profile.label) return;
+        await persist(withUpdatedProfile(settings, {
+            ...profile,
+            label: next,
+            updatedAt: Date.now(),
+        }));
+    }, [persist, profile, settings]);
+
     return {
         settings,
         profile,
@@ -325,6 +340,7 @@ export function useCustomAiModels(): UseCustomAiModelsReturn {
         addProfile,
         removeActiveProfile,
         selectProfile,
+        renameProfile,
     };
 }
 

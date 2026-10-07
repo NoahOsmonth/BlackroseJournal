@@ -12,20 +12,23 @@ local-only by decision (2026-09-18); guard test:
 
 ## Open work (in priority order)
 
-1. **Fix note deletion** — deleting a note from Explore must also remove its
-   `'note'` memory file (via `deleteMemoryFilesBySourceSessions`) and journal
-   entry. Currently only the atom shard is deleted, so the note stays
-   searchable. Smallest, highest-value fix on the list.
-2. **Retrieval gating for staged notes** — `memory_search` can miss a `_tmp`
-   note whenever any formal thread exists; the fix belongs in
-   `memoryRetrieval.ts`'s project_memory branch, not the write path.
-3. **R3 (entity/alias → temporal → prospection)** — only after a
+1. **R3 (entity/alias → temporal → prospection)** — only after a
    real-restatement ledger prices supersession on journal-like data. The R0
    ledger's `superseded: 0` is by design, so the gate is unmet.
-4. **Insight dock a11y parity** — Escape / Android back-to-close; optional
-   label shortening to un-stagger the icon row (copy change, needs a call).
-5. **Doc drift** — `design.md:227` in the explore spec still describes the
-   pre-fix drift mechanism.
+2. **Insight dock label shortening** — optional; two labels can wrap and stagger
+   the icon row (copy change, needs a call). The a11y half (Escape / Android
+   back-to-close) landed 2026-10-07.
+3. **Identity-store split** — `get_identity` vs the offline user file: an
+   unmeasured design question, deliberately left open.
+4. **Live provider gate** — `RUN_INTEGRATION_TESTS=1` and the full offline recall
+   probe need the key in the env/`.env` seed (blank on this machine); the
+   provider itself is reachable. The offline **boot** gate passes.
+5. **`customModels` v1 → v2 migration** — unit-tested only; device verification
+   outstanding.
+
+**Closed 2026-10-07:** note deletion, staged-note retrieval gating, insight-dock
+a11y, explore-spec doc drift, baked-in integration model ids, stale `UI_MAP.md`
+Account row, and model-less provider rename. See `PROGRESS.md` → round-2 entry.
 
 ## Documentation map
 

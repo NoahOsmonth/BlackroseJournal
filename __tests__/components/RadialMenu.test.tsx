@@ -58,7 +58,7 @@ describe('RadialMenu write actions', () => {
 
         expect(screen.getByLabelText('New entry')).toBeTruthy();
         expect(screen.getByLabelText('New check-in')).toBeTruthy();
-        expect(screen.getByLabelText('Ask Rosebud')).toBeTruthy();
+        expect(screen.getByLabelText('Ask')).toBeTruthy();
         expect(screen.getByLabelText('Memory')).toBeTruthy();
 
         fireEvent.press(screen.getByLabelText('Memory'));

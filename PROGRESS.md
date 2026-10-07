@@ -21,7 +21,7 @@ directly to an OpenAI-compatible provider with a user-supplied key.
 | Transport | OpenRouter removed; **provider profiles** (schema v2, several per device) replace the baked-in gateway — user-supplied base URL/key/model, no vendor host or model id in code | 2026-09-10/26 | `services/ai/customModels.ts`, `directConfig.ts` |
 | Input handling | Bottom sheets and both chat composers ride above the soft keyboard with a concrete `KeyboardAvoidingView behavior` (Android 15+ edge-to-edge made `adjustResize` a no-op) | 2026-09-26 | `components/{entries,goals,intentions}/*Modal.tsx`, `app/chat.tsx` |
 | Local-only build | Hindsight, Supabase, managed AI gateway, and the auth surface deleted; device-local account id instead | 2026-09-18 | `services/auth/localAccount.ts`; contract in `notes/local-only-storage.md` |
-| Offline memory (Era 3) | File-semantic store with `_tmp` staging on finish; recall = intent gate → thread shortlist → manifest headers → top-K bodies, budgets 12k/file / 30k total / top-5 / 30s cache | 2026-09-12 | `services/memory/memoryFiles.ts`, `memoryRetrieval.ts`; plan in `.planning/offline-memory/` |
+| Offline memory (Era 3) | File-semantic store with `_tmp` staging on finish; recall = intent gate → thread shortlist → manifest headers → top-K bodies, budgets 12k/file / 30k total / top-5 / 30s cache; a resolved thread's headers are merged with live `_tmp` **notes** (`type === 'note'`), and finish clears the recall cache | 2026-09-12 | `services/memory/memoryFiles.ts`, `memoryRetrieval.ts`; plan in `.planning/offline-memory/` |
 | Consolidation | Idle Dream trigger (single-flight, never during a streaming turn) + fading + supersession with audit fields ("when unsure, keep separate") | 2026-09-16 | `memoryDreamTrigger.ts`, `memoryFade.ts`, `memorySupersession.ts` |
 | Atom store | Sharded 8-way header+shards store, cap 400 (a storage bound in disguise) → 4000; corrupt shard is quarantined, not fatal | 2026-09-16 | `services/memory/localMemory.ts` (`schemaVersion: 4`; profile cap retires, never destroys) |
 | Identity | Always-on core memory (`@rosebud_identity_profile`), contradiction → `pendingCandidate`, never auto-applied | 2026-09 | `services/memory/identityProfile.ts`, `identityExtraction.ts` |
@@ -30,16 +30,84 @@ directly to an OpenAI-compatible provider with a user-supplied key.
 | Settings UX | Hairline list replaced by tonal bands (variant E), `band-*` tokens mixed 72% from the palette | 2026-09-19 | `SettingsAccordionSection.tsx`, `tailwind.config.js` |
 | Radial menu / dock | Long-press write menu rebuilt as a real overlay (fixed geometry, scrim, touch-release bug); dock height constant corrected 96 → 64 | 2026-09-19 | `radial-menu.tsx`, `components/journal/BottomNav.tsx` |
 | Threads | Memory-graph canvas gains a chrome dissolve so the stats strip reads as HUD on the art, not a grey slab | 2026-09-19 | `assets/memory-graph/engine.html`, `MemoryGraphStats` |
-| QA program | 107 documented cases (97 active), 3 runs executed, DEF-001–014 all fixed; last dashboard 78 Pass / 0 Fail / 9 Blocked / 19 Untested | 2026-09-17 | `QA-Plan.md`, `docs/qa/` |
+| QA program | 107 documented cases (97 active), 4 runs executed, DEF-001–017 all fixed; last dashboard 84 Pass / 0 Fail / 5 Blocked / 3 N/A / 5 Untested | 2026-10-07 | `QA-Plan.md`, `docs/qa/` |
 | Baseline hardening | Android bundle −59.8% (icon barrel), 10 tested bug fixes (week keys, DST streaks, UTC dates, …), sse/streak/color-derivation coverage | 2026-09-02/03 | `scripts/analyze-bundle.mjs`, `__tests__/` |
 
 Recall metrics on the frozen R0 ledger (`probes/shared/recallLedger.ts`):
 hit-rate 16.7% → **83.3%**, precision 0.167 → **0.433**, thread selection
-reproducible — the R1+R2 delta, stable across runs. Last full gate: **288
-suites passed / 9 skipped (297 discovered), 1619 tests green**, tsc / lint /
-`check:design` clean.
+reproducible — the R1+R2 delta, stable across runs. Last full gate: **289
+suites passed / 9 skipped (298 discovered), 1634 tests green** (25 skipped),
+tsc / lint / `check:design` clean.
 
 ## Dated log
+
+### 2026-10-07 — open follow-ups closed (round 2): retrieval gating, dock a11y, provider rename
+
+Same day as run 4, a second pass closing the PLAN/PROGRESS follow-up list. Four
+parallel lanes, then reconciled by the orchestrator. **All UNCOMMITTED.**
+
+- **Item 2 — `memory_search` missed `_tmp` notes (fixed).** `memoryRetrieval.ts`'s
+  `project_memory` branch scanned only the resolved thread, so a staged note was
+  reachable only via the recency fallback (which runs only when *no* thread
+  resolves). The candidate pool now merges the thread's headers with live `_tmp`
+  **notes** (`header.type === 'note'`) via the existing `listTmpFiles()`, deduped
+  by id. **Scoped to notes deliberately:** the first cut merged *all* `_tmp`
+  files and dropped the R2 ledger's precision below its recorded R1 bar
+  (`probes/r2RecallDelta` `precision > 0.4` → 0.3) — unpromoted `project`/
+  `feedback` files are distractors until Dream promotes them. Caught by the probe,
+  narrowed, probe green again. Also (part B) journal finish now calls
+  `clearMemoryRecallCache()` after staging, so a just-staged note is recallable
+  immediately rather than after the 30s TTL (mirrors `journalEntryActions.ts`).
+- **Item 5 (a11y half) — insight Action Dock had no Escape / Android-back
+  dismissal (fixed).** The dock is deliberately not a `Modal`, so it got none of
+  `onRequestClose`. It now registers its own platform listener while mounted:
+  `keydown`/Escape on web, `hardwareBackPress` on native. **Live-verified:**
+  `More options` opens `role=menu`; Escape closes it. The optional label-shortening
+  copy change is still a call for the owner.
+- **Item 9 — baked-in model ids in the live integration tests (fixed).** Dropped
+  the `?? 'tencent/hy3:free'` / `?? 'nvidia/nemotron-3-ultra-550b-a55b'`
+  fallbacks from all three; each now fail-fasts naming
+  `EXPO_PUBLIC_AI_CUSTOM_MODEL`. No baked-in model id remains outside dated history.
+- **Item 10 — stale `UI_MAP.md` Account row (fixed).** The Settings Account row,
+  the auth route row, the `Auth (login)` concept row, and the stale
+  "redirects to forgot-password" capture note all still described the pre-2026-09-18
+  auth surface; all corrected to the device-local account.
+- **Item 11 — a model-less provider could not be renamed (fixed).** Added a
+  model-independent `renameProfile` on `useCustomAiModels`, wired to the provider
+  name field's `onBlur`. It never touches `enabled`/`selectedModelId`, so no
+  "enabled but no model" state is possible. **Live-verified:** added a model-less
+  provider, renamed it, reloaded — the name persisted; removed the probe profile
+  and restored the active provider.
+- **Item 6 — doc drift (fixed).** The explore spec's `design.md:227`-equivalent
+  theme-drift section now describes the shipped mechanism (frame callback +
+  divergence check + `IDLE_RESUME_MS`), not the pre-fix `onScrollBeginDrag` pause.
+- **Live provider gate (item 7) re-checked.** The provider IS reachable
+  (a real chat turn returned a reply), but the formal `RUN_INTEGRATION_TESTS`
+  harness and the full offline recall probe both need the key in the env/`.env`
+  seed, which is blank here — so they remain **blocked on a credential**, not on
+  code. The offline **boot gate passes** (`E2E_BOOT_ONLY=1`): journal renders,
+  0 blocked requests, 0 page errors, remembered account intact; and the offline
+  probe's finish step stages a memory file with no network.
+- **Still open by design:** item 3 (R3 — gated on a real-restatement ledger),
+  item 4 (identity-store split — an unmeasured design question), item 8
+  (`customModels` v1→v2 — device-only), item 5's label-shortening copy call.
+
+Gates on the combined tree: `check:design` PASS, `tsc` 0, `lint` 0 errors / 78
+warnings (unchanged), `jest` **289 suites / 1634 tests pass**, 25 skipped
+(integration). New tests: staged-note recall + trace counts + the not-merged
+negative case, recall-cache-clear on both finish paths, dock Escape/back, and
+model-less rename.
+
+### 2026-10-07 — full-UI QA pass with Playwriter (run 4): 3 defects found and fixed
+
+A full-UI QA pass on the current build (`4538e66` + an uncommitted working tree) driven by Playwriter against the Expo web build. **14 QA cases executed — 12 Pass, 1 Blocked, 1 obsolete → N/A.** Pre-flight gates green: `check:design` PASS, `tsc` 0, `lint` 0 errors / 78 warnings, `jest` 289 suites / 1624 tests pass.
+
+- **Three defects found, all fixed (UNCOMMITTED).**
+  - **DEF-015** (S3) — Settings "About Blackrose" and "Privacy Policy" were silent no-ops on web: `app/(tabs)/settings.tsx` used `Alert.alert`, which react-native-web does not implement (same class as DEF-009). Now calls `notifyUser()`; the Drive backup/restore outcomes in `components/settings/DataManagementSection.tsx` likewise.
+  - **DEF-016** (S4) — the `+` radial menu still carried the stale pre-rebrand label "Ask Rosebud"; now `Ask` (`components/journal/radial-menu.tsx`).
+  - **DEF-017** (S2) — deleting a note from Threads left it searchable: only the atom shard was deleted while the `'note'` memory file and journal entry survived, so `memory_search` still returned it. Live store probe: pre-delete entryHits=3 / fileHits=1 / manifest header present → post-delete ALL 0. `hooks/memory/useLocalMemories.ts` `removeAtom` now routes `layer==='note'` atoms through `deleteJournalEntryWithTombstone(entryId)`; extracted atoms keep atom-only delete. **This is PLAN.md item 1.**
+- **Tracker drift found.** The dashboard's "97 active" total counts the retired THEME-07 row (true active = 96), and SETTINGS-02 was stale — it tested the `freeOnly` concept deleted 2026-09-26 (AGENTS.md rule 9). SETTINGS-02 is now marked N/A and the dashboard recomputed from the CSVs to 84 Pass / 0 Fail / 5 Blocked / 3 N/A / 5 Untested.
+- Run summary: `docs/qa/results/2026-10-07-run4.md`.
 
 ### 2026-10-04 — the memory system stopped destroying memories (rounds 2–3)
 
@@ -325,46 +393,29 @@ legacy-shim CI deadline.
 
 ## Open follow-ups (each named in the entry that raised it)
 
-1. **Deleting a note leaves it searchable.** `useLocalMemories.removeAtom` /
-   `clearAll` only touch the atom shards, never `deleteMemoryFilesBySourceSessions`
-   — the `'note'` memory file and its journal entry survive deletion. The more
-   serious of the two T16 findings.
-2. **`memory_search` can miss `_tmp` notes once any formal thread exists** —
-   thread-resolved recall scans only that thread's headers; a staged note is
-   reachable only through the 5-item recency fallback. Fix belongs in retrieval
-   gating, not the write path.
-3. **R3 is gated, not forgotten.** Prerequisite: a real-restatement ledger
+**Closed 2026-10-07 (round 2)** — note deletion, staged-note retrieval gating,
+dock a11y, the explore-spec doc drift, the baked-in integration model ids, the
+stale `UI_MAP.md` Account row, and model-less provider rename are all done; see
+the round-2 entry above. What remains:
+
+1. **R3 is gated, not forgotten.** Prerequisite: a real-restatement ledger
    (measuring how often a journal actually restates itself; the R0 ledger
    reports `superseded: 0` by design). Building temporal reasoning on
    entity resolution of unknown value is the exact move the R-series
    repeatedly declined.
-4. **Identity-store split** — `get_identity` vs the offline user file: an
+2. **Identity-store split** — `get_identity` vs the offline user file: an
    unmeasured design question deliberately left open.
-5. **Insight dock polish** — no Escape / Android back-close parity; two labels
-   wrap and stagger the icon row (matches the approved prototype; fixing
-   changes copy).
-6. **Doc drift noted in passing** — the explore plan's `noteFiles` stat
-   (`plan:61`) is unimplemented by agreement, and `design.md:227` still
-   describes the pre-fix drift mechanism.
-7. **The live provider gate is unmet, and blocked on an endpoint rather than on
-   code.** The recall probe and `RUN_INTEGRATION_TESTS=1` need a reachable chat
-   provider; the gateway the owner deleted refuses TCP. The provider-profile
-   write path therefore has unit coverage but no live-network confirmation —
-   point the app at a reachable endpoint and re-run (AGENTS.md workflow step 7).
-8. **`customModels` v1 → v2 migration is unit-tested only.** It has never run
-   against a real device's stored v1 payload.
-9. **Live integration tests still default to gateway-specific model ids**
-   (`tencent/hy3:free`, `nvidia/nemotron-3-ultra-550b-a55b`) when `.env` omits a
-   model — harmless while skipped, but the last baked-in model strings outside
-   dated history.
-10. **`example-design/concepts/UI_MAP.md` still lists an Account row** (email,
-    sign in/up/out) that has not existed since auth was removed — stale in the
-    same way the AI Model row was; left alone to keep that diff scoped.
-11. **A provider with no model cannot be renamed persistently.**
-    `saveSettings` requires a selected model and `getActiveCustomModelConfig`
-    throws on "enabled but no model selected", so relaxing the guard would create
-    a state that breaks chat. The name is editable at add time and persists once
-    a model is fetched.
+3. **Live provider gate — blocked on a credential, not on code.** The provider
+   is reachable (a real chat turn returned a reply), but `RUN_INTEGRATION_TESTS=1`
+   and the full offline recall probe both need the key in the env/`.env` seed,
+   which is blank on this machine. Populate `.env` and re-run (AGENTS.md workflow
+   step 7). The offline **boot** gate already passes
+   (`E2E_BOOT_ONLY=1`: journal renders, 0 blocked requests, 0 page errors).
+4. **`customModels` v1 → v2 migration is unit-tested only.** It has never run
+   against a real device's stored v1 payload — device-only.
+5. **Insight dock label shortening** — two labels can wrap and stagger the icon
+   row (matches the approved prototype); shortening is a copy change that needs
+   the owner's call. The a11y half (Escape / Android back) is done.
 
 ## Operational doctrine worth re-reading (distilled from the log)
 

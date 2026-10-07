@@ -42,7 +42,7 @@ Custom `BottomNav` (not system tabs): Today · Explore · + FAB (chat) · Insigh
 | `/persona/[id]` | Edit persona | Same form |
 | `/persona/advanced` | Advanced persona | Model, imagination slider, etc. |
 | `/persona/generate` | AI-generate persona | Generate input |
-| `/login` `/signup` `/forgot-password` `/update-password` | Auth | Forms |
+| ~~`/login` `/signup` `/forgot-password` `/update-password`~~ | ~~Auth~~ — **retired 2026-09-18** (device-local account; no auth surface) | — |
 
 ## Settings accordion (real production)
 
@@ -53,7 +53,7 @@ Custom `BottomNav` (not system tabs): Today · Explore · + FAB (chat) · Insigh
 5. **Data Management** — backup, restore, export JSON, clear history, demo seed (dev)
 6. **Identity** — always-on identity profile rows + pending confirm/dismiss
 7. **Memory** — atom count, open Memory Hub
-8. **Account** — email, sign in/up/out, forgot password
+8. **Account** — device-local account (on this device, no sign-in, no server)
 9. **About** — version, about, privacy
 
 ## Interactive / detail states (must design)
@@ -95,7 +95,7 @@ Custom `BottomNav` (not system tabs): Today · Explore · + FAB (chat) · Insigh
 | Ask companion | yes — `generated/black-rose-ask.png` |
 | Entry reflection | yes — `generated/black-rose-entry-reflection.png` |
 | Rewards / streak | yes — `generated/black-rose-rewards.png` |
-| Auth (login) | yes — `generated/black-rose-login.png` |
+| Auth (login) | **retired 2026-09-18** — the auth surface was removed; not a target |
 | Graph node sheet | yes — `generated/black-rose-graph-node-sheet.png` |
 | Entry detail (read view) | optional next |
 | Light mode variants | optional later |
@@ -115,7 +115,7 @@ career pressure and quiet recovery") is that panel's own generated output.
 Architecture companion: `docs/superpowers/specs/2026-09-19-explore-memory-architecture.html`.
 
 ### Live production capture note
-Expo web on `:8081` redirects most unauthenticated routes to `forgot-password`. Screenshots in `inventory/production/` only reliably captured intention-select/chat/edit, persona-new/advanced, signup, forgot-password. Authenticated screens were mapped from source (`app/`, `components/settings`, `components/memory-graph`, `components/memory`).
+The old note here ("Expo web on `:8081` redirects most unauthenticated routes to `forgot-password`") is **obsolete**: auth was removed 2026-09-18, so every route now boots straight into the device-local account and nothing redirects to a sign-in screen. Screenshots in `inventory/production/` predate that change and are historical; current screens are mapped from source (`app/`, `components/settings`, `components/memory-graph`, `components/memory`).
 
 ## Shared Blackrose system
 

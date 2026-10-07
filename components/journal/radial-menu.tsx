@@ -76,7 +76,7 @@ const RADIAL_OPTIONS: RadialOption[] = [
         route: '/intentions/select',
     },
     {
-        label: 'Ask Rosebud',
+        label: 'Ask',
         hint: 'Ask a question about your journal',
         icon: 'lightbulb',
         route: '/ask-rosebud',

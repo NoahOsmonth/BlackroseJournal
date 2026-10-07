@@ -3,6 +3,7 @@ import {
     listFormalProjectIds,
     listMemoryFiles,
     listMemoryHeadersForThread,
+    listTmpFiles,
 } from './memoryFiles';
 import { rankMemoryFiles } from './memoryFade';
 
@@ -187,8 +188,31 @@ export async function retrieveMemory(
     // and UI pages, so asking it for 200 here returned 50 — silently, and the 200
     // was a lie about what selection actually considered. Same single manifest read
     // either way, and the same newest-capture-first ordering.
-    const manifest = await listMemoryHeadersForThread(resolvedProjectId);
-    trace.push({ step: 'manifest_scanned', status: manifest.length ? 'success' : 'warning', input: `project_id=${resolvedProjectId}`, output: `${manifest.length} header entries` });
+    //
+    // Staged `_tmp` notes belong to no formal thread, so a thread-only scan makes
+    // them reachable only through the recency fallback above — which runs only
+    // when NO thread resolves. A note the user just kept is exactly the memory a
+    // just-finished entry should be able to recall, so the candidate pool merges
+    // the resolved thread's headers with live `_tmp` **notes** (type === 'note'),
+    // deduped by id. Unpromoted extracted `project`/`feedback` `_tmp` files are
+    // deliberately NOT merged: they are distractors until Dream promotes them,
+    // and stay on the recency-fallback path as before.
+    const [threadHeaders, stagedHeaders] = await Promise.all([
+        listMemoryHeadersForThread(resolvedProjectId),
+        listTmpFiles().then((headers) => headers.filter((header) => header.type === 'note')),
+    ]);
+    const seenIds = new Set<string>();
+    const manifest = [...threadHeaders, ...stagedHeaders].filter((header) => {
+        if (seenIds.has(header.id)) return false;
+        seenIds.add(header.id);
+        return true;
+    });
+    trace.push({
+        step: 'manifest_scanned',
+        status: manifest.length ? 'success' : 'warning',
+        input: `project_id=${resolvedProjectId}`,
+        output: `${manifest.length} header entries (${threadHeaders.length} thread, ${stagedHeaders.length} staged)`,
+    });
 
     // R2 fading: keyword overlap + recency, faded by capture date, deterministic
     // ties (see memoryFade.ts). Replaces raw token counting, whose wall-clock

@@ -64,6 +64,7 @@ function buildProps(): UseCustomAiModelsReturn {
         addProfile: jest.fn().mockResolvedValue(undefined),
         removeActiveProfile: jest.fn().mockResolvedValue(undefined),
         selectProfile: jest.fn().mockResolvedValue(undefined),
+        renameProfile: jest.fn().mockResolvedValue(undefined),
     };
 }
 

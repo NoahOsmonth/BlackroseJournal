@@ -12,6 +12,9 @@ jest.mock('../../../services/memory/localMemory', () => ({
 jest.mock('../../../services/memory/sessionDigestBuild', () => ({
     buildAndSaveSessionDigest: jest.fn(async () => undefined),
 }));
+jest.mock('../../../services/memory/memoryRetrieval', () => ({
+    clearMemoryRecallCache: jest.fn(),
+}));
 jest.mock('../../../services/ai', () => ({
     generateEntryAnalysis: jest.fn(async () => ({
         insight: 'insight',
@@ -30,10 +33,14 @@ import {
 } from '../../../services/journal/finishBackgroundStore';
 import { runJournalFinishBackground, runJournalFinishSideEffects } from '../../../services/journal/journalFinishSideEffects';
 import type { JournalEntry } from '../../../services/journal/journalStorage.types';
+import { clearMemoryRecallCache } from '../../../services/memory/memoryRetrieval';
 import { buildAndSaveSessionDigest } from '../../../services/memory/sessionDigestBuild';
 
 const mockedDigest = buildAndSaveSessionDigest as jest.MockedFunction<
     typeof buildAndSaveSessionDigest
+>;
+const mockedClearRecallCache = clearMemoryRecallCache as jest.MockedFunction<
+    typeof clearMemoryRecallCache
 >;
 
 function entry(overrides: Partial<JournalEntry> = {}): JournalEntry {
@@ -76,6 +83,11 @@ describe('runJournalFinishSideEffects', () => {
         await expect(runJournalFinishSideEffects(entry())).resolves.toBeUndefined();
         expect(mockedDigest).toHaveBeenCalledTimes(1);
     });
+
+    it('clears the recall cache after staging memory files', async () => {
+        await runJournalFinishSideEffects(entry());
+        expect(mockedClearRecallCache).toHaveBeenCalledTimes(1);
+    });
 });
 
 describe('runJournalFinishBackground', () => {
@@ -103,6 +115,24 @@ describe('runJournalFinishBackground', () => {
             identity: true,
             sessionDigest: true,
         });
+    });
+
+    it('clears the recall cache after the memories step', async () => {
+        const { promise } = runJournalFinishBackground(entry());
+        await expect(promise).resolves.toBeUndefined();
+        expect(mockedClearRecallCache).toHaveBeenCalledTimes(1);
+    });
+
+    it('clears the recall cache even when staging fails', async () => {
+        const { saveJournalEntryMemories } = jest.requireMock('../../../services/memory/localMemory') as {
+            saveJournalEntryMemories: jest.Mock;
+        };
+        saveJournalEntryMemories.mockRejectedValueOnce(new Error('boom'));
+
+        const { promise } = runJournalFinishBackground(entry());
+        await expect(promise).resolves.toBeUndefined();
+
+        expect(mockedClearRecallCache).toHaveBeenCalledTimes(1);
     });
 
     it('never rejects when a step fails and records the error', async () => {

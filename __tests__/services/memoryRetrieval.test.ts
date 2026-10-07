@@ -9,6 +9,7 @@ import {
     resetMemoryFilesStorageAdapter,
     setMemoryFilesStorageAdapter,
     stageTmpMemory,
+    stageUserNoteMemory,
 } from '../../services/memory/memoryFiles';
 
 function createAdapter() {
@@ -149,5 +150,75 @@ describe('memoryRetrieval (gated lexical recall)', () => {
         expect(result.debug.resolvedProjectId).toBe('lighthouse');
         expect(result.debug.selectedFileIds).toContain('projects/lighthouse/Project/lens-restoration.md');
         expect(result.context).toContain('copper optic');
+    });
+
+    it('recalls a _tmp staged note even when a formal thread resolves', async () => {
+        // Regression guard: the project_memory branch used to scan only the
+        // resolved thread's headers, so a staged `_tmp` note (which belongs to no
+        // thread) was reachable only via the recency fallback — which runs only
+        // when NO thread resolves. A note the user just kept is exactly what a
+        // just-finished entry should be able to recall.
+        await stageTmpMemory({
+            type: 'project', name: 'Lighthouse Restoration',
+            description: 'lighthouse lens and copper optic restoration',
+            body: '## Current Stage\nThe lighthouse lens restoration is underway.',
+            projectId: 'lighthouse',
+        });
+        const staged = await stageUserNoteMemory({
+            text: 'Staged note: the copper optic came back from the machinist.',
+            threadHint: 'lighthouse',
+            sourceEntryId: 'entry-1',
+        });
+        expect(staged.type).toBe('note');
+        expect(staged.projectId).toBe('_tmp');
+
+        const result = await retrieveMemory('lighthouse copper optic restoration');
+
+        expect(result.debug.resolvedProjectId).toBe('lighthouse');
+        expect(result.debug.selectedFileIds).toContain(staged.id);
+        expect(result.context).toContain('copper optic came back from the machinist');
+    });
+
+    it('reports thread and staged counts in the manifest trace', async () => {
+        await stageTmpMemory({
+            type: 'project', name: 'Lighthouse Restoration',
+            description: 'lighthouse lens restoration',
+            body: '## Current Stage\nLighthouse lens work.',
+            projectId: 'lighthouse',
+        });
+        await stageUserNoteMemory({
+            text: 'Lighthouse lens note kept as written.',
+            threadHint: 'lighthouse',
+            sourceEntryId: 'entry-2',
+        });
+
+        const result = await retrieveMemory('lighthouse lens restoration');
+        const scanned = result.trace.find((step) => step.step === 'manifest_scanned');
+        expect(scanned?.output).toBe('2 header entries (1 thread, 1 staged)');
+    });
+
+    it('does not merge an unpromoted _tmp project file into a resolved thread', async () => {
+        // PLAN.md item 2 gates staged **notes** only. An unpromoted extracted
+        // `project` file is a near-topic distractor until Dream promotes it; it
+        // must stay off the thread-resolved path (recency fallback only) or
+        // precision collapses (see probes/r2RecallDelta).
+        await stageTmpMemory({
+            type: 'project', name: 'Lighthouse Restoration',
+            description: 'lighthouse lens and copper optic restoration',
+            body: '## Current Stage\nThe lighthouse lens restoration is underway.',
+            projectId: 'lighthouse',
+        });
+        const distractor = await stageTmpMemory({
+            type: 'project', name: 'Lighthouse distractor',
+            description: 'lighthouse copper optic restoration distractor',
+            body: '## Current Stage\nDistractor: unrelated copper optic musing.',
+        });
+        expect(distractor.projectId).toBe('_tmp');
+
+        const result = await retrieveMemory('lighthouse copper optic restoration');
+
+        expect(result.debug.resolvedProjectId).toBe('lighthouse');
+        expect(result.debug.selectedFileIds).not.toContain(distractor.id);
+        expect(result.context).not.toContain('unrelated copper optic musing');
     });
 });

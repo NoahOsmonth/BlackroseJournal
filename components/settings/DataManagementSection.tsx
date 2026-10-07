@@ -1,8 +1,9 @@
 import React from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { notifyUser } from '@/components/ui/webConfirm';
 import { useDriveBackup } from '@/hooks/backup/useDriveBackup';
 import { BLACKROSE_PALETTE } from '@/constants/theme';
 import type { LocalBackupManifest } from '@/services/backup/localBackup';
@@ -107,13 +108,13 @@ export function DataManagementSection({
 
     const handleDriveBackup = () => {
         void drive.backupNow().then((message) => {
-            Alert.alert(message ? 'Drive backup done' : 'Drive backup', message ?? 'Google Drive backup failed.');
+            notifyUser(message ? 'Drive backup done' : 'Drive backup', message ?? 'Google Drive backup failed.');
         });
     };
 
     const handleDriveRestore = () => {
         void drive.restoreLatest().then((message) => {
-            Alert.alert(message ? 'Drive restore done' : 'Drive restore', message ?? 'Google Drive restore failed.');
+            notifyUser(message ? 'Drive restore done' : 'Drive restore', message ?? 'Google Drive restore failed.');
         });
     };
 

@@ -23,6 +23,7 @@ import { upsertJournalDayDigest } from '@/services/memory/dayDigestStorage';
 import { extractIdentityFromSessionTranscript } from '@/services/memory/identityExtraction';
 import { saveJournalEntryMemories } from '@/services/memory/localMemory';
 import { stageJournalEntryMemoryFiles } from '@/services/memory/memoryStage';
+import { clearMemoryRecallCache } from '@/services/memory/memoryRetrieval';
 import { buildAndSaveSessionDigest } from '@/services/memory/sessionDigestBuild';
 import {
     FinishBackgroundStep,
@@ -153,6 +154,15 @@ async function runJournalFinishSideEffectsForAccount(
         context,
     );
 
+    // A just-staged `_tmp` note must be recallable immediately: recall caches
+    // rendered context for 30s (memoryRetrieval), and nothing else invalidates it
+    // on a write. Mirrors the edit/delete paths in journalEntryActions.ts.
+    await runStep(
+        'Failed to clear recall cache after staging',
+        async () => clearMemoryRecallCache(),
+        context,
+    );
+
     await runStep(
         'Failed to update day digest',
         () => upsertJournalDayDigest(savedEntry),
@@ -224,10 +234,20 @@ export function runJournalFinishBackground(
                 {
                     step: 'memories',
                     label: 'Failed to save journal memories',
-                    operation: () => Promise.all([
-                        saveJournalEntryMemories(savedEntry),
-                        stageJournalEntryMemoryFiles(savedEntry),
-                    ]),
+                    operation: async () => {
+                        try {
+                            await Promise.all([
+                                saveJournalEntryMemories(savedEntry),
+                                stageJournalEntryMemoryFiles(savedEntry),
+                            ]);
+                        } finally {
+                            // Recall caches rendered context for 30s; a freshly
+                            // staged note must be visible to `memory_search`
+                            // immediately, not after the TTL (mirrors the
+                            // edit/delete paths in journalEntryActions.ts).
+                            clearMemoryRecallCache();
+                        }
+                    },
                 },
                 {
                     step: 'digest',
