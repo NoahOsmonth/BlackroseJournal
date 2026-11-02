@@ -3,6 +3,11 @@ name: Android release
 # Builds a signed APK and attaches it to the GitHub Release for the version.
 # Trigger it by pushing a tag (git tag v0.1.0 && git push origin v0.1.0) or by
 # running this workflow by hand from the Actions tab.
+#
+# Speed: a full build compiles the native code for every ABI, which is what made
+# the first runs slow. This builds arm64-v8a only (every phone from the last
+# several years) and keeps the Gradle cache between runs, so a rebuild is minutes
+# instead of twenty.
 
 on:
   push:
@@ -14,6 +19,14 @@ on:
         description: 'Version to build, as X.Y.Z. Defaults to the newest v* tag.'
         required: false
         default: ''
+      architectures:
+        description: 'Which ABIs to build. arm64-v8a fits every modern phone; all is the old universal APK.'
+        required: false
+        default: 'arm64-v8a'
+        type: choice
+        options:
+          - arm64-v8a
+          - all
 
 permissions:
   contents: write
@@ -26,7 +39,7 @@ jobs:
   apk:
     name: Build signed APK
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 60
     # Both the signing step and Gradle read these, so they belong to the job:
     # an env block on one step is not visible to the next.
     env:
@@ -92,6 +105,18 @@ jobs:
           distribution: temurin
           java-version: 17
 
+      # Without this every run recompiles every dependency from scratch; with it a
+      # rebuild only compiles what actually changed.
+      - name: Restore the Gradle cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
       - name: Install dependencies
         run: npm ci
 
@@ -114,17 +139,61 @@ jobs:
         env:
           CI: '1'
 
-      - name: Sign release builds with the CI keystore
+      - name: Point release builds at the CI keystore
         run: |
           set -euo pipefail
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$ANDROID_KEYSTORE_PATH"
-          node scripts/android-signing.js
-          grep -n "signingConfigs.release" android/app/build.gradle
-          grep -n "signingConfig signingConfigs.release" android/app/build.gradle
+          # Inline rather than a repo script: an older tag does not contain one.
+          cat > /tmp/sign.js <<'JS'
+          const fs = require('fs');
+          const file = 'android/app/build.gradle';
+          let source = fs.readFileSync(file, 'utf8');
+          if (source.includes('signingConfigs.release')) {
+            console.log('android-signing: already patched');
+            process.exit(0);
+          }
+          const anchor = 'signingConfigs {';
+          const at = source.indexOf(anchor);
+          if (at < 0) { console.error('android-signing: no signingConfigs block'); process.exit(1); }
+          const block = [
+            anchor,
+            '        release {',
+            '            storeFile file(System.getenv("ANDROID_KEYSTORE_PATH"))',
+            '            storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")',
+            '            keyAlias System.getenv("ANDROID_KEY_ALIAS")',
+            '            keyPassword System.getenv("ANDROID_KEY_PASSWORD")',
+            '        }',
+          ].join('\n');
+          source = source.slice(0, at) + block + source.slice(at + anchor.length);
+          const debugSigning = 'signingConfig signingConfigs.debug';
+          const last = source.lastIndexOf(debugSigning);
+          if (last < 0) { console.error('android-signing: no release signingConfig line'); process.exit(1); }
+          source = source.slice(0, last) + 'signingConfig signingConfigs.release' + source.slice(last + debugSigning.length);
+          fs.writeFileSync(file, source);
+          console.log('android-signing: release now signs with the CI keystore');
+          JS
+          node /tmp/sign.js
+          grep -c "signingConfigs.release" android/app/build.gradle
+
+      - name: Tune the Gradle build
+        env:
+          ARCHITECTURES: ${{ inputs.architectures || 'arm64-v8a' }}
+        run: |
+          set -euo pipefail
+          {
+            echo "org.gradle.caching=true"
+            echo "org.gradle.parallel=true"
+            echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m"
+          } >> android/gradle.properties
+          if [ "$ARCHITECTURES" != "all" ]; then
+            echo "reactNativeArchitectures=$ARCHITECTURES" >> android/gradle.properties
+          fi
+          echo "Building ABIs: $ARCHITECTURES"
+          grep -E "reactNativeArchitectures|org.gradle.caching" android/gradle.properties
 
       - name: Build the APK
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
+        run: ./gradlew assembleRelease --build-cache --console=plain --stacktrace
 
       - name: Name and check the APK
         id: apk
