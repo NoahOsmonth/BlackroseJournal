@@ -41,6 +41,44 @@ tsc / lint / `check:design` clean.
 
 ## Dated log
 
+### 2026-11-02 — SemVer, a changelog, and a release process
+
+The repo had no version history to speak of: `package.json` and `app.json` both
+said `0.0.1`, there was no `CHANGELOG.md`, no tag, and no documented way to cut
+one. A release therefore had no definition beyond "build whatever is on main".
+
+- **Version bumped 0.0.1 → 0.1.0 in both manifests** (`package.json` `version`,
+  `app.json` `expo.version`). `0.1.0`, not `1.0.0`: the app is pre-1.0 by its own
+  history (three design rewrites, a storage-schema migration in flight) and the
+  issue asked for the first cut of a SemVer line, not a stability promise.
+  `package-lock.json` keeps its own copy of the old version — lockfiles are on
+  the do-not-touch list, and npm rewrites that field on the next install.
+- **`CHANGELOG.md` added** in Keep a Changelog 1.1.0 form with `[Unreleased]`
+  plus the `[0.1.0]` entry and both link refs. The entry describes the app as it
+  ships now rather than replaying every commit: the local-only rebuild, memory
+  layers, provider profiles, and the EAS-owned versionCode.
+- **README: new "Versioning and releases" section** — where the version lives
+  (both files, and why they must move together: Expo reads `app.json`, the
+  Settings → About `v…` label reads it via `expo-constants`), how to cut
+  `vX.Y.Z`, and the `appVersionSource: "remote"` + `autoIncrement` rule that
+  keeps the Android `versionCode` on EAS. Existing sections kept; the title now
+  matches the app name (`# blackrosejournal 📝`, was `JournalApp`).
+- **`__tests__/versioning.test.ts` (new)** guards the parts that can drift
+  silently: `package.json` version == `app.json` version, SemVer shape, the
+  changelog's first released heading matching the package version with a link
+  ref for every released tag, the README section stating its three facts, and
+  `eas.json` keeping `appVersionSource: "remote"` with production
+  `autoIncrement`. Sabotage-verified: bumping only `app.json` to `0.1.1` fails
+  two tests, restore turns them green.
+- **`appInfo.test.ts` mock no longer hardcodes the version** — it reads
+  `app.json` instead of `'0.0.1'`, so the existing `APP_VERSION === pkg.version`
+  assertion keeps meaning something after every bump. `constants/appInfo.ts`
+  fallback and one `SettingsAccordionSection` fixture string followed the bump.
+
+Not done, deliberately: no APK build (out of scope), and the `v0.1.0` tag +
+release notes land **after** this PR merges — a tag on an unmerged branch would
+point at a commit that never reaches `main`.
+
 ### 2026-10-07 — open follow-ups closed (round 2): retrieval gating, dock a11y, provider rename
 
 Same day as run 4, a second pass closing the PLAN/PROGRESS follow-up list. Four
