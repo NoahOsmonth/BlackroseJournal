@@ -1,10 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     createCheckIn,
     deleteCheckIn,
     listCheckIns,
-    listCheckInDrafts,
-    listCompletedCheckIns,
     updateCheckIn,
 } from '@/services/intentions/intentionsStorage';
 import {
@@ -33,19 +31,23 @@ export function useIntentionCheckIns(): UseIntentionCheckInsReturn {
     const [drafts, setDrafts] = useState<IntentionCheckIn[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
+    const hasLoadedRef = useRef(false);
 
     const refresh = useCallback(async () => {
-        setIsLoading(true);
+        // Only the first load shows a spinner — see useJournalEntries.
+        if (!hasLoadedRef.current) {
+            setIsLoading(true);
+        }
         setError(null);
         try {
-            const [all, completedItems, draftItems] = await Promise.all([
-                listCheckIns(),
-                listCompletedCheckIns(),
-                listCheckInDrafts(),
-            ]);
+            // `listCompletedCheckIns` and `listCheckInDrafts` each call
+            // `listCheckIns` again, so the previous three-way fetch parsed the
+            // same key three times. Split one read instead.
+            const all = await listCheckIns();
             setCheckIns(all);
-            setCompleted(completedItems);
-            setDrafts(draftItems);
+            setCompleted(all.filter((item) => item.status === 'completed'));
+            setDrafts(all.filter((item) => item.status === 'draft'));
+            hasLoadedRef.current = true;
         } catch (err) {
             setError(err instanceof Error ? err : new Error('Failed to load check-ins'));
         } finally {
@@ -55,11 +57,14 @@ export function useIntentionCheckIns(): UseIntentionCheckInsReturn {
 
     useEffect(() => {
         if (accountId) {
+            // A different account's rows must not be treated as already loaded.
+            hasLoadedRef.current = false;
             void refresh();
         } else {
             setCheckIns([]);
             setCompleted([]);
             setDrafts([]);
+            hasLoadedRef.current = false;
             setIsLoading(false);
         }
     }, [accountId, refresh]);

@@ -137,7 +137,7 @@ The "theme/style helpers" in older wording is not scanned — `utils/**` and `ho
 
 ### 7. Tests are part of the diff.
 
-Every change updates or adds tests. If a test isn't feasible, document why in `PROGRESS.md` and create a follow-up task — never silently skip.
+Every change updates or adds tests. If a test isn't feasible, document why in the pull request or commit message and create a follow-up task — never silently skip.
 
 ### 8. Use the shared navigation primitives.
 
@@ -348,6 +348,7 @@ There is no backend and no managed gateway: the app talks to the provider above 
   - Guard: `__tests__/crossPlatformGuards.test.ts` (scans source, tests, scripts, probes). Two things are already portable, so do not "fix" them: `tsc` reports TS2307 on a case-mismatched import even though Windows would resolve it, and Jest rewrites `/` to the platform separator inside `--testPathPattern`.
 - **Test layout:** >10 tests in a folder → split into `__tests__/{components,hooks,services,screens}/`. `<Subject>.test.ts(x)` matching source. Cap test files at 300 lines. Shared mocks in `__tests__/mocks/` or `__mocks__/`. Prefer user-centric assertions over snapshots.
 - **No `any`:** if a type is genuinely unknown, use `unknown` and narrow it.
+- **Tab-screen refresh paths have budgets, not opinions.** A dock press re-focuses the destination screen without unmounting it, so a refresh that re-reads a collection three times or flips `isLoading` back to `true` reads as a stutter — issue #9 (Threads → Today) was 206 ms of blocked main thread and is now 67 ms. Rules R1–R6 plus the numeric budgets live in `docs/perf/ui-performance-rules.md`; measure with `node scripts/qa/tab-switch-bench.mjs` before and after touching a collection hook or tab screen, with `node scripts/qa/route-mount-bench.mjs` for anything on a screen's first-load path, and with `node scripts/qa/scroll-bench.mjs` for what renders inside a scroll container. Jest cannot see any of it.
 
 ## AI chat architecture (mental model)
 
@@ -385,7 +386,7 @@ Key files:
 2. Implement with strict layering and modular structure.
 3. Add or update tests for the change.
 4. Run `npm test` (relevant pattern), `npx tsc --noEmit`, `npm run lint`, `npm run check:design`. Fix all failures.
-5. Update `PROGRESS.md` with outcomes and follow-ups.
+5. Record outcomes and follow-ups in the pull request / commit message.
 6. If AI chat / memory / tools / prompts changed:
    - Unit-test the layer you touched (date, digests, tools, compact, chatFlows, prompt word-count).
    - Prefer a live smoke when credentials exist: `RUN_INTEGRATION_TESTS=1` + `rosebudHistoryLive.test.ts`.
@@ -398,7 +399,6 @@ Key files:
 - [ ] Design/UI files ≤ 500 lines (`npm run check:design` clean).
 - [ ] Tests added or updated, all green.
 - [ ] `npx tsc --noEmit`, `npm run lint`, `npm run check:design` clean.
-- [ ] `PROGRESS.md` updated.
 - [ ] Nothing in "What NOT to touch" was modified.
 - [ ] If AI history/tools/prompts changed: storage-key ownership respected; digests write on finish; clear-history clears digests; freeform vs guided prompt not swapped.
 - [ ] If boot / memory-recall changed: verified offline (every host but the provider blocked) — journal renders, no uncaught page errors (rule 12).

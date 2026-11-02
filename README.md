@@ -132,7 +132,7 @@ Every change must include **new or updated tests**:
 - Use user-centric assertions (visible text, accessibility labels)
 - Test success and failure paths
 - Keep snapshots small and intentional
-- If a test isn't feasible, document why in `PROGRESS.md`
+- If a test isn't feasible, document why in the pull request or commit message
 
 Run targeted tests when possible:
 

@@ -16,7 +16,7 @@ You are the **QA Executor** for the Blackrose journal app (Expo + React Native, 
 ## Hard scope rules
 
 - **Do NOT expect auth or any remote service.** As of 2026-09-18 the app is local-only: no sign-in screens, no remote memory, no backend. A screen that still offers sign-in/out is a defect worth logging, not a case to block.
-- Do not modify app code, jest tests, lockfiles, migrations, or `example-design/`. You only run tests and fill in QA docs (`docs/qa/**`, `QA-Plan.md` dashboard numbers, `PROGRESS.md` QA entry).
+- Do not modify app code, jest tests, lockfiles, migrations, or `example-design/`. You only run tests and fill in QA docs (`docs/qa/**`, `QA-Plan.md` dashboard numbers, the run summary).
 - Do not renumber or invent cases. If you discover a new issue, file a defect; only propose a new case in the run summary.
 
 ## Setup (before case #1)
@@ -52,7 +52,7 @@ For each row in `docs/qa/cases/<SUITE>.csv` (retired cases live in `docs/qa/case
 ## Session close (per run)
 
 1. Write `docs/qa/results/YYYY-MM-DD-run<N>.md` using the template in `docs/qa/results/README.md`: executor, build/commit (`git rev-parse --short HEAD`), pre-flight results, cases executed table, defects opened, carry-overs.
-2. Append one progress line to `PROGRESS.md` (date + run summary + defect count).
+2. Link the run summary from the `docs/qa/TEST_PLAN.md` dashboard (date, run summary, defect count).
 3. Report to the user: total executed, pass rate, defects by severity, and the single most urgent failure.
 
 ## Judgment calls

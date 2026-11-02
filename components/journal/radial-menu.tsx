@@ -5,7 +5,8 @@
  * around a 0-height container). On a phone the pills were 48–59px wide, so
  * every label wrapped to two or three lines, the items overlapped each other,
  * the dock and the journal cards behind them, and the dimmed scrim was clipped
- * to the pencil's own 44px box (see the 2026-09-19 UX fix in PROGRESS.md).
+ * to the pencil's own 44px box (2026-09-19 UX fix; see the living changelog
+ * of pain in AGENTS.md).
  *
  * The fix keeps the interaction (long-press the pencil → alternative write
  * actions rise out of the anchor) but replaces the geometry with a real layout:

@@ -5,7 +5,7 @@
  * left, settings gear on the right. The streak is a quiet text row under the
  * mark, never a flame badge.
  * `history` — serif "Archive" title with a search glyph, a full-bleed hairline,
- * then a week meta line with the drafts link beneath it.
+ * then a week meta line with a quiet drafts chip beneath it.
  *
  * Both variants use the shared Blackrose tokens (surface hairline, bone accent,
  * two-way ink) so the shell reads the same on every tab.
@@ -91,6 +91,7 @@ function HistoryHeader({
 }: Pick<AppHeaderProps, 'draftCount' | 'onDraftsPress' | 'weekLabel' | 'onSearchPress'>) {
     const isDark = useColorScheme() === 'dark';
     const glyphColor = isDark ? BLACKROSE_PALETTE.dark.text : BLACKROSE_PALETTE.light.text;
+    const metaColor = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
     const activeDrafts = (draftCount ?? 0) > 0;
     const draftsLabel = activeDrafts
         ? `${draftCount} draft${draftCount === 1 ? '' : 's'}`
@@ -121,25 +122,36 @@ function HistoryHeader({
             {/* Full-bleed rule under the title row, then the week meta line. */}
             <View className="h-px bg-hairline-light dark:bg-hairline-dark" />
 
-            <View className="flex-row items-center justify-between px-6 pt-4 pb-1">
+            <View className="flex-row items-center justify-between gap-3 px-6 pt-4 pb-1">
                 {weekLabel ? (
-                    <Text className="text-[15px] text-text-secondary-light dark:text-text-secondary-dark">
+                    <Text
+                        className="flex-1 text-[15px] text-text-secondary-light dark:text-text-secondary-dark"
+                        numberOfLines={1}
+                    >
                         {weekLabel}
                     </Text>
                 ) : (
-                    <View />
+                    <View className="flex-1" />
                 )}
 
                 <Pressable
                     onPress={onDraftsPress}
                     accessibilityLabel="Open drafts"
                     accessibilityRole="button"
+                    accessibilityState={{ disabled: !onDraftsPress }}
                     hitSlop={8}
                     testID="drafts-button"
+                    className="shrink-0"
                 >
-                    <Text className="text-[15px] text-text-light underline dark:text-text-dark">
-                        {draftsLabel}
-                    </Text>
+                    <View
+                        className="flex-row items-center gap-1.5 rounded-control border border-hairline-light px-3 py-1.5 dark:border-hairline-dark"
+                        testID="drafts-chip"
+                    >
+                        <MaterialIcons name="edit-note" size={14} color={metaColor} />
+                        <Text className="text-[13px] text-text-light dark:text-text-dark">
+                            {draftsLabel}
+                        </Text>
+                    </View>
                 </Pressable>
             </View>
         </View>
