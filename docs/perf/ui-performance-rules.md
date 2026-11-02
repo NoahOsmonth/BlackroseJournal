@@ -148,9 +148,22 @@ budgets are set from:
 
 These are ceilings with headroom over today's numbers, not achievements. A cold
 mount has no prior paint to preserve, so it is judged on time-to-content rather
-than on dropped frames. Threads at 3942 ms is the outlier and the first thing to
-fix; it is not fixed here because the cause (the memory-graph engine
-initialising on first paint) is a rendering change, not a hook change.
+than on dropped frames.
+
+`contentAtMs` is the load-to-dock-visible milestone: the sampler waits until the
+dock tab for that route is present and visible, which means the tab tree has
+mounted. It is a shell milestone, not "the first list row painted" — a finer
+selector per screen would be a better measure and is not implemented.
+
+Threads is the clear outlier at 2.3–4.1 s across its three rounds (Today
+1.1–3.8 s, Insights 0.9–1.0 s, Archive 1.0 s). **The cause is not diagnosed.**
+An earlier draft of this section blamed the memory-graph engine; there is no
+WebView or graph engine on that screen (`app/(tabs)/explore.tsx` renders
+`MemoryHubScreen`, a ledger list), so that explanation was wrong and has been
+removed. What the numbers do say is that it is not storage: Threads reads *fewer*
+keys than Today (383 vs 417) while taking roughly three times as long to reach
+the same shell milestone, so the cost is in its render path. Profiling that is
+the first follow-up, and it is not fixed here.
 
 No before/after pair is quoted for cold mounts: this branch changes no
 mount-path code, so the honest reading is that the numbers are unchanged and the

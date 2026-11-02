@@ -144,9 +144,12 @@ change, not a hook change.
   983 ms / 228 ms / 413. The budgets (≤300 ms task, ≤300 ms frame gap, ≤450 reads,
   ≤2000 ms to content on Today) are **ceilings set from these numbers, not
   achievements** — this branch changes no mount-path code, so there is no
-  before/after to show. Threads' 3942 ms is the first thing to fix and is not
-  fixed here: the cause is the memory-graph engine booting on first paint, which
-  is a rendering change.
+  before/after to show. `contentAtMs` is load-to-dock-visible (the tab tree
+  mounted), not "first row painted". Threads is the outlier at 2.3–4.1 s and its
+  cause is **not diagnosed**: it is not storage (Threads reads 383 keys vs
+  Today's 417) so it is in that screen's render path. Profiling it is the first
+  follow-up. (An earlier draft blamed the memory-graph engine; `app/(tabs)/explore.tsx`
+  renders `MemoryHubScreen`, a ledger list with no WebView, so that was wrong.)
 - **`scripts/qa/bench-instrument.mjs` (new)** — the page-side instrumentation both
   benches share (storage counting, `longtask` observer, rAF sampler), so the two
   cannot drift into measuring different things.
