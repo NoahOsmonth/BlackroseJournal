@@ -109,7 +109,6 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
             ? formatPickerModelName(profile.selectedModelId)
             : 'Choose model';
     const canRemoveProvider = settings.profiles.length > 1;
-    const kindLabel = profile ? getProviderKindOption(profile.kind).label : '';
     const kindOption = getProviderKindOption(profile?.kind ?? 'openai');
 
     return (
@@ -198,7 +197,7 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                             <Text className={`text-xs ${SECONDARY_TEXT}`}>{hostLabel}</Text>
                             {profile ? (
                                 <Text className="text-[10px] uppercase tracking-[1.2px] text-text-secondary-light dark:text-text-secondary-dark">
-                                    {kindLabel}
+                                    {kindOption.label}
                                 </Text>
                             ) : null}
                             {profile && profile.modelFilterPatterns.length > 0 ? (

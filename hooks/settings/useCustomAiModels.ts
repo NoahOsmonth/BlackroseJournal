@@ -165,6 +165,7 @@ export function useCustomAiModels(): UseCustomAiModelsReturn {
             const result = await fetchOpenAiCompatibleModels({
                 baseUrl: draft.baseUrl,
                 apiKey: draft.apiKey,
+                kind: profile?.kind ?? 'openai',
                 fallbackContextWindow: fallback,
                 modelFilterPatterns: patterns,
             });

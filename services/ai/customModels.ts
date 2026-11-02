@@ -39,7 +39,8 @@ export const PROVIDER_SETTINGS_SCHEMA_VERSION = 3;
  */
 export type ProviderKind = 'openai' | 'google' | 'anthropic';
 
-export const PROVIDER_KINDS: readonly ProviderKind[] = ['openai', 'google', 'anthropic'];
+/** Pinned so the native Anthropic endpoints (model list) keep a stable shape. */
+const ANTHROPIC_VERSION = '2023-06-01';
 
 export function isProviderKind(value: unknown): value is ProviderKind {
     return value === 'openai' || value === 'google' || value === 'anthropic';
@@ -672,9 +673,33 @@ export async function clearCustomAiProviderSettings(): Promise<void> {
     });
 }
 
+/**
+ * Auth headers for the model *list* endpoint.
+ *
+ * Chat completions and `/models` do not share an auth story on Anthropic's
+ * compatibility layer: `POST /v1/chat/completions` accepts
+ * `Authorization: Bearer`, but `GET /v1/models` is the native endpoint and
+ * reads `x-api-key` only — a Bearer-only request there answers 401
+ * "x-api-key header is required". So the list call needs the native headers
+ * for that kind, and every other kind keeps the plain Bearer form.
+ */
+function modelListAuthHeaders(
+    kind: ProviderKind,
+    apiKey: string,
+): Record<string, string> {
+    if (kind === 'anthropic') {
+        return {
+            'x-api-key': apiKey,
+            'anthropic-version': ANTHROPIC_VERSION,
+        };
+    }
+    return { Authorization: `Bearer ${apiKey}` };
+}
+
 export async function fetchOpenAiCompatibleModels(input: {
     readonly baseUrl: string;
     readonly apiKey: string;
+    readonly kind?: ProviderKind;
     readonly fallbackContextWindow?: number;
     readonly modelFilterPatterns?: ModelFilterPatterns;
     readonly signal?: AbortSignal;
@@ -690,7 +715,7 @@ export async function fetchOpenAiCompatibleModels(input: {
         method: 'GET',
         headers: {
             Accept: 'application/json',
-            Authorization: `Bearer ${apiKey}`,
+            ...modelListAuthHeaders(input.kind ?? 'openai', apiKey),
         },
         ...(input.signal ? { signal: input.signal } : {}),
     }).catch((error: unknown) => {

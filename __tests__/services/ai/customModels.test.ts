@@ -180,6 +180,54 @@ describe('customModels service (provider profiles, schema v3)', () => {
         })).rejects.toThrow(/No models matched your filter patterns/);
     });
 
+    /**
+     * SABOTAGE 4 (direction: an Anthropic profile must be able to load models):
+     * `GET /v1/models` is Anthropic's *native* endpoint and reads `x-api-key`
+     * only — a Bearer-only request there answers 401 "x-api-key header is
+     * required" even though `POST /v1/chat/completions` accepts Bearer. Break
+     * by: dropping the per-kind branch from `modelListAuthHeaders`, which makes
+     * every Anthropic profile fail at "Fetch models" with a 401.
+     */
+    it('sabotage: lists Anthropic models with the native x-api-key header', async () => {
+        fetchMock.mockResolvedValue(new Response(JSON.stringify({
+            data: [{ id: 'claude-sonnet-4-5', context_length: 200000 }],
+        }), { status: 200 }));
+
+        await fetchOpenAiCompatibleModels({
+            baseUrl: 'https://api.anthropic.com/v1',
+            apiKey: 'sk-ant-test',
+            kind: 'anthropic',
+        });
+
+        const headers = (fetchMock.mock.calls[0][1] as { headers: Record<string, string> }).headers;
+        expect(headers['x-api-key']).toBe('sk-ant-test');
+        expect(headers['anthropic-version']).toBeTruthy();
+        // The compatibility endpoints take Bearer, but the native list endpoint
+        // does not, so Bearer must not be sent in its place.
+        expect(headers.Authorization).toBeUndefined();
+    });
+
+    it('keeps bearer auth for the model list on openai and google kinds', async () => {
+        // A fresh Response per call: a Response body can only be read once, so a
+        // shared mockResolvedValue would fail the second loop iteration.
+        fetchMock.mockImplementation(() => Promise.resolve(new Response(JSON.stringify({
+            data: [{ id: 'some-model', context_length: 8192 }],
+        }), { status: 200 })));
+
+        for (const kind of ['openai', 'google'] as const) {
+            fetchMock.mockClear();
+            await fetchOpenAiCompatibleModels({
+                baseUrl: HOST,
+                apiKey: 'test-key',
+                kind,
+            });
+            const headers = (fetchMock.mock.calls[0][1] as { headers: Record<string, string> })
+                .headers;
+            expect(headers.Authorization).toBe('Bearer test-key');
+            expect(headers['x-api-key']).toBeUndefined();
+        }
+    });
+
     it('buildManualModel normalizes id and applies fallback context', () => {
         const model = buildManualModel('  qwen-web/qwen3.8-max  ', 128_000);
         expect(model.id).toBe('qwen-web/qwen3.8-max');

@@ -118,7 +118,15 @@ describe('directTransport — provider kind shapes the request', () => {
         expect(sentBody().response_format).toEqual({ type: 'json_object' });
     });
 
-    it('downgrades a forced tool_choice to auto for Anthropic', async () => {
+    /**
+     * SABOTAGE 3 (direction: a forced tool choice must reach the wire): the
+     * transport must pass `tool_choice` through untouched on every kind. It
+     * cannot know which Claude models accept `required`, and the agent loop
+     * already retries `auto` on the 400/422 that a rejecting model returns.
+     * Break by: reinstating a blanket `forceToolChoiceUnsupported` downgrade,
+     * which silently weakens forced tool use and turns `none` into `auto`.
+     */
+    it('sabotage: passes a forced tool_choice through for Anthropic', async () => {
         useConfig('anthropic', ANTHROPIC_BASE);
 
         await fetchDirectChatCompletion({
@@ -127,7 +135,7 @@ describe('directTransport — provider kind shapes the request', () => {
             tool_choice: 'required',
         });
 
-        expect(sentBody().tool_choice).toBe('auto');
+        expect(sentBody().tool_choice).toBe('required');
     });
 
     it('keeps a forced tool_choice for a Google endpoint', async () => {
@@ -140,5 +148,19 @@ describe('directTransport — provider kind shapes the request', () => {
         });
 
         expect(sentBody().tool_choice).toBe('required');
+    });
+
+    it('keeps tool_choice none for Anthropic', async () => {
+        // `none` is an instruction NOT to call a tool. A blanket downgrade would
+        // hand the endpoint permission to run a tool the caller disabled.
+        useConfig('anthropic', ANTHROPIC_BASE);
+
+        await fetchDirectChatCompletion({
+            ...BASE_PAYLOAD,
+            tools: [{ type: 'function', function: { name: 'get_clock' } }],
+            tool_choice: 'none',
+        });
+
+        expect(sentBody().tool_choice).toBe('none');
     });
 });

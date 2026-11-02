@@ -77,15 +77,31 @@ key produced a 404 against `https://host/v1` with no hint why.
 - **Form copy**: the section subtitle now names all three, and the API-key field
   carries a per-kind hint ("Create a key at aistudio.google.com…"). The active-model
   row shows the kind beside the host.
+- **Model fetch needed its own auth story** (found in review, fixed): `/models`
+  and `/chat/completions` do not share one on Anthropic. `POST
+  /v1/chat/completions` takes `Authorization: Bearer`, but `GET /v1/models` is
+  the *native* endpoint and reads `x-api-key` only — probed live, Bearer answers
+  401 `"x-api-key header is required"`. Without `modelListAuthHeaders` every
+  Anthropic profile would have failed at *Fetch models*, which is the only way to
+  populate the model list. Google and OpenAI kinds keep plain Bearer.
+- **`tool_choice` is no longer rewritten for Anthropic** (found in review, fixed):
+  the first cut downgraded every value to `auto` via a
+  `forceToolChoiceUnsupported` capability. Two problems: it turned a caller's
+  `none` into `auto` (letting a tool the caller disabled run), and — because the
+  rewrite happens in the transport, before the wire — it pre-empted the agent
+  loop's own `required` → `auto` retry on 400/422
+  (`agent_tool_choice_required_fallback`), silently weakening forced tool use on
+  every Claude model including those that accept it. The capability is deleted;
+  `tool_choice` passes through untouched and the loop owns the retry.
 - **Design limit**: the section hit 458 lines, so the *Advanced* block moved to
   `ProviderAdvancedFields.tsx` (section back to 383).
 
-Verified: 4 new capability tests (incl. both axes applied together), 5 transport
-tests in a new `directTransportProviderKind.test.ts` (one named sabotage: restore
-the sampling fields → red), 5 `customModels` tests (round trip + v2-in-place
-sabotage), hook + component tests for the picker, and the full gate
-(`tsc`/`lint`/`check:design`/`npm test`). Before/After captures at
-1440×900 and 390×844, light and dark.
+Verified: 4 new capability tests (incl. both axes applied together), 6 transport
+tests in a new `directTransportProviderKind.test.ts` (named sabotage: restore the
+sampling fields, or rewrite `tool_choice` → red), 7 `customModels` tests (round
+trip, v2-in-place sabotage, and a model-list-auth sabotage), hook + component
+tests for the picker, and the full gate (`tsc`/`lint`/`check:design`/`npm test`).
+Before/After captures at 1440×900 and 390×844, light and dark.
 
 Not done: **no live provider call** — no Google or Anthropic key exists on this
 machine, so the request shapes are pinned by unit tests against documented

@@ -213,9 +213,12 @@ function buildPreparedDirectChatRequest(
     }
     if (payload.tools && payload.tools.length > 0) {
         body.tools = payload.tools;
-        body.tool_choice = capabilities.forceToolChoiceUnsupported
-            ? 'auto'
-            : payload.tool_choice ?? 'auto';
+        // Pass `tool_choice` through untouched. A provider that rejects a forced
+        // choice surfaces a 400/422, and the agent loop already retries `auto`
+        // for exactly that case — pre-emptively rewriting here would defeat that
+        // retry and silently weaken forced tool use (and turn `none` into
+        // `auto`, letting a disabled tool run).
+        body.tool_choice = payload.tool_choice ?? 'auto';
     }
     if (payload.stream && payload.stream_options) {
         body.stream_options = payload.stream_options;

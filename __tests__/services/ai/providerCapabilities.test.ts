@@ -67,7 +67,6 @@ describe('providerCapabilities — getProviderCapabilities', () => {
         const caps = getProviderCapabilities('https://example.com/api/v1');
         expect(caps.supportsResponseFormat).toBe(true);
         expect(caps.omitSamplingFields).toBe(false);
-        expect(caps.forceToolChoiceUnsupported).toBe(false);
     });
 
     it('keeps Google on the OpenAI request shape', () => {
@@ -81,17 +80,16 @@ describe('providerCapabilities — getProviderCapabilities', () => {
         expect(caps.maxTokensField).toBe('max_tokens');
         expect(caps.supportsResponseFormat).toBe(true);
         expect(caps.omitSamplingFields).toBe(false);
-        expect(caps.forceToolChoiceUnsupported).toBe(false);
     });
 
     it('suppresses the fields Anthropic\'s compatibility layer rejects', () => {
-        // All three are documented 400s: `response_format: json_object` (only
-        // json_schema is accepted), a request that sets both temperature and
-        // top_p, and forced tool_choice on current Claude models.
+        // Both are documented 400s: `response_format: json_object` (only
+        // json_schema is accepted), and a request that sets both temperature and
+        // top_p. `tool_choice` is NOT suppressed here — the agent loop owns that
+        // retry, and downgrading it in the transport would pre-empt it.
         const caps = getProviderCapabilities('https://api.anthropic.com/v1', 'anthropic');
         expect(caps.supportsResponseFormat).toBe(false);
         expect(caps.omitSamplingFields).toBe(true);
-        expect(caps.forceToolChoiceUnsupported).toBe(true);
         // Anthropic still accepts the OpenAI token field.
         expect(caps.maxTokensField).toBe('max_tokens');
     });

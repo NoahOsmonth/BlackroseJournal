@@ -35,11 +35,6 @@ export interface ProviderCapabilities {
      * every Claude model is to omit both and take the endpoint defaults.
      */
     omitSamplingFields: boolean;
-    /**
-     * True when `tool_choice` must stay `auto`. Anthropic's compatibility layer
-     * rejects forced tool use on several current Claude models.
-     */
-    forceToolChoiceUnsupported: boolean;
 }
 
 /** Transient gateway / rate-limit statuses worth auto-retrying (3×). */
@@ -51,7 +46,6 @@ const DEFAULT_CAPABILITIES: ProviderCapabilities = {
     retryableStatuses: new Set(TRANSIENT_HTTP_STATUSES),
     extraHeaders: {},
     omitSamplingFields: false,
-    forceToolChoiceUnsupported: false,
 };
 
 /**
@@ -82,6 +76,13 @@ const HOST_OVERRIDES: Record<string, Partial<ProviderCapabilities>> = {
  * `response_format` accepts only `json_schema` with `strict: true`, so a
  * `json_object` request is a guaranteed 400. Omit it instead of spending a
  * round trip on the rejection.
+ *
+ * `tool_choice` is deliberately NOT downgraded here. Several current Claude
+ * models reject a forced choice, but the agent loop already sends `required` as
+ * optional pressure and retries `auto` on a 400/422
+ * (`agent_tool_choice_required_fallback`). Rewriting the value in the transport
+ * would pre-empt that retry and silently weaken forced tool use on the models
+ * that *do* support it — including turning a caller's `none` into `auto`.
  */
 const KIND_OVERRIDES: Record<ProviderKind, Partial<ProviderCapabilities>> = {
     openai: {},
@@ -89,7 +90,6 @@ const KIND_OVERRIDES: Record<ProviderKind, Partial<ProviderCapabilities>> = {
     anthropic: {
         supportsResponseFormat: false,
         omitSamplingFields: true,
-        forceToolChoiceUnsupported: true,
     },
 };
 
