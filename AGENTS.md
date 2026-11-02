@@ -137,7 +137,7 @@ The "theme/style helpers" in older wording is not scanned — `utils/**` and `ho
 
 ### 7. Tests are part of the diff.
 
-Every change updates or adds tests. If a test isn't feasible, document why in `PROGRESS.md` and create a follow-up task — never silently skip.
+Every change updates or adds tests. If a test isn't feasible, document why in the pull request or commit message and create a follow-up task — never silently skip.
 
 ### 8. Use the shared navigation primitives.
 
@@ -386,7 +386,7 @@ Key files:
 2. Implement with strict layering and modular structure.
 3. Add or update tests for the change.
 4. Run `npm test` (relevant pattern), `npx tsc --noEmit`, `npm run lint`, `npm run check:design`. Fix all failures.
-5. Update `PROGRESS.md` with outcomes and follow-ups.
+5. Record outcomes and follow-ups in the pull request / commit message.
 6. If AI chat / memory / tools / prompts changed:
    - Unit-test the layer you touched (date, digests, tools, compact, chatFlows, prompt word-count).
    - Prefer a live smoke when credentials exist: `RUN_INTEGRATION_TESTS=1` + `rosebudHistoryLive.test.ts`.
@@ -399,7 +399,6 @@ Key files:
 - [ ] Design/UI files ≤ 500 lines (`npm run check:design` clean).
 - [ ] Tests added or updated, all green.
 - [ ] `npx tsc --noEmit`, `npm run lint`, `npm run check:design` clean.
-- [ ] `PROGRESS.md` updated.
 - [ ] Nothing in "What NOT to touch" was modified.
 - [ ] If AI history/tools/prompts changed: storage-key ownership respected; digests write on finish; clear-history clears digests; freeform vs guided prompt not swapped.
 - [ ] If boot / memory-recall changed: verified offline (every host but the provider blocked) — journal renders, no uncaught page errors (rule 12).

@@ -89,7 +89,7 @@ The tracker lives in `docs/qa/cases/` as one CSV per suite (opens directly in Ex
 - **Every visual case** checks light and dark; screenshots are the evidence.
 - **Never weaken an expectation** to make a case pass; a wrong expectation gets the case *edited deliberately* with a note, not silently.
 - **AGENTS.md layering rules apply** to any fix work arising from defects.
-- Nothing outside `docs/qa/`, `QA-Plan.md`, and `PROGRESS.md` is modified during execution (fixes are separate diffs).
+- Nothing outside `docs/qa/` and `QA-Plan.md` is modified during execution (fixes are separate diffs).
 
 ## 8. Historical regressions (permanent P1 watchlist)
 

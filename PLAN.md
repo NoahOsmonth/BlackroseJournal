@@ -1,8 +1,8 @@
 # PLAN — Current Plan and Documentation Map
 
 **Status 2026-09-24.** There is no single active forward plan. The app is in a
-maintained, feature-complete local-only state; open work is a small set of
-gated follow-ups (see [PROGRESS.md → Open follow-ups](PROGRESS.md)).
+maintained, feature-complete local-only state; open work is the small set of
+gated follow-ups listed below.
 
 **Standing rule:** nothing here resurrects the cloud-memory platform, its
 storage keys (`@rosebud_cloud_memory_mirror_outbox`,
@@ -28,26 +28,24 @@ local-only by decision (2026-09-18); guard test:
 
 **Closed 2026-10-07:** note deletion, staged-note retrieval gating, insight-dock
 a11y, explore-spec doc drift, baked-in integration model ids, stale `UI_MAP.md`
-Account row, and model-less provider rename. See `PROGRESS.md` → round-2 entry.
+Account row, and model-less provider rename.
 
 ## Documentation map
 
 Where each kind of document lives. Root filenames are fixed by
-`AGENTS.md` (workflow step 1 and the key-files table), so `PLAN.md`,
-`PROGRESS.md`, and `memory.md` stay at the root; everything else lives under
-`docs/`.
+`AGENTS.md` (workflow step 1 and the key-files table), so `PLAN.md` and
+`memory.md` stay at the root; everything else lives under `docs/`.
 
 | Path | Kind | What it holds |
 |---|---|---|
 | [`PLAN.md`](PLAN.md) | **plan** | This file: current plan + doc map |
-| [`PROGRESS.md`](PROGRESS.md) | **log** | Work log, newest effort last; full text in git history |
 | [`memory.md`](memory.md) | **reference** | Memory-system contract: stores, write/read paths, tool doctrine (implementation-shaped, verified against code) |
 | [`AGENTS.md`](AGENTS.md) | **rules** | Coding standards, workflow, E2E gates, storage-key ownership, what NOT to touch |
 | [`notes/local-only-storage.md`](notes/local-only-storage.md) | **reference** | Local-only architecture: account identity, AI transport, storage keys, backup/restore |
 | [`README.md`](README.md) | onboarding | Setup, SoC architecture, quality gates |
 | `docs/README.md` | index | One-screen index of everything under `docs/` |
 | `docs/plans/` | **plans** | Approved, screen-level design plans (e.g. `blackrose-design-rewrite.md`) |
-| `docs/superpowers/plans/` | plans | Historical executable plans (offline-memory waves, agent loop, explore write path); superseded by `PROGRESS.md`'s log but kept for line-level traceability |
+| `docs/superpowers/plans/` | plans | Historical executable plans (offline-memory waves, agent loop, explore write path); superseded but kept for line-level traceability |
 | `docs/superpowers/specs/` | specs | Design specs for the plans above, incl. the HTML visual companion |
 | `docs/compose/spec/` | specs | Agent-loop finality spec (status-only continue) |
 | `docs/qa/` | QA | `TEST_PLAN.md` (index + dashboard), `cases/*.csv` (the tracker), `DEFECTS.md`, `results/` (dated run summaries), `AI-HANDOFF-PROMPT.md` |
@@ -65,6 +63,5 @@ Where each kind of document lives. Root filenames are fixed by
   they were recovered from git.
 - Retiring a design concept requires deleting the PNG **and** updating
   `UI_MAP.md` in the same change (AGENTS.md prototype-validation rule).
-- `PROGRESS.md` condenses rather than accumulates: when it grows past
-  ~400 lines, fold finished efforts into one dated paragraph per era and keep
-  the full text in git history.
+- Work logs are not kept as a root document; what shipped and why lives in the
+  commit messages, the pull requests, and the docs under `docs/`.
