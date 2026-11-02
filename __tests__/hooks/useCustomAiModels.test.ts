@@ -183,6 +183,30 @@ describe('useCustomAiModels', () => {
         expect(result.current.status.message).toBe('AI service removed.');
     });
 
+    it('adds the provider kind the picker chose, prefilled but editable', async () => {
+        const { result } = await renderLoaded();
+
+        await act(async () => { await result.current.addProfile('anthropic'); });
+
+        const added = result.current.profile;
+        expect(added?.kind).toBe('anthropic');
+        expect(added?.label).toBe('Anthropic');
+        expect(added?.baseUrl).toBe('https://api.anthropic.com/v1');
+        // Prefilled, not locked: the key and the base URL stay the user's.
+        expect(added?.apiKey).toBe('');
+
+        await act(async () => { await result.current.addProfile('google'); });
+        expect(result.current.profile?.kind).toBe('google');
+        expect(result.current.profile?.baseUrl)
+            .toBe('https://generativelanguage.googleapis.com/v1beta/openai');
+
+        // The default (no argument) stays the plain OpenAI-compatible case, so a
+        // caller that predates the picker keeps working.
+        await act(async () => { await result.current.addProfile(); });
+        expect(result.current.profile?.kind).toBe('openai');
+        expect(result.current.profile?.baseUrl).toBe('');
+    });
+
     it('refuses to enable a provider with no model selected', async () => {
         const { result } = await renderLoaded();
 

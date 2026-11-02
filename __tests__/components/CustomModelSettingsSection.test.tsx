@@ -131,14 +131,14 @@ describe('CustomModelSettingsSection', () => {
         expect(props.setFallbackContextWindow).toHaveBeenCalledWith('64000');
     });
 
-    // Regression guard. The fields you cannot add a provider without must be in
-    // the main form, not inside the collapsed "Advanced" block. Base URL: without
-    // it there is no endpoint. Provider name: without it a freshly added provider
-    // keeps its generated "Provider 2" title, which is what the user hit.
+    // Regression guard. The fields you cannot add a service without must be in
+    // the main form, not inside the collapsed "Advanced" block. Address: without
+    // it there is nothing to reach. Service name: without it a freshly added
+    // service keeps its generated "AI service 2" title, which is what the user hit.
     //
     // The test above could not catch either — it pressed the Advanced toggle
     // first, so it found the fields wherever they lived.
-    it('offers Base URL and Provider name without expanding Advanced', () => {
+    it('offers the address and service name without expanding Advanced', () => {
         const props = buildProps();
         render(<CustomModelSettingsSection {...props} />);
 
@@ -187,26 +187,56 @@ describe('CustomModelSettingsSection', () => {
         expect(props.addManualModel).not.toHaveBeenCalled();
     });
 
-    it('offers Add provider, and Remove only once a second profile exists', () => {
+    it('offers Add service, and Remove only once a second profile exists', () => {
         const single = buildProps();
         render(<CustomModelSettingsSection {...single} />);
 
         fireEvent.press(screen.getByText('Add service'));
-        expect(single.addProfile).toHaveBeenCalledTimes(1);
+        // "Add service" now asks which service first; nothing is created until
+        // the user picks one (see the service-kind tests below).
+        expect(single.addProfile).not.toHaveBeenCalled();
         expect(screen.queryByText('Saved services')).toBeNull();
         expect(screen.queryByText('Remove')).toBeNull();
 
         const multi = buildProps();
-        const second = { ...multi.settings.profiles[0], id: 'profile-2', label: 'Second provider' };
+        const second = { ...multi.settings.profiles[0], id: 'profile-2', label: 'Second AI service' };
         multi.settings = { ...multi.settings, profiles: [multi.settings.profiles[0], second] };
         render(<CustomModelSettingsSection {...multi} />);
 
         expect(screen.getByText('Saved services')).toBeTruthy();
-        fireEvent.press(screen.getByLabelText('Use Second provider'));
+        fireEvent.press(screen.getByLabelText('Use Second AI service'));
         expect(multi.selectProfile).toHaveBeenCalledWith('profile-2');
 
         fireEvent.press(screen.getByText('Remove'));
         expect(multi.removeActiveProfile).toHaveBeenCalledTimes(1);
+    });
+
+    it('asks for the service type and adds the one the user picked', () => {
+        const props = buildProps();
+        render(<CustomModelSettingsSection {...props} />);
+
+        fireEvent.press(screen.getByText('Add service'));
+
+        // All three kinds are offered, by name — this is the whole point of the
+        // modal: a Google or Anthropic user should not have to know that their
+        // service happens to work the way OpenAI does.
+        expect(screen.getByLabelText('Add OpenAI compatible as the AI service')).toBeTruthy();
+        expect(screen.getByLabelText('Add Google AI Studio as the AI service')).toBeTruthy();
+        expect(screen.getByLabelText('Add Anthropic as the AI service')).toBeTruthy();
+
+        fireEvent.press(screen.getByLabelText('Add Anthropic as the AI service'));
+        expect(props.addProfile).toHaveBeenCalledWith('anthropic');
+    });
+
+    it('adds nothing when the service-type sheet is cancelled', () => {
+        const props = buildProps();
+        render(<CustomModelSettingsSection {...props} />);
+
+        fireEvent.press(screen.getByText('Add service'));
+        fireEvent.press(screen.getByLabelText('Cancel adding a service'));
+
+        expect(props.addProfile).not.toHaveBeenCalled();
+        expect(screen.queryByLabelText('Add Anthropic as the AI service')).toBeNull();
     });
 
     it('constrains a long saved-provider chip so it cannot overflow its row', () => {

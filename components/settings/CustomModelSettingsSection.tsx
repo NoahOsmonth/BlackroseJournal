@@ -9,6 +9,9 @@ import type { UseCustomAiModelsReturn } from '@/hooks/settings/useCustomAiModels
 import { BLACKROSE_PALETTE } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { formatPickerModelName, hostLabelFromBaseUrl } from '@/utils/ai/modelDisplay';
+import { getProviderKindOption } from '@/services/ai/customModels';
+import { ProviderAdvancedFields } from './ProviderAdvancedFields';
+import { ProviderKindPickerSheet } from './ProviderKindPickerSheet';
 import { SettingsSection } from './SettingsSection';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -92,8 +95,7 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
     } = props;
     const [advancedOpen, setAdvancedOpen] = useState(false);
     const [pickerOpen, setPickerOpen] = useState(false);
-    const [manualModelId, setManualModelId] = useState('');
-    const [isAddingManual, setIsAddingManual] = useState(false);
+    const [kindPickerOpen, setKindPickerOpen] = useState(false);
     const isDark = useColorScheme() === 'dark';
     const placeholderColor = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
     const chevronColor = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
@@ -107,16 +109,7 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
             ? formatPickerModelName(profile.selectedModelId)
             : 'Choose AI';
     const canRemoveProvider = settings.profiles.length > 1;
-
-    const handleAddManualModel = () => {
-        const id = manualModelId.trim();
-        if (!id || isAddingManual) return;
-        setIsAddingManual(true);
-        void addManualModel(id).finally(() => {
-            setIsAddingManual(false);
-            setManualModelId('');
-        });
-    };
+    const kindOption = getProviderKindOption(profile?.kind ?? 'openai');
 
     return (
         <SettingsSection title="AI" embedded={embedded}>
@@ -126,7 +119,8 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                         Use your own AI service
                     </Text>
                     <Text className={`text-xs mt-1 ${SECONDARY_TEXT}`}>
-                        Works with most AI services. Add the address, access key and AI you want to use.
+                        Works with most AI services — OpenAI compatible, Google AI Studio
+                        or Anthropic. The address, access key and AI are yours to set.
                     </Text>
                 </View>
                 <AnimatedSwitch
@@ -201,6 +195,11 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                         </Text>
                         <View className="flex-row items-center gap-2 mt-1">
                             <Text className={`text-xs ${SECONDARY_TEXT}`}>{hostLabel}</Text>
+                            {profile ? (
+                                <Text className="text-[10px] uppercase tracking-[1.2px] text-text-secondary-light dark:text-text-secondary-dark">
+                                    {kindOption.label}
+                                </Text>
+                            ) : null}
                             {profile && profile.modelFilterPatterns.length > 0 ? (
                                 <Text className="text-[10px] uppercase tracking-[1.2px] text-text-secondary-light dark:text-text-secondary-dark">
                                     Narrowed
@@ -242,9 +241,10 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                 autoCapitalize="none"
                 autoCorrect={false}
                 secureTextEntry
-                className={`${INPUT_CLASS} mb-4`}
+                className={`${INPUT_CLASS} mb-2`}
                 accessibilityLabel="AI access key"
             />
+            <Text className={`text-xs mb-4 ${SECONDARY_TEXT}`}>{kindOption.keyHint}</Text>
 
             {/* Address sits in the main form, not behind "Advanced": it is the
                 one field you cannot add a service without. Hidden here, "Add
@@ -306,9 +306,7 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                     label="Add service"
                     icon="add-outline"
                     disabled={isLoading || isSaving}
-                    onPress={() => {
-                        void addProfile();
-                    }}
+                    onPress={() => setKindPickerOpen(true)}
                 />
                 {canRemoveProvider ? (
                     <ActionButton
@@ -339,80 +337,13 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
             </TouchableOpacity>
 
             {advancedOpen ? (
-                <View className="gap-3 mb-2">
-                    <View>
-                        <Text className="mb-2 text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
-                            Show only some options
-                        </Text>
-                        <TextInput
-                            value={draft.modelFilterPatterns}
-                            onChangeText={setModelFilterPatterns}
-                            placeholder="gpt-4o, claude-"
-                            placeholderTextColor={placeholderColor}
-                            autoCapitalize="none"
-                            autoCorrect={false}
-                            className={INPUT_CLASS}
-                            accessibilityLabel="Words to match in option names"
-                        />
-                        <Text className={`text-xs mt-2 ${SECONDARY_TEXT}`}>
-                            Words to match in the option names, separated by commas. Leave empty to show everything.
-                        </Text>
-                    </View>
-                    <View>
-                        <Text className="mb-2 text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
-                            Memory size (if not detected)
-                        </Text>
-                        <TextInput
-                            value={draft.fallbackContextWindow}
-                            onChangeText={setFallbackContextWindow}
-                            placeholder="128000"
-                            placeholderTextColor={placeholderColor}
-                            keyboardType="number-pad"
-                            className={INPUT_CLASS}
-                            accessibilityLabel="Memory size if not detected"
-                        />
-                        <Text className={`text-xs mt-2 ${SECONDARY_TEXT}`}>
-                            How much of a conversation the AI can keep in mind. Only used when the app can’t detect it.
-                        </Text>
-                    </View>
-                    <View>
-                        <Text className="mb-2 text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
-                            Add an option by name
-                        </Text>
-                        <Text className={`text-xs mt-1 mb-2 ${SECONDARY_TEXT}`}>
-                            Type the name your AI service uses when it isn’t listed (for example gpt-4o-mini).
-                        </Text>
-                        <View className="flex-row gap-2">
-                            <TextInput
-                                value={manualModelId}
-                                onChangeText={setManualModelId}
-                                placeholder="gpt-4o-mini"
-                                placeholderTextColor={placeholderColor}
-                                autoCapitalize="none"
-                                autoCorrect={false}
-                                returnKeyType="done"
-                                onSubmitEditing={handleAddManualModel}
-                                className={`${INPUT_CLASS} flex-1`}
-                                accessibilityLabel="AI option name"
-                            />
-                            <TouchableOpacity
-                                onPress={handleAddManualModel}
-                                disabled={isAddingManual || !manualModelId.trim()}
-                                className={`min-h-12 items-center justify-center rounded-control border border-hairline-light px-4 dark:border-hairline-dark ${
-                                    isAddingManual || !manualModelId.trim() ? 'opacity-50' : ''
-                                }`}
-                                accessibilityRole="button"
-                                accessibilityLabel="Add option by name"
-                            >
-                                {isAddingManual ? (
-                                    <LoadingBar size="sm" accessibilityLabel="Adding option" />
-                                ) : (
-                                    <Text className="text-[15px] text-text-light dark:text-text-dark">Add</Text>
-                                )}
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </View>
+                <ProviderAdvancedFields
+                    modelFilterPatterns={draft.modelFilterPatterns}
+                    onChangeModelFilterPatterns={setModelFilterPatterns}
+                    fallbackContextWindow={draft.fallbackContextWindow}
+                    onChangeFallbackContextWindow={setFallbackContextWindow}
+                    onAddManualModel={addManualModel}
+                />
             ) : null}
 
             <ChatModelPickerSheet
@@ -435,6 +366,15 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                     void fetchModels();
                 }}
                 onClose={() => setPickerOpen(false)}
+            />
+
+            <ProviderKindPickerSheet
+                visible={kindPickerOpen}
+                onSelect={(kind) => {
+                    setKindPickerOpen(false);
+                    void addProfile(kind);
+                }}
+                onClose={() => setKindPickerOpen(false)}
             />
         </SettingsSection>
     );

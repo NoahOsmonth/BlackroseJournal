@@ -1,13 +1,15 @@
 /**
- * Shared fixture for the provider-profile store (schema v2).
+ * Shared fixture for the provider-profile store (schema v3).
  *
  * Tests used to hand-build the flat v1 record, so every rename broke several
- * suites at once. Building the v2 shape in one place keeps that churn here.
+ * suites at once. Building the current shape in one place keeps that churn here.
  */
-import type {
-    CustomAiModel,
-    CustomAiProviderSettings,
-    ProviderProfile,
+import {
+    PROVIDER_SETTINGS_SCHEMA_VERSION,
+    type CustomAiModel,
+    type CustomAiProviderSettings,
+    type ProviderKind,
+    type ProviderProfile,
 } from '@/services/ai/customModels';
 
 export const TEST_PROVIDER_HOST = 'https://api.example.com/v1';
@@ -16,6 +18,7 @@ export interface ProviderFixture {
     id?: string;
     enabled?: boolean;
     label?: string;
+    kind?: ProviderKind;
     baseUrl?: string;
     apiKey?: string;
     selectedModelId?: string | null;
@@ -32,6 +35,7 @@ export function makeProviderProfile(fixture: ProviderFixture = {}): ProviderProf
     return {
         id: fixture.id ?? 'profile-test',
         label: fixture.label ?? 'Test provider',
+        kind: fixture.kind ?? 'openai',
         baseUrl: fixture.baseUrl ?? TEST_PROVIDER_HOST,
         apiKey: fixture.apiKey ?? 'test-key',
         selectedModelId: fixture.selectedModelId ?? null,
@@ -52,7 +56,7 @@ export function makeProviderSettings(
 ): CustomAiProviderSettings {
     const profile = makeProviderProfile(fixture);
     return {
-        schemaVersion: 2,
+        schemaVersion: PROVIDER_SETTINGS_SCHEMA_VERSION,
         enabled: fixture.enabled ?? false,
         activeProfileId: profile.id,
         profiles: [profile],
