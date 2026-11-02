@@ -62,12 +62,23 @@ jobs:
           fi
           IFS=. read -r MAJOR MINOR PATCH <<< "$VERSION"
           CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
+          REF=""
+          if git rev-parse -q --verify "refs/tags/v$VERSION" > /dev/null; then
+            REF="v$VERSION"
+          fi
           {
             echo "version=$VERSION"
             echo "tag=v$VERSION"
             echo "code=$CODE"
+            echo "ref=$REF"
           } >> "$GITHUB_OUTPUT"
-          echo "Building $VERSION with versionCode $CODE"
+          echo "Building $VERSION with versionCode $CODE (source: ${REF:-current branch})"
+
+      # The APK must be built from the released commit, not from whatever the
+      # branch happens to be when the workflow is started by hand.
+      - name: Check out the tagged commit
+        if: steps.v.outputs.ref != ''
+        run: git checkout --force "${{ steps.v.outputs.ref }}"
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -125,11 +136,17 @@ jobs:
           NAME="blackrosejournal-${{ steps.v.outputs.version }}.apk"
           cp "$APK" "$NAME"
           ls -lh "$NAME"
-          echo "Signer:"
-          keytool -printcert -jarfile "$NAME" | grep -E "Owner|Issuer" || true
-          if keytool -printcert -jarfile "$NAME" | grep -qi "androiddebugkey"; then
-            echo "::error::APK is signed with the debug key"
-            exit 1
+          # keytool only reads v1 signatures, and release APKs are v2-signed, so
+          # ask apksigner (shipped with the runner's Android SDK) who signed it.
+          APKSIGNER="$(ls "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1 || true)"
+          if [ -n "$APKSIGNER" ]; then
+            "$APKSIGNER" verify --print-certs "$NAME" | grep "certificate DN"
+            if "$APKSIGNER" verify --print-certs "$NAME" | grep -qi "CN=Android Debug"; then
+              echo "::error::APK is signed with the debug key"
+              exit 1
+            fi
+          else
+            echo "::warning::apksigner not found, skipping the signature check"
           fi
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
 
