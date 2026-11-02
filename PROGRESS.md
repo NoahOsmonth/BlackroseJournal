@@ -165,9 +165,15 @@ change, not a hook change.
   **fails** if the scroll moved the page under 100 px, because the first version
   silently measured an idle page — RNW keeps the list in a `div` with
   `overflow-y: auto`, so `window.scrollY` stays 0 however far it scrolls.
-  AI-request and chat-send latency remain unmeasured: both are dominated by the
-  provider round-trip and there is no offline fixture that would make a number
-  meaningful, so the structural table holds them.
+  AI-request and chat-send latency get **no millisecond budget, deliberately**: a
+  provider round-trip would make the number measure the network rather than the
+  app, and there is no recorded stream to make it reproducible. They get a
+  structural table instead (0 ms blocking reads before a send, 0 collections
+  re-read per send, 1 storage read per collection, 0 unchanged rows re-rendered
+  per streamed token, 0 spinner re-shows). **The re-render row is not met today**:
+  `ChatTranscript` maps every message into a `ScrollView` and `ChatMessage` has no
+  `React.memo`, so each token re-renders the whole transcript. Memoizing the
+  shared chat component is the first follow-up on that path, out of scope here.
 - **`scripts/qa/bench-instrument.mjs` (new)** — the page-side instrumentation all
   three benches share (storage counting, `longtask` observer, rAF sampler), so they
   cannot drift into measuring different things. `stopSampling` returns both

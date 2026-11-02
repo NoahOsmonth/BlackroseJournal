@@ -202,6 +202,43 @@ this bench silently measured an idle page: React Native Web puts the list in a
 `div` with `overflow-y: auto`, so `window.scrollY` stays 0 no matter how far the
 content scrolls, and the probe was reading the wrong element.
 
+### AI requests and chat sends
+
+These two have **no millisecond budget, deliberately**, and this section defines
+how they are assessed instead of leaving a hole.
+
+A switch, a mount and a scroll are all bounded by app code, so a number measures
+the app. An AI request is bounded by the provider's round-trip: the same request
+takes 400 ms or 40 s depending on the host, the model and the network. A budget
+like "≤2 s to first token" would fail on a slow provider while the app is perfect,
+and pass on a fast one while the app is doing wasteful work — it measures the
+network, not this codebase. There is also no offline fixture: the repo has no
+recorded provider stream, so the number would not be reproducible between runs.
+
+So these paths are assessed structurally, which is the part the app does control:
+
+| Metric | Budget | Why |
+|---|---|---|
+| Local work before the request is sent | **0 ms of blocking reads** | Reading a collection to build the prompt must not block the press (R5) |
+| Collections re-read per send | **0** | The prompt is built from state the hook already holds (R2) |
+| Storage reads triggered by one send | **1 per collection** | Same bar as every other interaction |
+| Unchanged message rows re-rendered per streamed token | **0** | Append-only render, or the whole transcript re-renders per token |
+| Spinner or placeholder re-shown after content arrived | **0** | The R1 flash, applied to a stream |
+
+That table is checkable by reading the code, the same way the *Every interaction*
+table is, and it catches the regressions this issue is about — blocking the main
+thread, re-reading storage, re-rendering a list. What it does not do is predict
+how long a provider takes, and no budget in this repo can.
+
+**One row above is not met today, and it is named rather than quietly omitted.**
+`ChatTranscript` renders `messages.map(...)` into a `ScrollView` and `ChatMessage`
+is a plain function component with no `React.memo`, so every streamed token
+re-renders every message row in the conversation. On a long transcript that is
+real per-token work. Fixing it means memoizing `ChatMessage` and keeping the
+props it receives stable (its `text` changes only for the streaming row) — a
+focused change to the shared chat component, deliberately not bundled into this
+tab-switching ticket. It is the first follow-up on the chat path.
+
 ## Measuring
 
 ```bash
