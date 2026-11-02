@@ -51,15 +51,13 @@ for (const key of ROUTE_KEYS) {
 }
 
 /**
- * Wheel-scroll the page from top to bottom over roughly `ms`, in `steps`
- * increments. A real wheel event is used rather than `scrollTo` so the app's
- * own scroll handlers (`onScroll`, reveal animations) run exactly as they would
+ * Wheel-scroll the list from top to bottom over roughly `ms`, in `steps`
+ * increments. A real wheel event is used rather than `scrollTo` so the app's own
+ * scroll handlers (`onScroll`, reveal animations) run exactly as they would
  * under a finger.
  *
- * Returns the scroll offsets observed before and after. React Native Web renders
- * a scrollable `div`, so a wheel event on the window does nothing unless the
- * pointer is over that element — which is why the caller must check the delta
- * instead of trusting a clean frame profile.
+ * Returns the offset observed before and after, so the caller can prove the page
+ * actually moved instead of trusting a clean frame profile.
  */
 async function wheelScroll(page, { ms = 1600, steps = 40 } = {}) {
   // React Native Web puts the list in a `div` with `overflow-y: auto`, not on
