@@ -41,6 +41,7 @@ import { SpatialView } from '@/components/ui/SpatialView';
 import { RevealItem } from '@/components/ui/RevealItem';
 import { useScrollReveal } from '@/components/ui/useScrollReveal';
 import { TodaySkeleton } from '@/components/today/TodaySkeleton';
+import { CrashReportBanner } from '@/components/system/CrashReportBanner';
 
 export default function TodayScreen() {
     const router = useRouter();
@@ -241,6 +242,10 @@ export default function TodayScreen() {
                     >
                         <SpatialView visible={true}>
                             <View className="gap-6">
+                                {/* Post-crash notice: only renders when a crash
+                                    was recorded that the user has not opened. */}
+                                <CrashReportBanner />
+
                                 {/* One serif moment: the date headline. */}
                                 <RevealItem scrollY={scrollY}>
                                     <Text

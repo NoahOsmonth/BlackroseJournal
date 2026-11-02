@@ -26,6 +26,7 @@ Custom `BottomNav` (not system tabs): Today · Explore · + FAB (chat) · Insigh
 | `/memory-graph` | Constellation graph | Filters (layer chips, time slider), canvas WebView, **node tap → sheet** |
 | `/ask-rosebud` | Ask AI over entries | Time range cycle, suggested questions, typing indicator, chat thread |
 | `/saved-insights` | Bookmarked insights | List with remove animation |
+| `/crash-logs` | On-device crash logs | Crash cards (message, time, platform, stack), Copy / Download / Report on GitHub / Clear |
 | `/rewards` | Streak & achievements | Streak stats, achievement grid, detail modal |
 | `/streak-view` | Streak detail | Calendar / streak visualization |
 | `/streak-haiku` | Streak celebration | Haiku card |
@@ -54,7 +55,7 @@ Custom `BottomNav` (not system tabs): Today · Explore · + FAB (chat) · Insigh
 6. **Identity** — always-on identity profile rows + pending confirm/dismiss
 7. **Memory** — atom count, open Memory Hub
 8. **Account** — device-local account (on this device, no sign-in, no server)
-9. **About** — version, about, privacy
+9. **About** — version, about, privacy, crash logs
 
 ## Interactive / detail states (must design)
 

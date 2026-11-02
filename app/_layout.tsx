@@ -27,6 +27,7 @@ import { useAuthSession } from '@/hooks/auth/useAuthSession';
 import { useIdleDreamTrigger } from '@/hooks/memory/useIdleDreamTrigger';
 import { useThemeSettings } from '@/hooks/useThemeSettings';
 import { scheduleMemoryRollupsOnAppOpen } from '@/services/memory/memoryRollupBuild';
+import { installCrashHandler } from '@/services/crash/crashHandler';
 import { seedDemoDataIfFirstLaunch } from '@/services/seed/seedDemoData';
 import { registerAllWorkers } from '@/services/workers';
 
@@ -43,6 +44,9 @@ import {
 
 // Prevent splash from auto-hiding
 SplashScreen.preventAutoHideAsync().catch(() => { });
+
+// Installed at import time so a crash during the first render is still caught.
+installCrashHandler();
 
 export default function RootLayout() {
     useThemeSettings();
@@ -133,6 +137,7 @@ export default function RootLayout() {
                                     <Stack.Screen name="memory-graph" />
                                     <Stack.Screen name="happiness-recipe" />
                                     <Stack.Screen name="rewards" />
+                                    <Stack.Screen name="crash-logs" />
                                     <Stack.Screen name="persona/generate" />
                                 </Stack>
                                 <WoltTransitionManager />

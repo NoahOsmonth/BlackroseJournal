@@ -11,6 +11,10 @@ export const APP_NAME = 'BlackroseJournal';
 export const APP_TAGLINE = 'A local-first AI journal for reflection, memory, and intention.';
 export const APP_VERSION = configuredVersion;
 
+/** Where a crash report is filed. Opening it is always user-initiated. */
+export const APP_REPO_URL = 'https://github.com/NoahOsmonth/BlackroseJournal';
+export const APP_ISSUE_URL = `${APP_REPO_URL}/issues/new`;
+
 export const APP_ABOUT_COPY = [
     `${APP_NAME} v${APP_VERSION}`,
     APP_TAGLINE,
