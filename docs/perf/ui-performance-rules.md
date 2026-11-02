@@ -56,9 +56,27 @@ array (`filter`, `sort`, `Set`, a reduce) goes through `useMemo` with that array
 as the dependency, or the screen rebuilds it on every unrelated state change —
 including every loading-flag flip.
 
-**R5 — Do not re-read in a handler what the hook already holds.** A press
-handler that awaits `listCheckInDrafts()` to decide which check-in to open adds a
-storage round trip and a state update to a tap. Read the hook's `drafts`.
+**R5 — A tap handler that *decides which record to open* reads fresh; one that
+only *renders* uses the hook's data.** The distinction is authority, not cost. A
+focus-time snapshot of `drafts` is a display cache: another screen can complete
+or save a check-in between the last focus and the tap, and a snapshot has no way
+to know. Opening from the snapshot then resumes a record that is already
+completed, or misses one that was just saved and starts a duplicate.
+
+```ts
+// BAD — the snapshot may not contain what the tap needs
+const draft = checkInDrafts.find(...);
+router.push({ pathname: '/intentions/chat', params: { draftId: draft.id } });
+
+// GOOD — the decision reads storage
+const drafts = await listCheckInDrafts();
+const draft = drafts.find(...);
+```
+
+This is not a performance exception to R2: a tap is off the measured frame path,
+and the switch budgets are about what a *focus* costs. Do not generalize this
+into "handlers may re-read collections" — a handler that renders a list on every
+press is still a defect.
 
 **R6 — Measure, do not guess.** Any change to a tab screen's refresh path or to
 a collection hook is measured with `scripts/qa/tab-switch-bench.mjs` before and
@@ -66,6 +84,23 @@ after (see below). "It feels faster" is not evidence; a screenshot cannot show a
 dropped frame.
 
 ## Budgets
+
+### Every interaction
+
+These hold for any user-visible interaction in the app, not just a tab switch.
+They are the bar a new screen or handler is held to, and they are checkable by
+reading the code even where no bench exists yet.
+
+| Metric | Budget | Why |
+|---|---|---|
+| Storage reads triggered by one user action | **1 per collection** | A second read of the same key is the defect R2 names |
+| Collections read on a focus path | **1 load each** | `listDrafts` + `listCompleted` is two full parses of one key |
+| Hook instances per collection per screen tree | **1** | A second instance is a second full load (R3) |
+| Derived collections rebuilt in a render body | **0** | `filter`/`map` over a collection belongs in `useMemo` (R4) |
+| Loading spinner re-shown once data has loaded | **0** | This is the "it reloaded" flash (R1) |
+| Main-thread work added inside a tap handler | **0 ms of blocking reads** | A handler may read for freshness, but must not re-read to render (R5) |
+
+### Tab switches
 
 Measured on a desktop Chromium at 390×844 (device scale 2), dark theme, demo
 seed, three rounds per pair; the numbers are medians. A phone is slower in
@@ -82,6 +117,15 @@ absolute terms, so treat these as *ratios and ceilings*, not as phone timings.
 
 A switch that breaks a budget is a regression even if every test is green: none
 of this is visible to Jest.
+
+**Scope of these numbers.** The millisecond budgets are *tab-switch* budgets,
+because that is the interaction the rules were derived from: a re-focus of a
+screen that stays mounted. They say nothing about a cold mount, an AI request, a
+chat send, or scroll smoothness. The *Every interaction* table above is the part
+that generalizes; it is structural rather than millisecond-based because nothing
+in the repo measures those other paths yet. A bench for first mount and for chat
+send is the right next step — until it exists, do not cite the millisecond table
+as a whole-app target.
 
 ## Measuring
 
@@ -105,6 +149,11 @@ gaps with `requestAnimationFrame` while a `[aria-label]` matching `/loading/i` i
 on screen. It presses the dock tabs by accessible name, so it fails loudly if the
 dock's labels change.
 
+By default it measures **arrivals at every dock destination** (Threads, Insights
+and Archive → Today, and Today → each of them), so a regression on any tab's
+refresh path shows up rather than only on the pair issue #9 reported. Narrow it
+with `BENCH_PAIRS=explore>today,today>explore`; an unknown tab name throws.
+
 ## Baseline and current numbers
 
 Baseline: `main` at `55c8b9a`. Current: the optimization branch.
@@ -115,6 +164,11 @@ Baseline: `main` at `55c8b9a`. Current: the optimization branch.
 | Insights → Today | 172 → **45 ms** | 169 → **52 ms** | 65 → **21** |
 | Archive → Today | 194 → **67 ms** | 192 → **67 ms** | 65 → **21** |
 | Today → Threads | 61 → **33 ms** | 62 → **0 ms** | 0 → 0 |
+
+The `longTask` column is the **summed** long-task time, which is what the bench
+recorded when these runs were captured; it now reports `longTaskMaxMs` (the
+budget metric) and `longTaskTotalMs` (the sum) separately. On a switch this short
+the two agree to within a millisecond.
 
 Per-round spread before the fix was wide — Threads → Today measured 206 / 544 /
 167 ms and Archive → Today 194 / 411 / 189 ms, i.e. occasionally more than half a

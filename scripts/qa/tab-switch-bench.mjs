@@ -23,7 +23,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
 const BASE = (process.env.EXPO_WEB_URL || 'http://localhost:8081').replace(/\/$/, '');
 const OUT = process.env.BENCH_OUT || path.join(ROOT, 'output', 'perf');
-const LABEL = process.env.BENCH_LABEL || 'run';
+// The label becomes a filename component, so it must not be able to escape OUT.
+const LABEL = String(process.env.BENCH_LABEL || 'run').replace(/[^A-Za-z0-9._-]+/g, '-');
 const ROUNDS = Number(process.env.BENCH_ROUNDS || 3);
 
 /** Dock labels in render order. */
@@ -34,13 +35,28 @@ const TABS = {
   entries: 'Archive',
 };
 
-/** The reported slow pair first, then the pairs the report calls fast. */
-const PAIRS = [
+/**
+ * Arrivals at every dock destination, so a refresh-path regression on any of
+ * them is measured — not just the two pairs issue #9 reported. Override with
+ * `BENCH_PAIRS=explore>today,today>explore`.
+ */
+const DEFAULT_PAIRS = [
   ['explore', 'today'],
   ['insights', 'today'],
   ['entries', 'today'],
   ['today', 'explore'],
+  ['today', 'insights'],
+  ['today', 'entries'],
 ];
+const PAIRS = process.env.BENCH_PAIRS
+  ? process.env.BENCH_PAIRS.split(',').map((pair) => {
+    const [from, to] = pair.split('>').map((name) => name.trim());
+    if (!TABS[from] || !TABS[to]) {
+      throw new Error(`BENCH_PAIRS entry "${pair}" must be <from>><to> using: ${Object.keys(TABS).join(', ')}`);
+    }
+    return [from, to];
+  })
+  : DEFAULT_PAIRS;
 
 /** Runs before app code: counts storage traffic and records long tasks. */
 function instrument() {
@@ -134,13 +150,17 @@ function stopSampling() {
   const frames = state.frames.slice(1);
   const sorted = [...frames].sort((a, b) => a - b);
   const storage = window.__benchStorage;
+  const longTasks = window.__benchLongTasks;
   return {
     elapsedMs: Math.round(performance.now() - state.start),
     frames: frames.length,
     frameGapMaxMs: Math.round(sorted.length ? sorted[sorted.length - 1] : 0),
     frameGapP95Ms: Math.round(sorted.length ? sorted[Math.floor(sorted.length * 0.95)] : 0),
-    longTaskMs: window.__benchLongTasks.reduce((sum, d) => sum + d, 0),
-    longTasks: window.__benchLongTasks,
+    // The budget is on the longest single task, so that is what is reported.
+    // `longTaskTotalMs` keeps the sum for context; it is not the budget metric.
+    longTaskMaxMs: Math.round(longTasks.length ? Math.max(...longTasks) : 0),
+    longTaskTotalMs: Math.round(longTasks.reduce((sum, d) => sum + d, 0)),
+    longTasks,
     timeline: state.timeline,
     storageGet: storage.get,
     storageSet: storage.set,
@@ -210,7 +230,8 @@ async function main() {
         skeletonShown: timing.skeletonShown,
         frameGapMaxMs: sample.frameGapMaxMs,
         frameGapP95Ms: sample.frameGapP95Ms,
-        longTaskMs: sample.longTaskMs,
+        longTaskMaxMs: sample.longTaskMaxMs,
+        longTaskTotalMs: sample.longTaskTotalMs,
         longTasks: sample.longTasks,
         storageGet: sample.storageGet,
         storageSet: sample.storageSet,
@@ -242,7 +263,8 @@ async function main() {
     skeletonMs: median(samples.map((s) => s.skeletonMs)),
     skeletonShownRounds: samples.filter((s) => s.skeletonShown).length,
     frameGapMaxMs: median(samples.map((s) => s.frameGapMaxMs)),
-    longTaskMs: median(samples.map((s) => s.longTaskMs)),
+    longTaskMaxMs: median(samples.map((s) => s.longTaskMaxMs)),
+    longTaskTotalMs: median(samples.map((s) => s.longTaskTotalMs)),
     storageGet: median(samples.map((s) => s.storageGet)),
     storageGetMs: median(samples.map((s) => s.storageGetMs)),
     topKeys: samples[0].topKeys,

@@ -159,6 +159,7 @@ describe('collection hooks: refresh keeps loaded data on screen', () => {
         listEntriesMock.mockImplementation(async () => mockJournalRows);
         const { result } = renderHook(() => useJournalEntries());
         await waitFor(() => expect(result.current.isLoading).toBe(false));
+        const callsBeforeRefresh = listEntriesMock.mock.calls.length;
 
         let release: ((rows: JournalEntry[]) => void) | undefined;
         listEntriesMock.mockImplementationOnce(() => new Promise<JournalEntry[]>((resolve) => {
@@ -168,6 +169,11 @@ describe('collection hooks: refresh keeps loaded data on screen', () => {
         act(() => {
             void result.current.refresh();
         });
+
+        // The refresh must actually have started a read; otherwise the
+        // assertions below pass against unchanged data without testing anything.
+        expect(listEntriesMock.mock.calls.length).toBe(callsBeforeRefresh + 1);
+        expect(typeof release).toBe('function');
 
         expect(result.current.isLoading).toBe(false);
 
@@ -183,6 +189,7 @@ describe('collection hooks: refresh keeps loaded data on screen', () => {
         listCheckInsMock.mockImplementation(async () => mockCheckInRows);
         const { result } = renderHook(() => useIntentionCheckIns());
         await waitFor(() => expect(result.current.isLoading).toBe(false));
+        const callsBeforeRefresh = listCheckInsMock.mock.calls.length;
 
         let release: ((rows: IntentionCheckIn[]) => void) | undefined;
         listCheckInsMock.mockImplementationOnce(() => new Promise<IntentionCheckIn[]>((resolve) => {
@@ -192,6 +199,9 @@ describe('collection hooks: refresh keeps loaded data on screen', () => {
         act(() => {
             void result.current.refresh();
         });
+
+        expect(listCheckInsMock.mock.calls.length).toBe(callsBeforeRefresh + 1);
+        expect(typeof release).toBe('function');
 
         expect(result.current.isLoading).toBe(false);
 

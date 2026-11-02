@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useActiveAccountId } from '@/hooks/account/useActiveAccountId';
 import {
     createSavedInsight,
     deleteSavedInsight,
@@ -19,6 +20,7 @@ interface UseSavedInsightsReturn {
 }
 
 export function useSavedInsights(): UseSavedInsightsReturn {
+    const accountId = useActiveAccountId();
     const [insights, setInsights] = useState<SavedInsight[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
@@ -42,8 +44,19 @@ export function useSavedInsights(): UseSavedInsightsReturn {
     }, []);
 
     useEffect(() => {
-        refresh();
-    }, [refresh]);
+        if (accountId) {
+            // A different account's insights must not be treated as already
+            // loaded, and must not stay on screen while the new account's read
+            // is in flight — so drop them before refreshing.
+            hasLoadedRef.current = false;
+            setInsights([]);
+            void refresh();
+        } else {
+            setInsights([]);
+            hasLoadedRef.current = false;
+            setIsLoading(false);
+        }
+    }, [accountId, refresh]);
 
     const add = useCallback(async (input: SavedInsightCreateInput) => {
         const insight = await createSavedInsight(input);

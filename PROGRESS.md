@@ -68,7 +68,10 @@ Four causes, all fixed:
   read. `useJournalEntries`, `useIntentionCheckIns`, `useIntentions`,
   `useGoals` and `useSavedInsights` now keep a `hasLoadedRef` and only show the
   spinner on the first load (the pattern `useLocalMemories` already used),
-  resetting it when the account id changes.
+  resetting it when the account id changes. `useSavedInsights` did not observe the
+  active account at all before this change, so a guard alone would have kept the
+  previous account's insights on screen; it now reads `useActiveAccountId`,
+  clears the rows and reloads when it changes.
   *Honest limit of the measurement:* the bench never saw that skeleton painted —
   `skeletonShown` is 0 in **both** runs, because `AsyncStorage` on web resolves
   in a microtask, before the next frame. The flip is still a defect (a whole-tree
@@ -80,9 +83,12 @@ Four causes, all fixed:
   re-read the index plus all 16 shards, and `listCompletedCheckIns()`/
   `listCheckInDrafts()` each call `listCheckIns()` again. Both hooks now read
   once and split in memory. Storage reads per switch: 65 → **21**.
-- **Today re-read `@intention_checkins` in a tap handler.** `openDailyCheckIn`
-  awaited `listCheckInDrafts()` to find the day's draft; it now reads the
-  `drafts` the hook already holds, and stopped being `async`.
+- **Today re-read `@intention_checkins` in a tap handler.** This one was tried and
+  **reverted on review**: `openDailyCheckIn` keeps its fresh
+  `listCheckInDrafts()` read. The hook's `drafts` is a focus-time snapshot, so
+  resuming from it can reopen a check-in that was completed since, or miss one
+  just saved and start a duplicate. A tap is off the switch's measured frame
+  path, so freshness wins over the saved read.
 - **Duplicate hook instances on Archive.** `entries.tsx` mounted
   `useJournalEntries` + `useIntentionCheckIns` a second time just to count
   drafts. `useHistoryFeed` now returns `draftCount` and a composed `refresh`,
@@ -93,6 +99,15 @@ Plus two render-cost fixes on the same path: `activeIntentions` in
 render body on every render (the latter re-splitting every word of the week);
 both are `useMemo`'d. `weekDateRange` stays a render-body IIFE on purpose — it
 reads the clock at render time.
+
+Memoizing `weeklyStats` introduced a staleness bug that review caught: the memo
+keyed only on `getWeeklyItems`, whose identity changes when the collections
+change — not when the clock crosses a week boundary — so a screen left open kept
+last week's counts under this week's label. The week filter now takes the week
+start as a parameter and the memo depends on it, so stats and label read one
+clock. `__tests__/hooks/useWeeklyInsightsWeekBoundary.test.tsx` pins it with fake
+timers (sabotage-verified: without the dependency it reports the old week's
+counts).
 
 After, same bench and settings:
 
@@ -115,7 +130,9 @@ change, not a hook change.
   tab screen (≤100 ms longest task and frame gap, ≤16 ms p95 gap, 0 skeleton
   re-shows, ≤25 storage reads, ≤50 ms to route). The budgets are the acceptance
   bar for future UI work; the issue asked for targets, so they are written down
-  rather than implied.
+  rather than implied. They are **tab-switch** budgets, and the doc says so: a
+  cold mount, an AI request or a chat send is not covered by any of these
+  numbers yet.
 - **`scripts/qa/chromium.mjs` (new)** — the installed `playwright-core` bundles a
   Chromium revision (`chromium_headless_shell-1208`) that is not on this machine,
   so `chromium.launch()` throws `Executable doesn't exist`. This resolves the
@@ -125,6 +142,13 @@ change, not a hook change.
   status-splitting helpers are mocked to *throw* if called), the Archive draft
   count coming off one pair of instances, no `isLoading` flip during a refresh
   with data on screen, and the spinner still returning for a different account.
+  Each "does not re-enter loading" test also asserts the read actually started, so
+  a refresh that silently does nothing cannot pass.
+- **`__tests__/hooks/collectionAccountAndWeekBoundary.test.tsx` (new, 2 tests)** —
+  a `useSavedInsights` account change drops the previous rows and re-reads; no
+  active account clears the rows and stops loading.
+- **`__tests__/hooks/useWeeklyInsightsWeekBoundary.test.tsx` (new, 1 test)** —
+  `weeklyStats` follows the clock into a new week.
 - **Visual evidence**: the switch is a timing defect, so the PR carries the
   measured table above plus the exact capture commands. Screenshots of Today
   before and after are byte-identical (same hash) — the change is invisible in a

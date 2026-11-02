@@ -30,6 +30,7 @@ import { useIntentions } from '@/hooks/intentions/useIntentions';
 import { useIntentionCheckIns } from '@/hooks/intentions/useIntentionCheckIns';
 import { useEntryInsightQuestion } from '@/hooks/insights/useEntryInsightQuestion';
 import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
+import { listCheckInDrafts } from '@/services/intentions/intentionsStorage';
 import { useHeaderActions } from '@/hooks/navigation/useHeaderActions';
 import { useTabNavigation } from '@/hooks/navigation/useTabNavigation';
 import { useSelectedDay } from '@/hooks/today/useSelectedDay';
@@ -47,7 +48,7 @@ export default function TodayScreen() {
     const { scrollY, onScroll } = useScrollReveal();
     const { selectedDay, serifDateLabel } = useSelectedDay();
     const { completed: entries, refresh: refreshEntries, isLoading: entriesLoading } = useJournalEntries();
-    const { completed: checkIns, drafts: checkInDrafts, refresh: refreshCheckIns, isLoading: checkInsLoading } = useIntentionCheckIns();
+    const { completed: checkIns, refresh: refreshCheckIns, isLoading: checkInsLoading } = useIntentionCheckIns();
     const { activeIntentions, refresh: refreshIntentions, isLoading: intentionsLoading } = useIntentions();
     const { goals, toggle: toggleGoal, refresh: refreshGoals, isLoading: goalsLoading } = useGoals();
     const { question, refresh, sourceDate } = useEntryInsightQuestion(entries);
@@ -117,12 +118,15 @@ export default function TodayScreen() {
         }
     };
 
-    const openDailyCheckIn = (type: 'morning' | 'evening') => {
+    const openDailyCheckIn = async (type: 'morning' | 'evening') => {
         const todayKey = getLocalDateKey(new Date());
-        // The drafts come from the collection this screen already refreshes on
-        // focus; re-reading `@intention_checkins` here was a second full parse
-        // of the same key on every tap.
-        const draft = checkInDrafts.find((item) => item.type === type
+        // Read fresh: the hook's `drafts` is a focus-time snapshot, so a check-in
+        // saved or completed on another screen can be missing or stale here, and
+        // a stale snapshot would open a completed check-in as a draft (or miss a
+        // just-saved one and start a duplicate). This runs on a tap, off the tab
+        // switch's measured frame path, so the extra read costs nothing.
+        const draftsList = await listCheckInDrafts();
+        const draft = draftsList.find((item) => item.type === type
             && getLocalDateKey(new Date(item.updatedAt)) === todayKey);
         if (draft) {
             router.push({
@@ -143,11 +147,11 @@ export default function TodayScreen() {
     };
 
     const handleMorningPress = () => {
-        openDailyCheckIn('morning');
+        void openDailyCheckIn('morning');
     };
 
     const handleEveningPress = () => {
-        openDailyCheckIn('evening');
+        void openDailyCheckIn('evening');
     };
 
     const handleAddIntention = () => {
