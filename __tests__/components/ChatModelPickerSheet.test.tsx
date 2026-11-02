@@ -48,9 +48,9 @@ describe('ChatModelPickerSheet', () => {
             />
         );
 
-        expect(screen.getByText('Choose model')).toBeTruthy();
+        expect(screen.getByText('Choose AI')).toBeTruthy();
         expect(screen.getByText('api.example.com')).toBeTruthy();
-        expect(screen.getByText('All models')).toBeTruthy();
+        expect(screen.getByText('All AI')).toBeTruthy();
         fireEvent.press(screen.getByLabelText('Select Hy3 free'));
         expect(onSelect).toHaveBeenCalledWith('tencent/hy3:free');
     });
@@ -104,7 +104,7 @@ describe('ChatModelPickerSheet', () => {
         );
 
         expect(screen.getByText('Recent')).toBeTruthy();
-        expect(screen.getByText('All models')).toBeTruthy();
+        expect(screen.getByText('All AI')).toBeTruthy();
         // The recent model is not repeated in the full list.
         expect(screen.getAllByLabelText('Select Hy3 free')).toHaveLength(1);
     });
@@ -124,8 +124,8 @@ describe('ChatModelPickerSheet', () => {
             />
         );
 
-        expect(screen.getByText('No models loaded')).toBeTruthy();
-        fireEvent.press(screen.getByLabelText('Fetch models'));
+        expect(screen.getByText('No AI options yet')).toBeTruthy();
+        fireEvent.press(screen.getByLabelText('Find AI options'));
         expect(onRefresh).toHaveBeenCalled();
     });
 
@@ -143,8 +143,8 @@ describe('ChatModelPickerSheet', () => {
             />
         );
 
-        expect(screen.getByLabelText('Loading models')).toBeTruthy();
-        expect(screen.queryByText('No models loaded')).toBeNull();
+        expect(screen.getByLabelText('Loading AI options')).toBeTruthy();
+        expect(screen.queryByText('No AI options yet')).toBeNull();
     });
 
     it('prompts for an API key instead of listing an unreachable endpoint', () => {
@@ -161,10 +161,10 @@ describe('ChatModelPickerSheet', () => {
             />
         );
 
-        expect(screen.getByText('Add an API key')).toBeTruthy();
-        expect(screen.getByText(/Set your provider base URL and API key in Settings/)).toBeTruthy();
+        expect(screen.getByText('Add your access key')).toBeTruthy();
+        expect(screen.getByText('Add your service address and access key in Settings to see the AI options.')).toBeTruthy();
         expect(screen.getByText('Open AI settings')).toBeTruthy();
-        expect(screen.queryByText('No models loaded')).toBeNull();
+        expect(screen.queryByText('No AI options yet')).toBeNull();
     });
 
     it('surfaces a fetch error above the list', () => {
@@ -175,13 +175,13 @@ describe('ChatModelPickerSheet', () => {
                 selectedId={null}
                 hostLabel="api.example.com"
                 hasApiKey
-                error="No models matched your filter patterns."
+                error="No AI options matched your filter words. Change them in Settings."
                 onSelect={jest.fn()}
                 onClose={jest.fn()}
             />
         );
 
-        expect(screen.getByText('No models matched your filter patterns.')).toBeTruthy();
+        expect(screen.getByText('No AI options matched your filter words. Change them in Settings.')).toBeTruthy();
     });
 
     it('filters by search and offers a way back out', () => {
@@ -197,12 +197,12 @@ describe('ChatModelPickerSheet', () => {
             />
         );
 
-        fireEvent.changeText(screen.getByLabelText('Search models'), 'gpt');
+        fireEvent.changeText(screen.getByLabelText('Search AI'), 'gpt');
         expect(screen.getByLabelText('Select GPT-4')).toBeTruthy();
         expect(screen.queryByLabelText('Select Hy3 free')).toBeNull();
 
-        fireEvent.changeText(screen.getByLabelText('Search models'), 'nothing-matches');
-        expect(screen.getByText(/No models match/)).toBeTruthy();
+        fireEvent.changeText(screen.getByLabelText('Search AI'), 'nothing-matches');
+        expect(screen.getByText(/No AI options match/)).toBeTruthy();
         fireEvent.press(screen.getByText('Clear search'));
         expect(screen.getByLabelText('Select GPT-4')).toBeTruthy();
     });
@@ -221,8 +221,8 @@ describe('ChatModelPickerSheet', () => {
             />
         );
 
-        fireEvent.press(screen.getByLabelText('Close model picker'));
-        fireEvent.press(screen.getByLabelText('Dismiss model picker'));
+        fireEvent.press(screen.getByLabelText('Close AI picker'));
+        fireEvent.press(screen.getByLabelText('Dismiss AI picker'));
         expect(onClose).toHaveBeenCalledTimes(2);
     });
 });

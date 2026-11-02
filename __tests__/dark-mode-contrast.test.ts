@@ -103,7 +103,7 @@ describe("dark mode contrast safety", () => {
             "MemoryHubScreen.tsx"
         );
         const content = fs.readFileSync(file, "utf-8");
-        expect(content).toContain("Open graph");
+        expect(content).toContain("View the map");
         expect(content).toContain("border-hairline-light");
         expect(content).toContain("text-text-light underline dark:text-text-dark");
         expect(content).not.toContain("bg-gray-950");

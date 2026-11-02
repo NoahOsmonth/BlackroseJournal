@@ -107,33 +107,33 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
         ? (selected.name ?? formatPickerModelName(selected.id))
         : profile?.selectedModelId
             ? formatPickerModelName(profile.selectedModelId)
-            : 'Choose model';
+            : 'Choose AI';
     const canRemoveProvider = settings.profiles.length > 1;
     const kindOption = getProviderKindOption(profile?.kind ?? 'openai');
 
     return (
-        <SettingsSection title="AI Model" embedded={embedded}>
+        <SettingsSection title="AI" embedded={embedded}>
             <View className="flex-row items-center justify-between mb-4">
                 <View className="flex-1 pr-4">
                     <Text className="text-[16px] text-text-light dark:text-text-dark">
-                        Use a custom AI provider
+                        Use your own AI service
                     </Text>
                     <Text className={`text-xs mt-1 ${SECONDARY_TEXT}`}>
-                        OpenAI compatible, Google AI Studio or Anthropic. Base URL, key and
-                        model are yours to set.
+                        Works with most AI services — OpenAI compatible, Google AI Studio
+                        or Anthropic. The address, access key and AI are yours to set.
                     </Text>
                 </View>
                 <AnimatedSwitch
                     value={settings.enabled}
                     onValueChange={setEnabled}
                     disabled={isLoading}
-                    accessibilityLabel="Enable custom AI provider"
+                    accessibilityLabel="Turn on your own AI service"
                 />
             </View>
 
             {settings.profiles.length > 1 ? (
                 <View className="mb-4 gap-2">
-                    <Text className={`text-[13px] ${SECONDARY_TEXT}`}>Saved providers</Text>
+                    <Text className={`text-[13px] ${SECONDARY_TEXT}`}>Saved services</Text>
                     <View className="flex-row flex-wrap gap-2">
                         {settings.profiles.map((entry) => {
                             const active = entry.id === profile?.id;
@@ -146,7 +146,7 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                                     className="min-w-0 max-w-full shrink"
                                     accessibilityRole="button"
                                     accessibilityState={{ selected: active }}
-                                    accessibilityLabel={`Use provider ${entry.label}`}
+                                    accessibilityLabel={`Use ${entry.label}`}
                                 >
                                     {/* Chrome and the width guard live on a plain child
                                         View: pressables in this codebase have silently
@@ -179,12 +179,12 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                 onPress={() => setPickerOpen(true)}
                 className="mb-4 rounded-control border border-hairline-light px-4 py-3.5 dark:border-hairline-dark"
                 accessibilityRole="button"
-                accessibilityLabel="Change active model"
+                accessibilityLabel="Change AI"
             >
                 <View className="flex-row items-center justify-between gap-2">
                     <View className="flex-1 min-w-0 gap-1">
                         <Text className="text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
-                            Active model
+                            AI in use
                         </Text>
                         <Text
                             numberOfLines={1}
@@ -202,7 +202,7 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                             ) : null}
                             {profile && profile.modelFilterPatterns.length > 0 ? (
                                 <Text className="text-[10px] uppercase tracking-[1.2px] text-text-secondary-light dark:text-text-secondary-dark">
-                                    Filtered
+                                    Narrowed
                                 </Text>
                             ) : null}
                         </View>
@@ -216,41 +216,41 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                 so a freshly added provider kept its generated "Provider 2" name
                 unless you went hunting for the field. */}
             <Text className="mb-2 text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
-                Provider name
+                Service name
             </Text>
             <TextInput
                 value={draft.label}
                 onChangeText={setLabel}
                 onBlur={() => renameProfile(draft.label)}
-                placeholder="Provider"
+                placeholder="My AI service"
                 placeholderTextColor={placeholderColor}
                 autoCapitalize="words"
                 autoCorrect={false}
                 className={`${INPUT_CLASS} mb-4`}
-                accessibilityLabel="Provider name"
+                accessibilityLabel="Service name"
             />
 
             <Text className="mb-2 text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
-                API key
+                Access key
             </Text>
             <TextInput
                 value={draft.apiKey}
                 onChangeText={setApiKey}
-                placeholder="Provider API key"
+                placeholder="Your access key"
                 placeholderTextColor={placeholderColor}
                 autoCapitalize="none"
                 autoCorrect={false}
                 secureTextEntry
                 className={`${INPUT_CLASS} mb-2`}
-                accessibilityLabel="Custom AI API key"
+                accessibilityLabel="AI access key"
             />
             <Text className={`text-xs mb-4 ${SECONDARY_TEXT}`}>{kindOption.keyHint}</Text>
 
-            {/* Base URL sits in the main form, not behind "Advanced": it is the
-                one field you cannot add a provider without. Hidden here, "Add
-                provider" offered a key field and no endpoint. */}
+            {/* Address sits in the main form, not behind "Advanced": it is the
+                one field you cannot add a service without. Hidden here, "Add
+                service" offered a key field and no address. */}
             <Text className="mb-2 text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
-                Base URL
+                Address
             </Text>
             <TextInput
                 value={draft.baseUrl}
@@ -260,12 +260,12 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                 autoCapitalize="none"
                 autoCorrect={false}
                 className={`${INPUT_CLASS} mb-4`}
-                accessibilityLabel="Custom AI base URL"
+                accessibilityLabel="AI service address"
             />
 
             <View className="flex-row gap-3 mb-4">
                 <ActionButton
-                    label="Fetch models"
+                    label="Find AI options"
                     icon="cloud-download-outline"
                     busy={isFetching}
                     disabled={isLoading || isSaving}
@@ -290,20 +290,20 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
 
             {models.length > 0 ? (
                 <Text className={`text-xs mb-4 ${SECONDARY_TEXT}`}>
-                    {`${models.length} model${models.length === 1 ? '' : 's'} cached.`}
+                    {`${models.length} AI option${models.length === 1 ? '' : 's'} saved.`}
                     {profile?.lastFetchedAt
-                        ? ` Last fetched ${new Date(profile.lastFetchedAt).toLocaleString()}.`
+                        ? ` Last checked ${new Date(profile.lastFetchedAt).toLocaleString()}.`
                         : ''}
                 </Text>
             ) : (
                 <Text className={`text-sm mb-4 ${SECONDARY_TEXT}`}>
-                    Fetch models to verify the endpoint and select a model.
+                    Find options to check the address and choose an AI.
                 </Text>
             )}
 
             <View className="flex-row gap-3 mb-2">
                 <ActionButton
-                    label="Add provider"
+                    label="Add service"
                     icon="add-outline"
                     disabled={isLoading || isSaving}
                     onPress={() => setKindPickerOpen(true)}
@@ -324,7 +324,7 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                 onPress={() => setAdvancedOpen((open) => !open)}
                 className="flex-row items-center justify-between py-2 mb-2"
                 accessibilityRole="button"
-                accessibilityLabel="Advanced AI provider settings"
+                accessibilityLabel="Advanced AI settings"
             >
                 <Text className="text-[15px] text-text-light dark:text-text-dark">
                     Advanced

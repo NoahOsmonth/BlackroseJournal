@@ -1,6 +1,6 @@
 /**
- * The collapsed "Advanced" block of the AI provider form: model filters, the
- * fallback context size, and the manual model-id escape hatch.
+ * The collapsed "Advanced" block of the AI service form: option filters, the
+ * fallback memory size, and the manual option-name escape hatch.
  *
  * Split out of `CustomModelSettingsSection` to keep that file under the
  * design-limit cap. The inputs are fully controlled — this component owns only
@@ -26,7 +26,7 @@ type ProviderAdvancedFieldsProps = {
     readonly onChangeModelFilterPatterns: (value: string) => void;
     readonly fallbackContextWindow: string;
     readonly onChangeFallbackContextWindow: (value: string) => void;
-    /** Adds a model id the endpoint's catalogue did not list. */
+    /** Adds an option name the service's list did not include. */
     readonly onAddManualModel: (modelId: string) => Promise<void>;
 };
 
@@ -55,7 +55,7 @@ export function ProviderAdvancedFields({
     return (
         <View className="gap-3 mb-2">
             <View>
-                <Text className={FIELD_LABEL}>Model filters</Text>
+                <Text className={FIELD_LABEL}>Show only some options</Text>
                 <TextInput
                     value={modelFilterPatterns}
                     onChangeText={onChangeModelFilterPatterns}
@@ -64,14 +64,14 @@ export function ProviderAdvancedFields({
                     autoCapitalize="none"
                     autoCorrect={false}
                     className={INPUT_CLASS}
-                    accessibilityLabel="Model filter patterns"
+                    accessibilityLabel="Words to match in option names"
                 />
                 <Text className={`text-xs mt-2 ${SECONDARY_TEXT}`}>
-                    Comma-separated substrings. Only matching ids load. Leave empty for all.
+                    Words to match in the option names, separated by commas. Leave empty to show everything.
                 </Text>
             </View>
             <View>
-                <Text className={FIELD_LABEL}>Fallback context tokens</Text>
+                <Text className={FIELD_LABEL}>Memory size (if not detected)</Text>
                 <TextInput
                     value={fallbackContextWindow}
                     onChangeText={onChangeFallbackContextWindow}
@@ -79,13 +79,16 @@ export function ProviderAdvancedFields({
                     placeholderTextColor={placeholderColor}
                     keyboardType="number-pad"
                     className={INPUT_CLASS}
-                    accessibilityLabel="Fallback context tokens"
+                    accessibilityLabel="Memory size if not detected"
                 />
+                <Text className={`text-xs mt-2 ${SECONDARY_TEXT}`}>
+                    How much of a conversation the AI can keep in mind. Only used when the app can’t detect it.
+                </Text>
             </View>
             <View>
-                <Text className={FIELD_LABEL}>Add model manually</Text>
+                <Text className={FIELD_LABEL}>Add an option by name</Text>
                 <Text className={`text-xs mt-1 mb-2 ${SECONDARY_TEXT}`}>
-                    Type a model id when fetch cannot list it (e.g. gpt-4o-mini).
+                    Type the name your AI service uses when it isn’t listed (for example gpt-4o-mini).
                 </Text>
                 <View className="flex-row gap-2">
                     <TextInput
@@ -98,7 +101,7 @@ export function ProviderAdvancedFields({
                         returnKeyType="done"
                         onSubmitEditing={handleAddManualModel}
                         className={`${INPUT_CLASS} flex-1`}
-                        accessibilityLabel="Manual model id"
+                        accessibilityLabel="AI option name"
                     />
                     <TouchableOpacity
                         onPress={handleAddManualModel}
@@ -107,10 +110,10 @@ export function ProviderAdvancedFields({
                             isAddingManual || !manualModelId.trim() ? 'opacity-50' : ''
                         }`}
                         accessibilityRole="button"
-                        accessibilityLabel="Add manual model"
+                        accessibilityLabel="Add option by name"
                     >
                         {isAddingManual ? (
-                            <LoadingBar size="sm" accessibilityLabel="Adding model" />
+                            <LoadingBar size="sm" accessibilityLabel="Adding option" />
                         ) : (
                             <Text className="text-[15px] text-text-light dark:text-text-dark">Add</Text>
                         )}

@@ -258,7 +258,7 @@ describe('MemoryHubScreen', () => {
 
     it('keeps the graph affordance the dark-mode guard asserts on', () => {
         render(<MemoryHubScreen />);
-        expect(screen.getByText('Open graph')).toBeTruthy();
+        expect(screen.getByText('View the map')).toBeTruthy();
     });
 
     it('shows no fake AI panel', () => {

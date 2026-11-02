@@ -101,7 +101,7 @@ describe('ChatMessage streaming visibility', () => {
             <ChatMessage isAi text="" reasoning="1. thinking." isStreaming={true} />
         );
 
-        expect(getByLabelText('Companion reasoning')).toBeTruthy();
+        expect(getByLabelText('What Blackrose was thinking')).toBeTruthy();
         expect(getByText('1. thinking.')).toBeTruthy();
         // Reasoning with no tools is already summarised — no separate Working line.
         expect(getByText('Thought it through')).toBeTruthy();
@@ -150,7 +150,7 @@ describe('ChatMessage streaming visibility', () => {
             <ChatMessage isAi text="" isStreaming toolActivity={[runningTool]} />
         );
 
-        expect(getByLabelText('Tool Reading a day: running')).toBeTruthy();
+        expect(getByLabelText('Reading a day: working')).toBeTruthy();
         // One indicator only — the rail's Thinking footer, not ChatMessage's bare one.
         expect(getAllByTestId('typing-indicator')).toHaveLength(1);
     });
@@ -160,8 +160,8 @@ describe('ChatMessage streaming visibility', () => {
             <ChatMessage isAi text="You talked about sleep." toolActivity={[finishedTool]} />
         );
 
-        expect(getByText('Used 1 tool · 18ms')).toBeTruthy();
-        expect(queryByLabelText('Tool Reading a day: ok')).toBeNull();
+        expect(getByText('Looked up 1 thing · 18ms')).toBeTruthy();
+        expect(queryByLabelText('Reading a day: done')).toBeNull();
         expect(getByText('You talked about sleep.')).toBeTruthy();
     });
 
@@ -170,8 +170,8 @@ describe('ChatMessage streaming visibility', () => {
             <ChatMessage isAi text="You talked about sleep." toolActivity={[finishedTool]} />
         );
 
-        fireEvent.press(getByLabelText('Show thinking and tools'));
-        expect(getByLabelText('Tool Reading a day: ok')).toBeTruthy();
+        fireEvent.press(getByLabelText('Show thinking'));
+        expect(getByLabelText('Reading a day: done')).toBeTruthy();
     });
 
     it('shows the live working status line between tool batches', () => {
@@ -200,7 +200,7 @@ describe('ChatMessage streaming visibility', () => {
             />
         );
 
-        expect(getByText('Used 1 tool · 18ms')).toBeTruthy();
+        expect(getByText('Looked up 1 thing · 18ms')).toBeTruthy();
         expect(queryByText('Let me go dig.')).toBeNull();
     });
 
@@ -215,9 +215,9 @@ describe('ChatMessage streaming visibility', () => {
             />
         );
 
-        expect(queryByText('Used 1 tool · 18ms')).toBeNull();
-        expect(queryByLabelText('Companion reasoning')).toBeNull();
-        expect(queryByLabelText('Show thinking and tools')).toBeNull();
+        expect(queryByText('Looked up 1 thing · 18ms')).toBeNull();
+        expect(queryByLabelText('What Blackrose was thinking')).toBeNull();
+        expect(queryByLabelText('Show thinking')).toBeNull();
         expect(getByText('Yesterday was about sleep.')).toBeTruthy();
     });
 

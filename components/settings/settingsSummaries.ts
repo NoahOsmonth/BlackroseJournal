@@ -21,7 +21,7 @@ const THEME_LABELS: Record<ThemePreference, string> = {
 };
 
 const EMOJI_LABELS: Record<EmojiStylePreference, string> = {
-    native: 'Native',
+    native: 'Standard',
     flat: 'Flat',
     '3d': '3D',
 };
@@ -61,8 +61,8 @@ export function customAiSummary(settings: CustomAiProviderSettings): string {
     const selected = profile.models.find((model) => model.id === profile.selectedModelId);
     const name = selected?.name ?? profile.selectedModelId;
     if (!name) {
-        if (!profile.apiKey.trim()) return 'Key needed';
-        return 'Choose model';
+        if (!profile.apiKey.trim()) return 'Access key needed';
+        return 'Choose AI';
     }
     const leaf = name.includes('/') ? (name.split('/').pop() ?? name) : name;
     const short = leaf.length > 22 ? `${leaf.slice(0, 19)}…` : leaf;
@@ -91,5 +91,5 @@ export function aboutSummary(): string {
 }
 
 export function dataManagementSummary(hasBackup: boolean): string {
-    return hasBackup ? 'Backup · Export' : 'Export · Backup';
+    return hasBackup ? 'Backup · Copy' : 'Copy · Backup';
 }

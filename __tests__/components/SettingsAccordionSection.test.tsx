@@ -103,7 +103,7 @@ describe('SettingsAccordionSection', () => {
     it('caps the value pill so a long summary cannot starve the label column', () => {
         render(
             <SettingsAccordionSection
-                id="a" title="AI Model" hint="Bring your own provider"
+                id="a" title="AI" hint="Connect your own AI"
                 summary="Home gateway · claude-sonnet-4.5" index={3} expanded={false} onToggle={jest.fn()}
             >
                 <Text>x</Text>
@@ -123,15 +123,15 @@ describe('SettingsAccordionSection', () => {
         expect(summary.props.className).toContain('min-w-0');
 
         // Title and hint are single-line so they ellipsise instead of stacking.
-        expect(screen.getByText('AI Model').props.numberOfLines).toBe(1);
-        expect(screen.getByText('Bring your own provider').props.numberOfLines).toBe(1);
+        expect(screen.getByText('AI').props.numberOfLines).toBe(1);
+        expect(screen.getByText('Connect your own AI').props.numberOfLines).toBe(1);
         expect(screen.getByTestId('settings-row-text-a').props.className).toContain('min-w-0');
     });
 
     it('renders the index numeral and the hint line', () => {
         render(
             <SettingsAccordionSection
-                id="a" title="Memory" hint="Atoms, files and Dream"
+                id="a" title="Memory" hint="What Blackrose remembers"
                 summary="34 memories" index={6} expanded={false} onToggle={jest.fn()}
             >
                 <Text>x</Text>
@@ -140,7 +140,7 @@ describe('SettingsAccordionSection', () => {
 
         // index is zero-based; row 7 shows as "07".
         expect(screen.getByText('07')).toBeTruthy();
-        expect(screen.getByText('Atoms, files and Dream')).toBeTruthy();
+        expect(screen.getByText('What Blackrose remembers')).toBeTruthy();
     });
 
     it('omits the hint line when none is given', () => {

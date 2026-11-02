@@ -56,13 +56,13 @@ export function EntryEditModal({
     const confirmDelete = async () => {
         if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
             const ok = window.confirm(
-                'Delete this entry? Its memories and digests are removed with it. This cannot be undone.',
+                'Delete this entry? The memories and summaries made from it are removed too. This cannot be undone.',
             );
             if (!ok) return;
         } else {
             const { Alert } = await import('react-native');
             const confirmed = await new Promise<boolean>((resolve) => {
-                Alert.alert('Delete entry', 'This cannot be undone.', [
+                Alert.alert('Delete entry', 'The memories and summaries made from it are removed too. This cannot be undone.', [
                     { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
                     { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
                 ]);

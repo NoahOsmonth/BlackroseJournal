@@ -32,8 +32,8 @@ describe('appInfo constants', () => {
         expect(APP_ABOUT_COPY).not.toContain('Journal App v1.0.0');
     });
 
-    it('describes local-first privacy behavior', () => {
+    it('describes on-device privacy behavior', () => {
         expect(APP_PRIVACY_COPY).toContain('stay on this device');
-        expect(APP_PRIVACY_COPY).toContain('Network AI features');
+        expect(APP_PRIVACY_COPY).toContain('only the words needed');
     });
 });

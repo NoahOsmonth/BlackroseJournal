@@ -72,18 +72,18 @@ describe('CustomModelSettingsSection', () => {
     it('renders the provider section with the active model and its host', () => {
         render(<CustomModelSettingsSection {...buildProps()} />);
 
-        expect(screen.getByLabelText('Custom AI API key')).toBeTruthy();
-        expect(screen.getByLabelText('Enable custom AI provider')).toBeTruthy();
-        expect(screen.getByLabelText('Change active model')).toBeTruthy();
+        expect(screen.getByLabelText('AI access key')).toBeTruthy();
+        expect(screen.getByLabelText('Turn on your own AI service')).toBeTruthy();
+        expect(screen.getByLabelText('Change AI')).toBeTruthy();
         expect(screen.getByText('Hy3 free')).toBeTruthy();
         expect(screen.getByText('api.example.com')).toBeTruthy();
-        expect(screen.getByText(/1 model cached\./)).toBeTruthy();
+        expect(screen.getByText(/1 AI option saved\./)).toBeTruthy();
     });
 
     it('flags the picker as filtered when the profile carries filter patterns', () => {
         render(<CustomModelSettingsSection {...buildProps()} />);
 
-        expect(screen.getByText('Filtered')).toBeTruthy();
+        expect(screen.getByText('Narrowed')).toBeTruthy();
     });
 
     it('omits the filtered flag when the profile has no filter patterns', () => {
@@ -91,7 +91,7 @@ describe('CustomModelSettingsSection', () => {
         props.profile = { ...props.profile!, modelFilterPatterns: [] };
         render(<CustomModelSettingsSection {...props} />);
 
-        expect(screen.queryByText('Filtered')).toBeNull();
+        expect(screen.queryByText('Narrowed')).toBeNull();
     });
 
     it('keeps the provider toggle pressable even when no models are loaded', () => {
@@ -99,7 +99,7 @@ describe('CustomModelSettingsSection', () => {
         props.profile = { ...props.profile!, models: [], selectedModelId: null };
         render(<CustomModelSettingsSection {...props} />);
 
-        const toggle = screen.getByLabelText('Enable custom AI provider');
+        const toggle = screen.getByLabelText('Turn on your own AI service');
         // AnimatedSwitch surfaces disabled state via accessibilityState, not props.disabled.
         expect(toggle.props.accessibilityState.disabled).toBe(false);
 
@@ -111,16 +111,16 @@ describe('CustomModelSettingsSection', () => {
         const props = buildProps();
         render(<CustomModelSettingsSection {...props} />);
 
-        fireEvent.changeText(screen.getByLabelText('Custom AI API key'), 'new-key');
+        fireEvent.changeText(screen.getByLabelText('AI access key'), 'new-key');
         // Base URL and Provider name are in the main form now — reachable with
         // Advanced collapsed.
-        fireEvent.changeText(screen.getByLabelText('Custom AI base URL'), 'https://api.other.test/v1');
-        fireEvent.changeText(screen.getByLabelText('Provider name'), 'Renamed');
-        fireEvent.press(screen.getByText('Fetch models'));
+        fireEvent.changeText(screen.getByLabelText('AI service address'), 'https://api.other.test/v1');
+        fireEvent.changeText(screen.getByLabelText('Service name'), 'Renamed');
+        fireEvent.press(screen.getByText('Find AI options'));
         fireEvent.press(screen.getByText('Save'));
-        fireEvent.press(screen.getByLabelText('Advanced AI provider settings'));
-        fireEvent.changeText(screen.getByLabelText('Model filter patterns'), ':free,qwen-web/');
-        fireEvent.changeText(screen.getByLabelText('Fallback context tokens'), '64000');
+        fireEvent.press(screen.getByLabelText('Advanced AI settings'));
+        fireEvent.changeText(screen.getByLabelText('Words to match in option names'), ':free,qwen-web/');
+        fireEvent.changeText(screen.getByLabelText('Memory size if not detected'), '64000');
 
         expect(props.setApiKey).toHaveBeenCalledWith('new-key');
         expect(props.fetchModels).toHaveBeenCalledTimes(1);
@@ -131,26 +131,26 @@ describe('CustomModelSettingsSection', () => {
         expect(props.setFallbackContextWindow).toHaveBeenCalledWith('64000');
     });
 
-    // Regression guard. The fields you cannot add a provider without must be in
-    // the main form, not inside the collapsed "Advanced" block. Base URL: without
-    // it there is no endpoint. Provider name: without it a freshly added provider
-    // keeps its generated "Provider 2" title, which is what the user hit.
+    // Regression guard. The fields you cannot add a service without must be in
+    // the main form, not inside the collapsed "Advanced" block. Address: without
+    // it there is nothing to reach. Service name: without it a freshly added
+    // service keeps its generated "AI service 2" title, which is what the user hit.
     //
     // The test above could not catch either — it pressed the Advanced toggle
     // first, so it found the fields wherever they lived.
-    it('offers Base URL and Provider name without expanding Advanced', () => {
+    it('offers the address and service name without expanding Advanced', () => {
         const props = buildProps();
         render(<CustomModelSettingsSection {...props} />);
 
         // No press on the Advanced toggle anywhere in this test.
-        expect(screen.queryByLabelText('Model filter patterns')).toBeNull();
-        expect(screen.getByLabelText('Custom AI base URL')).toBeTruthy();
-        expect(screen.getByLabelText('Provider name')).toBeTruthy();
+        expect(screen.queryByLabelText('Words to match in option names')).toBeNull();
+        expect(screen.getByLabelText('AI service address')).toBeTruthy();
+        expect(screen.getByLabelText('Service name')).toBeTruthy();
 
-        fireEvent.changeText(screen.getByLabelText('Custom AI base URL'), 'https://api.mine.test/v1');
+        fireEvent.changeText(screen.getByLabelText('AI service address'), 'https://api.mine.test/v1');
         expect(props.setBaseUrl).toHaveBeenCalledWith('https://api.mine.test/v1');
 
-        fireEvent.changeText(screen.getByLabelText('Provider name'), 'My gateway');
+        fireEvent.changeText(screen.getByLabelText('Service name'), 'My gateway');
         expect(props.setLabel).toHaveBeenCalledWith('My gateway');
     });
 
@@ -170,9 +170,9 @@ describe('CustomModelSettingsSection', () => {
         const props = buildProps();
         render(<CustomModelSettingsSection {...props} />);
 
-        fireEvent.press(screen.getByLabelText('Advanced AI provider settings'));
-        fireEvent.changeText(screen.getByLabelText('Manual model id'), 'qwen-web/qwen3.8-max');
-        fireEvent.press(screen.getByLabelText('Add manual model'));
+        fireEvent.press(screen.getByLabelText('Advanced AI settings'));
+        fireEvent.changeText(screen.getByLabelText('AI option name'), 'qwen-web/qwen3.8-max');
+        fireEvent.press(screen.getByLabelText('Add option by name'));
 
         expect(props.addManualModel).toHaveBeenCalledWith('qwen-web/qwen3.8-max');
     });
@@ -181,62 +181,62 @@ describe('CustomModelSettingsSection', () => {
         const props = buildProps();
         render(<CustomModelSettingsSection {...props} />);
 
-        fireEvent.press(screen.getByLabelText('Advanced AI provider settings'));
+        fireEvent.press(screen.getByLabelText('Advanced AI settings'));
         // The Add button is disabled while the input is empty.
-        expect(screen.getByLabelText('Add manual model').props.accessibilityState.disabled).toBe(true);
+        expect(screen.getByLabelText('Add option by name').props.accessibilityState.disabled).toBe(true);
         expect(props.addManualModel).not.toHaveBeenCalled();
     });
 
-    it('offers Add provider, and Remove only once a second profile exists', () => {
+    it('offers Add service, and Remove only once a second profile exists', () => {
         const single = buildProps();
         render(<CustomModelSettingsSection {...single} />);
 
-        fireEvent.press(screen.getByText('Add provider'));
-        // "Add provider" now asks which kind first; nothing is created until the
-        // user picks one (see the provider-kind tests below).
+        fireEvent.press(screen.getByText('Add service'));
+        // "Add service" now asks which service first; nothing is created until
+        // the user picks one (see the service-kind tests below).
         expect(single.addProfile).not.toHaveBeenCalled();
-        expect(screen.queryByText('Saved providers')).toBeNull();
+        expect(screen.queryByText('Saved services')).toBeNull();
         expect(screen.queryByText('Remove')).toBeNull();
 
         const multi = buildProps();
-        const second = { ...multi.settings.profiles[0], id: 'profile-2', label: 'Second provider' };
+        const second = { ...multi.settings.profiles[0], id: 'profile-2', label: 'Second AI service' };
         multi.settings = { ...multi.settings, profiles: [multi.settings.profiles[0], second] };
         render(<CustomModelSettingsSection {...multi} />);
 
-        expect(screen.getByText('Saved providers')).toBeTruthy();
-        fireEvent.press(screen.getByLabelText('Use provider Second provider'));
+        expect(screen.getByText('Saved services')).toBeTruthy();
+        fireEvent.press(screen.getByLabelText('Use Second AI service'));
         expect(multi.selectProfile).toHaveBeenCalledWith('profile-2');
 
         fireEvent.press(screen.getByText('Remove'));
         expect(multi.removeActiveProfile).toHaveBeenCalledTimes(1);
     });
 
-    it('asks for the provider type and adds the profile the user picked', () => {
+    it('asks for the service type and adds the one the user picked', () => {
         const props = buildProps();
         render(<CustomModelSettingsSection {...props} />);
 
-        fireEvent.press(screen.getByText('Add provider'));
+        fireEvent.press(screen.getByText('Add service'));
 
         // All three kinds are offered, by name — this is the whole point of the
         // modal: a Google or Anthropic user should not have to know that their
-        // endpoint happens to speak a partial OpenAI schema.
-        expect(screen.getByLabelText('Add OpenAI compatible provider')).toBeTruthy();
-        expect(screen.getByLabelText('Add Google AI Studio provider')).toBeTruthy();
-        expect(screen.getByLabelText('Add Anthropic provider')).toBeTruthy();
+        // service happens to work the way OpenAI does.
+        expect(screen.getByLabelText('Add OpenAI compatible as the AI service')).toBeTruthy();
+        expect(screen.getByLabelText('Add Google AI Studio as the AI service')).toBeTruthy();
+        expect(screen.getByLabelText('Add Anthropic as the AI service')).toBeTruthy();
 
-        fireEvent.press(screen.getByLabelText('Add Anthropic provider'));
+        fireEvent.press(screen.getByLabelText('Add Anthropic as the AI service'));
         expect(props.addProfile).toHaveBeenCalledWith('anthropic');
     });
 
-    it('adds nothing when the provider-type sheet is cancelled', () => {
+    it('adds nothing when the service-type sheet is cancelled', () => {
         const props = buildProps();
         render(<CustomModelSettingsSection {...props} />);
 
-        fireEvent.press(screen.getByText('Add provider'));
-        fireEvent.press(screen.getByLabelText('Cancel adding a provider'));
+        fireEvent.press(screen.getByText('Add service'));
+        fireEvent.press(screen.getByLabelText('Cancel adding a service'));
 
         expect(props.addProfile).not.toHaveBeenCalled();
-        expect(screen.queryByLabelText('Add Anthropic provider')).toBeNull();
+        expect(screen.queryByLabelText('Add Anthropic as the AI service')).toBeNull();
     });
 
     it('constrains a long saved-provider chip so it cannot overflow its row', () => {

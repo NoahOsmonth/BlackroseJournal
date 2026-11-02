@@ -129,12 +129,12 @@ describe('ExploreScreen memory hub', () => {
     it('renders the Memory hub and opens the graph route', () => {
         render(<ExploreScreen />);
 
-        fireEvent.press(screen.getByLabelText('Explore memory graph'));
+        fireEvent.press(screen.getByLabelText('Open the memory map'));
 
         expect(screen.getByText('Memory')).toBeTruthy();
         expect(screen.getAllByText('Recent journal pattern: quieter evenings help.').length)
             .toBeGreaterThan(0);
-        expect(screen.getByLabelText('Show All memories')).toBeTruthy();
+        expect(screen.getByLabelText('Show all memories')).toBeTruthy();
         expect(mockPush).toHaveBeenCalledWith('/memory-graph');
     });
 
@@ -146,7 +146,7 @@ describe('ExploreScreen memory hub', () => {
         // own label), not the old panel's 'Memory note'.
         fireEvent.changeText(screen.getByLabelText('New line'), 'Keep Sundays quiet.');
         fireEvent.press(screen.getByLabelText('Keep this note'));
-        fireEvent.changeText(screen.getByLabelText('Search local memory'), 'sleep');
+        fireEvent.changeText(screen.getByLabelText('Search memories'), 'sleep');
         fireEvent.press(screen.getByLabelText('Delete memory Theme: Sleep'));
 
         await waitFor(() => {
@@ -163,7 +163,7 @@ describe('ExploreScreen memory hub', () => {
         // durable at this point, so the alert must say so rather than implying
         // the note was lost.
         mockAddExploreNote.mockResolvedValue({
-            failures: [{ store: 'memory file', error: 'quota' }],
+            failures: [{ store: 'file', error: 'quota' }],
             themes: [],
         });
         const alertSpy = jest.spyOn(Alert, 'alert');
@@ -175,7 +175,7 @@ describe('ExploreScreen memory hub', () => {
         await waitFor(() => {
             expect(alertSpy).toHaveBeenCalledWith(
                 'Saved, with a gap',
-                expect.stringContaining('memory file'),
+                expect.stringContaining('saved notes'),
             );
         });
         // The gap must not be reported as a total failure: no error alert.

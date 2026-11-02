@@ -33,7 +33,7 @@ describe('toolUiMeta', () => {
     });
 
     it('falls back safely for unknown tools and bad JSON', () => {
-        expect(getToolUiMeta('not_a_tool').label).toBe('Using a tool');
+        expect(getToolUiMeta('not_a_tool').label).toBe('Looking something up');
         expect(formatToolArgsPreview('get_day', 'not-json')).toBe('day');
     });
 

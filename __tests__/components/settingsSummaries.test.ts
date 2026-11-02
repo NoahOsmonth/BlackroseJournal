@@ -17,6 +17,7 @@ import { makeProviderSettings, testModel } from '../mocks/providerSettings';
 describe('settingsSummaries', () => {
     it('formats appearance, generation, and color summaries', () => {
         expect(appearanceSummary('dark', 'flat')).toBe('Dark · Flat');
+        expect(appearanceSummary('dark', 'native')).toBe('Dark · Standard');
         expect(generationSummary(DEFAULT_GENERATION)).toBe('Balanced');
         expect(colorThemeSummary(DEFAULT_COLOR_THEME)).toBe('Blackrose');
         expect(colorThemeSummary({ ...DEFAULT_COLOR_THEME, presetId: 'custom' })).toBe('Custom');
@@ -48,7 +49,8 @@ describe('settingsSummaries', () => {
         })).toBe('Ren');
         expect(memorySummary(12)).toBe('12 memories');
         expect(accountSummary()).toBe('On this device');
-        expect(dataManagementSummary(true)).toBe('Backup · Export');
+        expect(dataManagementSummary(true)).toBe('Backup · Copy');
+        expect(dataManagementSummary(false)).toBe('Copy · Backup');
         expect(aboutSummary()).toMatch(/^v/);
     });
 });

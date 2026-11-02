@@ -53,7 +53,7 @@ export function defaultResultPreview(result: ToolResult): string {
 }
 
 const DEFAULT_META: ToolUiMeta = {
-    label: 'Using a tool',
+    label: 'Looking something up',
     iconName: 'build',
 };
 
@@ -107,49 +107,49 @@ export const TOOL_UI_META: Record<string, ToolUiMeta> = {
     get_live_session: {
         label: 'Re-reading this chat',
         iconName: 'history',
-        formatArgsPreview: (args) => firstPreviewArg(args, ['conversationId']) || 'this session',
+        formatArgsPreview: (args) => firstPreviewArg(args, ['conversationId']) || 'this chat',
     },
     memory_search: {
-        label: 'Searching offline memory',
+        label: 'Searching saved memories',
         iconName: 'saved-search',
         formatArgsPreview: (args) => firstPreviewArg(args, ['query', 'q']) || 'memory',
     },
     memory_list: {
-        label: 'Browsing memory files',
+        label: 'Browsing saved notes',
         iconName: 'folder',
-        formatArgsPreview: (args) => firstPreviewArg(args, ['kind']) || 'all memory',
+        formatArgsPreview: (args) => firstPreviewArg(args, ['kind']) || 'all memories',
     },
     memory_get: {
-        label: 'Reading a memory file',
+        label: 'Reading a saved note',
         iconName: 'article',
         formatArgsPreview: (args) => {
             const ids = args.ids;
-            if (Array.isArray(ids) && ids.length > 0) return `${ids.length} file${ids.length === 1 ? '' : 's'}`;
-            return 'memory file';
+            if (Array.isArray(ids) && ids.length > 0) return `${ids.length} note${ids.length === 1 ? '' : 's'}`;
+            return 'saved note';
         },
     },
     memory_overview: {
-        label: 'Checking memory health',
+        label: 'Checking saved memories',
         iconName: 'assessment',
         formatArgsPreview: () => '—',
     },
     memory_flush: {
-        label: 'Staging new memories',
+        label: 'Saving new memories',
         iconName: 'upload',
         formatArgsPreview: () => '—',
     },
     memory_dream: {
-        label: 'Consolidating memories',
+        label: 'Tidying memories',
         iconName: 'bedtime',
         formatArgsPreview: () => '—',
     },
     get_identity: {
-        label: 'Reading your profile',
+        label: 'Reading what it knows about you',
         iconName: 'person',
         formatArgsPreview: () => '—',
     },
     update_identity: {
-        label: 'Saving profile facts',
+        label: 'Saving details about you',
         iconName: 'badge',
         formatArgsPreview: (args) => {
             const name = firstPreviewArg(args, ['preferredName', 'name']);

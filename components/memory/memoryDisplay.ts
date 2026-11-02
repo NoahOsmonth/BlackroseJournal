@@ -16,11 +16,11 @@ export const MEMORY_LAYER_ORDER: LocalMemoryLayer[] = [
 ];
 
 export const MEMORY_LAYER_LABELS: Record<LocalMemoryLayer, string> = {
-    working: 'Working',
-    episodic: 'Episodes',
+    working: 'Recent',
+    episodic: 'Moments',
     semantic: 'Themes',
     procedural: 'Preferences',
-    profile: 'About me',
+    profile: 'About you',
     note: 'Notes',
 };
 

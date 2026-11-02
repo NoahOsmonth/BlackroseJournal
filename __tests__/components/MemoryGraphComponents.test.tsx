@@ -48,11 +48,11 @@ describe('MemoryGraph components', () => {
             />
         );
 
-        fireEvent.press(screen.getByLabelText('Toggle Profile memories'));
+        fireEvent.press(screen.getByLabelText('Show or hide About you'));
 
-        expect(screen.getByText('Episodic')).toBeTruthy();
-        expect(screen.getByText('Semantic')).toBeTruthy();
-        expect(screen.getByText('Profile')).toBeTruthy();
+        expect(screen.getByText('Moments')).toBeTruthy();
+        expect(screen.getByText('Themes')).toBeTruthy();
+        expect(screen.getByText('About you')).toBeTruthy();
         expect(onToggle).toHaveBeenCalledWith('profile');
     });
 
@@ -80,8 +80,8 @@ describe('MemoryGraph components', () => {
         expect(idlePill).toContain('border-hairline-light');
         expect(idlePill).toContain('dark:border-hairline-dark');
 
-        expect(screen.getByText('Episodic').props.style).toMatchObject({ lineHeight: 16 });
-        ['Episodic', 'Semantic', 'Profile'].forEach((label) => {
+        expect(screen.getByText('Moments').props.style).toMatchObject({ lineHeight: 16 });
+        ['Moments', 'Themes', 'About you'].forEach((label) => {
             expect(screen.getByText(label).props.numberOfLines).toBe(1);
         });
     });

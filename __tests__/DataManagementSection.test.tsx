@@ -54,8 +54,8 @@ describe('DataManagementSection', () => {
         expect(getByText('Restore latest backup')).toBeTruthy();
         expect(getByText('Latest: Friday backup')).toBeTruthy();
         // Production default: demo seed controls hidden
-        expect(queryByText('Seed demo data')).toBeNull();
-        expect(queryByText('Clear demo data')).toBeNull();
+        expect(queryByText('Add sample data')).toBeNull();
+        expect(queryByText('Remove sample data')).toBeNull();
     });
 
     it('shows seed controls only when showDemoSeedControls is true', () => {
@@ -72,8 +72,8 @@ describe('DataManagementSection', () => {
                 onClearHistory={jest.fn()}
             />
         );
-        expect(getByText('Seed demo data')).toBeTruthy();
-        expect(getByText('Clear demo data')).toBeTruthy();
+        expect(getByText('Add sample data')).toBeTruthy();
+        expect(getByText('Remove sample data')).toBeTruthy();
     });
 
     it('calls the backup actions from the visible controls', () => {
@@ -118,11 +118,11 @@ describe('DataManagementSection', () => {
             />
         );
 
-        expect(getByText('Seeding… 7/25 rows')).toBeTruthy();
+        expect(getByText('Adding… 7/25 rows')).toBeTruthy();
         // The idle description is gone while the seed runs (regex: the row text is long).
-        expect(queryByText(/replaces prior seed/)).toBeNull();
+        expect(queryByText(/replaces the previous sample/)).toBeNull();
 
-        fireEvent.press(getByText('Seed demo data'));
+        fireEvent.press(getByText('Add sample data'));
         expect(onSeedDemoData).not.toHaveBeenCalled();
     });
 
@@ -132,7 +132,7 @@ describe('DataManagementSection', () => {
      * `notifyUser` (window.alert on web, Alert on native).
      */
     it('routes Drive backup and restore outcomes through the web-safe notifier', async () => {
-        mockBackupNow.mockResolvedValue('Backed up 3 atoms + 1 files as drive.json.');
+        mockBackupNow.mockResolvedValue('Backed up 3 memories and 1 note as drive.json.');
         mockRestoreLatest.mockResolvedValue(null);
 
         const { getByText } = render(
@@ -150,7 +150,7 @@ describe('DataManagementSection', () => {
         await waitFor(() => {
             expect(mockNotifyUser).toHaveBeenCalledWith(
                 'Drive backup done',
-                'Backed up 3 atoms + 1 files as drive.json.',
+                'Backed up 3 memories and 1 note as drive.json.',
             );
         });
 

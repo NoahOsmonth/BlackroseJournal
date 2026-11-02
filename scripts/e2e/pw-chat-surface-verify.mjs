@@ -326,7 +326,7 @@ async function run() {
             if (expanded.toolRowLabels.length !== SEED_TOOLS.length) {
                 failures.push(`${label}: expanded work layer shows ${expanded.toolRowLabels.length} tool rows, expected ${SEED_TOOLS.length}`);
             }
-            if (!/Used 3 tools/.test(expanded.summaryText || '')) {
+            if (!/Looked up 3 things/.test(expanded.summaryText || '')) {
                 failures.push(`${label}: summary line is ${JSON.stringify(expanded.summaryText)}`);
             }
 

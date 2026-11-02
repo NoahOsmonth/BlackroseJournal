@@ -60,7 +60,7 @@ export function FinishBackgroundBanner() {
                 ].join(' ')}
             >
                 {running
-                    ? 'Updating memories… analysis and digests running'
+                    ? 'Updating memories… this can take a moment'
                     : 'Memories updated just now'}
             </Text>
         </View>

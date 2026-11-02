@@ -51,11 +51,11 @@ const getFriendlyErrorMessage = (error: Error): string => {
     const message = error.message.toLowerCase();
 
     if (message.includes('authorization') || message.includes('unauthorized')) {
-        return 'Missing or invalid API key. Set it in Settings → AI Model.';
+        return 'Your AI access key is missing or wrong. Add it in Settings → AI.';
     }
 
     if (message.includes('failed to fetch') || message.includes('network')) {
-        return 'Network error while contacting the AI. Please try again.';
+        return 'Couldn’t reach the AI. Check your connection and try again.';
     }
 
     return 'Something went wrong while contacting the AI. Please try again.';

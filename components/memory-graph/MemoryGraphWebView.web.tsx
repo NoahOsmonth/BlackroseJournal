@@ -71,7 +71,7 @@ export function MemoryGraphWebView({
                 ref: iframeRef,
                 src: engineUri ?? 'about:blank',
                 onLoad: () => setIsLoaded(true),
-                title: 'Memory graph canvas',
+                title: 'Map of your memories',
                 style: styles.iframe,
             })}
         </View>

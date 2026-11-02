@@ -35,7 +35,7 @@ function OptionRow({
         <Pressable
             onPress={onPress}
             accessibilityRole="button"
-            accessibilityLabel={`Add ${option.label} provider`}
+            accessibilityLabel={`Add ${option.label} as the AI service`}
             testID={`provider-kind-${option.kind}`}
             className="min-h-16 flex-row items-center gap-3 rounded-control border border-hairline-light bg-surface-light px-4 py-3.5 active:opacity-80 dark:border-hairline-dark dark:bg-surface-dark"
         >
@@ -67,11 +67,11 @@ export type ProviderKindPickerSheetProps = {
 };
 
 /**
- * "Add provider" asks which kind of endpoint first.
+ * "Add service" asks which service first.
  *
- * The alternative — appending a blank profile and letting the user discover the
- * base URL from a vendor console — is what this sheet replaces. Picking a kind
- * creates the profile with that kind's base URL and name prefilled, all still
+ * The alternative — appending a blank entry and letting the user discover the
+ * address from a vendor console — is what this sheet replaces. Picking one
+ * creates the entry with that service's address and name prefilled, all still
  * editable in the form behind it.
  */
 export function ProviderKindPickerSheet({
@@ -87,7 +87,7 @@ export function ProviderKindPickerSheet({
                 <Pressable
                     className="flex-1 self-stretch"
                     onPress={onClose}
-                    accessibilityLabel="Dismiss provider type picker"
+                    accessibilityLabel="Dismiss the AI service picker"
                 />
                 {/* Capped and centred like the rest of the sheet chrome: on a
                     desktop viewport a full-bleed sheet turns three rows into a
@@ -101,10 +101,10 @@ export function ProviderKindPickerSheet({
                             className="mt-3 text-center text-[24px] leading-[32px] text-text-light dark:text-text-dark"
                             style={SERIF}
                         >
-                            Add provider
+                            Add service
                         </Text>
                         <Text className="mt-1 text-center text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
-                            Pick where your models come from. You can edit every field next.
+                            Pick where your AI comes from. You can edit every field next.
                         </Text>
                     </View>
 
@@ -122,7 +122,7 @@ export function ProviderKindPickerSheet({
                         onPress={onClose}
                         className="min-h-12 items-center justify-center border-t border-hairline-light dark:border-hairline-dark"
                         style={{ paddingBottom: Math.max(insets.bottom, 12) }}
-                        accessibilityLabel="Cancel adding a provider"
+                        accessibilityLabel="Cancel adding a service"
                     >
                         <Text className="text-[16px] text-text-light dark:text-text-dark">
                             Cancel

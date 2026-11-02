@@ -77,16 +77,27 @@ function formatDuration(ms: number): string {
     return `${(ms / 1000).toFixed(1)}s`;
 }
 
-/** "Thought it through · Used 2 tools · 1.4s" — only facts we actually have. */
+/** "Thought it through · Looked up 2 things · 1.4s" — only facts we actually have. */
 function summarizeWork(tools: AgentToolCallSnapshot[], hasReasoning: boolean): string {
     const parts: string[] = [];
     if (hasReasoning) parts.push('Thought it through');
     if (tools.length > 0) {
-        parts.push(`Used ${tools.length} ${tools.length === 1 ? 'tool' : 'tools'}`);
+        parts.push(`Looked up ${tools.length} ${tools.length === 1 ? 'thing' : 'things'}`);
     }
     const totalMs = tools.reduce((sum, call) => sum + (call.durationMs ?? 0), 0);
     if (totalMs > 0) parts.push(formatDuration(totalMs));
     return parts.join(' · ');
+}
+
+const STATUS_WORDS: Record<string, string> = {
+    ok: 'done',
+    error: 'failed',
+    refused: 'skipped',
+    running: 'working',
+};
+
+function statusWord(status: string): string {
+    return STATUS_WORDS[status] ?? status;
 }
 
 function ToolRow({ call }: { call: AgentToolCallSnapshot }) {
@@ -97,7 +108,7 @@ function ToolRow({ call }: { call: AgentToolCallSnapshot }) {
     const showExpand = call.status !== 'running' && Boolean(call.argsPreview || call.resultPreview);
 
     return (
-        <View accessibilityLabel={`Tool ${call.label}: ${call.status}`}>
+        <View accessibilityLabel={`${call.label}: ${statusWord(call.status)}`}>
             <Pressable
                 disabled={!showExpand}
                 onPress={() => setExpanded((prev) => !prev)}
@@ -149,7 +160,7 @@ function ToolRow({ call }: { call: AgentToolCallSnapshot }) {
                 <View className="mt-1 gap-1 pl-[21px]">
                     {!!call.argsPreview && call.argsPreview !== '—' && (
                         <Text className="text-[12px] text-text-secondary-light dark:text-text-secondary-dark">
-                            Args: {call.argsPreview}
+                            Details: {call.argsPreview}
                         </Text>
                     )}
                     {!!call.resultPreview && (
@@ -186,11 +197,11 @@ export function AgentToolActivity({
     const summary = isWorking ? 'Working…' : summarizeWork(tools, hasReasoning);
 
     return (
-        <View accessibilityLabel="Tool activity" className="gap-1">
+        <View accessibilityLabel="What Blackrose checked" className="gap-1">
             <Pressable
                 onPress={() => setExpandedOverride(!expanded)}
                 accessibilityRole="button"
-                accessibilityLabel={expanded ? 'Hide thinking and tools' : 'Show thinking and tools'}
+                accessibilityLabel={expanded ? 'Hide thinking' : 'Show thinking'}
                 accessibilityState={{ expanded }}
                 hitSlop={6}
                 className="flex-row items-center gap-1.5 self-start py-0.5"
@@ -223,7 +234,7 @@ export function AgentToolActivity({
                     )}
                     {hasReasoning && (
                         <Text
-                            accessibilityLabel="Companion reasoning"
+                            accessibilityLabel="What Blackrose was thinking"
                             className="text-[13px] italic leading-5 text-bone-light dark:text-bone-dark"
                         >
                             {reasoning}

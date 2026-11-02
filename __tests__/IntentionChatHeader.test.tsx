@@ -52,7 +52,7 @@ describe('IntentionChatHeader', () => {
         expect(getByTestId('intention-chat-persona-badge')).toBeTruthy();
         expect(getByText('Drafts')).toBeTruthy();
 
-        fireEvent.press(getByLabelText(/Model:/i));
+        fireEvent.press(getByLabelText(/AI:/i));
         expect(onOpenModelPicker).toHaveBeenCalledTimes(1);
     });
 
@@ -67,7 +67,7 @@ describe('IntentionChatHeader', () => {
             />
         );
 
-        const model = classNameFor(getByLabelText(/Model:/i));
+        const model = classNameFor(getByLabelText(/AI:/i));
         expect(model).toContain('border-hairline-light');
         expect(model).toContain('dark:border-hairline-dark');
         expect(model).not.toContain('bg-gray-100');

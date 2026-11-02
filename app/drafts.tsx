@@ -48,7 +48,7 @@ function formatDraftTime(timestamp: number, now = new Date()): string {
 function sessionTitle(session: ChatSession): string {
     const lastUser = [...session.messages].reverse().find((m) => m.role === 'user');
     const text = (lastUser ?? session.messages[session.messages.length - 1])?.content.trim() ?? '';
-    if (!text) return 'Untitled session';
+    if (!text) return 'Untitled chat';
     return text.length > 80 ? `${text.slice(0, 80).trim()}...` : text;
 }
 

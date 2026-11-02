@@ -100,8 +100,8 @@ export function Header({
             accessibilityRole="switch"
             accessibilityState={{ checked: showThinking }}
             accessibilityLabel={showThinking
-              ? 'Hide thinking and tool calls'
-              : 'Show thinking and tool calls'}
+              ? 'Hide thinking'
+              : 'Show thinking'}
             hitSlop={8}
             className="flex-row items-center gap-1 rounded-control border border-hairline-light px-2 py-1 dark:border-hairline-dark"
           >

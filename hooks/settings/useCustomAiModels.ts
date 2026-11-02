@@ -88,7 +88,7 @@ function toDraft(profile: ProviderProfile | null): CustomAiDraft {
 
 function errorMessage(error: unknown): string {
     if (error instanceof CustomModelSettingsError) return error.message;
-    return error instanceof Error ? error.message : 'Something went wrong.';
+    return 'Something went wrong. Try again.';
 }
 
 function selectedOrFirst(profile: ProviderProfile | null): string | null {
@@ -100,7 +100,7 @@ function selectedOrFirst(profile: ProviderProfile | null): string | null {
 
 function requireApiKey(value: string): string {
     const trimmed = value.trim();
-    if (!trimmed) throw new CustomModelSettingsError('API key is required.');
+    if (!trimmed) throw new CustomModelSettingsError('Access key is required.');
     return trimmed;
 }
 
@@ -191,7 +191,7 @@ export function useCustomAiModels(): UseCustomAiModelsReturn {
             }));
             setStatus({
                 kind: 'success',
-                message: `${result.models.length} model${result.models.length === 1 ? '' : 's'} loaded.`,
+                message: `${result.models.length} AI option${result.models.length === 1 ? '' : 's'} loaded.`,
             });
         } catch (error) {
             const message = errorMessage(error);
@@ -215,7 +215,7 @@ export function useCustomAiModels(): UseCustomAiModelsReturn {
             const fallback = normalizeFallbackContextWindow(draft.fallbackContextWindow);
             const selectedModelId = selectedOrFirst(profile);
             if (!selectedModelId) {
-                throw new CustomModelSettingsError('Fetch and select a model first.');
+                throw new CustomModelSettingsError('Find and choose an AI option first.');
             }
             const base = profile ?? createProviderProfile();
             await persist(withUpdatedProfile(settings, {
@@ -228,7 +228,7 @@ export function useCustomAiModels(): UseCustomAiModelsReturn {
                 selectedModelId,
                 updatedAt: Date.now(),
             }));
-            setStatus({ kind: 'success', message: 'Provider saved.' });
+            setStatus({ kind: 'success', message: 'AI service saved.' });
         } catch (error) {
             setStatus({ kind: 'error', message: errorMessage(error) });
         } finally {
@@ -238,12 +238,12 @@ export function useCustomAiModels(): UseCustomAiModelsReturn {
 
     const selectModel = useCallback(async (modelId: string) => {
         try {
-            if (!profile) throw new CustomModelSettingsError('Add a provider first.');
+            if (!profile) throw new CustomModelSettingsError('Add an AI service first.');
             await persist({
                 ...withUpdatedProfile(settings, withSelectedModel(profile, modelId)),
                 enabled: true,
             });
-            setStatus({ kind: 'success', message: 'Model selected.' });
+            setStatus({ kind: 'success', message: 'AI chosen.' });
         } catch (error) {
             setStatus({ kind: 'error', message: errorMessage(error) });
         }
@@ -251,7 +251,7 @@ export function useCustomAiModels(): UseCustomAiModelsReturn {
 
     const addManualModel = useCallback(async (modelId: string) => {
         try {
-            if (!profile) throw new CustomModelSettingsError('Add a provider first.');
+            if (!profile) throw new CustomModelSettingsError('Add an AI service first.');
             const fallback = normalizeFallbackContextWindow(draft.fallbackContextWindow);
             await persist({
                 ...withUpdatedProfile(settings, withManualModel(profile, modelId, fallback)),
@@ -265,7 +265,7 @@ export function useCustomAiModels(): UseCustomAiModelsReturn {
 
     const setEnabled = useCallback(async (enabled: boolean) => {
         if (enabled && !selectedOrFirst(profile)) {
-            setStatus({ kind: 'error', message: 'Fetch and select a model first.' });
+            setStatus({ kind: 'error', message: 'Find and choose an AI option first.' });
             return;
         }
         await persist({
@@ -285,13 +285,13 @@ export function useCustomAiModels(): UseCustomAiModelsReturn {
             await persist(addProviderProfile(settings, createProviderProfile({
                 kind,
                 // Prefill an editable starting point. The user can overwrite the
-                // name and the base URL with their own gateway or proxy.
-                label: option.defaultLabel === 'Provider'
-                    ? `Provider ${settings.profiles.length + 1}`
+                // name and the address with their own gateway or proxy.
+                label: option.defaultLabel === 'AI service'
+                    ? `AI service ${settings.profiles.length + 1}`
                     : option.defaultLabel,
                 baseUrl: option.defaultBaseUrl,
             })));
-            setStatus({ kind: 'success', message: 'New provider added. Enter its details.' });
+            setStatus({ kind: 'success', message: 'New AI service added. Enter its details.' });
         } catch (error) {
             setStatus({ kind: 'error', message: errorMessage(error) });
         }
@@ -301,7 +301,7 @@ export function useCustomAiModels(): UseCustomAiModelsReturn {
         try {
             if (!profile) return;
             await persist(removeProviderProfile(settings, profile.id));
-            setStatus({ kind: 'success', message: 'Provider removed.' });
+            setStatus({ kind: 'success', message: 'AI service removed.' });
         } catch (error) {
             setStatus({ kind: 'error', message: errorMessage(error) });
         }

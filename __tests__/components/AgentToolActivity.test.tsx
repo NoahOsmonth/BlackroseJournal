@@ -37,7 +37,7 @@ describe('AgentToolActivity', () => {
             <AgentToolActivity toolActivity={[makeCall()]} />
         );
 
-        expect(getByLabelText('Tool Reading a day: running')).toBeTruthy();
+        expect(getByLabelText('Reading a day: working')).toBeTruthy();
         expect(getByText('Reading a day')).toBeTruthy();
         expect(getByText('yesterday')).toBeTruthy();
     });
@@ -52,8 +52,8 @@ describe('AgentToolActivity', () => {
             />
         );
 
-        expect(getByText('Used 2 tools · 42ms')).toBeTruthy();
-        expect(queryByLabelText('Tool Reading a day: ok')).toBeNull();
+        expect(getByText('Looked up 2 things · 42ms')).toBeTruthy();
+        expect(queryByLabelText('Reading a day: done')).toBeNull();
     });
 
     it('expands the summary line to reveal the tools that ran', () => {
@@ -61,8 +61,8 @@ describe('AgentToolActivity', () => {
             <AgentToolActivity toolActivity={[makeCall({ status: 'ok' })]} />
         );
 
-        fireEvent.press(getByLabelText('Show thinking and tools'));
-        expect(getByLabelText('Tool Reading a day: ok')).toBeTruthy();
+        fireEvent.press(getByLabelText('Show thinking'));
+        expect(getByLabelText('Reading a day: done')).toBeTruthy();
     });
 
     it('counts reasoning in the summary line', () => {
@@ -73,7 +73,7 @@ describe('AgentToolActivity', () => {
             />
         );
 
-        expect(getByText('Thought it through · Used 1 tool')).toBeTruthy();
+        expect(getByText('Thought it through · Looked up 1 thing')).toBeTruthy();
     });
 
     it('shows the reasoning itself only once expanded', () => {
@@ -84,9 +84,9 @@ describe('AgentToolActivity', () => {
             />
         );
 
-        expect(queryByLabelText('Companion reasoning')).toBeNull();
-        fireEvent.press(getByLabelText('Show thinking and tools'));
-        expect(getByLabelText('Companion reasoning')).toBeTruthy();
+        expect(queryByLabelText('What Blackrose was thinking')).toBeNull();
+        fireEvent.press(getByLabelText('Show thinking'));
+        expect(getByLabelText('What Blackrose was thinking')).toBeTruthy();
     });
 
     it('renders a tool row per status with its own a11y label', () => {
@@ -100,8 +100,8 @@ describe('AgentToolActivity', () => {
             />
         );
 
-        expect(getByLabelText('Tool Reading a day: ok')).toBeTruthy();
-        expect(getByLabelText('Tool Searching your history: error')).toBeTruthy();
+        expect(getByLabelText('Reading a day: done')).toBeTruthy();
+        expect(getByLabelText('Searching your history: failed')).toBeTruthy();
     });
 
     it('expands a finished tool row to show its result preview', () => {
@@ -134,7 +134,7 @@ describe('AgentToolActivity', () => {
         // Walk up from the tool row to the detail block that holds it. The
         // companion column already draws the bone rail, so a second rule 12px
         // inside it reads as noise — indent only.
-        let block = getByLabelText('Tool Reading a day: ok').parent;
+        let block = getByLabelText('Reading a day: done').parent;
         while (block && !String(block.props.className ?? '').includes('pl-3')) {
             block = block.parent;
         }
@@ -147,7 +147,7 @@ describe('AgentToolActivity', () => {
         const { getByLabelText } = render(
             <AgentToolActivity toolActivity={[]} reasoning="thought about it" isStreaming />
         );
-        const className = String(getByLabelText('Companion reasoning').props.className ?? '');
+        const className = String(getByLabelText('What Blackrose was thinking').props.className ?? '');
         expect(className).toContain('text-bone-light');
         expect(className).toContain('dark:text-bone-dark');
     });
@@ -164,7 +164,7 @@ describe('AgentToolActivity', () => {
         expect(getByText('Working…')).toBeTruthy();
         expect(getByText('Let me go dig rather than guess.')).toBeTruthy();
         expect(getByLabelText('Working: Let me go dig rather than guess.')).toBeTruthy();
-        expect(getByLabelText('Tool Reading a day: running')).toBeTruthy();
+        expect(getByLabelText('Reading a day: working')).toBeTruthy();
     });
 
     it('renders the newest status line only', () => {

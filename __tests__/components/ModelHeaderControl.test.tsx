@@ -35,14 +35,14 @@ describe('ModelHeaderControl', () => {
     it('invokes onPress when enabled', () => {
         const onPress = jest.fn();
         render(<ModelHeaderControl onPress={onPress} />);
-        fireEvent.press(screen.getByLabelText(/Model:/i));
+        fireEvent.press(screen.getByLabelText(/AI:/i));
         expect(onPress).toHaveBeenCalledTimes(1);
     });
 
     it('does not open when disabled', () => {
         const onPress = jest.fn();
         render(<ModelHeaderControl onPress={onPress} disabled />);
-        fireEvent.press(screen.getByLabelText(/Model:/i));
+        fireEvent.press(screen.getByLabelText(/AI:/i));
         expect(onPress).not.toHaveBeenCalled();
     });
 });

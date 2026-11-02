@@ -85,7 +85,7 @@ describe('useCustomAiModels', () => {
         await act(async () => { await result.current.fetchModels(); });
         await act(async () => { await result.current.saveSettings(); });
 
-        expect(result.current.status).toEqual({ kind: 'success', message: 'Provider saved.' });
+        expect(result.current.status).toEqual({ kind: 'success', message: 'AI service saved.' });
         expect(result.current.profile?.models.map((m) => m.id))
             .toEqual(['openai/gpt-4', 'tencent/hy3:free']);
         // The base URL is normalized to the OpenAI-compatible form.
@@ -104,7 +104,7 @@ describe('useCustomAiModels', () => {
         expect(result.current.settings.enabled).toBe(true);
         expect(result.current.profile?.selectedModelId).toBe('tencent/hy3:free');
         expect(result.current.profile?.recentModelIds[0]).toBe('tencent/hy3:free');
-        expect(result.current.status).toEqual({ kind: 'success', message: 'Model selected.' });
+        expect(result.current.status).toEqual({ kind: 'success', message: 'AI chosen.' });
         await expect(getActiveCustomModelConfig()).resolves.toEqual(
             expect.objectContaining({
                 apiBaseUrl: `${HOST}/v1`,
@@ -176,11 +176,11 @@ describe('useCustomAiModels', () => {
 
         await act(async () => { await result.current.addProfile(); });
         expect(result.current.settings.profiles).toHaveLength(2);
-        expect(result.current.status.message).toBe('New provider added. Enter its details.');
+        expect(result.current.status.message).toBe('New AI service added. Enter its details.');
 
         await act(async () => { await result.current.removeActiveProfile(); });
         expect(result.current.settings.profiles).toHaveLength(1);
-        expect(result.current.status.message).toBe('Provider removed.');
+        expect(result.current.status.message).toBe('AI service removed.');
     });
 
     it('adds the provider kind the picker chose, prefilled but editable', async () => {
@@ -214,7 +214,7 @@ describe('useCustomAiModels', () => {
 
         expect(result.current.status).toEqual({
             kind: 'error',
-            message: 'Fetch and select a model first.',
+            message: 'Find and choose an AI option first.',
         });
         expect(result.current.settings.enabled).toBe(false);
     });

@@ -131,13 +131,13 @@ describe('directTransport — fetchDirectChatCompletion', () => {
 
         await expect(fetchDirectChatCompletion(BASE_PAYLOAD))
             .rejects
-            .toThrow(/Could not connect to AI provider/);
+            .toThrow(/Could not reach your AI service/);
         await expect(fetchDirectChatCompletion(BASE_PAYLOAD))
             .rejects
-            .toThrow('https://api.example.com/v1/chat/completions');
+            .toThrow(/Check your internet connection/);
         await expect(fetchDirectChatCompletion(BASE_PAYLOAD))
             .rejects
-            .toThrow(/EXPO_PUBLIC_AI_CUSTOM_BASE/);
+            .toThrow(/Settings → AI/);
     });
 
     it('rejects a prepared account A request instead of sending it after switching to account B', async () => {
@@ -325,7 +325,7 @@ describe('directTransport — provider-specific (ZenMux)', () => {
     it('retries transient network failures before surfacing the connection error', async () => {
         fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
 
-        await expect(fetchDirectChatCompletion(BASE_PAYLOAD)).rejects.toThrow(/Could not connect/);
+        await expect(fetchDirectChatCompletion(BASE_PAYLOAD)).rejects.toThrow(/Could not reach your AI service/);
         // 3 same-model attempts (self-heal)
         expect(fetchMock).toHaveBeenCalledTimes(3);
     });

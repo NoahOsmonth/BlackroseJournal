@@ -41,7 +41,7 @@ describe('memory graph presentation', () => {
         expect(sheet).toContain('ml-5 w-px self-stretch bg-bone-light dark:bg-bone-dark');
         expect(sheet).toContain('rounded-sheet');
         expect(sheet).toContain("const SERIF = 'PlayfairDisplayRegular'");
-        expect(sheet).toContain('Linked stars');
+        expect(sheet).toContain('Related memories');
         expect(sheet).toContain('At a glance');
         expect(sheet).toContain('Deepen with AI');
     });

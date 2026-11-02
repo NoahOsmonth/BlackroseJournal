@@ -37,9 +37,9 @@ export function PersonaFormSkeleton() {
                 <View className="mt-6">
                     <Skeleton className="mb-2 h-5 w-32" accessibilityLabel="Loading personalization label" />
                     <View className="h-48 rounded-card border border-hairline-light p-4 dark:border-hairline-dark">
-                        <Skeleton className="h-4 w-full" accessibilityLabel="Loading persona prompt line 1" />
-                        <Skeleton className="mt-3 h-4 w-3/4" accessibilityLabel="Loading persona prompt line 2" />
-                        <Skeleton className="mt-3 h-4 w-1/2" accessibilityLabel="Loading persona prompt line 3" />
+                        <Skeleton className="h-4 w-full" accessibilityLabel="Loading persona description line 1" />
+                        <Skeleton className="mt-3 h-4 w-3/4" accessibilityLabel="Loading persona description line 2" />
+                        <Skeleton className="mt-3 h-4 w-1/2" accessibilityLabel="Loading persona description line 3" />
                     </View>
                 </View>
 

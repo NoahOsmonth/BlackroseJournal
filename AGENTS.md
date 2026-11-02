@@ -209,6 +209,31 @@ There is **no authentication**. `services/auth/localAccount.ts` mints a stable d
 
 Guard tests: `__tests__/services/account/*` (registry/ownership), Boot gate: the offline probe below.
 
+### 13. User-facing copy is plain language — the reader is a journal writer, not a programmer.
+
+The person using this app writes in it; they did not build it and do not know what a provider, a token, or a context window is. Every string a user can read — labels, hints, empty states, errors, confirmations, accessibility labels — must describe **what they see or do**, not how it is implemented. The same rule covers `__DEV__` seed rows: dev screenshots and demos leak.
+
+| Instead of | Say |
+|---|---|
+| provider | AI service |
+| model (technical sense) | AI / AI option (a persona's: AI voice) |
+| API key | access key |
+| Base URL / endpoint / host | address / service |
+| context window, ctx, tokens | how much the AI remembers / memory |
+| temperature, top-P, sampling | Creativity, Variety |
+| prompt | idea, words |
+| session | chat |
+| atom, digest | memory, summary |
+| JSON, export | file |
+| memory graph | memory map |
+| episodic, semantic, profile | Moments, Themes, About you |
+| fetch models, cache, sync, hex | find AI options, saved, match, color code |
+
+- Code identifiers, stored shapes, storage keys, env vars and service APIs keep their technical names — the rule is about **copy**, not a rename. Never print a raw enum (`api`, `known`, `fallback`), an env var name, or a status code without a plain sentence around it.
+- Proper nouns stay: AI vendor names, model ids, `Blackrose`, `Google Drive`, `Threads`.
+- One concept, one label, one source: put shared display wording in a helper (e.g. `formatContextSource`) instead of repeating a string across surfaces.
+- Guard: `__tests__/plainLanguageCopy.test.ts` scans JSX text and UI attributes for the banned lexicon. Extending a surface with a new technical word means extending that test, not just this table.
+
 ---
 
 ## Storage keys (one owner each)
@@ -398,6 +423,7 @@ Key files:
 
 - [ ] Design/UI files ≤ 500 lines (`npm run check:design` clean).
 - [ ] Tests added or updated, all green.
+- [ ] User-facing copy follows rule 13 (`plainLanguageCopy` guard green).
 - [ ] `npx tsc --noEmit`, `npm run lint`, `npm run check:design` clean.
 - [ ] Nothing in "What NOT to touch" was modified.
 - [ ] If AI history/tools/prompts changed: storage-key ownership respected; digests write on finish; clear-history clears digests; freeform vs guided prompt not swapped.
@@ -437,3 +463,4 @@ This file grows from real incidents only. When an agent does something wrong, ad
   - It said concepts must never be deleted, then the user retired one. Deletion now requires an explicit instruction **and** a same-change `UI_MAP.md` update, so the "open the concept first" rule can never point at a deleted file.
 - **Both Windows and Linux are dev machines for this repo** → a `path.relative()` compared against a `/` literal and an `execFile('grep', …)` each shipped green-on-Linux/red-on-Windows in the same week. Rules added under Repo-specific gotchas, and the test-facing half is enforced: all repo-relative paths go through `relPosix()` (`__tests__/mocks/repoPath.ts`), no test or script may spawn a POSIX-only command, and no absolute path from either OS may be baked in — `__tests__/crossPlatformGuards.test.ts`, sabotage-verified both ways.
 - **The ambient shell exports `NODE_ENV=production`, and `babel-preset-expo` inlines `process.env.NODE_ENV` and every `process.env.EXPO_PUBLIC_*` read at *transform* time.** So the shell's value, not the test runner's, decided the test build: React resolved to `react.production.js` (which exports no `act`), every `@testing-library/react-native` `render`/`renderHook` threw, and RN's own `if (process.env.NODE_ENV === 'test')` Animated guard was baked to `'production'` — a sibling disabled `TouchableOpacity` then *threw* `Unable to locate attached view in the native tree` instead of degrading. This reads exactly like a React-19/RNTL version mismatch and is not one. `jest.config.js` now sets `process.env.NODE_ENV = "test"` on its first line: that is the only point early enough, because `setupFiles` runs *after* transforms. A `setupFiles`-based fix (`jest.env.js`) was tried and does not work. Same mechanism also freezes `EXPO_PUBLIC_*` to `undefined` in tests unless the var is set before the transform — which is why env-driven tests looked impossible here until this was found.
+- **Settings and memory surfaces shipped implementation words to journal writers** — "provider", "API key", "Base URL", "context window", "temperature", "Top-P", "atoms", "digests", "episodic", and a raw `api`/`known`/`fallback` context source. The fix is copy plus display helpers (never a rename of stored shapes), a glossary in rule 13, and the `plainLanguageCopy` guard so a new screen cannot quietly reintroduce the jargon.
