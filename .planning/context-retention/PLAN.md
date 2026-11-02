@@ -305,7 +305,7 @@ Follows AGENTS.md workflow:
    renders, 0 uncaught page errors.
 5. Gates: `npx tsc --noEmit`, `npm run lint`, `npm run check:design`,
    `npm test`.
-6. `PROGRESS.md` updated with outcomes and follow-ups.
+6. Outcomes and follow-ups recorded in the pull request / commit message.
 
 A phase is not done because tests are green — the Jest-green-but-live-broken
 failure mode is documented in AGENTS.md and is exactly the risk here.
