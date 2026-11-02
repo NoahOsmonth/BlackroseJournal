@@ -126,7 +126,7 @@ change, not a hook change.
 - **`docs/perf/ui-performance-rules.md` (new)** — the "think outside the box"
   half of the issue: six rules (stale-while-refresh, one read per collection, one
   hook instance per collection, memoize derived collections, do not re-read in a
-  handler what the hook holds, measure do not guess) and four budget tables. The
+  handler what the hook holds, measure do not guess) and five budget tables. The
   first table holds for **every interaction** and is structural (1 read per
   collection per action, 1 load per collection on focus, 1 hook instance per
   collection per tree, 0 derived collections rebuilt in a render body, 0 spinner
@@ -136,7 +136,9 @@ change, not a hook change.
   third table covers cold mounts, added after review pointed out that
   switch-only numbers do not answer "targets for all of the UI/UX". A fourth
   covers scrolling (0 long tasks, 0 storage reads per pass), added when a second
-  review round said scrolling was still unmeasured.
+  review round said scrolling was still unmeasured. A fifth covers AI requests and
+  chat sends structurally (no millisecond budget — a provider round-trip would
+  measure the network), added when a third round asked for those to be assessed.
 - **`scripts/qa/route-mount-bench.mjs` (new)** — a cold mount is a different path
   from a switch (module init + first read + first render), so it needs its own
   numbers rather than being inferred from the switch bench. Loads each route in a
