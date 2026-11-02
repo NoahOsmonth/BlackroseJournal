@@ -236,3 +236,40 @@ describe('ChatMessage streaming visibility', () => {
         expect(getByTestId('typing-indicator')).toBeTruthy();
     });
 });
+
+/**
+ * `ChatTranscript` renders `messages.map(...)`, so an unmemoized row re-rendered
+ * every message on every streamed token. The budget in
+ * `docs/perf/ui-performance-rules.md` ("unchanged message rows re-rendered per
+ * streamed token: 0") is what these two tests hold.
+ */
+describe('ChatMessage memoization', () => {
+    beforeEach(() => {
+        mockMarkdownRender.mockClear();
+    });
+
+    const settled = (text: string) => (
+        <ChatMessage isAi text={`**${text}**`} />
+    );
+
+    it('skips re-rendering a settled row when the parent re-renders', () => {
+        const { rerender } = render(settled('first'));
+        expect(mockMarkdownRender).toHaveBeenCalledTimes(1);
+
+        // A new element object with identical props: React.memo bails out.
+        rerender(settled('first'));
+
+        expect(mockMarkdownRender).toHaveBeenCalledTimes(1);
+    });
+
+    it('re-renders a row whose text actually changed', () => {
+        const { rerender } = render(settled('first'));
+        rerender(settled('second'));
+
+        // Count is not pinned: the row also re-renders once while `displayedText`
+        // catches up through its effect. What matters is that it did re-render and
+        // settled on the new text, i.e. the memo is not swallowing real changes.
+        expect(mockMarkdownRender.mock.calls.length).toBeGreaterThan(1);
+        expect(mockMarkdownRender).toHaveBeenLastCalledWith('**second**');
+    });
+});

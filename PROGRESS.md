@@ -172,10 +172,15 @@ change, not a hook change.
   app, and there is no recorded stream to make it reproducible. They get a
   structural table instead (0 ms blocking reads before a send, 0 collections
   re-read per send, 1 storage read per collection, 0 unchanged rows re-rendered
-  per streamed token, 0 spinner re-shows). **The re-render row is not met today**:
-  `ChatTranscript` maps every message into a `ScrollView` and `ChatMessage` has no
-  `React.memo`, so each token re-renders the whole transcript. Memoizing the
-  shared chat component is the first follow-up on that path, out of scope here.
+  per streamed token, 0 spinner re-shows). **Writing that table found the one row
+  that failed**: `ChatTranscript` maps every message into a `ScrollView` and
+  `ChatMessage` had no `React.memo`, so each token re-rendered the whole
+  transcript. Fixed rather than deferred — `ChatMessage` is now `React.memo`'d
+  (props are primitives or pass-through refs; theme still arrives through the
+  `useColorScheme`/`useThemeSettings` subscriptions), with
+  `__tests__/ChatMessage.test.tsx` → *ChatMessage memoization* holding the budget.
+  Sabotage-checked: unwrapping the memo makes the settled-row test fail with 2
+  renders where 1 is expected.
 - **`scripts/qa/bench-instrument.mjs` (new)** — the page-side instrumentation all
   three benches share (storage counting, `longtask` observer, rAF sampler), so they
   cannot drift into measuring different things. `stopSampling` returns both

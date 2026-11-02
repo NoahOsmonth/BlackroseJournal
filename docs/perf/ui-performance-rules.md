@@ -230,14 +230,17 @@ table is, and it catches the regressions this issue is about — blocking the ma
 thread, re-reading storage, re-rendering a list. What it does not do is predict
 how long a provider takes, and no budget in this repo can.
 
-**One row above is not met today, and it is named rather than quietly omitted.**
-`ChatTranscript` renders `messages.map(...)` into a `ScrollView` and `ChatMessage`
-is a plain function component with no `React.memo`, so every streamed token
-re-renders every message row in the conversation. On a long transcript that is
-real per-token work. Fixing it means memoizing `ChatMessage` and keeping the
-props it receives stable (its `text` changes only for the streaming row) — a
-focused change to the shared chat component, deliberately not bundled into this
-tab-switching ticket. It is the first follow-up on the chat path.
+**The re-render row was the one that failed when this table was first written.**
+`ChatTranscript` renders `messages.map(...)` into a `ScrollView`, so before
+`ChatMessage` was memoized every streamed token re-rendered every message row in
+the conversation and the per-token cost grew with transcript length. `ChatMessage`
+is now wrapped in `React.memo`; its props are primitives or refs the caller passes
+through unchanged, so a settled row bails out and only the streaming row
+re-renders. Theme changes still reach it, because `useColorScheme` and
+`useThemeSettings` are subscriptions rather than props. The budget is held by
+`__tests__/ChatMessage.test.tsx` → *ChatMessage memoization*, which was
+sabotage-checked: unwrapping the memo makes the settled-row test fail (2 renders
+where 1 is expected).
 
 ## Measuring
 

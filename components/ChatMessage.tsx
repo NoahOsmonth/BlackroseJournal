@@ -48,8 +48,15 @@ function hasMarkdownSyntax(value: string): boolean {
  *   never a letter-by-letter typewriter.
  * The companion's work (reasoning + tools) folds into one quiet line above its
  * words and disappears entirely when the reader turns thinking off.
+ *
+ * Memoized: `ChatTranscript` renders `messages.map(...)`, so without this every
+ * streamed token re-rendered every row in the conversation — the per-token cost
+ * grew with transcript length. All props are primitives or refs the caller
+ * passes through unchanged, so a settled row now bails out while only the
+ * streaming row re-renders. Theme changes still reach it: `useColorScheme` and
+ * `useThemeSettings` are subscriptions, not props.
  */
-export function ChatMessage({
+function ChatMessageComponent({
   text,
   isAi = false,
   isStreaming = false,
@@ -180,3 +187,5 @@ export function ChatMessage({
     </Animated.View>
   );
 }
+
+export const ChatMessage = React.memo(ChatMessageComponent);
