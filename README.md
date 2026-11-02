@@ -171,11 +171,24 @@ changes under `## [Unreleased]` as you work, and move them into a new
 1. Decide the bump from the changes since the last tag
    (`git log $(git describe --tags --abbrev=0)..HEAD`; for the very first
    release, read the whole history instead).
-2. Set the same version in `package.json` and `app.json` (`expo.version`).
+2. Set the same version in `package.json`, `app.json` (`expo.version`), and the
+   last-resort fallback literal in `constants/appInfo.ts` (a test fails if it
+   drifts from `package.json`).
 3. In `CHANGELOG.md`, turn `## [Unreleased]` into `## [X.Y.Z] - YYYY-MM-DD`, leave
    a fresh empty `## [Unreleased]` above it, and point the link refs at the new tag.
 4. Run the quality gates above and commit (`chore(release): vX.Y.Z`).
-5. Tag and publish. The release notes are the changelog entry for that version,
+5. **Put the release commit on remote `main` before tagging.** A tag pushed from
+   an unmerged branch — or from a local `main` that was never pushed — publishes
+   a release whose code never reaches the default branch, leaving the released
+   version and `main` out of sync. Merge it on the remote (open a PR), or push
+   it, then confirm the commit is actually reachable from `origin/main`:
+
+   ```bash
+   git fetch origin
+   git merge-base --is-ancestor <release-commit> origin/main \
+       && echo "on origin/main — safe to tag"
+   ```
+6. Tag and publish. The release notes are the changelog entry for that version,
    so put it in a scratch file first (it is not committed), tag from it, and let
    `gh` reuse the tag annotation as the release body:
 

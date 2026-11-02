@@ -79,6 +79,44 @@ Not done, deliberately: no APK build (out of scope), and the `v0.1.0` tag +
 release notes land **after** this PR merges — a tag on an unmerged branch would
 point at a commit that never reaches `main`.
 
+**Release cut (same day).** PR #6 merged as `5d21cff`; the annotated `v0.1.0` tag
+was created on that merge commit and pushed, and the GitHub release published
+from the tag annotation (`gh release create v0.1.0 --notes-from-tag`). Note
+`--notes-from-tag` cannot be combined with `--repo`; run it from the checkout.
+
+**Follow-up: Sourcery round-1 review fixes** (four 🟡 findings, all valid, all
+landed after the merge because they were still in the working tree when #6
+merged):
+
+- README release steps gained an explicit *"Merge that commit to `main` before
+  tagging"* step — a tag pushed from an unmerged branch publishes code that
+  never reaches the default branch.
+- The `constants/appInfo.ts` fallback literal is documented in the release steps
+  and now has its own guard (extract the `?? '<version>'` literal, compare to
+  `package.json`). Kept as a fallback rather than removed: it only applies when a
+  runtime exposes no expo config, so deleting it would change behaviour.
+- Changelog link refs are parsed as real Markdown definitions and must have a
+  nonempty `http(s)` destination — the previous `toContain('[0.1.0]: ')` passed
+  on a malformed or empty target.
+- `SEMVER` tightened to forbid leading zeros (`01.1.0` is not a SemVer version).
+
+All four sabotage-verified red then green. Gates: 290 suites / 1640 tests green,
+tsc / lint / `check:design` clean.
+
+**Follow-up: Sourcery round-2 review fixes on PR #7** (two 🟡 findings, both valid):
+
+- The round-1 README step was not enough: `git switch main && git pull` pulls
+  *from* the remote but does not push a locally merged commit, so
+  `git push origin vX.Y.Z` could still publish a tag whose commit is absent from
+  `origin/main`. The step now says to merge on the remote (or push) and verify
+  reachability with `git merge-base --is-ancestor <commit> origin/main` before
+  tagging.
+- `LINK_DEFINITION` scanned the whole changelog, so a `[0.1.0]: https://…`
+  example inside a fenced code block satisfied the check while the real
+  definition was missing. `stripFencedCode()` now removes fenced blocks first.
+  Proven load-bearing: with the strip neutralised, a changelog whose only
+  definition sits in a fence passes 6/6; with it active the same input fails.
+
 ### 2026-10-07 — open follow-ups closed (round 2): retrieval gating, dock a11y, provider rename
 
 Same day as run 4, a second pass closing the PLAN/PROGRESS follow-up list. Four
