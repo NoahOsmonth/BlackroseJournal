@@ -9,7 +9,21 @@ import path from 'path';
  */
 const read = (file: string) => fs.readFileSync(path.join(process.cwd(), file), 'utf-8');
 
-const SEMVER = /^\d+\.\d+\.\d+$/;
+/**
+ * SemVer 2.0.0 numeric identifiers forbid leading zeros: `01.2.3` is not a
+ * version. A looser `\d+\.\d+\.\d+` would bless it, so each component is
+ * either a bare `0` or a non-zero digit followed by digits.
+ */
+const SEMVER = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
+
+/** A Markdown link reference definition: `[label]: destination`. */
+const LINK_DEFINITION = /^\[([^\]]+)\]:[ \t]*(\S+)[ \t]*$/gm;
+
+function linkDefinitions(markdown: string): Map<string, string> {
+    return new Map(
+        [...markdown.matchAll(LINK_DEFINITION)].map((m) => [m[1], m[2]])
+    );
+}
 
 describe('versioning', () => {
     const pkg = JSON.parse(read('package.json')) as { version: string };
@@ -23,6 +37,15 @@ describe('versioning', () => {
         expect(pkg.version).toMatch(SEMVER);
     });
 
+    it('keeps the appInfo fallback literal in sync', () => {
+        // `constants/appInfo.ts` falls back to a literal when a runtime exposes
+        // no expo config at all. That literal is a third copy of the version, so
+        // it needs its own guard or the About label drifts after a bump.
+        const source = read('constants/appInfo.ts');
+        const fallback = /\?\?\s*'([^']+)'\s*;/.exec(source);
+        expect(fallback?.[1]).toBe(pkg.version);
+    });
+
     it('heads CHANGELOG.md with the released version in Keep a Changelog form', () => {
         const changelog = read('CHANGELOG.md');
 
@@ -32,24 +55,31 @@ describe('versioning', () => {
         expect(released).not.toBeNull();
         expect(released?.[1]).toBe(pkg.version);
 
-        // Every released heading needs a matching link reference, or the
-        // rendered changelog shows a dead link.
+        // Every released heading needs a real link reference definition. Matching
+        // the substring `[0.1.0]: ` is not enough — a malformed or empty
+        // destination would pass that and still render a dead link.
+        const refs = linkDefinitions(changelog);
         const tags = [...changelog.matchAll(/^## \[(\d+\.\d+\.\d+)\] - /gm)].map((m) => m[1]);
         expect(tags.length).toBeGreaterThan(0);
-        tags.forEach((tag) => {
-            expect(changelog).toContain(`[${tag}]: `);
+
+        [...tags, 'Unreleased'].forEach((label) => {
+            const destination = refs.get(label);
+            expect(destination).toBeDefined();
+            expect(destination).toMatch(/^https?:\/\/\S+$/);
         });
-        expect(changelog).toContain('[Unreleased]: ');
     });
 
     it('documents the release process in the README', () => {
         const readme = read('README.md');
 
         expect(readme).toContain('## Versioning and releases');
-        // The three facts the section exists to state.
+        // The facts the section exists to state.
         expect(readme).toContain('`app.json`');
         expect(readme).toContain('vX.Y.Z');
         expect(readme).toContain('appVersionSource');
+        // A tag pushed from an unmerged branch publishes a release whose code
+        // never reaches the default branch.
+        expect(readme).toMatch(/merge[^\n]*`main`[^\n]*before tagging/i);
     });
 
     it('keeps the Android versionCode with EAS', () => {
