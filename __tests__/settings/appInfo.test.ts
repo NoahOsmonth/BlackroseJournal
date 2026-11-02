@@ -1,12 +1,18 @@
 /* eslint-disable import/first */
 
-jest.mock('expo-constants', () => ({
-    __esModule: true,
-    default: {
-        expoConfig: { version: '0.0.1' },
-        manifest: {},
-    },
-}));
+jest.mock('expo-constants', () => {
+    // Read the real app.json version instead of a hardcoded copy: the assertion
+    // below ("APP_VERSION === package.json version") is the guard that the two
+    // version fields move together, so a literal here would drift on every bump.
+    const appConfig = require('../../app.json') as { expo: { version: string } };
+    return {
+        __esModule: true,
+        default: {
+            expoConfig: { version: appConfig.expo.version },
+            manifest: {},
+        },
+    };
+});
 
 import {
     APP_ABOUT_COPY,

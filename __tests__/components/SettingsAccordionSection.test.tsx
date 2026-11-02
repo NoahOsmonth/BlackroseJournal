@@ -146,7 +146,7 @@ describe('SettingsAccordionSection', () => {
     it('omits the hint line when none is given', () => {
         render(
             <SettingsAccordionSection
-                id="a" title="About" summary="v0.0.1" index={0} expanded={false} onToggle={jest.fn()}
+                id="a" title="About" summary="v0.1.0" index={0} expanded={false} onToggle={jest.fn()}
             >
                 <Text>x</Text>
             </SettingsAccordionSection>

@@ -1,8 +1,11 @@
 import Constants from 'expo-constants';
 
+// The real version comes from `app.json` → `expo.version` through
+// `expo-constants`; this literal is only the last-resort fallback for a host
+// that exposes no config at all. Bump it with the manifest, don't rely on it.
 const configuredVersion = Constants.expoConfig?.version
     ?? Constants.manifest?.version
-    ?? '0.0.1';
+    ?? '0.1.0';
 
 export const APP_NAME = 'BlackroseJournal';
 export const APP_TAGLINE = 'A local-first AI journal for reflection, memory, and intention.';

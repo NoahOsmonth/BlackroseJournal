@@ -3,7 +3,7 @@
     "name": "blackrosejournal",
     "slug": "blackrosejournal",
     "scheme": "blackrosejournal",
-    "version": "0.0.1",
+    "version": "0.1.0",
     "userInterfaceStyle": "automatic",
     "jsEngine": "hermes",
     "newArchEnabled": true,

@@ -1,4 +1,4 @@
-# JournalApp 📝
+# blackrosejournal 📝
 
 A React Native/Expo chat journal application with AI integration.
 
@@ -143,6 +143,58 @@ npm test -- __tests__/ChatScreen.test.tsx
 # Run all tests
 npm test -- --runInBand
 ```
+
+## Versioning and releases
+
+This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
+(`MAJOR.MINOR.PATCH`). While the app is pre-1.0, breaking changes bump `MINOR`
+and features/fixes bump `PATCH`.
+
+### Where the version lives
+
+The version is stored in two places and **both must change together** — Expo
+reads `app.json`, and everything else (the Settings → About summary, the
+`v…` label in the UI) reads the same value through `expo-constants`:
+
+| File | Field | Read by |
+|------|-------|---------|
+| `package.json` | `version` | npm, tests, tooling |
+| `app.json` | `expo.version` | Expo/EAS builds, `constants/appInfo.ts` (`APP_VERSION`) |
+
+`CHANGELOG.md` records every release in
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. Add your
+changes under `## [Unreleased]` as you work, and move them into a new
+`## [X.Y.Z]` heading when you cut the release.
+
+### Cutting a release `vX.Y.Z`
+
+1. Decide the bump from the changes since the last tag
+   (`git log $(git describe --tags --abbrev=0)..HEAD`; for the very first
+   release, read the whole history instead).
+2. Set the same version in `package.json` and `app.json` (`expo.version`).
+3. In `CHANGELOG.md`, turn `## [Unreleased]` into `## [X.Y.Z] - YYYY-MM-DD`, leave
+   a fresh empty `## [Unreleased]` above it, and point the link refs at the new tag.
+4. Run the quality gates above and commit (`chore(release): vX.Y.Z`).
+5. Tag and publish. The release notes are the changelog entry for that version,
+   so put it in a scratch file first (it is not committed), tag from it, and let
+   `gh` reuse the tag annotation as the release body:
+
+   ```bash
+   git tag -a vX.Y.Z -F release-notes.md   # the [X.Y.Z] section of CHANGELOG.md
+   git push origin vX.Y.Z
+   gh release create vX.Y.Z --title "vX.Y.Z" --notes-from-tag
+   ```
+
+   Then delete `release-notes.md`.
+
+### Android versionCode is owned by EAS
+
+`eas.json` sets `cli.appVersionSource: "remote"`, so the Android `versionCode`
+lives on EAS's servers, not in this repo — `expo.version` above is the
+user-facing version name only. The `production` build profile also sets
+`autoIncrement: true`, so every production build gets the next `versionCode`
+automatically. **Do not hand-edit a `versionCode`**: there is nothing in the
+repo to edit, and a local value would be ignored (or rejected) by EAS.
 
 ## Contributing
 
