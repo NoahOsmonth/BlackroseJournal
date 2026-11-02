@@ -122,13 +122,16 @@ function HistoryHeader({
             {/* Full-bleed rule under the title row, then the week meta line. */}
             <View className="h-px bg-hairline-light dark:bg-hairline-dark" />
 
-            <View className="flex-row items-center justify-between px-6 pt-4 pb-1">
+            <View className="flex-row items-center justify-between gap-3 px-6 pt-4 pb-1">
                 {weekLabel ? (
-                    <Text className="text-[15px] text-text-secondary-light dark:text-text-secondary-dark">
+                    <Text
+                        className="flex-1 text-[15px] text-text-secondary-light dark:text-text-secondary-dark"
+                        numberOfLines={1}
+                    >
                         {weekLabel}
                     </Text>
                 ) : (
-                    <View />
+                    <View className="flex-1" />
                 )}
 
                 <Pressable
@@ -138,6 +141,7 @@ function HistoryHeader({
                     accessibilityState={{ disabled: !onDraftsPress }}
                     hitSlop={8}
                     testID="drafts-button"
+                    className="shrink-0"
                 >
                     <View
                         className="flex-row items-center gap-1.5 rounded-control border border-hairline-light px-3 py-1.5 dark:border-hairline-dark"

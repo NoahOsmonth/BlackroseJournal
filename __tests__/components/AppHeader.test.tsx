@@ -37,7 +37,8 @@ describe('AppHeader history variant', () => {
 
         const chrome = getByTestId('drafts-chip');
         expect(chrome.props.className).toContain('rounded-control');
-        expect(chrome.props.className).toContain('border');
+        expect(chrome.props.className).toContain('border-hairline-light');
+        expect(chrome.props.className).toContain('border-hairline-dark');
 
         fireEvent.press(getByLabelText('Open drafts'));
         expect(onDraftsPress).toHaveBeenCalledTimes(1);

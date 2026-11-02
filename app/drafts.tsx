@@ -156,30 +156,30 @@ export default function DraftsScreen() {
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
             <View className="w-full max-w-md flex-1 self-center">
-                <View className="relative flex-row items-center justify-between px-6 py-4">
+                <View className="flex-row items-center gap-3 px-6 py-4">
                     <Pressable
                         onPress={() => router.back()}
-                        className="h-10 w-10 items-center justify-center"
+                        className="h-10 w-10 shrink-0 items-center justify-center"
                         accessibilityLabel="Back"
                         accessibilityRole="button"
                         hitSlop={8}
                     >
                         <MaterialIcons name="chevron-left" size={26} color={ink} />
                     </Pressable>
-                    <View className="absolute inset-0 items-center justify-center" pointerEvents="none">
-                        <Text
-                            className="text-[22px] text-text-light dark:text-text-dark"
-                            style={{ fontFamily: 'PlayfairDisplayRegular' }}
-                        >
-                            Drafts
-                        </Text>
-                    </View>
+                    <Text
+                        className="flex-1 text-center text-[22px] text-text-light dark:text-text-dark"
+                        style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                        numberOfLines={1}
+                    >
+                        Drafts
+                    </Text>
                     <Pressable
                         onPress={() => setSortMode((prev) => (prev === 'recent' ? 'title' : 'recent'))}
                         accessibilityLabel="Sort drafts"
                         accessibilityRole="button"
                         accessibilityValue={{ text: sortMode === 'recent' ? 'Recent first' : 'Title A to Z' }}
                         hitSlop={8}
+                        className="shrink-0"
                     >
                         <View className="flex-row items-center gap-1.5 rounded-control border border-hairline-light px-3 py-1.5 dark:border-hairline-dark">
                             <MaterialIcons name="swap-vert" size={14} color={metaColor} />

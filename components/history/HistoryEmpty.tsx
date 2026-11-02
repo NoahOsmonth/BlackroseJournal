@@ -43,10 +43,7 @@ export function HistoryEmpty({ hasAnyItems, isSearching, onWritePress }: History
                     accessibilityRole="button"
                     accessibilityLabel="Write an entry"
                 >
-                    <Text
-                        className="text-center text-sm text-text-light dark:text-text-dark"
-                        numberOfLines={1}
-                    >
+                    <Text className="text-center text-sm text-text-light dark:text-text-dark">
                         Write an entry
                     </Text>
                 </Pressable>

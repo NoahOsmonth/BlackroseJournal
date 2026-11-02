@@ -530,11 +530,17 @@ the round-2 entry above. What remains:
 ## Archive tab UI pass (2026-11-02)
 
 - Archive header `Drafts` text link → quiet bordered chip (`AppHeader`); the
-  Drafts screen `Recent`/`Title` sort link → a matching `swap-vert` chip with
-  the serif title centered over the row. Underlines gone; sorting still toggles.
-- Archive empty-state CTA is now a 44pt, 220px-max outline button with a
-  single-line label, so `Write an entry` cannot be squeezed by a narrow
-  content width.
+  Drafts screen `Recent`/`Title` sort link → a matching `swap-vert` chip. The
+  serif title now sits in the header row so it reserves space for both controls
+  instead of painting over them. Underlines gone; sorting still toggles.
+- Archive empty-state CTA is now a 44pt, 220px-max outline button whose label
+  may wrap (no `numberOfLines`), so `Write an entry` is never ellipsized at
+  enlarged text sizes.
+- Review round 1: the meta row lets the week label shrink (`flex-1`,
+  `numberOfLines={1}`) while the chip keeps its width; the chip test asserts the
+  exact `border-hairline-*` tokens. Declined two suggestions: `gap-3` between a
+  chip's icon and label (the 12px rule is for rows of buttons, not one control)
+  and tokenizing the one-off 44px/220px CTA geometry.
 - Verified on the web build at 390×844 in dark and light: empty Archive,
   empty Drafts, and the CTA → chat route. Added `AppHeader` tests and CTA
   geometry assertions in `HistoryEmpty.test.tsx`; `tsc`, lint and

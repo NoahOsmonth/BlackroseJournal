@@ -15,6 +15,8 @@ describe('HistoryEmpty', () => {
         const cta = screen.getByLabelText('Write an entry');
         expect(cta.props.className).toContain('min-h-[44px]');
         expect(cta.props.className).toContain('max-w-[220px]');
+        // Wrapping is allowed so enlarged text never ellipsizes the label.
+        expect(screen.getByText('Write an entry').props.numberOfLines).toBeUndefined();
         fireEvent.press(cta);
         expect(onWrite).toHaveBeenCalled();
     });
