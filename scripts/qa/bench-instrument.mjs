@@ -120,12 +120,16 @@ export function stopSampling() {
   state.sampling = false;
   const frames = state.frames.slice(1);
   const sorted = [...frames].sort((a, b) => a - b);
+  const gaps = frames.map((gap) => Math.round(gap * 10) / 10);
   const storage = window.__benchStorage;
   const longTasks = window.__benchLongTasks;
   return {
     elapsedMs: Math.round(performance.now() - state.start),
     contentAtMs: state.contentAt,
+    // `frames` is the count (what the switch/mount benches report); `gaps` is
+    // the raw per-frame intervals, which the scroll bench needs to count drops.
     frames: frames.length,
+    gaps,
     frameGapMaxMs: Math.round(sorted.length ? sorted[sorted.length - 1] : 0),
     frameGapP95Ms: Math.round(sorted.length ? sorted[Math.floor(sorted.length * 0.95)] : 0),
     // The budget is on the longest single task, so that is what is reported.

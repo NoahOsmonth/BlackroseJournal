@@ -82,8 +82,10 @@ press is still a defect.
 collection hook is measured with `scripts/qa/tab-switch-bench.mjs` before and
 after. A change to anything on a screen's first-load path — module init, an
 engine booting, a provider mounting — is measured with
-`scripts/qa/route-mount-bench.mjs`. "It feels faster" is not evidence; a
-screenshot cannot show a dropped frame.
+`scripts/qa/route-mount-bench.mjs`. A change to what renders *inside* a scroll
+container (a list row, an animation driven by `onScroll`) is measured with
+`scripts/qa/scroll-bench.mjs`. "It feels faster" is not evidence; a screenshot
+cannot show a dropped frame.
 
 ## Budgets
 
@@ -170,6 +172,36 @@ mount-path code, so the honest reading is that the numbers are unchanged and the
 budgets are newly *set*, not newly *met*. They exist so the next change to a
 mount path has a ceiling to be judged against.
 
+### Scrolling
+
+The third path, and the last one that is app-side. A switch and a mount both
+measure how long until a screen is usable; this measures what it feels like once
+it is. Scrolling has no "done" moment, so there is no time-to-content to report.
+
+| Metric | Budget | Why |
+|---|---|---|
+| Main-thread tasks ≥ 50 ms during a scroll pass | **0** | Any long task is a visible hitch under a finger |
+| Storage reads during a scroll pass | **0** | A scroll must never re-read a collection |
+
+Measured over 3 passes per route, top-to-bottom wheel scroll (`scroll-bench.mjs`):
+Threads 1438 px, Insights 424 px, Archive 2243 px scrolled; **0 long tasks and 0
+storage reads on every pass**, 0 page errors. Those two budgets are the ones that
+matter and the current code meets them.
+
+**Frame-gap numbers from this bench are not meaningful and are not budgeted.**
+Headless Chromium has no vsync, so it runs animation frames as fast as it can —
+the run recorded ~400 frames in a 1600 ms pass (≈250 fps), so a "6 ms max frame
+gap" describes the harness, not the app. A real smoothness budget needs a vsync'd
+target (a headed browser or a device), which this repo does not run in CI. The
+bench still reports frame gaps because a large one is a real signal; it just
+cannot certify 60 fps, and the doc does not pretend otherwise.
+
+The bench also **fails** rather than reporting a clean profile if the wheel scroll
+moved the page less than 100 px. That guard exists because the first version of
+this bench silently measured an idle page: React Native Web puts the list in a
+`div` with `overflow-y: auto`, so `window.scrollY` stays 0 no matter how far the
+content scrolls, and the probe was reading the wrong element.
+
 ## Measuring
 
 ```bash
@@ -181,17 +213,21 @@ BENCH_LABEL=after BENCH_ROUNDS=3 node scripts/qa/tab-switch-bench.mjs
 
 # cold mounts (first load onto a route)
 BENCH_LABEL=after BENCH_ROUNDS=3 node scripts/qa/route-mount-bench.mjs
+
+# scroll passes (frame pacing and main-thread work while scrolling)
+BENCH_LABEL=after BENCH_ROUNDS=3 node scripts/qa/scroll-bench.mjs
 ```
 
-Both benches share their page-side instrumentation (`scripts/qa/bench-instrument.mjs`)
-so they cannot drift into measuring different things.
+All three benches share their page-side instrumentation
+(`scripts/qa/bench-instrument.mjs`) so they cannot drift into measuring different
+things.
 
 `scripts/qa/chromium.mjs` resolves a cached Chromium binary (`PW_CHROME_PATH`
 overrides it) because the revision bundled with the installed `playwright-core`
 may be absent. Results land in `output/perf/` (`tab-switch-<label>.json`,
-`route-mount-<label>.json`, plus one screenshot per pair or route); that directory
-is gitignored, so a report quotes the table and the command rather than attaching
-the run.
+`route-mount-<label>.json`, `scroll-<label>.json`, plus one screenshot per pair
+or route); that directory is gitignored, so a report quotes the table and the
+command rather than attaching the run.
 
 The benches wrap `Storage.prototype.getItem/setItem` before app code runs, record
 `longtask` entries through a `PerformanceObserver`, and sample animation-frame

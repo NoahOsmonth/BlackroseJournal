@@ -126,7 +126,7 @@ change, not a hook change.
 - **`docs/perf/ui-performance-rules.md` (new)** — the "think outside the box"
   half of the issue: six rules (stale-while-refresh, one read per collection, one
   hook instance per collection, memoize derived collections, do not re-read in a
-  handler what the hook holds, measure do not guess) and two budget tables. The
+  handler what the hook holds, measure do not guess) and four budget tables. The
   first table holds for **every interaction** and is structural (1 read per
   collection per action, 1 load per collection on focus, 1 hook instance per
   collection per tree, 0 derived collections rebuilt in a render body, 0 spinner
@@ -134,7 +134,9 @@ change, not a hook change.
   The second is measured and switch-scoped (≤100 ms longest task and frame gap,
   ≤16 ms p95 gap, 0 skeleton re-shows, ≤25 storage reads, ≤50 ms to route). A
   third table covers cold mounts, added after review pointed out that
-  switch-only numbers do not answer "targets for all of the UI/UX".
+  switch-only numbers do not answer "targets for all of the UI/UX". A fourth
+  covers scrolling (0 long tasks, 0 storage reads per pass), added when a second
+  review round said scrolling was still unmeasured.
 - **`scripts/qa/route-mount-bench.mjs` (new)** — a cold mount is a different path
   from a switch (module init + first read + first render), so it needs its own
   numbers rather than being inferred from the switch bench. Loads each route in a
@@ -150,9 +152,26 @@ change, not a hook change.
   Today's 417) so it is in that screen's render path. Profiling it is the first
   follow-up. (An earlier draft blamed the memory-graph engine; `app/(tabs)/explore.tsx`
   renders `MemoryHubScreen`, a ledger list with no WebView, so that was wrong.)
-- **`scripts/qa/bench-instrument.mjs` (new)** — the page-side instrumentation both
-  benches share (storage counting, `longtask` observer, rAF sampler), so the two
-  cannot drift into measuring different things.
+- **`scripts/qa/scroll-bench.mjs` (new)** — the third path, and the last one that
+  is app-side: what a screen feels like once it is usable. Wheel-scrolls each list
+  top-to-bottom over ~1.6 s and records long tasks, storage reads and frame gaps.
+  Budgets: **0** main-thread tasks ≥50 ms and **0** storage reads during a scroll
+  pass. Measured, 3 passes per route: Threads 1438 px, Insights 424 px, Archive
+  2243 px scrolled; 0 long tasks and 0 storage reads on every pass, 0 page errors
+  — both budgets are met by the current code. **Frame gaps are reported but not
+  budgeted**: headless Chromium has no vsync, so it ran ~400 frames in a 1600 ms
+  pass (≈250 fps) and a "6 ms max gap" describes the harness, not the app.
+  Certifying 60 fps needs a vsync'd target this repo does not run. The bench also
+  **fails** if the scroll moved the page under 100 px, because the first version
+  silently measured an idle page — RNW keeps the list in a `div` with
+  `overflow-y: auto`, so `window.scrollY` stays 0 however far it scrolls.
+  AI-request and chat-send latency remain unmeasured: both are dominated by the
+  provider round-trip and there is no offline fixture that would make a number
+  meaningful, so the structural table holds them.
+- **`scripts/qa/bench-instrument.mjs` (new)** — the page-side instrumentation all
+  three benches share (storage counting, `longtask` observer, rAF sampler), so they
+  cannot drift into measuring different things. `stopSampling` returns both
+  `frames` (a count) and `gaps` (the raw intervals the scroll bench needs).
 - **`scripts/qa/chromium.mjs` (new)** — the installed `playwright-core` bundles a
   Chromium revision (`chromium_headless_shell-1208`) that is not on this machine,
   so `chromium.launch()` throws `Executable doesn't exist`. This resolves the
