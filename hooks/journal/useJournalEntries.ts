@@ -8,8 +8,6 @@ import {
     createEntry,
     deleteEntry,
     getEntry,
-    listCompleted,
-    listDrafts,
     listEntries,
     updateEntry,
 } from '@/services/journal/journalStorage';
@@ -18,7 +16,7 @@ import {
     JournalEntryCreateInput,
     JournalEntryUpdateInput,
 } from '@/services/journal/journalStorage.types';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useActiveAccountId } from '@/hooks/account/useActiveAccountId';
 
 interface UseJournalEntriesReturn {
@@ -41,19 +39,24 @@ export function useJournalEntries(): UseJournalEntriesReturn {
     const [completed, setCompleted] = useState<JournalEntry[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
+    const hasLoadedRef = useRef(false);
 
     const refresh = useCallback(async () => {
-        setIsLoading(true);
+        // Only the first load shows a spinner. A focus refresh must not tear the
+        // screen down to a skeleton and back — that swap is the visible stutter.
+        if (!hasLoadedRef.current) {
+            setIsLoading(true);
+        }
         setError(null);
         try {
-            const [allEntries, draftEntries, completedEntries] = await Promise.all([
-                listEntries(),
-                listDrafts(),
-                listCompleted(),
-            ]);
+            // One shard read serves all three lists. `listDrafts`/`listCompleted`
+            // each re-read the index and every shard, so asking for all three
+            // tripled the parse work for identical data.
+            const allEntries = await listEntries();
             setEntries(allEntries);
-            setDrafts(draftEntries);
-            setCompleted(completedEntries);
+            setDrafts(allEntries.filter((entry) => entry.status === 'draft'));
+            setCompleted(allEntries.filter((entry) => entry.status === 'completed'));
+            hasLoadedRef.current = true;
         } catch (err) {
             setError(err instanceof Error ? err : new Error('Failed to load entries'));
         } finally {
@@ -63,11 +66,14 @@ export function useJournalEntries(): UseJournalEntriesReturn {
 
     useEffect(() => {
         if (accountId) {
+            // A different account's rows must not be treated as already loaded.
+            hasLoadedRef.current = false;
             void refresh();
         } else {
             setEntries([]);
             setDrafts([]);
             setCompleted([]);
+            hasLoadedRef.current = false;
             setIsLoading(false);
         }
     }, [accountId, refresh]);

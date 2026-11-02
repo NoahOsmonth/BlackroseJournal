@@ -9,7 +9,7 @@ import {
     loadCachedInsights,
     saveCachedInsights,
 } from '@/services/insights/weeklyInsightsStorage';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 interface WeeklyInsightItem {
     createdAt: number;
@@ -119,8 +119,10 @@ export function useWeeklyInsights() {
         fetchInsights();
     }, [fetchInsights]);
 
-    // Calculate local stats (not dependent on AI)
-    const weeklyStats = (() => {
+    // Calculate local stats (not dependent on AI). Memoized: this splits every
+    // message of the week into words, and as a render-body IIFE it re-ran on
+    // every unrelated re-render (including each keystroke-free focus pass).
+    const weeklyStats = useMemo(() => {
         const weeklyItems = getWeeklyItems();
         const totalWords = weeklyItems.reduce((sum, item) => {
             return sum + item.messages
@@ -146,8 +148,10 @@ export function useWeeklyInsights() {
             dailyWords,
             maxWords,
         };
-    })();
+    }, [getWeeklyItems]);
 
+    // Cheap date math, and it reads the clock at render time so a screen left
+    // open past midnight still shows the right week.
     const weekDateRange = (() => {
         const now = new Date();
         const day = now.getDay();

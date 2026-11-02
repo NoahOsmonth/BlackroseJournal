@@ -41,6 +41,91 @@ tsc / lint / `check:design` clean.
 
 ## Dated log
 
+### 2026-11-02 — tab switching: measured, then fixed (issue #9)
+
+The report was "Threads → Today stutters, other tabs are fast". Measured first,
+with a new dock-switch bench (`scripts/qa/tab-switch-bench.mjs`) that presses a
+dock tab inside a real Chromium page and samples animation-frame gaps, `longtask`
+entries, storage traffic and the loading-skeleton window. Baseline `main` @
+`55c8b9a`, 390×844, dark, demo seed, 3 rounds, medians:
+
+| Pair | frameGapMax | longTask | storage reads |
+|---|---|---|---|
+| Threads → Today | 206 ms | 206 ms | 65 |
+| Insights → Today | 172 ms | 169 ms | 65 |
+| Archive → Today | 194 ms | 192 ms | 65 |
+| Today → Threads | 61 ms | 62 ms | 0 |
+
+Per-round spread was the real story: Threads → Today hit 206 / 544 / 167 ms and
+Archive → Today 194 / 411 / 189 ms — over half a second of blocked main thread
+in one long task. Today → Threads reads **zero** keys, which is why only the
+*pair* felt different: the cost is paid on arrival at Today, not on leaving.
+
+Four causes, all fixed:
+
+- **Five hooks each flipped `isLoading = true` on every focus**, so each arrival
+  swapped the whole `TodaySkeleton` in and back out. `useJournalEntries`,
+  `useIntentionCheckIns`, `useIntentions`, `useGoals` and `useSavedInsights` now
+  keep a `hasLoadedRef` and only show the spinner on the first load (the pattern
+  `useLocalMemories` already used), resetting it when the account id changes.
+- **Three lists cost three full loads.** `listDrafts()`/`listCompleted()` each
+  re-read the index plus all 16 shards, and `listCompletedCheckIns()`/
+  `listCheckInDrafts()` each call `listCheckIns()` again. Both hooks now read
+  once and split in memory. Storage reads per switch: 65 → **21**.
+- **Today re-read `@intention_checkins` in a tap handler.** `openDailyCheckIn`
+  awaited `listCheckInDrafts()` to find the day's draft; it now reads the
+  `drafts` the hook already holds, and stopped being `async`.
+- **Duplicate hook instances on Archive.** `entries.tsx` mounted
+  `useJournalEntries` + `useIntentionCheckIns` a second time just to count
+  drafts. `useHistoryFeed` now returns `draftCount` and a composed `refresh`,
+  and the screen uses one set.
+
+Plus two render-cost fixes on the same path: `activeIntentions` in
+`useIntentions` and `weeklyStats` in `useWeeklyInsights` were rebuilt in the
+render body on every render (the latter re-splitting every word of the week);
+both are `useMemo`'d. `weekDateRange` stays a render-body IIFE on purpose — it
+reads the clock at render time.
+
+After, same bench and settings:
+
+| Pair | frameGapMax | longTask | storage reads |
+|---|---|---|---|
+| Threads → Today | 67 ms | 66 ms | 21 |
+| Insights → Today | 45 ms | 52 ms | 21 |
+| Archive → Today | 67 ms | 67 ms | 21 |
+| Today → Threads | 33 ms | 0 ms | 0 |
+
+Threads → Today is **3.1× shorter** and the worst round dropped from 544 ms to
+89 ms. The remaining ~45–70 ms task is React render work in the Today tree, not
+storage — see the rules doc for why that is the next step and why it is a design
+change, not a hook change.
+
+- **`docs/perf/ui-performance-rules.md` (new)** — the "think outside the box"
+  half of the issue: six rules (stale-while-refresh, one read per collection, one
+  hook instance per collection, memoize derived collections, do not re-read in a
+  handler what the hook holds, measure do not guess) and numeric budgets for any
+  tab screen (≤100 ms longest task and frame gap, ≤16 ms p95 gap, 0 skeleton
+  re-shows, ≤25 storage reads, ≤50 ms to route). The budgets are the acceptance
+  bar for future UI work; the issue asked for targets, so they are written down
+  rather than implied.
+- **`scripts/qa/chromium.mjs` (new)** — the installed `playwright-core` bundles a
+  Chromium revision (`chromium_headless_shell-1208`) that is not on this machine,
+  so `chromium.launch()` throws `Executable doesn't exist`. This resolves the
+  newest cached `chromium-<rev>` build instead; `PW_CHROME_PATH` overrides.
+- **`__tests__/hooks/collectionRefreshStaleness.test.tsx` (new, 6 tests)** —
+  guards the two behaviours Jest can see: one storage read per collection (the
+  status-splitting helpers are mocked to *throw* if called), the Archive draft
+  count coming off one pair of instances, no `isLoading` flip during a refresh
+  with data on screen, and the spinner still returning for a different account.
+- **Visual evidence**: the switch is a timing defect, so the PR carries the
+  measured table above plus the exact capture commands. Screenshots of Today
+  before and after are byte-identical (same hash) — the change is invisible in a
+  still frame, which is exactly why a screenshot cannot be the evidence here.
+
+Gates: `npx tsc --noEmit` clean, `npm run lint` 0 errors (78 warnings, all
+pre-existing), `npm run check:design` 175 files OK, `npm test` 291 suites /
+1646 tests green (9 suites skipped, unchanged).
+
 ### 2026-11-02 — SemVer, a changelog, and a release process
 
 The repo had no version history to speak of: `package.json` and `app.json` both

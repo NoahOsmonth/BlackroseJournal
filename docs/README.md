@@ -10,14 +10,16 @@ One screen. For the root-level documents (`PLAN.md`, `PROGRESS.md`,
 |---|---|---|
 | 1 | [`plans/blackrose-design-rewrite.md`](plans/blackrose-design-rewrite.md) | The approved screen-level design plan (referenced by `constants/theme.ts`, `tailwind.config.js`) |
 | 2 | [`superpowers/specs/2026-09-19-explore-write-path-design.md`](superpowers/specs/2026-09-19-explore-write-path-design.md) | Latest design spec: the Explore write path (plus its [HTML visual companion](superpowers/specs/2026-09-19-explore-memory-architecture.html)) |
-| 3 | [`qa/TEST_PLAN.md`](qa/TEST_PLAN.md) | QA suite index + live status dashboard |
-| 4 | [`qa/DEFECTS.md`](qa/DEFECTS.md) | Defect log (DEF-001–014) |
+| 3 | [`perf/ui-performance-rules.md`](perf/ui-performance-rules.md) | UI performance rules + numeric budgets for tab switches, and how to measure them |
+| 4 | [`qa/TEST_PLAN.md`](qa/TEST_PLAN.md) | QA suite index + live status dashboard |
+| 5 | [`qa/DEFECTS.md`](qa/DEFECTS.md) | Defect log (DEF-001–014) |
 
 ## What lives where
 
 ```
 docs/
 ├── plans/          Approved forward-looking design plans (screen level)
+├── perf/           UI performance rules, budgets, and the tab-switch bench
 ├── superpowers/
 │   ├── plans/      Historical executable plans (kept for line-level traceability)
 │   └── specs/      Their design specs, incl. the HTML visual companion

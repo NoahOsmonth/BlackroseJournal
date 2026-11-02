@@ -28,7 +28,6 @@ import {
 import { useGoals } from '@/hooks/goals/useGoals';
 import { useIntentions } from '@/hooks/intentions/useIntentions';
 import { useIntentionCheckIns } from '@/hooks/intentions/useIntentionCheckIns';
-import { listCheckInDrafts } from '@/services/intentions/intentionsStorage';
 import { useEntryInsightQuestion } from '@/hooks/insights/useEntryInsightQuestion';
 import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
 import { useHeaderActions } from '@/hooks/navigation/useHeaderActions';
@@ -48,7 +47,7 @@ export default function TodayScreen() {
     const { scrollY, onScroll } = useScrollReveal();
     const { selectedDay, serifDateLabel } = useSelectedDay();
     const { completed: entries, refresh: refreshEntries, isLoading: entriesLoading } = useJournalEntries();
-    const { completed: checkIns, refresh: refreshCheckIns, isLoading: checkInsLoading } = useIntentionCheckIns();
+    const { completed: checkIns, drafts: checkInDrafts, refresh: refreshCheckIns, isLoading: checkInsLoading } = useIntentionCheckIns();
     const { activeIntentions, refresh: refreshIntentions, isLoading: intentionsLoading } = useIntentions();
     const { goals, toggle: toggleGoal, refresh: refreshGoals, isLoading: goalsLoading } = useGoals();
     const { question, refresh, sourceDate } = useEntryInsightQuestion(entries);
@@ -118,10 +117,12 @@ export default function TodayScreen() {
         }
     };
 
-    const openDailyCheckIn = async (type: 'morning' | 'evening') => {
+    const openDailyCheckIn = (type: 'morning' | 'evening') => {
         const todayKey = getLocalDateKey(new Date());
-        const draftsList = await listCheckInDrafts();
-        const draft = draftsList.find((item) => item.type === type
+        // The drafts come from the collection this screen already refreshes on
+        // focus; re-reading `@intention_checkins` here was a second full parse
+        // of the same key on every tap.
+        const draft = checkInDrafts.find((item) => item.type === type
             && getLocalDateKey(new Date(item.updatedAt)) === todayKey);
         if (draft) {
             router.push({
@@ -142,11 +143,11 @@ export default function TodayScreen() {
     };
 
     const handleMorningPress = () => {
-        void openDailyCheckIn('morning');
+        openDailyCheckIn('morning');
     };
 
     const handleEveningPress = () => {
-        void openDailyCheckIn('evening');
+        openDailyCheckIn('evening');
     };
 
     const handleAddIntention = () => {

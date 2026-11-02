@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     createSavedInsight,
     deleteSavedInsight,
@@ -22,13 +22,18 @@ export function useSavedInsights(): UseSavedInsightsReturn {
     const [insights, setInsights] = useState<SavedInsight[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
+    const hasLoadedRef = useRef(false);
 
     const refresh = useCallback(async () => {
-        setIsLoading(true);
+        // Only the first load shows a spinner — see useJournalEntries.
+        if (!hasLoadedRef.current) {
+            setIsLoading(true);
+        }
         setError(null);
         try {
             const list = await listSavedInsights();
             setInsights(list);
+            hasLoadedRef.current = true;
         } catch (err) {
             setError(err instanceof Error ? err : new Error('Failed to load saved insights'));
         } finally {
