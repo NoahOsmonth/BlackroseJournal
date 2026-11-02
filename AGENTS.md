@@ -348,6 +348,7 @@ There is no backend and no managed gateway: the app talks to the provider above 
   - Guard: `__tests__/crossPlatformGuards.test.ts` (scans source, tests, scripts, probes). Two things are already portable, so do not "fix" them: `tsc` reports TS2307 on a case-mismatched import even though Windows would resolve it, and Jest rewrites `/` to the platform separator inside `--testPathPattern`.
 - **Test layout:** >10 tests in a folder → split into `__tests__/{components,hooks,services,screens}/`. `<Subject>.test.ts(x)` matching source. Cap test files at 300 lines. Shared mocks in `__tests__/mocks/` or `__mocks__/`. Prefer user-centric assertions over snapshots.
 - **No `any`:** if a type is genuinely unknown, use `unknown` and narrow it.
+- **Tab-screen refresh paths have budgets, not opinions.** A dock press re-focuses the destination screen without unmounting it, so a refresh that re-reads a collection three times or flips `isLoading` back to `true` reads as a stutter — issue #9 (Threads → Today) was 206 ms of blocked main thread and is now 67 ms. Rules R1–R6 plus the numeric budgets live in `docs/perf/ui-performance-rules.md`; measure with `node scripts/qa/tab-switch-bench.mjs` before and after touching a collection hook or tab screen, with `node scripts/qa/route-mount-bench.mjs` for anything on a screen's first-load path, and with `node scripts/qa/scroll-bench.mjs` for what renders inside a scroll container. Jest cannot see any of it.
 
 ## AI chat architecture (mental model)
 

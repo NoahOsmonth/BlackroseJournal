@@ -41,6 +41,175 @@ tsc / lint / `check:design` clean.
 
 ## Dated log
 
+### 2026-11-02 — tab switching: measured, then fixed (issue #9)
+
+The report was "Threads → Today stutters, other tabs are fast". Measured first,
+with a new dock-switch bench (`scripts/qa/tab-switch-bench.mjs`) that presses a
+dock tab inside a real Chromium page and samples animation-frame gaps, `longtask`
+entries, storage traffic and the loading-skeleton window. Baseline `main` @
+`55c8b9a`, 390×844, dark, demo seed, 3 rounds, medians:
+
+| Pair | frameGapMax | longTask | storage reads |
+|---|---|---|---|
+| Threads → Today | 206 ms | 206 ms | 65 |
+| Insights → Today | 172 ms | 169 ms | 65 |
+| Archive → Today | 194 ms | 192 ms | 65 |
+| Today → Threads | 61 ms | 62 ms | 0 |
+
+Per-round spread was the real story: Threads → Today hit 206 / 544 / 167 ms and
+Archive → Today 194 / 411 / 189 ms — over half a second of blocked main thread
+in one long task. Today → Threads reads **zero** keys, which is why only the
+*pair* felt different: the cost is paid on arrival at Today, not on leaving.
+
+Four causes, all fixed:
+
+- **Five hooks each flipped `isLoading = true` on every focus**, so each arrival
+  tore the whole Today tree down to `TodaySkeleton` and rebuilt it after the
+  read. `useJournalEntries`, `useIntentionCheckIns`, `useIntentions`,
+  `useGoals` and `useSavedInsights` now keep a `hasLoadedRef` and only show the
+  spinner on the first load (the pattern `useLocalMemories` already used),
+  resetting it when the account id changes. `useSavedInsights` did not observe the
+  active account at all before this change, so a guard alone would have kept the
+  previous account's insights on screen; it now reads `useActiveAccountId`,
+  clears the rows and reloads when it changes.
+  *Honest limit of the measurement:* the bench never saw that skeleton painted —
+  `skeletonShown` is 0 in **both** runs, because `AsyncStorage` on web resolves
+  in a microtask, before the next frame. The flip is still a defect (a whole-tree
+  unmount waiting on storage), and on a native device the same read crosses the
+  bridge and does take painted milliseconds, but the 206 → 67 ms improvement is
+  attributable to the read-count and render fixes below, **not** to a skeleton
+  that was removed from the web frame.
+- **Three lists cost three full loads.** `listDrafts()`/`listCompleted()` each
+  re-read the index plus all 16 shards, and `listCompletedCheckIns()`/
+  `listCheckInDrafts()` each call `listCheckIns()` again. Both hooks now read
+  once and split in memory. Storage reads per switch: 65 → **21**.
+- **Today re-read `@intention_checkins` in a tap handler.** This one was tried and
+  **reverted on review**: `openDailyCheckIn` keeps its fresh
+  `listCheckInDrafts()` read. The hook's `drafts` is a focus-time snapshot, so
+  resuming from it can reopen a check-in that was completed since, or miss one
+  just saved and start a duplicate. A tap is off the switch's measured frame
+  path, so freshness wins over the saved read.
+- **Duplicate hook instances on Archive.** `entries.tsx` mounted
+  `useJournalEntries` + `useIntentionCheckIns` a second time just to count
+  drafts. `useHistoryFeed` now returns `draftCount` and a composed `refresh`,
+  and the screen uses one set.
+
+Plus two render-cost fixes on the same path: `activeIntentions` in
+`useIntentions` and `weeklyStats` in `useWeeklyInsights` were rebuilt in the
+render body on every render (the latter re-splitting every word of the week);
+both are `useMemo`'d. `weekDateRange` stays a render-body IIFE on purpose — it
+reads the clock at render time.
+
+Memoizing `weeklyStats` introduced a staleness bug that review caught: the memo
+keyed only on `getWeeklyItems`, whose identity changes when the collections
+change — not when the clock crosses a week boundary — so a screen left open kept
+last week's counts under this week's label. The week filter now takes the week
+start as a parameter and the memo depends on it, so stats and label read one
+clock. `__tests__/hooks/useWeeklyInsightsWeekBoundary.test.tsx` pins it with fake
+timers (sabotage-verified: without the dependency it reports the old week's
+counts).
+
+After, same bench and settings:
+
+| Pair | frameGapMax | longTask | storage reads |
+|---|---|---|---|
+| Threads → Today | 67 ms | 66 ms | 21 |
+| Insights → Today | 45 ms | 52 ms | 21 |
+| Archive → Today | 67 ms | 67 ms | 21 |
+| Today → Threads | 33 ms | 0 ms | 0 |
+
+Threads → Today is **3.1× shorter** and the worst round dropped from 544 ms to
+89 ms. The remaining ~45–70 ms task is React render work in the Today tree, not
+storage — see the rules doc for why that is the next step and why it is a design
+change, not a hook change.
+
+- **`docs/perf/ui-performance-rules.md` (new)** — the "think outside the box"
+  half of the issue: six rules (stale-while-refresh, one read per collection, one
+  hook instance per collection, memoize derived collections, do not re-read in a
+  handler what the hook holds, measure do not guess) and five budget tables. The
+  first table holds for **every interaction** and is structural (1 read per
+  collection per action, 1 load per collection on focus, 1 hook instance per
+  collection per tree, 0 derived collections rebuilt in a render body, 0 spinner
+  re-shows, 0 ms of blocking reads in a tap handler) — checkable by reading code.
+  The second is measured and switch-scoped (≤100 ms longest task and frame gap,
+  ≤16 ms p95 gap, 0 skeleton re-shows, ≤25 storage reads, ≤50 ms to route). A
+  third table covers cold mounts, added after review pointed out that
+  switch-only numbers do not answer "targets for all of the UI/UX". A fourth
+  covers scrolling (0 long tasks, 0 storage reads per pass), added when a second
+  review round said scrolling was still unmeasured. A fifth covers AI requests and
+  chat sends structurally (no millisecond budget — a provider round-trip would
+  measure the network), added when a third round asked for those to be assessed.
+- **`scripts/qa/route-mount-bench.mjs` (new)** — a cold mount is a different path
+  from a switch (module init + first read + first render), so it needs its own
+  numbers rather than being inferred from the switch bench. Loads each route in a
+  fresh browser context and times until the route's content is visible. Current
+  numbers, 3 cold loads each: Today 1401 ms to content / 231 ms longest task / 417
+  reads; Threads 3942 ms / 223 ms / 383; Insights 993 ms / 221 ms / 398; Archive
+  983 ms / 228 ms / 413. The budgets (≤300 ms task, ≤300 ms frame gap, ≤450 reads,
+  ≤2000 ms to content on Today) are **ceilings set from these numbers, not
+  achievements** — this branch changes no mount-path code, so there is no
+  before/after to show. `contentAtMs` is load-to-dock-visible (the tab tree
+  mounted), not "first row painted". Threads is the outlier at 2.3–4.1 s and its
+  cause is **not diagnosed**: it is not storage (Threads reads 383 keys vs
+  Today's 417) so it is in that screen's render path. Profiling it is the first
+  follow-up. (An earlier draft blamed the memory-graph engine; `app/(tabs)/explore.tsx`
+  renders `MemoryHubScreen`, a ledger list with no WebView, so that was wrong.)
+- **`scripts/qa/scroll-bench.mjs` (new)** — the third path, and the last one that
+  is app-side: what a screen feels like once it is usable. Wheel-scrolls each list
+  top-to-bottom over ~1.6 s and records long tasks, storage reads and frame gaps.
+  Budgets: **0** main-thread tasks ≥50 ms and **0** storage reads during a scroll
+  pass. Measured, 3 passes per route: Threads 1438 px, Insights 424 px, Archive
+  2243 px scrolled; 0 long tasks and 0 storage reads on every pass, 0 page errors
+  — both budgets are met by the current code. **Frame gaps are reported but not
+  budgeted**: headless Chromium has no vsync, so it ran ~400 frames in a 1600 ms
+  pass (≈250 fps) and a "6 ms max gap" describes the harness, not the app.
+  Certifying 60 fps needs a vsync'd target this repo does not run. The bench also
+  **fails** if the scroll moved the page under 100 px, because the first version
+  silently measured an idle page — RNW keeps the list in a `div` with
+  `overflow-y: auto`, so `window.scrollY` stays 0 however far it scrolls.
+  AI-request and chat-send latency get **no millisecond budget, deliberately**: a
+  provider round-trip would make the number measure the network rather than the
+  app, and there is no recorded stream to make it reproducible. They get a
+  structural table instead (0 ms blocking reads before a send, 0 collections
+  re-read per send, 1 storage read per collection, 0 unchanged rows re-rendered
+  per streamed token, 0 spinner re-shows). **Writing that table found the one row
+  that failed**: `ChatTranscript` maps every message into a `ScrollView` and
+  `ChatMessage` had no `React.memo`, so each token re-rendered the whole
+  transcript. Fixed rather than deferred — `ChatMessage` is now `React.memo`'d
+  (props are primitives or pass-through refs; theme still arrives through the
+  `useColorScheme`/`useThemeSettings` subscriptions), with
+  `__tests__/ChatMessage.test.tsx` → *ChatMessage memoization* holding the budget.
+  Sabotage-checked: unwrapping the memo makes the settled-row test fail with 2
+  renders where 1 is expected.
+- **`scripts/qa/bench-instrument.mjs` (new)** — the page-side instrumentation all
+  three benches share (storage counting, `longtask` observer, rAF sampler), so they
+  cannot drift into measuring different things. `stopSampling` returns both
+  `frames` (a count) and `gaps` (the raw intervals the scroll bench needs).
+- **`scripts/qa/chromium.mjs` (new)** — the installed `playwright-core` bundles a
+  Chromium revision (`chromium_headless_shell-1208`) that is not on this machine,
+  so `chromium.launch()` throws `Executable doesn't exist`. This resolves the
+  newest cached `chromium-<rev>` build instead; `PW_CHROME_PATH` overrides.
+- **`__tests__/hooks/collectionRefreshStaleness.test.tsx` (new, 6 tests)** —
+  guards the two behaviours Jest can see: one storage read per collection (the
+  status-splitting helpers are mocked to *throw* if called), the Archive draft
+  count coming off one pair of instances, no `isLoading` flip during a refresh
+  with data on screen, and the spinner still returning for a different account.
+  Each "does not re-enter loading" test also asserts the read actually started, so
+  a refresh that silently does nothing cannot pass.
+- **`__tests__/hooks/collectionAccountAndWeekBoundary.test.tsx` (new, 2 tests)** —
+  a `useSavedInsights` account change drops the previous rows and re-reads; no
+  active account clears the rows and stops loading.
+- **`__tests__/hooks/useWeeklyInsightsWeekBoundary.test.tsx` (new, 1 test)** —
+  `weeklyStats` follows the clock into a new week.
+- **Visual evidence**: the switch is a timing defect, so the PR carries the
+  measured table above plus the exact capture commands. Screenshots of Today
+  before and after are byte-identical (same hash) — the change is invisible in a
+  still frame, which is exactly why a screenshot cannot be the evidence here.
+
+Gates: `npx tsc --noEmit` clean, `npm run lint` 0 errors (78 warnings, all
+pre-existing), `npm run check:design` 175 files OK, `npm test` 291 suites /
+1646 tests green (9 suites skipped, unchanged).
+
 ### 2026-11-02 — SemVer, a changelog, and a release process
 
 The repo had no version history to speak of: `package.json` and `app.json` both

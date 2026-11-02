@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     createGoal,
     deleteGoal,
@@ -26,13 +26,18 @@ export function useGoals(): UseGoalsReturn {
     const [goals, setGoals] = useState<GoalItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
+    const hasLoadedRef = useRef(false);
 
     const refresh = useCallback(async () => {
-        setIsLoading(true);
+        // Only the first load shows a spinner — see useJournalEntries.
+        if (!hasLoadedRef.current) {
+            setIsLoading(true);
+        }
         setError(null);
         try {
             const list = await listGoals();
             setGoals(list);
+            hasLoadedRef.current = true;
         } catch (err) {
             setError(err instanceof Error ? err : new Error('Failed to load goals'));
         } finally {
@@ -42,9 +47,12 @@ export function useGoals(): UseGoalsReturn {
 
     useEffect(() => {
         if (accountId) {
+            // A different account's rows must not be treated as already loaded.
+            hasLoadedRef.current = false;
             void refresh();
         } else {
             setGoals([]);
+            hasLoadedRef.current = false;
             setIsLoading(false);
         }
     }, [accountId, refresh]);
