@@ -527,6 +527,28 @@ the round-2 entry above. What remains:
   extraction/identity/recall work, cleared demo data for recall, offline-boot
   gate blocking every host but the provider. Jest green is not sufficient.
 
+## Archive tab UI pass (2026-11-02)
+
+- Archive header `Drafts` text link → quiet bordered chip (`AppHeader`); the
+  Drafts screen `Recent`/`Title` sort link → a matching `swap-vert` chip. The
+  serif title now sits in the header row so it reserves space for both controls
+  instead of painting over them. Underlines gone; sorting still toggles.
+- Archive empty-state CTA is now a 44pt, 220px-max outline button whose label
+  may wrap (no `numberOfLines`), so `Write an entry` is never ellipsized at
+  enlarged text sizes.
+- Review round 1: the meta row lets the week label shrink (`flex-1`,
+  `numberOfLines={1}`) while the chip keeps its width; the chip test asserts the
+  exact `border-hairline-*` tokens. Declined two suggestions: `gap-3` between a
+  chip's icon and label (the 12px rule is for rows of buttons, not one control)
+  and tokenizing the one-off 44px/220px CTA geometry.
+- Verified on the web build at 390×844 in dark and light: empty Archive,
+  empty Drafts, and the CTA → chat route. Added `AppHeader` tests and CTA
+  geometry assertions in `HistoryEmpty.test.tsx`; `tsc`, lint and
+  `check:design` clean.
+- Limitation: the device-only `Write an` truncation was not reproduced in the
+  web harness. The release APK ships arm64-only and the available emulator is
+  x86_64, so a native capture is still pending.
+
 ## Archive
 
 Full unreduced entries (including every sabotage table, gate matrix, and

@@ -39,12 +39,11 @@ export function HistoryEmpty({ hasAnyItems, isSearching, onWritePress }: History
             {!isSearching ? (
                 <Pressable
                     onPress={onWritePress}
-                    className="mt-6 rounded-control border border-hairline-light px-5 py-2.5 dark:border-hairline-dark"
+                    className="mt-6 min-h-[44px] w-full max-w-[220px] items-center justify-center rounded-control border border-hairline-light px-5 py-2.5 dark:border-hairline-dark"
                     accessibilityRole="button"
                     accessibilityLabel="Write an entry"
-                    style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}
                 >
-                    <Text className="text-sm text-text-light dark:text-text-dark">
+                    <Text className="text-center text-sm text-text-light dark:text-text-dark">
                         Write an entry
                     </Text>
                 </Pressable>

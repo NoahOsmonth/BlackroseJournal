@@ -62,6 +62,7 @@ export default function DraftsScreen() {
     const router = useRouter();
     const isDark = useColorScheme() === 'dark';
     const ink = isDark ? BLACKROSE_PALETTE.dark.text : BLACKROSE_PALETTE.light.text;
+    const metaColor = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
     const { drafts, isLoading: entriesLoading, remove } = useJournalEntries();
     const { drafts: checkInDrafts, isLoading: checkInsLoading, remove: removeCheckIn } = useIntentionCheckIns();
     const [sortMode, setSortMode] = useState<'recent' | 'title'>('recent');
@@ -155,10 +156,10 @@ export default function DraftsScreen() {
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
             <View className="w-full max-w-md flex-1 self-center">
-                <View className="flex-row items-center justify-between px-6 py-4">
+                <View className="flex-row items-center gap-3 px-6 py-4">
                     <Pressable
                         onPress={() => router.back()}
-                        className="h-10 w-10 items-center justify-center"
+                        className="h-10 w-10 shrink-0 items-center justify-center"
                         accessibilityLabel="Back"
                         accessibilityRole="button"
                         hitSlop={8}
@@ -166,21 +167,26 @@ export default function DraftsScreen() {
                         <MaterialIcons name="chevron-left" size={26} color={ink} />
                     </Pressable>
                     <Text
-                        className="text-[22px] text-text-light dark:text-text-dark"
+                        className="flex-1 text-center text-[22px] text-text-light dark:text-text-dark"
                         style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                        numberOfLines={1}
                     >
                         Drafts
                     </Text>
                     <Pressable
                         onPress={() => setSortMode((prev) => (prev === 'recent' ? 'title' : 'recent'))}
-                        className="h-10 min-w-10 items-center justify-center"
                         accessibilityLabel="Sort drafts"
                         accessibilityRole="button"
+                        accessibilityValue={{ text: sortMode === 'recent' ? 'Recent first' : 'Title A to Z' }}
                         hitSlop={8}
+                        className="shrink-0"
                     >
-                        <Text className="text-[15px] text-text-light underline dark:text-text-dark">
-                            {sortMode === 'recent' ? 'Recent' : 'Title'}
-                        </Text>
+                        <View className="flex-row items-center gap-1.5 rounded-control border border-hairline-light px-3 py-1.5 dark:border-hairline-dark">
+                            <MaterialIcons name="swap-vert" size={14} color={metaColor} />
+                            <Text className="text-[13px] text-text-light dark:text-text-dark">
+                                {sortMode === 'recent' ? 'Recent' : 'Title'}
+                            </Text>
+                        </View>
                     </Pressable>
                 </View>
 
