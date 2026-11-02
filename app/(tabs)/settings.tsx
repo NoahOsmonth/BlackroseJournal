@@ -380,6 +380,7 @@ export default function SettingsScreen() {
                     <AboutSettingsSection
                         onAboutPress={() => notifyUser('About', APP_ABOUT_COPY)}
                         onPrivacyPress={() => notifyUser('Privacy Policy', APP_PRIVACY_COPY)}
+                        onCrashLogsPress={() => router.push('/crash-logs')}
                         embedded
                     />
                 </SettingsAccordionSection>

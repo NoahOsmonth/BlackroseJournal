@@ -41,6 +41,53 @@ tsc / lint / `check:design` clean.
 
 ## Dated log
 
+### 2026-11-02 — crash detection with on-device crash logs (issue #10)
+
+The app had no crash surface. `AppErrorBoundary` caught render errors and
+`console.error`'d them; an uncaught error on a phone left the user with nothing
+to copy or send. Issue #10 asked for exactly that: detect a crash, and after
+relaunch let the user copy or download the logs, plus somewhere to file the
+report.
+
+- **Capture** (`services/crash/crashHandler.ts`) — installed at import time from
+  `app/_layout.tsx` (module scope, before the first render), idempotent, and
+  disposable. Three surfaces: RN's `ErrorUtils.setGlobalHandler` (chained, so the
+  redbox/native crash still happens), plus `error` and `unhandledrejection` on
+  `window` for web. `AppErrorBoundary.componentDidCatch` now reports through the
+  same store instead of only logging.
+- **Store** (`services/crash/crashLogStorage.ts`) — sole owner of
+  `@blackrose_crash_logs`, account-scoped, `schemaVersion: 1` envelope with
+  `lastSeenAt`, a 20-record ring buffer, one serialized mutation queue, and a
+  safe parse that also reads the bare array an older build would have written.
+  `recordCrashLog` resolves `null` rather than throwing when the store is
+  unreachable: a crash reporter that crashes is worse than an unreported crash.
+- **Viewer** (`app/crash-logs.tsx`) — each crash shows message, time, platform,
+  app version, capture point and stack. **Copy all** / **Copy one**
+  (`expo-clipboard`), **Download** (a real `.txt` via `downloadTextFile` on web,
+  the OS share sheet on native — see the limitation below), **Clear**, and
+  **Report on GitHub**, which opens a prefilled issue against
+  `github.com/NoahOsmonth/BlackroseJournal` (`APP_ISSUE_URL` in
+  `constants/appInfo.ts`). Nothing is uploaded: opening the issue is ordinary
+  user-initiated navigation, and the user presses Submit.
+- **Discoverability** — a post-crash banner on Today (`CrashReportBanner`) that
+  renders only for crashes the user has not opened, and a "Crash logs" row in
+  Settings → About. Opening the viewer marks the logs seen.
+- **Clear history** now clears crash logs too (`useClearJournalHistory`), since a
+  stack can quote journal text.
+- **Offline probe** route sweep gained `/crash-logs`; `UI_MAP.md` gained the
+  route row and the About band note.
+
+**Limitations, stated rather than hidden.** (a) There is no `expo-sharing`
+dependency and RN's `Share.share` ignores `url` on Android, so native cannot
+write a user-visible file — native **shares the report text**, web downloads a
+`.txt`, and **Copy** is the action that works identically everywhere (it is the
+primary button). Adding a real native download means adding a dependency; that
+was left out of this change. (b) A fatal native crash can kill the JS thread
+before the async AsyncStorage write lands, so capture is best-effort — the store
+is written from the handler, not from a native crash reporter. (c) A crash that
+happens before the local account resolves cannot be persisted
+(`runAccountBoundOperation` rejects) and is dropped with a `console.warn`.
+
 ### 2026-11-02 — SemVer, a changelog, and a release process
 
 The repo had no version history to speak of: `package.json` and `app.json` both

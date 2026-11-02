@@ -346,6 +346,7 @@ async function main() {
         const routes = [
             '/today', '/entries', '/insights', '/explore', '/settings',
             '/goals', '/drafts', '/saved-insights', '/memory-graph', '/streak-view', '/rewards',
+            '/crash-logs',
         ];
         log('OFFLINE WALK: every host except the chat provider blocked');
         log('after boot: url=' + page.url());

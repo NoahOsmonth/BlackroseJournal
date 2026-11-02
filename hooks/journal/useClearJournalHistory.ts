@@ -12,6 +12,7 @@ import { clearMemoryFiles } from '@/services/memory/memoryFiles';
 import { removeAllChatSessions } from '@/services/ai/sessionStorage';
 import { clearAllEntries } from '@/services/journal/journalStorage';
 import { clearAllCheckIns } from '@/services/intentions/intentionsStorage';
+import { clearCrashLogs } from '@/services/crash/crashLogStorage';
 import { getActiveAccountId } from '@/services/account/accountRuntime';
 import { runLocalOperationWithAccountRecovery } from '@/services/account/accountOperationRecovery';
 
@@ -54,6 +55,7 @@ export function useClearJournalHistory(): UseClearJournalHistoryReturn {
                 ['chat sessions', removeAllChatSessions],
                 ['weekly insights', clearCachedInsights],
                 ['saved insights', clearSavedInsights],
+                ['crash logs', clearCrashLogs],
             ];
 
             for (const [label, step] of steps) {
