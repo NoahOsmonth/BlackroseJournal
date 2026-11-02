@@ -200,6 +200,14 @@ changes under `## [Unreleased]` as you work, and move them into a new
 
    Then delete `release-notes.md`.
 
+7. The APK follows the tag on its own. Pushing `vX.Y.Z` starts the
+   **Android release** workflow (`.github/workflows/android-release.yml`),
+   which prebuilds the Android project, signs it with the keystore in the
+   repository secrets, names the file `blackrosejournal-X.Y.Z.apk` and attaches
+   it to the `vX.Y.Z` release — whether that release already exists or not.
+   To rebuild without a new version, run the workflow from the Actions tab and
+   give it a version.
+
 ### Android versionCode is owned by EAS
 
 `eas.json` sets `cli.appVersionSource: "remote"`, so the Android `versionCode`
@@ -208,6 +216,11 @@ user-facing version name only. The `production` build profile also sets
 `autoIncrement: true`, so every production build gets the next `versionCode`
 automatically. **Do not hand-edit a `versionCode`**: there is nothing in the
 repo to edit, and a local value would be ignored (or rejected) by EAS.
+
+The release workflow does not use EAS, so it derives the code from the tag:
+`MAJOR * 10000 + MINOR * 100 + PATCH` (`v0.1.0` → `100`). It writes that value
+into `app.json` inside the runner only, so the committed file stays as it is and
+the code still increases with every version.
 
 ## Contributing
 
