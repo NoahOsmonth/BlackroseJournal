@@ -6,7 +6,16 @@
  * `max_tokens` and wants `max_completion_tokens`. Centralising these
  * differences here keeps `directTransport.ts` free of per-host branching and
  * turns "add a provider" into a one-line table entry.
+ *
+ * There are two independent axes, and both are needed:
+ * - **Host** (`zenmux.ai`): the gateway's own quirks, keyed off the base URL.
+ * - **Kind** (Google AI Studio / Anthropic compatibility layers): the upstream
+ *   vendor's dialect, chosen by the user when the provider is added. These are
+ *   not host-detectable — the same host can front any upstream, and a user may
+ *   point a Google profile at their own proxy.
  */
+import type { ProviderKind } from './customModels';
+
 export type MaxTokensField = 'max_tokens' | 'max_completion_tokens';
 
 export interface ProviderCapabilities {
@@ -18,6 +27,14 @@ export interface ProviderCapabilities {
     retryableStatuses: ReadonlySet<number>;
     /** Extra headers some gateways require (e.g. a routing hint). */
     extraHeaders: Readonly<Record<string, string>>;
+    /**
+     * True when `temperature` / `top_p` must not be sent at all. Anthropic's
+     * compatibility layer accepts only exactly 1 for `temperature` on current
+     * Claude models (below 1 is a 400, above 1 is capped) and rejects a request
+     * that sets both `temperature` and `top_p`, so the only shape that works on
+     * every Claude model is to omit both and take the endpoint defaults.
+     */
+    omitSamplingFields: boolean;
 }
 
 /** Transient gateway / rate-limit statuses worth auto-retrying (3×). */
@@ -28,6 +45,7 @@ const DEFAULT_CAPABILITIES: ProviderCapabilities = {
     supportsResponseFormat: true,
     retryableStatuses: new Set(TRANSIENT_HTTP_STATUSES),
     extraHeaders: {},
+    omitSamplingFields: false,
 };
 
 /**
@@ -45,6 +63,36 @@ const HOST_OVERRIDES: Record<string, Partial<ProviderCapabilities>> = {
     // defaults, and any extra header a gateway needs is declared per host here.
 };
 
+/**
+ * Per-kind overrides for the vendor compatibility layers, from their own docs:
+ *
+ * Google — Gemini's `/v1beta/openai/` layer ignores request fields it does not
+ * know, so the OpenAI defaults are safe and `response_format` can be offered:
+ * either the endpoint honours it or it ignores it and the JSON helper parses
+ * the prose answer as before.
+ *
+ * Anthropic — `/v1/` compatibility layer: `temperature` above 1 is capped (and
+ * current models 400 below 1), `temperature` + `top_p` together is a 400, and
+ * `response_format` accepts only `json_schema` with `strict: true`, so a
+ * `json_object` request is a guaranteed 400. Omit it instead of spending a
+ * round trip on the rejection.
+ *
+ * `tool_choice` is deliberately NOT downgraded here. Several current Claude
+ * models reject a forced choice, but the agent loop already sends `required` as
+ * optional pressure and retries `auto` on a 400/422
+ * (`agent_tool_choice_required_fallback`). Rewriting the value in the transport
+ * would pre-empt that retry and silently weaken forced tool use on the models
+ * that *do* support it — including turning a caller's `none` into `auto`.
+ */
+const KIND_OVERRIDES: Record<ProviderKind, Partial<ProviderCapabilities>> = {
+    openai: {},
+    google: {},
+    anthropic: {
+        supportsResponseFormat: false,
+        omitSamplingFields: true,
+    },
+};
+
 export function resolveProviderHost(apiBaseUrl: string): string | null {
     try {
         const url = new URL(apiBaseUrl);
@@ -54,20 +102,19 @@ export function resolveProviderHost(apiBaseUrl: string): string | null {
     }
 }
 
-export function getProviderCapabilities(apiBaseUrl: string): ProviderCapabilities {
+export function getProviderCapabilities(
+    apiBaseUrl: string,
+    kind: ProviderKind = 'openai',
+): ProviderCapabilities {
     const host = resolveProviderHost(apiBaseUrl);
-    const overrides = host ? HOST_OVERRIDES[host] : undefined;
-    if (!overrides) {
-        return {
-            ...DEFAULT_CAPABILITIES,
-            retryableStatuses: new Set(DEFAULT_CAPABILITIES.retryableStatuses),
-            extraHeaders: {},
-        };
-    }
+    const hostOverrides = host ? HOST_OVERRIDES[host] : undefined;
+    const overrides = { ...KIND_OVERRIDES[kind], ...hostOverrides };
     return {
         ...DEFAULT_CAPABILITIES,
         ...overrides,
-        retryableStatuses: new Set(overrides.retryableStatuses ?? DEFAULT_CAPABILITIES.retryableStatuses),
+        retryableStatuses: new Set(
+            overrides.retryableStatuses ?? DEFAULT_CAPABILITIES.retryableStatuses
+        ),
         extraHeaders: { ...(overrides.extraHeaders ?? {}) },
     };
 }

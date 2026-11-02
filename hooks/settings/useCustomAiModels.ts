@@ -3,12 +3,14 @@ import {
     CustomAiProviderSettings,
     CustomModelSettingsError,
     DEFAULT_FALLBACK_CONTEXT_WINDOW,
+    ProviderKind,
     ProviderProfile,
     addProviderProfile,
     createProviderProfile,
     fetchOpenAiCompatibleModels,
     getActiveProfile,
     getDefaultCustomAiProviderSettings,
+    getProviderKindOption,
     loadCustomAiProviderSettings,
     normalizeFallbackContextWindow,
     normalizeOpenAiBaseUrl,
@@ -56,7 +58,7 @@ export interface UseCustomAiModelsReturn {
     selectModel: (modelId: string) => Promise<void>;
     addManualModel: (modelId: string) => Promise<void>;
     setEnabled: (enabled: boolean) => Promise<void>;
-    addProfile: () => Promise<void>;
+    addProfile: (kind?: ProviderKind) => Promise<void>;
     removeActiveProfile: () => Promise<void>;
     selectProfile: (profileId: string) => Promise<void>;
     renameProfile: (label: string) => Promise<void>;
@@ -163,6 +165,7 @@ export function useCustomAiModels(): UseCustomAiModelsReturn {
             const result = await fetchOpenAiCompatibleModels({
                 baseUrl: draft.baseUrl,
                 apiKey: draft.apiKey,
+                kind: profile?.kind ?? 'openai',
                 fallbackContextWindow: fallback,
                 modelFilterPatterns: patterns,
             });
@@ -276,10 +279,17 @@ export function useCustomAiModels(): UseCustomAiModelsReturn {
         });
     }, [persist, profile, settings]);
 
-    const addProfile = useCallback(async () => {
+    const addProfile = useCallback(async (kind: ProviderKind = 'openai') => {
+        const option = getProviderKindOption(kind);
         try {
             await persist(addProviderProfile(settings, createProviderProfile({
-                label: `Provider ${settings.profiles.length + 1}`,
+                kind,
+                // Prefill an editable starting point. The user can overwrite the
+                // name and the base URL with their own gateway or proxy.
+                label: option.defaultLabel === 'Provider'
+                    ? `Provider ${settings.profiles.length + 1}`
+                    : option.defaultLabel,
+                baseUrl: option.defaultBaseUrl,
             })));
             setStatus({ kind: 'success', message: 'New provider added. Enter its details.' });
         } catch (error) {

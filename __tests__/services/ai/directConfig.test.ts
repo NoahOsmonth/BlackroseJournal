@@ -229,10 +229,39 @@ describe('directConfig — getResolvedDirectConfig', () => {
             model: 'tencent/hy3:free',
             flashModel: 'tencent/hy3:free',
             source: 'custom',
+            kind: 'openai',
             contextWindow: 262_000,
             contextWindowSource: 'api',
             fallbackModelIds: ['meta/llama-70b-instruct:free'],
         });
+    });
+
+    it('resolves the profile kind so the transport can shape the request', async () => {
+        // The describe-level adapter reads as empty storage, so this test needs
+        // its own writable one to get a saved profile back out.
+        const storage = new Map<string, string>();
+        setCustomModelStorageAdapter({
+            getItem: (key) => Promise.resolve(storage.get(key) ?? null),
+            setItem: (key, value) => {
+                storage.set(key, value);
+                return Promise.resolve();
+            },
+            removeItem: (key) => {
+                storage.delete(key);
+                return Promise.resolve();
+            },
+        });
+        await saveCustomAiProviderSettings(makeProviderSettings({
+            enabled: true,
+            kind: 'anthropic',
+            baseUrl: 'https://api.anthropic.com/v1',
+            apiKey: 'sk-ant',
+            selectedModelId: 'claude-sonnet-4-5',
+            models: [testModel('claude-sonnet-4-5', 200_000)],
+        }));
+
+        await expect(getResolvedDirectConfig()).resolves
+            .toEqual(expect.objectContaining({ source: 'custom', kind: 'anthropic' }));
     });
 
     it('falls back to the env seed when no custom provider is saved', async () => {
@@ -246,6 +275,9 @@ describe('directConfig — getResolvedDirectConfig', () => {
             model: 'qwen-web/qwen3.8-max',
             flashModel: 'qwen-web/qwen3.8-max',
             source: 'env',
+            // The env seed is documented as OpenAI-compatible; there is no env
+            // var for a dialect, so it can only ever be plain OpenAI.
+            kind: 'openai',
         });
     });
 
