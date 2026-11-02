@@ -78,10 +78,12 @@ and the switch budgets are about what a *focus* costs. Do not generalize this
 into "handlers may re-read collections" — a handler that renders a list on every
 press is still a defect.
 
-**R6 — Measure, do not guess.** Any change to a tab screen's refresh path or to
-a collection hook is measured with `scripts/qa/tab-switch-bench.mjs` before and
-after (see below). "It feels faster" is not evidence; a screenshot cannot show a
-dropped frame.
+**R6 — Measure, do not guess.** A change to a tab screen's refresh path or to a
+collection hook is measured with `scripts/qa/tab-switch-bench.mjs` before and
+after. A change to anything on a screen's first-load path — module init, an
+engine booting, a provider mounting — is measured with
+`scripts/qa/route-mount-bench.mjs`. "It feels faster" is not evidence; a
+screenshot cannot show a dropped frame.
 
 ## Budgets
 
@@ -89,7 +91,8 @@ dropped frame.
 
 These hold for any user-visible interaction in the app, not just a tab switch.
 They are the bar a new screen or handler is held to, and they are checkable by
-reading the code even where no bench exists yet.
+reading the code — no bench required, which is why they are structural rather
+than millisecond-based.
 
 | Metric | Budget | Why |
 |---|---|---|
@@ -118,14 +121,41 @@ absolute terms, so treat these as *ratios and ceilings*, not as phone timings.
 A switch that breaks a budget is a regression even if every test is green: none
 of this is visible to Jest.
 
-**Scope of these numbers.** The millisecond budgets are *tab-switch* budgets,
-because that is the interaction the rules were derived from: a re-focus of a
-screen that stays mounted. They say nothing about a cold mount, an AI request, a
-chat send, or scroll smoothness. The *Every interaction* table above is the part
-that generalizes; it is structural rather than millisecond-based because nothing
-in the repo measures those other paths yet. A bench for first mount and for chat
-send is the right next step — until it exists, do not cite the millisecond table
-as a whole-app target.
+### Cold mounts
+
+The other half of the picture, and a genuinely different path: a fresh page load
+straight onto a route — a deep link, a reload, or the first launch after the
+splash. It pays module init, the first read of every collection and the first
+render, so it is several times a switch and must not be judged by the switch
+budgets above. Same bench settings; medians of three cold loads.
+
+Measured on this branch (`route-mount-bench.mjs`), which is the baseline the
+budgets are set from:
+
+| Route | Content visible | `frameGapMax` | Longest task | Storage reads |
+|---|---|---|---|---|
+| Today | 1401 ms | 228 ms | 231 ms | 417 |
+| Threads | 3942 ms | 222 ms | 223 ms | 383 |
+| Insights | 993 ms | 222 ms | 221 ms | 398 |
+| Archive | 983 ms | 228 ms | 228 ms | 413 |
+
+| Metric | Budget | Why |
+|---|---|---|
+| Longest main-thread task during a cold mount | **≤ 300 ms** | The current worst is 231 ms; this is the ceiling, not a target |
+| `frameGapMax` during a cold mount | **≤ 300 ms** | One dropped-frame cluster while the screen paints |
+| Storage reads during a cold mount | **≤ 450** | Every collection loads once; well past that is a duplicate read |
+| Content visible on Today | **≤ 2000 ms** | Beyond ~2 s a cold open reads as broken |
+
+These are ceilings with headroom over today's numbers, not achievements. A cold
+mount has no prior paint to preserve, so it is judged on time-to-content rather
+than on dropped frames. Threads at 3942 ms is the outlier and the first thing to
+fix; it is not fixed here because the cause (the memory-graph engine
+initialising on first paint) is a rendering change, not a hook change.
+
+No before/after pair is quoted for cold mounts: this branch changes no
+mount-path code, so the honest reading is that the numbers are unchanged and the
+budgets are newly *set*, not newly *met*. They exist so the next change to a
+mount path has a ceiling to be judged against.
 
 ## Measuring
 
@@ -133,26 +163,36 @@ as a whole-app target.
 # one terminal: the app under test (hot reload must be on, so no CI=1)
 npx expo start --web --port 8081
 
-# another terminal
+# another terminal — switches (the reported interaction)
 BENCH_LABEL=after BENCH_ROUNDS=3 node scripts/qa/tab-switch-bench.mjs
+
+# cold mounts (first load onto a route)
+BENCH_LABEL=after BENCH_ROUNDS=3 node scripts/qa/route-mount-bench.mjs
 ```
+
+Both benches share their page-side instrumentation (`scripts/qa/bench-instrument.mjs`)
+so they cannot drift into measuring different things.
 
 `scripts/qa/chromium.mjs` resolves a cached Chromium binary (`PW_CHROME_PATH`
 overrides it) because the revision bundled with the installed `playwright-core`
-may be absent. Results land in `output/perf/` (`tab-switch-<label>.json` plus one
-screenshot per pair); that directory is gitignored, so a report quotes the table
-and the command rather than attaching the run.
+may be absent. Results land in `output/perf/` (`tab-switch-<label>.json`,
+`route-mount-<label>.json`, plus one screenshot per pair or route); that directory
+is gitignored, so a report quotes the table and the command rather than attaching
+the run.
 
-The bench wraps `Storage.prototype.getItem/setItem` before app code runs, records
-`longtask` entries through a `PerformanceObserver`, and samples animation-frame
+The benches wrap `Storage.prototype.getItem/setItem` before app code runs, record
+`longtask` entries through a `PerformanceObserver`, and sample animation-frame
 gaps with `requestAnimationFrame` while a `[aria-label]` matching `/loading/i` is
-on screen. It presses the dock tabs by accessible name, so it fails loudly if the
-dock's labels change.
+on screen. They drive the app by accessible name (dock tab labels), so they fail
+loudly if those labels change.
 
-By default it measures **arrivals at every dock destination** (Threads, Insights
-and Archive → Today, and Today → each of them), so a regression on any tab's
-refresh path shows up rather than only on the pair issue #9 reported. Narrow it
-with `BENCH_PAIRS=explore>today,today>explore`; an unknown tab name throws.
+By default the switch bench measures **arrivals at every dock destination**
+(Threads, Insights and Archive → Today, and Today → each of them), so a regression
+on any tab's refresh path shows up rather than only on the pair issue #9
+reported. Narrow it with `BENCH_PAIRS=explore>today,today>explore`; an unknown tab
+name throws. The mount bench loads each route in a **fresh browser context** (no
+warm module cache) and times until the route's dock tab is present and visible;
+narrow it with `BENCH_ROUTES=today,explore`.
 
 ## Baseline and current numbers
 

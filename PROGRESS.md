@@ -126,13 +126,30 @@ change, not a hook change.
 - **`docs/perf/ui-performance-rules.md` (new)** — the "think outside the box"
   half of the issue: six rules (stale-while-refresh, one read per collection, one
   hook instance per collection, memoize derived collections, do not re-read in a
-  handler what the hook holds, measure do not guess) and numeric budgets for any
-  tab screen (≤100 ms longest task and frame gap, ≤16 ms p95 gap, 0 skeleton
-  re-shows, ≤25 storage reads, ≤50 ms to route). The budgets are the acceptance
-  bar for future UI work; the issue asked for targets, so they are written down
-  rather than implied. They are **tab-switch** budgets, and the doc says so: a
-  cold mount, an AI request or a chat send is not covered by any of these
-  numbers yet.
+  handler what the hook holds, measure do not guess) and two budget tables. The
+  first table holds for **every interaction** and is structural (1 read per
+  collection per action, 1 load per collection on focus, 1 hook instance per
+  collection per tree, 0 derived collections rebuilt in a render body, 0 spinner
+  re-shows, 0 ms of blocking reads in a tap handler) — checkable by reading code.
+  The second is measured and switch-scoped (≤100 ms longest task and frame gap,
+  ≤16 ms p95 gap, 0 skeleton re-shows, ≤25 storage reads, ≤50 ms to route). A
+  third table covers cold mounts, added after review pointed out that
+  switch-only numbers do not answer "targets for all of the UI/UX".
+- **`scripts/qa/route-mount-bench.mjs` (new)** — a cold mount is a different path
+  from a switch (module init + first read + first render), so it needs its own
+  numbers rather than being inferred from the switch bench. Loads each route in a
+  fresh browser context and times until the route's content is visible. Current
+  numbers, 3 cold loads each: Today 1401 ms to content / 231 ms longest task / 417
+  reads; Threads 3942 ms / 223 ms / 383; Insights 993 ms / 221 ms / 398; Archive
+  983 ms / 228 ms / 413. The budgets (≤300 ms task, ≤300 ms frame gap, ≤450 reads,
+  ≤2000 ms to content on Today) are **ceilings set from these numbers, not
+  achievements** — this branch changes no mount-path code, so there is no
+  before/after to show. Threads' 3942 ms is the first thing to fix and is not
+  fixed here: the cause is the memory-graph engine booting on first paint, which
+  is a rendering change.
+- **`scripts/qa/bench-instrument.mjs` (new)** — the page-side instrumentation both
+  benches share (storage counting, `longtask` observer, rAF sampler), so the two
+  cannot drift into measuring different things.
 - **`scripts/qa/chromium.mjs` (new)** — the installed `playwright-core` bundles a
   Chromium revision (`chromium_headless_shell-1208`) that is not on this machine,
   so `chromium.launch()` throws `Executable doesn't exist`. This resolves the
