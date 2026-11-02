@@ -16,6 +16,14 @@ the collection has loaded. Keep a `hasLoadedRef` (see
 `false`. Reset the ref when the account id changes — another account's rows are
 not "already loaded" data.
 
+On web the flip was never observed painted: the bench watched for a visible
+`/loading/i` element through the whole switch window and saw none, because
+`AsyncStorage` on web resolves inside a microtask, before the next frame. The
+flip is still wrong — it is a full-tree unmount of the screen's content waiting
+for a storage read — and on a native device, where the same read crosses the
+bridge and takes real milliseconds, that wait is a painted skeleton. R1 removes
+the risk rather than a measured web frame.
+
 **R2 — One read per collection.** Ask a storage module for the collection once
 and split it in memory. `listDrafts()` / `listCompleted()` and
 `listCheckInDrafts()` / `listCompletedCheckIns()` each re-read the index plus

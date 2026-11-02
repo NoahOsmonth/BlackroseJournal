@@ -64,10 +64,18 @@ in one long task. Today → Threads reads **zero** keys, which is why only the
 Four causes, all fixed:
 
 - **Five hooks each flipped `isLoading = true` on every focus**, so each arrival
-  swapped the whole `TodaySkeleton` in and back out. `useJournalEntries`,
-  `useIntentionCheckIns`, `useIntentions`, `useGoals` and `useSavedInsights` now
-  keep a `hasLoadedRef` and only show the spinner on the first load (the pattern
-  `useLocalMemories` already used), resetting it when the account id changes.
+  tore the whole Today tree down to `TodaySkeleton` and rebuilt it after the
+  read. `useJournalEntries`, `useIntentionCheckIns`, `useIntentions`,
+  `useGoals` and `useSavedInsights` now keep a `hasLoadedRef` and only show the
+  spinner on the first load (the pattern `useLocalMemories` already used),
+  resetting it when the account id changes.
+  *Honest limit of the measurement:* the bench never saw that skeleton painted —
+  `skeletonShown` is 0 in **both** runs, because `AsyncStorage` on web resolves
+  in a microtask, before the next frame. The flip is still a defect (a whole-tree
+  unmount waiting on storage), and on a native device the same read crosses the
+  bridge and does take painted milliseconds, but the 206 → 67 ms improvement is
+  attributable to the read-count and render fixes below, **not** to a skeleton
+  that was removed from the web frame.
 - **Three lists cost three full loads.** `listDrafts()`/`listCompleted()` each
   re-read the index plus all 16 shards, and `listCompletedCheckIns()`/
   `listCheckInDrafts()` each call `listCheckIns()` again. Both hooks now read
