@@ -1,7 +1,7 @@
 # docs/ — Documentation Index
 
-One screen. For the root-level documents (`PLAN.md`, `PROGRESS.md`,
-`memory.md`, `AGENTS.md`, `README.md`, `QA-Plan.md`) see the map in
+One screen. For the root-level documents (`PLAN.md`, `memory.md`,
+`AGENTS.md`, `README.md`, `QA-Plan.md`) see the map in
 [`../PLAN.md`](../PLAN.md); this index covers everything under `docs/`.
 
 ## Read in this order
@@ -35,9 +35,9 @@ docs/
 ## Conventions
 
 - **Historical ≠ wrong.** `docs/superpowers/` documents how things were built;
-  for what is true *now*, read [`../PROGRESS.md`](../PROGRESS.md) and
-  [`../memory.md`](../memory.md).
-- **QA execution** touches only `docs/qa/**`, `QA-Plan.md`, and
-  `PROGRESS.md` — never app code (see `QA-Plan.md` §7).
+  for what is true *now*, read [`../memory.md`](../memory.md) and the dated run
+  summaries in [`qa/results/`](qa/results/).
+- **QA execution** touches only `docs/qa/**` and `QA-Plan.md` — never app code
+  (see `QA-Plan.md` §7).
 - Evidence screenshots referenced by QA runs live in gitignored `output/`
   at run time; the run summaries inline everything that matters.

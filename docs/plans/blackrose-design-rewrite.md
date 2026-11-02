@@ -276,7 +276,7 @@ Order: **Today → Archive → Insights → Threads**.
 - [ ] Remove default orange from active preset; leave `rosebud` as optional legacy theme only if needed for one release.
 - [ ] Grep user-facing “Rosebud” and replace.
 - [ ] Delete dead styles tied to island FAB / typewriter.
-- [ ] Update design tests + `PROGRESS.md`.
+- [ ] Update design tests.
 - [ ] Final light/dark QA matrix.
 
 ---
@@ -319,7 +319,7 @@ Never “fix by adding a new hex in a component.” Token first.
 - [ ] All mapped screens in UI_MAP have a rewritten production surface (not just a PNG).
 - [ ] No user-facing “Rosebud”; no flame streak; no typewriter chat; no giant center pencil FAB; no rainbow graph as default.
 - [ ] `npm test`, `npx tsc --noEmit`, `npm run lint`, `npm run check:design` green.
-- [ ] `PROGRESS.md` updated with what shipped + follow-ups.
+- [ ] What shipped and the follow-ups recorded in the pull request.
 - [ ] Chat engine, storage keys, AI tools unchanged (diff review).
 
 ---

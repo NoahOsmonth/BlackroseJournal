@@ -14,7 +14,7 @@ import { glob } from 'glob';
  * placeholder or help string re-teaches the vendor taxonomy to users without
  * breaking a single assertion. This test is the tripwire.
  *
- * History is deliberately NOT scanned. Dated logs (PROGRESS.md, docs/plans,
+ * History is deliberately NOT scanned. Dated logs (docs/plans,
  * .planning, docs/qa) legitimately record what was removed; rewriting them
  * would make the repo's history lie.
  */
