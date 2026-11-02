@@ -7,7 +7,8 @@ import {
     type GenerationSettings,
 } from '@/services/ai/generationSettings';
 import {
-    formatContextWindow,
+    formatContextSource,
+    formatMemoryWindow,
     formatModelName,
 } from '@/services/ai/modelContext';
 import { RangeSlider } from '@/components/ui/RangeSlider';
@@ -79,15 +80,15 @@ function SliderRow({
 function ContextReadout({ props }: { props: GenerationSettingsSectionProps }) {
     const { modelContext, contextError, isLoading, refreshContext } = props;
     const label = modelContext
-        ? `${formatModelName(modelContext.model)} · ${formatContextWindow(modelContext.contextWindow)} ctx`
-        : contextError ?? (isLoading ? 'Detecting model context...' : 'Context unavailable');
+        ? `${formatModelName(modelContext.model)} · ${formatMemoryWindow(modelContext.contextWindow)}`
+        : contextError ?? (isLoading ? 'Checking how much the AI can remember...' : 'Memory size unknown');
 
     return (
         <View className="mb-5 rounded-control border border-hairline-light p-3.5 dark:border-hairline-dark">
             <View className="flex-row items-center justify-between gap-3">
                 <View className="flex-1">
                     <Text className="text-[16px] text-text-light dark:text-text-dark">
-                        Detected context window
+                        How much the AI remembers
                     </Text>
                     <Text className={`mt-1 text-xs ${SECONDARY_TEXT}`}>
                         {label}
@@ -97,7 +98,7 @@ function ContextReadout({ props }: { props: GenerationSettingsSectionProps }) {
                     onPress={refreshContext}
                     className="rounded-full bg-background-light px-3 py-2 dark:bg-background-dark"
                     accessibilityRole="button"
-                    accessibilityLabel="Refresh model context"
+                    accessibilityLabel="Check memory size again"
                 >
                     <Text className="text-[15px] text-text-light dark:text-text-dark">
                         Refresh
@@ -106,7 +107,7 @@ function ContextReadout({ props }: { props: GenerationSettingsSectionProps }) {
             </View>
             {modelContext ? (
                 <Text className="mt-2 self-start text-[12px] text-text-secondary-light dark:text-text-secondary-dark">
-                    {modelContext.source}
+                    {formatContextSource(modelContext.source)}
                 </Text>
             ) : null}
         </View>
@@ -120,13 +121,13 @@ export function GenerationSettingsSection(props: GenerationSettingsSectionProps)
     };
 
     return (
-        <SettingsSection title="Generation" embedded={embedded}>
+        <SettingsSection title="Writing style" embedded={embedded}>
             <ContextReadout props={props} />
             <Text className={`mb-3 text-xs ${SECONDARY_TEXT}`}>
-                Defaults apply to journal chats. Active persona imagination can override temperature.
+                {"These defaults apply to journal chats. A persona's imagination can override them."}
             </Text>
             <SliderRow
-                label="Temperature"
+                label="Creativity"
                 description="Lower is steadier; higher is more varied."
                 value={settings.temperature}
                 min={0}
@@ -136,8 +137,8 @@ export function GenerationSettingsSection(props: GenerationSettingsSectionProps)
                 onChange={(temperature) => apply({ temperature })}
             />
             <SliderRow
-                label="Top-P"
-                description="Narrows or widens the model's token sampling pool."
+                label="Variety"
+                description="How wide a range of words the AI chooses from."
                 value={settings.topP}
                 min={0}
                 max={1}
@@ -155,7 +156,7 @@ export function GenerationSettingsSection(props: GenerationSettingsSectionProps)
                         })}
                         className="rounded-full border border-hairline-light px-3.5 py-2 dark:border-hairline-dark"
                         accessibilityRole="button"
-                        accessibilityLabel={`Use ${preset.label} generation preset`}
+                        accessibilityLabel={`Use ${preset.label} writing style`}
                     >
                         <Text className="text-[15px] text-text-light dark:text-text-dark">
                             {preset.label}
@@ -171,7 +172,7 @@ export function GenerationSettingsSection(props: GenerationSettingsSectionProps)
                 }`}
                 accessibilityRole="button"
                 accessibilityState={{ disabled: isLoading }}
-                accessibilityLabel="Reset generation settings"
+                accessibilityLabel="Reset writing style settings"
             >
                 <Text className="text-center text-[15px] text-text-light dark:text-text-dark">
                     Reset to defaults

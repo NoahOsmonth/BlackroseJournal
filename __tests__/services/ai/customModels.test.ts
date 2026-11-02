@@ -177,7 +177,7 @@ describe('customModels service (provider profiles, schema v2)', () => {
             baseUrl: HOST,
             apiKey: 'test-key',
             modelFilterPatterns: [':free'],
-        })).rejects.toThrow(/No models matched your filter patterns/);
+        })).rejects.toThrow(/No AI options matched your filter words/);
     });
 
     it('buildManualModel normalizes id and applies fallback context', () => {
@@ -185,7 +185,7 @@ describe('customModels service (provider profiles, schema v2)', () => {
         expect(model.id).toBe('qwen-web/qwen3.8-max');
         expect(model.contextWindow).toBe(128_000);
         expect(model.contextWindowSource).toBe('fallback');
-        expect(() => buildManualModel('   ', 128_000)).toThrow(/Model id is required/);
+        expect(() => buildManualModel('   ', 128_000)).toThrow(/An option name is required/);
     });
 
     it('withSelectedModel records the pick and rejects ids not in the catalogue', () => {
@@ -194,7 +194,7 @@ describe('customModels service (provider profiles, schema v2)', () => {
         expect(next.selectedModelId).toBe('tencent/hy3:free');
         expect(next.recentModelIds).toEqual(['tencent/hy3:free']);
         expect(() => withSelectedModel(profile, 'openai/gpt-4'))
-            .toThrow(/not available/);
+            .toThrow(/isn.t available/);
     });
 
     it('withManualModel adds, selects and dedupes a hand-typed id', () => {
@@ -284,7 +284,7 @@ describe('customModels service (provider profiles, schema v2)', () => {
     it('refuses to remove the last provider or exceed the profile cap', () => {
         const base = getDefaultCustomAiProviderSettings();
         expect(() => removeProviderProfile(base, base.activeProfileId))
-            .toThrow(/At least one provider/);
+            .toThrow(/Keep at least one AI service/);
 
         let settings = base;
         for (let i = 1; i < MAX_PROVIDER_PROFILES; i += 1) {
@@ -292,7 +292,7 @@ describe('customModels service (provider profiles, schema v2)', () => {
         }
         expect(settings.profiles).toHaveLength(MAX_PROVIDER_PROFILES);
         expect(() => addProviderProfile(settings, createProviderProfile()))
-            .toThrow(/up to 12 providers/);
+            .toThrow(/up to 12 AI services/);
     });
 
     it('withUpdatedProfile replaces only the matching profile', () => {

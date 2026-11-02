@@ -125,7 +125,7 @@ export default function SettingsScreen() {
             await shareJson(data, `blackrose-journal-${day}.json`);
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Failed to export data.';
-            notifyUser('Export failed', message);
+            notifyUser('Couldn’t save a copy', message);
         }
     };
 
@@ -144,8 +144,8 @@ export default function SettingsScreen() {
 
     const handleSeedDemoData = () => {
         confirmDevAction(
-            'Seed Demo Data',
-            'Dev only. Sample journals/intentions/goals/memories. Replaces prior seed only.',
+            'Add sample data',
+            'Dev only. Adds sample journal entries, check-ins, goals and memories. Replaces the previous sample.',
             () => {
                 void (async () => {
                     try {
@@ -155,8 +155,8 @@ export default function SettingsScreen() {
                         // notifyUser, not Alert.alert: Alert is a no-op on web, and a
                         // silent finish is what made the seed look frozen (DEF-013).
                         notifyUser('Demo data added', 'Sample content ready to explore.');
-                    } catch (error) {
-                        notifyUser('Seed failed', error instanceof Error ? error.message : 'Seed failed.');
+                    } catch {
+                        notifyUser('Adding sample data failed', 'Couldn’t add sample data.');
                     }
                 })();
             },
@@ -165,17 +165,17 @@ export default function SettingsScreen() {
 
     const handleSeedBulkProbe = () => {
         confirmDevAction(
-            'Seed 365 probe entries',
-            'Dev only. ~365 journals + digests (tracked, clearable). Replaces prior seed only.',
+            'Add 365 test entries',
+            'Dev only. Adds about 365 journal entries and daily summaries (tracked, clearable). Replaces the previous sample.',
             () => {
                 void (async () => {
                     try {
                         const n = await seedBulkProbe(365);
                         await markDemoDataSeeded();
                         goToTab('entries');
-                        notifyUser('Bulk probe seeded', `${n} entries + digests.`);
-                    } catch (error) {
-                        notifyUser('Bulk seed failed', error instanceof Error ? error.message : 'Bulk seed failed.');
+                        notifyUser('Test entries added', `${n} entries and daily summaries.`);
+                    } catch {
+                        notifyUser('Adding test entries failed', 'Couldn’t add test entries.');
                     }
                 })();
             },
@@ -184,16 +184,16 @@ export default function SettingsScreen() {
 
     const handleClearDemoData = () => {
         confirmDevAction(
-            'Clear demo data',
-            'Remove only tracked seed IDs? Real entries stay.',
+            'Remove sample data',
+            'Remove only the sample entries? Your real entries stay.',
             () => {
                 void (async () => {
                     try {
                         await clearDemoData();
                         goToTab('entries');
-                        notifyUser('Demo cleared', 'Seed rows removed; your real data is intact.');
-                    } catch (error) {
-                        notifyUser('Clear failed', error instanceof Error ? error.message : 'Clear failed.');
+                        notifyUser('Demo cleared', 'Sample entries removed; your real data is intact.');
+                    } catch {
+                        notifyUser('Clear failed', 'Couldn’t remove sample data.');
                     }
                 })();
             },
@@ -246,7 +246,7 @@ export default function SettingsScreen() {
                     id="color"
                     index={1}
                     title="Color Studio"
-                    hint="Palette and per-slot colors"
+                    hint="Palette and custom colors"
                     summary={summaries.color}
                     icon="palette"
                     expanded={expandedIds.has('color')}
@@ -264,8 +264,8 @@ export default function SettingsScreen() {
                 <SettingsAccordionSection
                     id="generation"
                     index={2}
-                    title="Generation"
-                    hint="Reply length and warmth"
+                    title="Writing style"
+                    hint="How replies feel"
                     summary={summaries.generation}
                     icon="tune"
                     expanded={expandedIds.has('generation')}
@@ -277,8 +277,8 @@ export default function SettingsScreen() {
                 <SettingsAccordionSection
                     id="customAi"
                     index={3}
-                    title="AI Model"
-                    hint="Bring your own provider"
+                    title="AI"
+                    hint="Connect your own AI"
                     summary={summaries.customAi}
                     icon="smart-toy"
                     expanded={expandedIds.has('customAi')}
@@ -290,7 +290,7 @@ export default function SettingsScreen() {
                 <SettingsAccordionSection
                     id="data"
                     index={4}
-                    title="Data Management"
+                    title="Your data"
                     hint="Everything stays on device"
                     summary={summaries.data}
                     icon="folder"
@@ -340,7 +340,7 @@ export default function SettingsScreen() {
                     id="memory"
                     index={6}
                     title="Memory"
-                    hint="Atoms, files and Dream"
+                    hint="What Blackrose remembers"
                     summary={summaries.memory}
                     icon="auto-awesome"
                     expanded={expandedIds.has('memory')}
@@ -358,7 +358,7 @@ export default function SettingsScreen() {
                     id="account"
                     index={7}
                     title="Account"
-                    hint="No sign-in, no server"
+                    hint="Stored on this device"
                     summary={summaries.account}
                     icon="person"
                     expanded={expandedIds.has('account')}

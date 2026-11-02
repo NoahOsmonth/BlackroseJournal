@@ -8,13 +8,13 @@ interface FilterProps {
     onToggle: (layer: MemoryLayer) => void;
 }
 
-/** Concept shows exactly three chips: Episodic · Semantic · Profile. */
+/** Concept shows exactly three chips: Moments · Themes · About you. */
 const LAYERS: MemoryLayer[] = ['episodic', 'semantic', 'profile'];
 
 const LABELS: Record<string, string> = {
-    episodic: 'Episodic',
-    semantic: 'Semantic',
-    profile: 'Profile',
+    episodic: 'Moments',
+    semantic: 'Themes',
+    profile: 'About you',
 };
 
 /**
@@ -33,7 +33,7 @@ export function MemoryGraphFilters({ activeLayers, onToggle }: FilterProps) {
                     <Pressable
                         key={layer}
                         testID={`memory-layer-filter-${layer}`}
-                        accessibilityLabel={`Toggle ${LABELS[layer]} memories`}
+                        accessibilityLabel={`Show or hide ${LABELS[layer]}`}
                         accessibilityRole="button"
                         accessibilityState={{ selected: isActive }}
                         className={

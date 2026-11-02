@@ -5,7 +5,7 @@ import { Pressable, Text } from 'react-native';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { useActiveModelContext } from '@/hooks/settings/useActiveModelContext';
-import { formatContextWindow, formatModelName } from '@/services/ai/modelContext';
+import { formatMemoryWindow, formatModelName } from '@/services/ai/modelContext';
 
 type ModelHeaderControlProps = {
     readonly onPress?: () => void;
@@ -21,11 +21,11 @@ export function ModelHeaderControl({ onPress, disabled = false }: ModelHeaderCon
 
     let label: string;
     if (isLoading && !context) {
-        label = 'Detecting model…';
+        label = 'Checking AI…';
     } else if (context) {
-        label = `${formatModelName(context.model)} · ${formatContextWindow(context.contextWindow)}`;
+        label = `${formatModelName(context.model)} · ${formatMemoryWindow(context.contextWindow)}`;
     } else {
-        label = 'Choose model';
+        label = 'Choose AI';
     }
 
     return (
@@ -36,8 +36,8 @@ export function ModelHeaderControl({ onPress, disabled = false }: ModelHeaderCon
             accessibilityState={{ disabled: !interactive }}
             accessibilityLabel={
                 interactive
-                    ? `Model: ${label}. Tap to change.`
-                    : `Model: ${label}`
+                    ? `AI: ${label}. Tap to change.`
+                    : `AI: ${label}`
             }
             className={`mt-2 self-start max-w-full flex-row items-center gap-1.5 rounded-control border border-hairline-light dark:border-hairline-dark bg-surface-light dark:bg-surface-dark pl-2 pr-2.5 py-1.5 active:opacity-80 ${
                 disabled ? 'opacity-50' : ''

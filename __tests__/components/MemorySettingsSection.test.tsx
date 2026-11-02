@@ -42,11 +42,11 @@ describe('MemorySettingsSection', () => {
             />
         );
 
-        fireEvent.press(screen.getByLabelText('Open Memory hub'));
+        fireEvent.press(screen.getByLabelText('See all memories'));
 
         expect(screen.getByText('Recent journal pattern: the user wants calmer evenings.'))
             .toBeTruthy();
-        expect(screen.getByText('Open memory hub')).toBeTruthy();
+        expect(screen.getByText('See all memories')).toBeTruthy();
         expect(onOpenMemoryHub).toHaveBeenCalledTimes(1);
     });
 });

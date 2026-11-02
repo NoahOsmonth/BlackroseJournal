@@ -91,7 +91,7 @@ export function AppearanceSettingsSection({
         {
             key: 'emoji',
             options: [
-                { label: 'Native', value: 'native', accessibilityLabel: 'Select Native emoji style' },
+                { label: 'Standard', value: 'native', accessibilityLabel: 'Select Standard emoji style' },
                 { label: 'Flat', value: 'flat', accessibilityLabel: 'Select Flat emoji style' },
                 { label: '3D', value: '3d', accessibilityLabel: 'Select 3D emoji style' },
             ],

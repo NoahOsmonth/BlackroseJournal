@@ -79,7 +79,7 @@ async function fetchDefaultContext(config: ResolvedDirectConfig): Promise<Cached
             Authorization: `Bearer ${config.apiKey}`,
         },
     });
-    if (!response.ok) throw new Error(`Model fetch failed with status ${response.status}.`);
+    if (!response.ok) throw new Error(`Couldn't check your AI options (error ${response.status}).`);
     const models = parseOpenAiCompatibleModels(await response.json(), DEFAULT_FALLBACK_CONTEXT_WINDOW);
     const active = models.find((model) => model.id === config.model);
     if (!active) return fallbackContext(config.model);
@@ -147,6 +147,21 @@ export function formatContextWindow(value: number): string {
     return String(value);
 }
 
+/** "128k memory" — how much of a conversation the AI can keep in mind. */
+export function formatMemoryWindow(value: number): string {
+    return `${formatContextWindow(value)} memory`;
+}
+
+/** Plain label for where the memory figure came from. */
+export function formatContextSource(source: ContextWindowSource): string {
+    switch (source) {
+        case 'api': return 'Checked with your AI service';
+        case 'known': return 'Known for this AI';
+        case 'fallback': return 'Estimated';
+        default: return 'Estimated';
+    }
+}
+
 export function formatModelName(model: string): string {
     const leaf = model.split('/').pop() ?? model;
     return leaf
@@ -159,5 +174,5 @@ export function formatModelName(model: string): string {
 }
 
 export function formatModelContextLabel(info: ModelContextInfo): string {
-    return `${formatModelName(info.model)} · ${formatContextWindow(info.contextWindow)} ctx`;
+    return `${formatModelName(info.model)} · ${formatMemoryWindow(info.contextWindow)}`;
 }

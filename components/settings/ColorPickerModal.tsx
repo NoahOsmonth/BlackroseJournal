@@ -258,10 +258,10 @@ export function ColorPickerModal({
                             </View>
                         </View>
 
-                        {/* Hex input */}
+                        {/* Color code input */}
                         <View className="mb-5">
                             <Text className="mb-2 text-[12px] uppercase tracking-[1.3px] text-text-secondary-light dark:text-text-secondary-dark">
-                                Hex
+                                Color code
                             </Text>
                             <TextInput
                                 value={draftHex}
@@ -269,7 +269,7 @@ export function ColorPickerModal({
                                 autoCapitalize="characters"
                                 autoCorrect={false}
                                 maxLength={7}
-                                accessibilityLabel="Hex value"
+                                accessibilityLabel="Color code"
                                 placeholder="#000000"
                                 className={[
                                     'rounded-control border px-3 py-3 font-mono text-[15px]',
@@ -317,24 +317,24 @@ export function ColorPickerModal({
                             </View>
                         </View>
 
-                        {/* Sync partner toggle */}
+                        {/* Match the paired color toggle */}
                         <View
                             className="mb-5 flex-row items-center justify-between rounded-control border border-hairline-light px-3.5 py-3.5 dark:border-hairline-dark"
                         >
                             <View className="flex-1 pr-3">
                                 <Text className="text-[16px] text-text-light dark:text-text-dark">
-                                    Sync {editingLight ? 'dark' : 'light'} partner
+                                    Match the {editingLight ? 'dark' : 'light'} version
                                 </Text>
                                 <Text className="text-xs text-text-secondary-light dark:text-text-secondary-dark mt-0.5">
                                     {syncPartner
-                                        ? `We'll auto-derive ${editingLight ? 'dark' : 'light'} from this color.`
-                                        : `Keep the current ${editingLight ? 'dark' : 'light'} value as-is.`}
+                                        ? `We’ll work out the ${editingLight ? 'dark' : 'light'} version from this color.`
+                                        : `Keep the current ${editingLight ? 'dark' : 'light'} color as it is.`}
                                 </Text>
                             </View>
                             <AnimatedSwitch
                                 value={syncPartner}
                                 onValueChange={setSyncPartner}
-                                accessibilityLabel="Sync partner color"
+                                accessibilityLabel="Match the paired color"
                             />
                         </View>
                     </ScrollView>

@@ -82,10 +82,10 @@ export function MemorySettingsSection({
                 }`}
                 accessibilityRole="button"
                 accessibilityState={{ disabled: isBusy }}
-                accessibilityLabel="Open Memory hub"
+                accessibilityLabel="See all memories"
             >
                 <Text className="text-[15px] text-text-light dark:text-text-dark">
-                    Open memory hub
+                    See all memories
                 </Text>
                 <MaterialIcons name="chevron-right" size={20} color={chevronColor} />
             </Pressable>

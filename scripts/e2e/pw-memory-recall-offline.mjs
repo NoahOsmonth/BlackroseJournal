@@ -548,8 +548,8 @@ async function main() {
         const recall = await waitForAssistantSettle(page, RECALL_QUESTION, 180000);
         const recallTools = calledTools.filter((call) => call.at >= recallMark).map((call) => call.name);
         const domActivity = await page.locator('body').innerText();
-        uiToolSummary = (domActivity.match(/Used (\d+) tools?/i) || [])[0] || '';
-        const activityLabels = ['Searching offline memory', 'Browsing memory files', 'Reading memory file', 'Memory overview', 'Staging memory', 'Consolidating memories']
+        uiToolSummary = (domActivity.match(/Looked up (\d+) things?/i) || [])[0] || '';
+        const activityLabels = ['Searching saved memories', 'Browsing saved notes', 'Reading a saved note', 'Checking saved memories', 'Saving new memories', 'Tidying memories']
             .filter((label) => domActivity.includes(label));
 
         console.log('\n===== VERBATIM RECALL REPLY =====');
@@ -566,7 +566,7 @@ async function main() {
         hits = ['lighthouse', 'tattoo', 'reykjavik', 'marathon'].filter((token) => haystack.includes(token));
         usedMemorySearch = toolNames.includes('memory_search');
         calledMemoryTool = recallTools.some((name) => name.startsWith('memory_'));
-        uiShowsToolUse = /Used \d+ tools?/i.test(uiToolSummary);
+        uiShowsToolUse = /Looked up \d+ things?/i.test(uiToolSummary);
 
         log('outbound hosts blocked: ' + JSON.stringify([...blockedHosts.entries()])
             + ' | provider requests: ' + providerRequests);

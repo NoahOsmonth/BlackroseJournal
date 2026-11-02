@@ -8,7 +8,7 @@ const configuredVersion = Constants.expoConfig?.version
     ?? '0.1.0';
 
 export const APP_NAME = 'BlackroseJournal';
-export const APP_TAGLINE = 'A local-first AI journal for reflection, memory, and intention.';
+export const APP_TAGLINE = 'A private AI journal for reflection, memory, and intention.';
 export const APP_VERSION = configuredVersion;
 
 export const APP_ABOUT_COPY = [
@@ -17,6 +17,6 @@ export const APP_ABOUT_COPY = [
 ].join('\n\n');
 
 export const APP_PRIVACY_COPY = [
-    'Journal entries and local AI memory stay on this device by default.',
-    'Network AI features send only the prompt context needed for the request you start.',
+    'Journal entries and saved memories stay on this device by default.',
+    'When you use AI, only the words needed for your request are sent.',
 ].join('\n\n');

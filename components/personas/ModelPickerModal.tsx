@@ -34,7 +34,7 @@ export function ModelPickerModal({
                         className="mb-4 text-center text-[22px] text-text-light dark:text-text-dark"
                         style={{ fontFamily: 'PlayfairDisplayRegular' }}
                     >
-                        Choose model
+                        Choose a voice
                     </Text>
                     <View>
                         {options.map((option) => {
@@ -64,7 +64,7 @@ export function ModelPickerModal({
                         onPress={onClose}
                         className="mt-6 min-h-11 items-center justify-center"
                         accessibilityRole="button"
-                        accessibilityLabel="Close model picker"
+                        accessibilityLabel="Close voice picker"
                     >
                         <Text className="text-[15px] text-text-secondary-light dark:text-text-secondary-dark">
                             Close

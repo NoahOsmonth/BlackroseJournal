@@ -2,6 +2,9 @@ import { getResolvedDirectConfig } from '../../../services/ai/directConfig';
 import {
     clearModelContextCache,
     detectActiveModelContextWindow,
+    formatContextSource,
+    formatMemoryWindow,
+    formatModelContextLabel,
     resetModelContextStorageAdapter,
     setModelContextStorageAdapter,
 } from '../../../services/ai/modelContext';
@@ -103,5 +106,22 @@ describe('modelContext service', () => {
             providerSource: 'custom',
         });
         expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('formats memory size and its source in plain words', () => {
+        expect(formatMemoryWindow(128_000)).toBe('128k memory');
+        expect(formatMemoryWindow(1_000_000)).toBe('1M memory');
+        expect(formatMemoryWindow(512)).toBe('512 memory');
+
+        expect(formatContextSource('api')).toBe('Checked with your AI service');
+        expect(formatContextSource('known')).toBe('Known for this AI');
+        expect(formatContextSource('fallback')).toBe('Estimated');
+
+        expect(formatModelContextLabel({
+            model: 'openai/gpt-4o',
+            contextWindow: 128_000,
+            source: 'api',
+            providerSource: 'custom',
+        })).toBe('gpt 4o · 128k memory');
     });
 });

@@ -65,9 +65,9 @@ export function pickModelFromList(
 export function hostLabelFromBaseUrl(baseUrl: string): string {
     try {
         const host = new URL(baseUrl.trim()).hostname.toLowerCase();
-        return host || 'provider';
+        return host || 'Not connected';
     } catch {
-        return 'provider';
+        return 'Not connected';
     }
 }
 

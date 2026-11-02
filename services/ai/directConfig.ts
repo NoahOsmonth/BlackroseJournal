@@ -124,24 +124,24 @@ export function getDirectConfig(): DirectConfig {
 
     if (!apiKey) {
         throw new DirectConfigError(
-            'No AI provider is configured. Add a base URL, API key and model in Settings, '
-            + 'or set EXPO_PUBLIC_AI_CUSTOM_BASE / EXPO_PUBLIC_AI_CUSTOM_API_KEY in .env.'
+            'No AI is set up yet. Open Settings → AI and add your service address, '
+            + 'access key and AI choice.'
         );
     }
     if (isPlaceholder(apiKey)) {
         throw new DirectConfigError(
-            `EXPO_PUBLIC_AI_CUSTOM_API_KEY is still a placeholder ("${apiKey}"). `
-            + 'Replace it with a real key, or configure the provider in Settings.'
+            `The AI access key is still a placeholder ("${apiKey}"). `
+            + 'Replace it with a real key, or set up your AI in Settings.'
         );
     }
     if (!apiBaseUrl) {
         throw new DirectConfigError(
-            'EXPO_PUBLIC_AI_CUSTOM_BASE is not set. Configure the provider in Settings.'
+            'No AI address is set. Open Settings → AI to add one.'
         );
     }
     if (!model) {
         throw new DirectConfigError(
-            'EXPO_PUBLIC_AI_CUSTOM_MODEL is not set. Configure the provider in Settings.'
+            'No AI choice is set. Open Settings → AI to choose one.'
         );
     }
 

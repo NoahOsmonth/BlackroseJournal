@@ -215,7 +215,7 @@ export function createProviderProfile(
     const now = Date.now();
     return {
         id: overrides.id ?? generateProfileId(),
-        label: overrides.label ?? 'Provider',
+        label: overrides.label ?? 'AI service',
         baseUrl: overrides.baseUrl ?? '',
         apiKey: overrides.apiKey ?? '',
         selectedModelId: overrides.selectedModelId ?? null,
@@ -241,7 +241,7 @@ export function getDefaultCustomAiProviderSettings(): CustomAiProviderSettings {
     const seed = readEnvProviderSeed();
     const seededKey = seed.apiKey && !isPlaceholderSecret(seed.apiKey) ? seed.apiKey : '';
     const profile = createProviderProfile({
-        label: seed.baseUrl ? 'Default provider' : 'Provider',
+        label: seed.baseUrl ? 'Default AI service' : 'AI service',
         baseUrl: seed.baseUrl,
         apiKey: seededKey,
         selectedModelId: seed.model ?? null,
@@ -282,17 +282,17 @@ export function normalizeFallbackContextWindow(value: unknown): number {
 
 export function normalizeOpenAiBaseUrl(input: string): string {
     const trimmed = input.trim().replace(/\/+$/, '');
-    if (!trimmed) throw new CustomModelSettingsError('Base URL is required.');
+    if (!trimmed) throw new CustomModelSettingsError('Address is required.');
 
     let parsed: URL;
     try {
         parsed = new URL(trimmed);
     } catch {
-        throw new CustomModelSettingsError('Base URL must be a valid http(s) URL.');
+        throw new CustomModelSettingsError('Address must be a full web address.');
     }
 
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        throw new CustomModelSettingsError('Base URL must start with http:// or https://.');
+        throw new CustomModelSettingsError('Address must start with http:// or https://.');
     }
 
     if (parsed.pathname === '' || parsed.pathname === '/') {
@@ -306,7 +306,7 @@ export function normalizeOpenAiBaseUrl(input: string): string {
 
 function normalizeApiKey(input: string): string {
     const trimmed = input.trim();
-    if (!trimmed) throw new CustomModelSettingsError('API key is required.');
+    if (!trimmed) throw new CustomModelSettingsError('Access key is required.');
     return trimmed;
 }
 
@@ -394,7 +394,7 @@ export function parseOpenAiCompatibleModels(
         : isRecord(response) && Array.isArray(response.data) ? response.data : null;
 
     if (!data) {
-        throw new CustomModelSettingsError('Model response did not include a data array.');
+        throw new CustomModelSettingsError('The AI service sent a list the app couldn’t read.');
     }
 
     return data
@@ -434,7 +434,7 @@ function sanitizeProfile(value: unknown, index: number): ProviderProfile | null 
         : generateProfileId();
     const label = typeof value.label === 'string' && value.label.trim()
         ? value.label.trim()
-        : `Provider ${index + 1}`;
+        : `AI service ${index + 1}`;
     const models = sanitizeModels(value.models, fallbackContextWindow);
 
     // A selection that is not in the cached catalogue is dropped rather than
@@ -481,7 +481,7 @@ function migrateV1ToV2(value: ModelRecord): CustomAiProviderSettings {
     const updatedAt = toPositiveInteger(value.updatedAt) ?? Date.now();
 
     const profile = createProviderProfile({
-        label: 'Provider',
+        label: 'AI service',
         baseUrl: typeof value.baseUrl === 'string' ? value.baseUrl.trim() : '',
         apiKey: typeof value.apiKey === 'string' ? value.apiKey : '',
         selectedModelId: selectedRaw && models.some((m) => m.id === selectedRaw)
@@ -603,19 +603,19 @@ export async function fetchOpenAiCompatibleModels(input: {
         },
         ...(input.signal ? { signal: input.signal } : {}),
     }).catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : 'Network request failed.';
-        throw new CustomModelSettingsError(`Could not reach the model endpoint. ${message}`);
+        const message = error instanceof Error ? error.message : 'The connection failed.';
+        throw new CustomModelSettingsError(`Could not reach your AI service. ${message}`);
     });
 
     if (!response.ok) {
-        const preview = await response.text().catch(() => '');
         throw new CustomModelSettingsError(
-            `Model fetch failed with status ${response.status}. ${preview.slice(0, 160)}`
+            `Your AI service returned an error (${response.status}). `
+            + 'Check the address and access key in Settings → AI.'
         );
     }
 
     const json = await response.json().catch(() => {
-        throw new CustomModelSettingsError('Model endpoint did not return valid JSON.');
+        throw new CustomModelSettingsError('Your AI service sent something the app couldn’t read.');
     });
 
     const models = parseOpenAiCompatibleModels(json, input.fallbackContextWindow)
@@ -624,8 +624,8 @@ export async function fetchOpenAiCompatibleModels(input: {
     if (models.length === 0) {
         throw new CustomModelSettingsError(
             patterns.length > 0
-                ? 'No models matched your filter patterns. Adjust them in Settings.'
-                : 'No usable models were returned.'
+                ? 'No AI options matched your filter words. Change them in Settings.'
+                : 'No usable AI options were returned.'
         );
     }
 
@@ -638,7 +638,7 @@ export function withSelectedModel(
 ): ProviderProfile {
     const selected = profile.models.find((model) => model.id === modelId);
     if (!selected) {
-        throw new CustomModelSettingsError('Selected model is not available.');
+        throw new CustomModelSettingsError('That AI option isn’t available.');
     }
     return {
         ...profile,
@@ -666,7 +666,7 @@ export function pickModelAfterFetch(
  */
 export function buildManualModel(id: string, fallbackContextWindow: number): CustomAiModel {
     const normalizedId = id.trim();
-    if (!normalizedId) throw new CustomModelSettingsError('Model id is required.');
+    if (!normalizedId) throw new CustomModelSettingsError('An option name is required.');
     return {
         id: normalizedId,
         contextWindow: normalizeFallbackContextWindow(fallbackContextWindow),
@@ -716,7 +716,7 @@ export function addProviderProfile(
 ): CustomAiProviderSettings {
     if (settings.profiles.length >= MAX_PROVIDER_PROFILES) {
         throw new CustomModelSettingsError(
-            `You can save up to ${MAX_PROVIDER_PROFILES} providers. Remove one first.`
+            `You can save up to ${MAX_PROVIDER_PROFILES} AI services. Remove one first.`
         );
     }
     return {
@@ -733,7 +733,7 @@ export function removeProviderProfile(
 ): CustomAiProviderSettings {
     const profiles = settings.profiles.filter((profile) => profile.id !== profileId);
     if (profiles.length === 0) {
-        throw new CustomModelSettingsError('At least one provider must remain.');
+        throw new CustomModelSettingsError('Keep at least one AI service.');
     }
     return {
         ...settings,
@@ -750,7 +750,7 @@ export function setActiveProfile(
     profileId: string
 ): CustomAiProviderSettings {
     if (!settings.profiles.some((profile) => profile.id === profileId)) {
-        throw new CustomModelSettingsError('Provider not found.');
+        throw new CustomModelSettingsError('AI service not found.');
     }
     return { ...settings, activeProfileId: profileId, updatedAt: Date.now() };
 }
@@ -766,7 +766,7 @@ export async function getActiveCustomModelConfig(): Promise<ActiveCustomModelCon
     const apiKey = normalizeApiKey(profile.apiKey);
     const selected = profile.models.find((model) => model.id === profile.selectedModelId);
     if (!selected) {
-        throw new CustomModelSettingsError('A provider is enabled but no model is selected.');
+        throw new CustomModelSettingsError('An AI service is on but no AI option is chosen.');
     }
 
     const contextWindow = profile.contextWindowOverride ?? selected.contextWindow;

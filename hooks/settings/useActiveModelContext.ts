@@ -13,7 +13,7 @@ export interface UseActiveModelContextReturn {
 }
 
 function messageForError(error: unknown): string {
-    return error instanceof Error ? error.message : 'Could not detect the active model context.';
+    return error instanceof Error ? error.message : 'Couldn’t check how much the AI can remember.';
 }
 
 export function useActiveModelContext(): UseActiveModelContextReturn {

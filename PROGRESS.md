@@ -210,6 +210,54 @@ Gates: `npx tsc --noEmit` clean, `npm run lint` 0 errors (78 warnings, all
 pre-existing), `npm run check:design` 175 files OK, `npm test` 291 suites /
 1646 tests green (9 suites skipped, unchanged).
 
+### 2026-11-02 — Plain-language pass over Settings, memory and chat
+
+Issue #12: the app is used by journal writers, not programmers, and it shipped
+implementation words to them — "provider", "API key", "Base URL", "context
+window", "temperature", "Top-P", "atoms", "digests", "episodic", and a raw
+`api`/`known`/`fallback` source chip. The change is **copy plus pure display
+helpers**: no stored shape, storage key, service API, route id or code
+identifier was renamed.
+
+- **Settings** — Appearance ("Standard" emoji, not "Native"), Writing style
+  ("Creativity"/"Variety", "How much the AI remembers"), AI ("AI service",
+  "access key", "Address", "Find AI options", "Memory size"), Your data
+  ("Export journal file", plain backup/restore/clear outcomes), Memory ("See all
+  memories"), Account ("keep a backup from Your data"), Color Studio ("Color
+  code", "Match the dark version").
+- **Memory surfaces** — layers are Moments / Themes / About you / Recent /
+  Preferences / Notes; the graph is "the memory map"; stats say "Connections";
+  the node sheet says "Related memories" and never prints a raw source enum.
+- **Chat** — "Choose AI", "All AI", "Find AI options", "access key" errors,
+  tool activity ("Looked up 2 things", done/failed/skipped/working) and
+  "Show/Hide thinking" across both chat surfaces.
+- **Personas** — a persona's model row is "AI voice"; the picker is "Choose a
+  voice".
+- **Shared helpers** — `formatMemoryWindow` and `formatContextSource`
+  (`services/ai/modelContext.ts`) are the single source for memory-window and
+  source wording; `hostLabelFromBaseUrl` degrades to "Not connected" instead of
+  "provider".
+- **AGENTS.md** — new rule 13 with the glossary, the "code keeps its technical
+  name" boundary and the guard requirement; Done checklist item added.
+- **Guard** — `__tests__/plainLanguageCopy.test.ts` walks every `.tsx` under
+  `app/` and `components/` with the TypeScript AST, checks JSX text, the UI
+  copy attributes and the literal arguments of `notifyUser`/`Alert.alert`/
+  `window.confirm` against a banned lexicon, skips URL/color-code field
+  examples, and self-tests that code identifiers are not flagged. Label maps in
+  `.ts` files stay covered by their component tests (`MemoryGraphComponents`,
+  `MemoryHubScreen`, `toolUiMeta`).
+
+Copy only: no behavior, storage or interface change. Existing component,
+service and E2E tests were updated to the new wording (the offline recall probe
+now looks for "Looked up N things").
+
+**Verification:** `npx tsc --noEmit` clean; `npm run lint` 0 errors (78
+pre-existing warnings); `npm run check:design` 175/175 files within limits;
+`plainLanguageCopy` and every touched Jest suite green. Before/after captures
+live in `docs/qa/plain-language/` — baseline `55c8b9a` (`origin/main`), changed
+branch `agent/plain-language-ui-be72638456c3`, both at 390 × 844 CSS px, DPR 2,
+dark theme, same seeded data.
+
 ### 2026-11-02 — SemVer, a changelog, and a release process
 
 The repo had no version history to speak of: `package.json` and `app.json` both

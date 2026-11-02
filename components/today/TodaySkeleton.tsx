@@ -23,7 +23,7 @@ export function TodaySkeleton() {
 
             {/* Writing surface */}
             <View className="rounded-card border border-hairline-light dark:border-hairline-dark p-5 gap-4 min-h-[168px]">
-                <Skeleton className="h-5 w-52" accessibilityLabel="Loading writing prompt" />
+                <Skeleton className="h-5 w-52" accessibilityLabel="Loading writing idea" />
                 <Skeleton className="h-5 w-px" accessibilityLabel="Loading caret" />
             </View>
 

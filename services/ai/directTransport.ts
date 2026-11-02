@@ -172,14 +172,10 @@ function composeAbortSignals(
     };
 }
 
-function buildConnectionError(request: PreparedDirectChatRequest, source: ResolvedDirectConfig['source']): Error {
-    const provider = source === 'custom' ? 'custom AI provider' : 'AI provider';
-    const setting = source === 'custom'
-        ? 'the AI Model Base URL in Settings'
-        : 'EXPO_PUBLIC_AI_CUSTOM_BASE (seeded from .env)';
+function buildConnectionError(): Error {
     return new Error(
-        `Failed to fetch: Could not connect to ${provider} at ${request.url}. ` +
-        `Check your network and ${setting}.`
+        'Could not reach your AI service. ' +
+        'Check your internet connection and the address in Settings → AI.'
     );
 }
 
@@ -643,7 +639,7 @@ export async function fetchDirectChatCompletion(
     } catch (err) {
         if (lease.signal.aborted) throw accountSwitchCancellationError();
         if (isAbortError(err)) throw err;
-        throw buildConnectionError(request, request.configSource);
+        throw buildConnectionError();
     } finally {
         if (!ownsLease) {
             composed.cleanup();

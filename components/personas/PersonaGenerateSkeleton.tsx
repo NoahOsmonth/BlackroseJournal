@@ -12,7 +12,7 @@ export function PersonaGenerateSkeleton() {
             <SkeletonField label="Loading persona name" inputClassName="h-12 w-full rounded-xl" />
             <SkeletonField label="Loading persona tagline" inputClassName="h-12 w-full rounded-xl" />
             <SkeletonField label="Loading persona voice" inputClassName="h-12 w-full rounded-xl" />
-            <SkeletonField label="Loading persona prompt" inputClassName="h-24 w-full rounded-xl" />
+            <SkeletonField label="Loading persona description" inputClassName="h-24 w-full rounded-xl" />
         </View>
     );
 }

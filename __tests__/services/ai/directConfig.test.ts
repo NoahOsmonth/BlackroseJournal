@@ -118,12 +118,12 @@ describe('directConfig — env seed', () => {
 
     it('throws a configuration error instead of falling back to a vendor host', () => {
         expect(() => getDirectConfig()).toThrow(DirectConfigError);
-        expect(() => getDirectConfig()).toThrow(/No AI provider is configured/);
+        expect(() => getDirectConfig()).toThrow(/No AI is set up yet/);
     });
 
     it('points the user at the two places a provider can be configured', () => {
         expect(() => getDirectConfig()).toThrow(/Settings/);
-        expect(() => getDirectConfig()).toThrow(/EXPO_PUBLIC_AI_CUSTOM_API_KEY/);
+        expect(() => getDirectConfig()).toThrow(/access key/);
     });
 
     it('reports no env API key when the seed is absent', () => {
@@ -157,7 +157,7 @@ describe('directConfig — env seed', () => {
         process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY = '   ';
 
         expect(hasEnvDirectApiKey()).toBe(false);
-        expect(() => getDirectConfig()).toThrow(/No AI provider is configured/);
+        expect(() => getDirectConfig()).toThrow(/No AI is set up yet/);
     });
 
     it('rejects a placeholder key rather than trying to use it', () => {
@@ -173,14 +173,14 @@ describe('directConfig — env seed', () => {
         process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY = 'sk-seeded';
         process.env.EXPO_PUBLIC_AI_CUSTOM_MODEL = 'qwen-web/qwen3.8-max';
 
-        expect(() => getDirectConfig()).toThrow(/EXPO_PUBLIC_AI_CUSTOM_BASE is not set/);
+        expect(() => getDirectConfig()).toThrow(/No AI address is set/);
     });
 
     it('names the missing model', () => {
         process.env.EXPO_PUBLIC_AI_CUSTOM_API_KEY = 'sk-seeded';
         process.env.EXPO_PUBLIC_AI_CUSTOM_BASE = 'https://api.example.com/v1';
 
-        expect(() => getDirectConfig()).toThrow(/EXPO_PUBLIC_AI_CUSTOM_MODEL is not set/);
+        expect(() => getDirectConfig()).toThrow(/No AI choice is set/);
     });
 });
 

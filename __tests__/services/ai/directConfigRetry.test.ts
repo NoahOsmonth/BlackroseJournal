@@ -45,8 +45,8 @@ const mockFetch = jest.mocked(fetchAiChatCompletion);
 
 /** The exact copy services/ai/directConfig.ts throws on a fresh install. */
 const CONFIG_MESSAGE =
-    'No AI provider is configured. Add a base URL, API key and model in Settings, '
-    + 'or set EXPO_PUBLIC_AI_CUSTOM_BASE / EXPO_PUBLIC_AI_CUSTOM_API_KEY in .env.';
+    'No AI is set up yet. Open Settings → AI and add your service address, '
+    + 'access key and AI choice.';
 
 const MEMORY_CTX = {
     source: 'journal' as const,

@@ -5,8 +5,9 @@ import { notifyUser, webConfirm } from '@/components/ui/webConfirm';
 import { useLocalBackups } from '@/hooks/backup/useLocalBackups';
 import { useClearJournalHistory } from '@/hooks/journal/useClearJournalHistory';
 
-function errorMessage(error: unknown, fallback: string): string {
-    return error instanceof Error ? error.message : fallback;
+/** Keep user-facing failures plain; the underlying error stays out of the alert. */
+function errorMessage(_error: unknown, fallback: string): string {
+    return fallback;
 }
 
 /**
@@ -27,10 +28,10 @@ export function useDataManagementActions() {
 
     const handleCreateBackup = useCallback(async () => {
         try {
-            const backup = await createBackup();
-            notifyUser('Backup created', `${backup.itemCount} local data groups saved on this device.`);
+            await createBackup();
+            notifyUser('Backup created', 'Your journal and memories are saved on this device.');
         } catch (error) {
-            notifyUser('Backup failed', errorMessage(error, 'Failed to create backup.'));
+            notifyUser('Backup failed', errorMessage(error, 'Couldn’t create a backup.'));
         }
     }, [createBackup]);
 
@@ -41,26 +42,26 @@ export function useDataManagementActions() {
         try {
             const result = await restoreBackup(latestBackup.id);
             if (result.status === 'missing') {
-                notifyUser('Backup missing', 'The selected local backup could not be found.');
+                notifyUser('Backup missing', 'That backup couldn’t be found on this device.');
                 return;
             }
             if (result.status === 'account-mismatch') {
-                notifyUser('Backup unavailable', 'This backup belongs to a different account.');
+                notifyUser('Backup unavailable', 'This backup can’t be restored on this device.');
                 return;
             }
-            notifyUser('Backup restored', `${result.restoredKeys} local data groups restored.`);
+            notifyUser('Backup restored', 'Your journal and memories are back.');
         } catch (error) {
-            notifyUser('Restore failed', errorMessage(error, 'Failed to restore backup.'));
+            notifyUser('Restore failed', errorMessage(error, 'Couldn’t restore that backup.'));
         }
     }, [latestBackup, restoreBackup]);
 
     const handleRestoreLatestBackup = useCallback(() => {
         if (!latestBackup) {
-            notifyUser('No backup', 'Create a local backup before restoring.');
+            notifyUser('No backup', 'Make a backup before restoring one.');
             return;
         }
 
-        const message = `Restore "${latestBackup.name}"? Current local app data will be replaced.`;
+        const message = `Restore "${latestBackup.name}"? This replaces everything currently in the app.`;
         const webAnswer = webConfirm(message);
         if (webAnswer === false) {
             return;
@@ -82,19 +83,19 @@ export function useDataManagementActions() {
             if (result.failedSteps.length > 0) {
                 notifyUser(
                     'Clear history incomplete',
-                    `These groups could not be cleared: ${result.failedSteps.join(', ')}. Retry, or report this with the list above.`,
+                    `Some things could not be deleted: ${result.failedSteps.join(', ')}. Try again, or report this list.`,
                 );
                 return;
             }
-            notifyUser('Success', 'All history and related memories have been deleted.');
+            notifyUser('History cleared', 'All history and related memories have been deleted.');
         } catch (error) {
-            notifyUser('Clear history failed', errorMessage(error, 'Failed to clear history and memories.'));
+            notifyUser('Clear history failed', errorMessage(error, 'Couldn’t clear history and memories.'));
         }
     }, [clearJournalHistory]);
 
     const handleClearHistory = useCallback(() => {
         const message =
-            'Delete all journal entries, intention check-ins, chat sessions, insights, and saved AI memories from this device? This action cannot be undone.';
+            'Delete all journal entries, intention check-ins, saved chats, insights and saved memories from this device? This cannot be undone.';
         const webAnswer = webConfirm(message);
         if (webAnswer === false) {
             return;

@@ -28,7 +28,7 @@ export function MemoryGraphHeader({ query, onQueryChange, onBack }: HeaderProps)
                         <Pressable
                             onPress={onBack}
                             accessibilityRole="button"
-                            accessibilityLabel="Back from memory graph"
+                            accessibilityLabel="Back from the memory map"
                             hitSlop={8}
                             className="h-10 w-10 items-center justify-center"
                         >
@@ -53,7 +53,7 @@ export function MemoryGraphHeader({ query, onQueryChange, onBack }: HeaderProps)
             <View className="mt-3 flex-row items-center border-b border-hairline-light dark:border-hairline-dark pb-2">
                 <MaterialIcons name="search" size={18} color={muted} />
                 <TextInput
-                    accessibilityLabel="Search memory graph"
+                    accessibilityLabel="Search the memory map"
                     className="ml-2 flex-1 py-1.5 text-[15px] text-text-light dark:text-text-dark"
                     placeholder="Search memories, themes, keywords…"
                     placeholderTextColor={muted}

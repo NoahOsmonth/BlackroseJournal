@@ -12,8 +12,8 @@ export function PersonaAdvancedSkeleton() {
             <LoadingStatus label="Loading advanced settings" compact />
 
             <View className="min-h-14 flex-row items-center justify-between border-t border-hairline-light px-1 py-3 dark:border-hairline-dark">
-                <Skeleton className="h-5 w-24" accessibilityLabel="Loading AI model label" />
-                <Skeleton className="h-5 w-24" accessibilityLabel="Loading AI model value" />
+                <Skeleton className="h-5 w-24" accessibilityLabel="Loading AI voice label" />
+                <Skeleton className="h-5 w-24" accessibilityLabel="Loading AI voice value" />
             </View>
 
             <View className="border-t border-hairline-light px-1 pt-4 dark:border-hairline-dark">

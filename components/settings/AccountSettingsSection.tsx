@@ -25,7 +25,7 @@ export function AccountSettingsSection({
             <Text className={`mt-2 ${BODY}`}>
                 Your journal, memories and identity live only on this device. There is no
                 account to sign in to and nothing is uploaded, so clearing your browser or
-                app data is permanent — keep a backup from Data Management.
+                app data is permanent — keep a backup from Your data.
             </Text>
         </SettingsSection>
     );

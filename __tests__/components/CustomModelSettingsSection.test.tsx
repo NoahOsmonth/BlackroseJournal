@@ -72,18 +72,18 @@ describe('CustomModelSettingsSection', () => {
     it('renders the provider section with the active model and its host', () => {
         render(<CustomModelSettingsSection {...buildProps()} />);
 
-        expect(screen.getByLabelText('Custom AI API key')).toBeTruthy();
-        expect(screen.getByLabelText('Enable custom AI provider')).toBeTruthy();
-        expect(screen.getByLabelText('Change active model')).toBeTruthy();
+        expect(screen.getByLabelText('AI access key')).toBeTruthy();
+        expect(screen.getByLabelText('Turn on your own AI service')).toBeTruthy();
+        expect(screen.getByLabelText('Change AI')).toBeTruthy();
         expect(screen.getByText('Hy3 free')).toBeTruthy();
         expect(screen.getByText('api.example.com')).toBeTruthy();
-        expect(screen.getByText(/1 model cached\./)).toBeTruthy();
+        expect(screen.getByText(/1 AI option saved\./)).toBeTruthy();
     });
 
     it('flags the picker as filtered when the profile carries filter patterns', () => {
         render(<CustomModelSettingsSection {...buildProps()} />);
 
-        expect(screen.getByText('Filtered')).toBeTruthy();
+        expect(screen.getByText('Narrowed')).toBeTruthy();
     });
 
     it('omits the filtered flag when the profile has no filter patterns', () => {
@@ -91,7 +91,7 @@ describe('CustomModelSettingsSection', () => {
         props.profile = { ...props.profile!, modelFilterPatterns: [] };
         render(<CustomModelSettingsSection {...props} />);
 
-        expect(screen.queryByText('Filtered')).toBeNull();
+        expect(screen.queryByText('Narrowed')).toBeNull();
     });
 
     it('keeps the provider toggle pressable even when no models are loaded', () => {
@@ -99,7 +99,7 @@ describe('CustomModelSettingsSection', () => {
         props.profile = { ...props.profile!, models: [], selectedModelId: null };
         render(<CustomModelSettingsSection {...props} />);
 
-        const toggle = screen.getByLabelText('Enable custom AI provider');
+        const toggle = screen.getByLabelText('Turn on your own AI service');
         // AnimatedSwitch surfaces disabled state via accessibilityState, not props.disabled.
         expect(toggle.props.accessibilityState.disabled).toBe(false);
 
@@ -111,16 +111,16 @@ describe('CustomModelSettingsSection', () => {
         const props = buildProps();
         render(<CustomModelSettingsSection {...props} />);
 
-        fireEvent.changeText(screen.getByLabelText('Custom AI API key'), 'new-key');
+        fireEvent.changeText(screen.getByLabelText('AI access key'), 'new-key');
         // Base URL and Provider name are in the main form now — reachable with
         // Advanced collapsed.
-        fireEvent.changeText(screen.getByLabelText('Custom AI base URL'), 'https://api.other.test/v1');
-        fireEvent.changeText(screen.getByLabelText('Provider name'), 'Renamed');
-        fireEvent.press(screen.getByText('Fetch models'));
+        fireEvent.changeText(screen.getByLabelText('AI service address'), 'https://api.other.test/v1');
+        fireEvent.changeText(screen.getByLabelText('Service name'), 'Renamed');
+        fireEvent.press(screen.getByText('Find AI options'));
         fireEvent.press(screen.getByText('Save'));
-        fireEvent.press(screen.getByLabelText('Advanced AI provider settings'));
-        fireEvent.changeText(screen.getByLabelText('Model filter patterns'), ':free,qwen-web/');
-        fireEvent.changeText(screen.getByLabelText('Fallback context tokens'), '64000');
+        fireEvent.press(screen.getByLabelText('Advanced AI settings'));
+        fireEvent.changeText(screen.getByLabelText('Words to match in option names'), ':free,qwen-web/');
+        fireEvent.changeText(screen.getByLabelText('Memory size if not detected'), '64000');
 
         expect(props.setApiKey).toHaveBeenCalledWith('new-key');
         expect(props.fetchModels).toHaveBeenCalledTimes(1);
@@ -143,14 +143,14 @@ describe('CustomModelSettingsSection', () => {
         render(<CustomModelSettingsSection {...props} />);
 
         // No press on the Advanced toggle anywhere in this test.
-        expect(screen.queryByLabelText('Model filter patterns')).toBeNull();
-        expect(screen.getByLabelText('Custom AI base URL')).toBeTruthy();
-        expect(screen.getByLabelText('Provider name')).toBeTruthy();
+        expect(screen.queryByLabelText('Words to match in option names')).toBeNull();
+        expect(screen.getByLabelText('AI service address')).toBeTruthy();
+        expect(screen.getByLabelText('Service name')).toBeTruthy();
 
-        fireEvent.changeText(screen.getByLabelText('Custom AI base URL'), 'https://api.mine.test/v1');
+        fireEvent.changeText(screen.getByLabelText('AI service address'), 'https://api.mine.test/v1');
         expect(props.setBaseUrl).toHaveBeenCalledWith('https://api.mine.test/v1');
 
-        fireEvent.changeText(screen.getByLabelText('Provider name'), 'My gateway');
+        fireEvent.changeText(screen.getByLabelText('Service name'), 'My gateway');
         expect(props.setLabel).toHaveBeenCalledWith('My gateway');
     });
 
@@ -170,9 +170,9 @@ describe('CustomModelSettingsSection', () => {
         const props = buildProps();
         render(<CustomModelSettingsSection {...props} />);
 
-        fireEvent.press(screen.getByLabelText('Advanced AI provider settings'));
-        fireEvent.changeText(screen.getByLabelText('Manual model id'), 'qwen-web/qwen3.8-max');
-        fireEvent.press(screen.getByLabelText('Add manual model'));
+        fireEvent.press(screen.getByLabelText('Advanced AI settings'));
+        fireEvent.changeText(screen.getByLabelText('AI option name'), 'qwen-web/qwen3.8-max');
+        fireEvent.press(screen.getByLabelText('Add option by name'));
 
         expect(props.addManualModel).toHaveBeenCalledWith('qwen-web/qwen3.8-max');
     });
@@ -181,9 +181,9 @@ describe('CustomModelSettingsSection', () => {
         const props = buildProps();
         render(<CustomModelSettingsSection {...props} />);
 
-        fireEvent.press(screen.getByLabelText('Advanced AI provider settings'));
+        fireEvent.press(screen.getByLabelText('Advanced AI settings'));
         // The Add button is disabled while the input is empty.
-        expect(screen.getByLabelText('Add manual model').props.accessibilityState.disabled).toBe(true);
+        expect(screen.getByLabelText('Add option by name').props.accessibilityState.disabled).toBe(true);
         expect(props.addManualModel).not.toHaveBeenCalled();
     });
 
@@ -191,9 +191,9 @@ describe('CustomModelSettingsSection', () => {
         const single = buildProps();
         render(<CustomModelSettingsSection {...single} />);
 
-        fireEvent.press(screen.getByText('Add provider'));
+        fireEvent.press(screen.getByText('Add service'));
         expect(single.addProfile).toHaveBeenCalledTimes(1);
-        expect(screen.queryByText('Saved providers')).toBeNull();
+        expect(screen.queryByText('Saved services')).toBeNull();
         expect(screen.queryByText('Remove')).toBeNull();
 
         const multi = buildProps();
@@ -201,8 +201,8 @@ describe('CustomModelSettingsSection', () => {
         multi.settings = { ...multi.settings, profiles: [multi.settings.profiles[0], second] };
         render(<CustomModelSettingsSection {...multi} />);
 
-        expect(screen.getByText('Saved providers')).toBeTruthy();
-        fireEvent.press(screen.getByLabelText('Use provider Second provider'));
+        expect(screen.getByText('Saved services')).toBeTruthy();
+        fireEvent.press(screen.getByLabelText('Use Second provider'));
         expect(multi.selectProfile).toHaveBeenCalledWith('profile-2');
 
         fireEvent.press(screen.getByText('Remove'));

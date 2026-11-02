@@ -96,14 +96,14 @@ export function DataManagementSection({
     embedded = false,
     isSeeding = false,
 }: DataManagementSectionProps) {
-    const latestLabel = latestBackup ? `Latest: ${latestBackup.name}` : 'No local backup yet';
+    const latestLabel = latestBackup ? `Latest: ${latestBackup.name}` : 'No backup yet';
     const showSeed = showDemoSeedControls && typeof onSeedDemoData === 'function';
     const showBulk = showDemoSeedControls && typeof onSeedBulkProbe === 'function';
     const showClearDemo = showDemoSeedControls && typeof onClearDemoData === 'function';
     const drive = useDriveBackup();
     const driveBusy = drive.status === 'busy';
     const driveDetail = drive.status === 'not-configured'
-        ? 'Set EXPO_PUBLIC_GOOGLE_DRIVE_CLIENT_ID to enable.'
+        ? 'Google Drive backup isn’t set up on this device.'
         : drive.detail ?? 'Manual backup file in your Drive app folder.';
 
     const handleDriveBackup = () => {
@@ -119,7 +119,7 @@ export function DataManagementSection({
     };
 
     return (
-        <SettingsSection title="Data Management" embedded={embedded}>
+        <SettingsSection title="Your data" embedded={embedded}>
             <SettingsRow
                 label="Create local backup"
                 detail="Saves journal, goals, intentions, insights, personas, and settings on this device."
@@ -133,33 +133,33 @@ export function DataManagementSection({
                 onPress={onRestoreLatestBackup}
             />
             <SettingsRow
-                label="Export journal JSON"
-                detail="Shares a plain JSON export of journal entries only."
+                label="Save journal file"
+                detail="Saves a copy of your journal entries as a file you can share."
                 disabled={isBusy}
                 onPress={onExportJournalJson}
             />
             {showSeed ? (
                 <SettingsRow
-                    label="Seed demo data"
+                    label="Add sample data"
                     detail={seedProgress
-                        ? `Seeding… ${seedProgress.completed}/${seedProgress.total} rows`
-                        : 'Dev only. Adds sample journals/intentions without wiping real rows; replaces prior seed.'}
+                        ? `Adding… ${seedProgress.completed}/${seedProgress.total} rows`
+                        : 'Dev only. Adds sample journal entries and check-ins without removing your own; replaces the previous sample.'}
                     disabled={isBusy || isSeeding}
                     onPress={onSeedDemoData}
                 />
             ) : null}
             {showBulk ? (
                 <SettingsRow
-                    label="Seed 365 probe entries"
-                    detail="Dev only. Bulk journals + day digests for prompt-budget (tracked, clearable)."
+                    label="Add 365 test entries"
+                    detail="Dev only. Adds many journal entries and daily summaries for testing (tracked, clearable)."
                     disabled={isBusy}
                     onPress={onSeedBulkProbe}
                 />
             ) : null}
             {showClearDemo ? (
                 <SettingsRow
-                    label="Clear demo data"
-                    detail="Dev only. Removes tracked seed IDs only — real user rows stay."
+                    label="Remove sample data"
+                    detail="Dev only. Removes the sample entries only — your own entries stay."
                     disabled={isBusy}
                     onPress={onClearDemoData}
                 />
@@ -178,7 +178,7 @@ export function DataManagementSection({
             />
             <SettingsRow
                 label="Clear history & memories"
-                detail="Removes journal entries, intentions, chat sessions, insights, and saved AI memories."
+                detail="Removes journal entries, intentions, saved chats, insights and saved memories."
                 destructive
                 disabled={isBusy || isClearingHistory}
                 showBorder={false}

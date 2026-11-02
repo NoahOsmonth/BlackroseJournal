@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { formatContextWindow } from '@/services/ai/modelContext';
+import { formatMemoryWindow } from '@/services/ai/modelContext';
 import type { ChatModelOption } from '@/features/chat/modelPicker.types';
 import { formatPickerModelName } from '@/utils/ai/modelDisplay';
 import { BLACKROSE_PALETTE } from '@/constants/theme';
@@ -42,7 +42,7 @@ export function ModelPickerRow({ model, selected, onPress }: ModelPickerRowProps
                         {displayName}
                     </Text>
                     <Text className="shrink-0 text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
-                        {formatContextWindow(model.contextWindow)}
+                        {formatMemoryWindow(model.contextWindow)}
                     </Text>
                 </View>
                 <Text

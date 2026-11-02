@@ -32,7 +32,7 @@ export function MemoryGraphStats({ memories, links, themes }: StatsProps) {
     const muted = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
     const cells = [
         { key: 'memories', icon: 'apps' as const, value: memories, label: 'Memories' },
-        { key: 'links', icon: 'link' as const, value: links, label: 'Links' },
+        { key: 'links', icon: 'link' as const, value: links, label: 'Connections' },
         { key: 'themes', icon: 'track-changes' as const, value: themes, label: 'Themes' },
     ];
 

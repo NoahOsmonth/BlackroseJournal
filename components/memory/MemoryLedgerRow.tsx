@@ -157,7 +157,7 @@ export function MemoryLedgerRow({
                         className="h-1.5 w-1.5 rounded-full"
                         testID="memory-ledger-row-layer-dot"
                         style={{ backgroundColor: layerColor }}
-                        accessibilityLabel={`${MEMORY_LAYER_LABELS[atom.layer]} memory marker`}
+                        accessibilityLabel={`${MEMORY_LAYER_LABELS[atom.layer]} memory`}
                     />
                     <Text className="text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
                         {MEMORY_LAYER_LABELS[atom.layer]}

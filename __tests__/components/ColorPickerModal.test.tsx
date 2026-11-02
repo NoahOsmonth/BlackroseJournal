@@ -95,7 +95,7 @@ describe('ColorPickerModal', () => {
         );
 
         // Flip the "Sync dark partner" switch off.
-        fireEvent(getByLabelText('Sync partner color'), 'valueChange', false);
+        fireEvent(getByLabelText('Match the paired color'), 'valueChange', false);
 
         await act(async () => {
             fireEvent.press(getByLabelText('Apply color'));
@@ -108,7 +108,7 @@ describe('ColorPickerModal', () => {
         }));
 
         // The description text changes to reflect the toggle.
-        expect(getByText(/Keep the current dark value as-is/)).toBeTruthy();
+        expect(getByText(/Keep the current dark color as it is/)).toBeTruthy();
     });
 
     it('emits a no-op (does not call onConfirm) when the source hex is invalid', async () => {
@@ -125,7 +125,7 @@ describe('ColorPickerModal', () => {
 
         // Type a malformed hex into the input — the modal should refuse
         // to confirm while the value is unparseable.
-        fireEvent.changeText(getByLabelText('Hex value'), 'zzz');
+        fireEvent.changeText(getByLabelText('Color code'), 'zzz');
         await act(async () => {
             fireEvent.press(getByLabelText('Apply color'));
         });

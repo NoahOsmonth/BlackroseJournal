@@ -34,8 +34,8 @@ function sourceLabel(source: LocalMemorySource): string {
         case 'intention': return 'Intention';
         case 'feedback': return 'Feedback';
         case 'manual': return 'Note';
-        case 'system': return 'System';
-        default: return source;
+        case 'system': return 'Automatic';
+        default: return 'Saved memory';
     }
 }
 
@@ -212,7 +212,7 @@ export function MemoryGraphSheet({
 
                             {relatedAtoms.length > 0 ? (
                                 <View className={SECTION}>
-                                    <SectionHeading>Linked stars</SectionHeading>
+                                    <SectionHeading>Related memories</SectionHeading>
                                     <View className={`mt-3 overflow-hidden rounded-card border ${HAIRLINE}`}>
                                         {relatedAtoms.map((related, index) => (
                                             <Pressable

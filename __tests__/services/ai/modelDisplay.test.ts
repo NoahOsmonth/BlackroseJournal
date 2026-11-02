@@ -79,8 +79,8 @@ describe('hostLabelFromBaseUrl', () => {
     });
 
     it('degrades to a neutral label for unusable input', () => {
-        expect(hostLabelFromBaseUrl('')).toBe('provider');
-        expect(hostLabelFromBaseUrl('not a url')).toBe('provider');
+        expect(hostLabelFromBaseUrl('')).toBe('Not connected');
+        expect(hostLabelFromBaseUrl('not a url')).toBe('Not connected');
     });
 });
 

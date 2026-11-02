@@ -115,9 +115,12 @@ export function MemoryHubScreen() {
             setNoteText('');
             if (result && result.failures.length > 0) {
                 // The words are saved; only derived memory is incomplete. Say which.
+                const missing = result.failures
+                    .map((failure) => STORE_WORDS[failure.store] ?? 'some memories')
+                    .join(', ');
                 Alert.alert(
                     'Saved, with a gap',
-                    `Your note is in your archive. ${result.failures.map((f) => f.store).join(', ')} did not finish saving.`,
+                    `Your note is in your archive. ${missing} did not finish saving.`,
                 );
             }
         } catch (error) {
@@ -138,12 +141,12 @@ export function MemoryHubScreen() {
                 Alert.alert('Delete failed', errorMessage(error));
             }
         };
-        const confirmed = webConfirm(`Delete "${atom.title}" from local memory?`);
+        const confirmed = webConfirm(`Delete "${atom.title}" from your saved memories?`);
         if (confirmed !== null) {
             if (confirmed) void remove();
             return;
         }
-        Alert.alert('Delete memory', `Delete "${atom.title}" from local memory?`, [
+        Alert.alert('Delete memory', `Delete "${atom.title}" from your saved memories?`, [
             { text: 'Cancel', style: 'cancel' },
             { text: 'Delete', style: 'destructive', onPress: remove },
         ]);
@@ -158,12 +161,12 @@ export function MemoryHubScreen() {
                 Alert.alert('Clear failed', errorMessage(error));
             }
         };
-        const confirmed = webConfirm('Delete all local AI memories from this device?');
+        const confirmed = webConfirm('Delete all saved memories from this device?');
         if (confirmed !== null) {
             if (confirmed) void wipe();
             return;
         }
-        Alert.alert('Clear local memory', 'Delete all local AI memories from this device?', [
+        Alert.alert('Clear saved memories', 'Delete all saved memories from this device?', [
             { text: 'Cancel', style: 'cancel' },
             { text: 'Clear', style: 'destructive', onPress: wipe },
         ]);
@@ -277,7 +280,7 @@ export function MemoryHubScreen() {
                                                 placeholder="Search memories"
                                                 placeholderTextColor={inkMuted}
                                                 className="flex-1 py-2 text-sm text-text-light dark:text-text-dark"
-                                                accessibilityLabel="Search local memory"
+                                                accessibilityLabel="Search memories"
                                             />
                                         </View>
 
@@ -330,7 +333,7 @@ export function MemoryHubScreen() {
                                         <Pressable
                                             onPress={handleOpenGraph}
                                             accessibilityRole="button"
-                                            accessibilityLabel="Explore memory graph"
+                                            accessibilityLabel="Open the memory map"
                                             hitSlop={6}
                                             style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
                                         >
@@ -338,7 +341,7 @@ export function MemoryHubScreen() {
                                                 className="text-[17px] text-text-light underline dark:text-text-dark"
                                                 style={{ fontFamily: 'PlayfairDisplayRegular' }}
                                             >
-                                                Open graph
+                                                View the map
                                             </Text>
                                         </Pressable>
                                     </View>
@@ -364,18 +367,25 @@ interface LayerFiltersProps {
     onLayerPress: (layer: MemoryLayerFilter) => void;
 }
 
-/** Concept labels: All · Episodic · Semantic · Profile — four equal segments
+/** Concept labels: All · Moments · Themes · About you — four equal segments
  *  that always fit the gutter, so nothing clips mid-word. */
 const HUB_LAYER_ORDER: MemoryLayerFilter[] = ['all', 'episodic', 'semantic', 'profile'];
 
 const HUB_LAYER_LABELS: Record<MemoryLayerFilter, string> = {
     all: 'All',
-    episodic: 'Episodic',
-    semantic: 'Semantic',
-    profile: 'Profile',
-    working: 'Working',
-    procedural: 'Procedural',
+    episodic: 'Moments',
+    semantic: 'Themes',
+    profile: 'About you',
+    working: 'Recent',
+    procedural: 'Preferences',
     note: 'Notes',
+};
+
+/** Plain words for the memory stores a failed save can name. */
+const STORE_WORDS: Record<string, string> = {
+    atom: 'saved memories',
+    file: 'saved notes',
+    digest: 'daily summaries',
 };
 
 function LayerFilters({ activeLayer, atoms, onLayerPress }: LayerFiltersProps) {
@@ -402,7 +412,7 @@ function LayerFilters({ activeLayer, atoms, onLayerPress }: LayerFiltersProps) {
                         ].join(' ')}
                         accessibilityRole="button"
                         accessibilityState={{ selected: active }}
-                        accessibilityLabel={`Show ${label} memories`}
+                        accessibilityLabel={layer === 'all' ? 'Show all memories' : `Show ${label}`}
                     >
                         <Text
                             numberOfLines={1}
@@ -423,6 +433,6 @@ function LayerFilters({ activeLayer, atoms, onLayerPress }: LayerFiltersProps) {
     );
 }
 
-function errorMessage(error: unknown): string {
-    return error instanceof Error ? error.message : 'Please try again.';
+function errorMessage(_error: unknown): string {
+    return 'Please try again.';
 }

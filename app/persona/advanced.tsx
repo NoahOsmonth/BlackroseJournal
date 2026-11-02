@@ -115,10 +115,10 @@ export default function PersonaAdvancedScreen() {
                 <Pressable
                     onPress={() => setShowModelPicker(true)}
                     accessibilityRole="button"
-                    accessibilityLabel="AI model"
+                    accessibilityLabel="AI voice"
                     className="min-h-14 flex-row items-center justify-between border-t border-hairline-light px-1 py-3 dark:border-hairline-dark"
                 >
-                    <Text className="text-[19px] text-text-light dark:text-text-dark">AI model</Text>
+                    <Text className="text-[19px] text-text-light dark:text-text-dark">AI voice</Text>
                     <View className="flex-row items-center gap-1.5">
                         <Text className="text-[17px] text-text-secondary-light dark:text-text-secondary-dark">
                             {MODEL_LABELS[model]}
