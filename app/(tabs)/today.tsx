@@ -28,9 +28,9 @@ import {
 import { useGoals } from '@/hooks/goals/useGoals';
 import { useIntentions } from '@/hooks/intentions/useIntentions';
 import { useIntentionCheckIns } from '@/hooks/intentions/useIntentionCheckIns';
-import { listCheckInDrafts } from '@/services/intentions/intentionsStorage';
 import { useEntryInsightQuestion } from '@/hooks/insights/useEntryInsightQuestion';
 import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
+import { listCheckInDrafts } from '@/services/intentions/intentionsStorage';
 import { useHeaderActions } from '@/hooks/navigation/useHeaderActions';
 import { useTabNavigation } from '@/hooks/navigation/useTabNavigation';
 import { useSelectedDay } from '@/hooks/today/useSelectedDay';
@@ -121,6 +121,11 @@ export default function TodayScreen() {
 
     const openDailyCheckIn = async (type: 'morning' | 'evening') => {
         const todayKey = getLocalDateKey(new Date());
+        // Read fresh: the hook's `drafts` is a focus-time snapshot, so a check-in
+        // saved or completed on another screen can be missing or stale here, and
+        // a stale snapshot would open a completed check-in as a draft (or miss a
+        // just-saved one and start a duplicate). This runs on a tap, off the tab
+        // switch's measured frame path, so the extra read costs nothing.
         const draftsList = await listCheckInDrafts();
         const draft = draftsList.find((item) => item.type === type
             && getLocalDateKey(new Date(item.updatedAt)) === todayKey);

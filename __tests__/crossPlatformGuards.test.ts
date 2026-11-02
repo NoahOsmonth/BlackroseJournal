@@ -20,8 +20,8 @@ import { glob } from 'glob';
  * A third class is guarded here too: an absolute path from either OS
  * (a `C:\Users\...` path for `.agents/skills` once shipped in AGENTS.md).
  *
- * Markdown is deliberately not scanned: `AGENTS.md` and `PROGRESS.md` record
- * these incidents and must be able to name the tokens.
+ * Markdown is deliberately not scanned: `AGENTS.md` and the dated docs under
+ * `docs/` record these incidents and must be able to name the tokens.
  */
 const SCANNED_DIRS = [
     // Test + tooling surfaces: these must run on both platforms.

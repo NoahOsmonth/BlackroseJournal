@@ -25,8 +25,6 @@ import {
     HistorySection as HistorySectionModel,
 } from '@/hooks/history/historyUtils';
 import { useHistoryFeed } from '@/hooks/history/useHistoryFeed';
-import { useIntentionCheckIns } from '@/hooks/intentions/useIntentionCheckIns';
-import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
 import { useTabNavigation } from '@/hooks/navigation/useTabNavigation';
 import { useColorScheme } from '@/hooks/theme/use-color-scheme';
 import {
@@ -84,12 +82,9 @@ export default function EntriesScreen() {
         ? BLACKROSE_PALETTE.dark.text2
         : BLACKROSE_PALETTE.light.text2;
     const { scrollY, onScroll } = useScrollReveal();
-    const { sections, weeklySummary, isLoading } = useHistoryFeed();
-    const { drafts, refresh: refreshEntries } = useJournalEntries();
-    const { drafts: checkInDrafts, refresh: refreshCheckIns } = useIntentionCheckIns();
+    const { sections, weeklySummary, draftCount, isLoading, refresh: refreshFeed } = useHistoryFeed();
     const { goToTab } = useTabNavigation();
 
-    const draftCount = drafts.length + checkInDrafts.length;
     const weekLabel = formatWeekMeta(weeklySummary);
 
     const [searchOpen, setSearchOpen] = useState(false);
@@ -100,15 +95,14 @@ export default function EntriesScreen() {
     useFocusEffect(
         useCallback(() => {
             let isActive = true;
-            void refreshEntries();
-            void refreshCheckIns();
+            void refreshFeed();
             getMostRecentActiveSession().then((session) => {
                 if (isActive) setActiveSession(session);
             });
             return () => {
                 isActive = false;
             };
-        }, [refreshEntries, refreshCheckIns])
+        }, [refreshFeed])
     );
 
     const showBanner = activeSession !== null

@@ -9,7 +9,7 @@ import {
     loadCachedInsights,
     saveCachedInsights,
 } from '@/services/insights/weeklyInsightsStorage';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 interface WeeklyInsightItem {
     createdAt: number;
@@ -25,6 +25,14 @@ function toWeeklyInsightItem<T extends { createdAt: number; messages?: Message[]
     };
 }
 
+/** Local midnight of the Sunday that starts the week containing `now`. */
+function currentWeekStart(now: Date = new Date()): number {
+    const start = new Date(now);
+    start.setDate(now.getDate() - now.getDay());
+    start.setHours(0, 0, 0, 0);
+    return start.getTime();
+}
+
 export function useWeeklyInsights() {
     const { completed: journalEntries, isLoading: isEntriesLoading } = useJournalEntries();
     const { completed: checkIns, isLoading: isCheckInsLoading } = useIntentionCheckIns();
@@ -32,13 +40,12 @@ export function useWeeklyInsights() {
     const [isAiLoading, setIsAiLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // Filter entries and check-ins for the current week (Sun-Sat)
-    const getWeeklyItems = useCallback(() => {
-        const now = new Date();
-        const day = now.getDay(); // 0 is Sunday
-        const startOfWeek = new Date(now);
-        startOfWeek.setDate(now.getDate() - day);
-        startOfWeek.setHours(0, 0, 0, 0);
+    // Filter entries and check-ins for the week starting at `weekStartMs`
+    // (local midnight Sunday). The week is a parameter rather than an internal
+    // `new Date()` so callers can memoize on it: the collections alone do not
+    // change when the clock crosses a week boundary.
+    const getWeeklyItems = useCallback((weekStartMs: number) => {
+        const startOfWeek = new Date(weekStartMs);
 
         const endOfWeek = new Date(startOfWeek);
         endOfWeek.setDate(startOfWeek.getDate() + 6);
@@ -58,7 +65,7 @@ export function useWeeklyInsights() {
     const fetchInsights = useCallback(async (forceRefresh = false) => {
         if (isEntriesLoading || isCheckInsLoading) return;
 
-        const weeklyItems = getWeeklyItems();
+        const weeklyItems = getWeeklyItems(currentWeekStart());
         const weekKey = getCurrentWeekKey();
         const contentHash = computeWeeklyContentHash(weeklyItems);
 
@@ -119,9 +126,20 @@ export function useWeeklyInsights() {
         fetchInsights();
     }, [fetchInsights]);
 
-    // Calculate local stats (not dependent on AI)
-    const weeklyStats = (() => {
-        const weeklyItems = getWeeklyItems();
+    // One clock reading per render, shared by the stats and the label, so the
+    // two can never disagree about which week they describe.
+    const renderNow = new Date();
+    const renderWeekStart = currentWeekStart(renderNow);
+
+    // Calculate local stats (not dependent on AI). Memoized: this splits every
+    // message of the week into words, and as a render-body IIFE it re-ran on
+    // every unrelated re-render (including each keystroke-free focus pass).
+    // `renderWeekStart` is the dependency that keeps the memo honest: the
+    // collections alone do not change when the clock crosses a week boundary, so
+    // without it a screen left open keeps the previous week's counts while the
+    // label below advances.
+    const weeklyStats = useMemo(() => {
+        const weeklyItems = getWeeklyItems(renderWeekStart);
         const totalWords = weeklyItems.reduce((sum, item) => {
             return sum + item.messages
                 .filter(m => m.role === 'user')
@@ -146,10 +164,11 @@ export function useWeeklyInsights() {
             dailyWords,
             maxWords,
         };
-    })();
+    }, [getWeeklyItems, renderWeekStart]);
 
+    // Cheap date math, off the same clock reading as the stats above.
     const weekDateRange = (() => {
-        const now = new Date();
+        const now = renderNow;
         const day = now.getDay();
         const start = new Date(now);
         start.setDate(now.getDate() - day);
