@@ -33,8 +33,10 @@ const drafts = all.filter((entry) => entry.status === 'draft');
 const completed = all.filter((entry) => entry.status === 'completed');
 ```
 
-The status-filtered helpers stay available for callers that genuinely need only
-one list (`services/ai/tools/*`); a screen that needs several does not.
+The status-filtered helpers (`listDrafts`, `listCompleted`, `listCheckInDrafts`,
+`listCompletedCheckIns`) still exist for a caller that needs exactly one status
+and nothing else — `services/ai/tools/*` uses `listCompletedCheckIns` that way.
+A screen that needs two of them reads the collection once.
 
 **R3 — One hook instance per collection per screen tree.** A screen that mounts
 the same collection hook twice reads it twice and holds two copies that can
