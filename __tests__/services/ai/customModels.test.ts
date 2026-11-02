@@ -64,7 +64,7 @@ function profileWith(models: { id: string; contextWindow: number }[]) {
     });
 }
 
-describe('customModels service (provider profiles, schema v2)', () => {
+describe('customModels service (provider profiles, schema v3)', () => {
     const originalFetch = global.fetch;
     let fetchMock: jest.Mock;
 
@@ -378,5 +378,100 @@ describe('customModels service (provider profiles, schema v2)', () => {
 
         expect(migrated.profiles[0].selectedModelId).toBeNull();
         expect(migrated.profiles[0].models.map((m) => m.id)).toEqual(['kept/model']);
+    });
+
+    it('keeps the kind a profile was created with', () => {
+        const anthropic = createProviderProfile({ kind: 'anthropic', label: 'Claude' });
+        const google = createProviderProfile({ kind: 'google', label: 'Gemini' });
+        const plain = createProviderProfile({ label: 'Gateway' });
+
+        expect(anthropic.kind).toBe('anthropic');
+        expect(google.kind).toBe('google');
+        // No kind means an ordinary OpenAI-compatible endpoint.
+        expect(plain.kind).toBe('openai');
+    });
+
+    it('carries the kind through a save/load round trip', async () => {
+        const profile = {
+            ...createProviderProfile({
+                kind: 'google',
+                label: 'Gemini',
+                baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+                apiKey: 'sk-google',
+                models: [{ id: 'gemini-2.5-pro', contextWindow: 1_000_000, contextWindowSource: 'api' }],
+            }),
+            selectedModelId: 'gemini-2.5-pro',
+        };
+        await saveCustomAiProviderSettings({
+            ...getDefaultCustomAiProviderSettings(),
+            enabled: true,
+            activeProfileId: profile.id,
+            profiles: [profile],
+        });
+
+        const loaded = await loadCustomAiProviderSettings();
+        expect(loaded.profiles[0].kind).toBe('google');
+        // saveCustomAiProviderSettings re-normalizes; a missing migration would
+        // silently drop the field here rather than on a later read.
+        await expect(getActiveCustomModelConfig()).resolves
+            .toEqual(expect.objectContaining({ kind: 'google' }));
+    });
+
+    /**
+     * SABOTAGE 3 (direction: a schema bump must not discard existing profiles):
+     * A v2 payload has no `kind`, so `migrateProviderSettings` has to upgrade it
+     * in place. Break by: restoring the old early-exit on
+     * `version < PROVIDER_SETTINGS_SCHEMA_VERSION`, which returns defaults and
+     * wipes the user's saved provider on upgrade.
+     */
+    it('sabotage: upgrades a v2 payload in place instead of discarding it', () => {
+        const migrated = migrateProviderSettings({
+            schemaVersion: 2,
+            enabled: true,
+            activeProfileId: 'p1',
+            updatedAt: 1_700_000_000_000,
+            profiles: [{
+                id: 'p1',
+                label: 'Kept provider',
+                baseUrl: HOST,
+                apiKey: 'v2-key',
+                selectedModelId: 'kept/model',
+                flashModelId: null,
+                models: [{ id: 'kept/model', contextWindow: 8192, contextWindowSource: 'api' }],
+                recentModelIds: [],
+                modelFilterPatterns: [],
+                fallbackModelIds: [],
+                contextWindowOverride: null,
+                fallbackContextWindow: 128_000,
+                createdAt: 1_700_000_000_000,
+                updatedAt: 1_700_000_000_000,
+            }],
+        });
+
+        expect(migrated.schemaVersion).toBe(PROVIDER_SETTINGS_SCHEMA_VERSION);
+        expect(migrated.profiles).toHaveLength(1);
+        expect(migrated.profiles[0].label).toBe('Kept provider');
+        expect(migrated.profiles[0].apiKey).toBe('v2-key');
+        expect(migrated.profiles[0].selectedModelId).toBe('kept/model');
+        // Every v2 profile was a plain OpenAI-compatible endpoint.
+        expect(migrated.profiles[0].kind).toBe('openai');
+    });
+
+    it('falls back to openai for an unrecognised stored kind', () => {
+        const migrated = migrateProviderSettings({
+            schemaVersion: PROVIDER_SETTINGS_SCHEMA_VERSION,
+            enabled: true,
+            activeProfileId: 'p1',
+            profiles: [{
+                id: 'p1',
+                label: 'Provider',
+                kind: 'not-a-kind',
+                baseUrl: HOST,
+                apiKey: 'k',
+                models: [],
+            }],
+        });
+
+        expect(migrated.profiles[0].kind).toBe('openai');
     });
 });

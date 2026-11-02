@@ -23,6 +23,7 @@ const TEST_ENV_RESOLVED_CONFIG = {
     model: 'moonshotai/kimi-k2.5:thinking',
     flashModel: 'moonshotai/kimi-k2.5',
     source: 'env',
+    kind: 'openai',
 } as const;
 
 jest.mock('../../../services/ai/directConfig', () => ({
@@ -38,6 +39,7 @@ jest.mock('../../../services/ai/directConfig', () => ({
         model: 'moonshotai/kimi-k2.5:thinking',
         flashModel: 'moonshotai/kimi-k2.5',
         source: 'env',
+        kind: 'openai',
     })),
 }));
 
@@ -260,6 +262,7 @@ describe('directTransport — fetchDirectChatCompletion', () => {
             model: 'openai/gpt-4o',
             flashModel: 'openai/gpt-4o',
             source: 'custom',
+            kind: 'openai',
             contextWindow: 128000,
             contextWindowSource: 'fallback',
         });
@@ -288,6 +291,7 @@ describe('directTransport — provider-specific (ZenMux)', () => {
             model: 'stepfun/step-3.7-flash-free',
             flashModel: 'stepfun/step-3.7-flash-free',
             source: 'env',
+            kind: 'openai',
         });
     });
 
@@ -340,6 +344,7 @@ describe('directTransport — self-heal retries + model cascade', () => {
             model: 'dead/missing-7b:free',
             flashModel: 'dead/missing-7b:free',
             source: 'env',
+            kind: 'openai',
         });
         jest.mocked(loadCustomAiProviderSettings).mockResolvedValue(
             makeProviderSettings({
@@ -442,6 +447,7 @@ describe('directTransport — model unavailability cache (Fix 1)', () => {
             model: 'dead/missing-7b:free',
             flashModel: 'dead/missing-7b:free',
             source: 'env',
+            kind: 'openai',
         });
         jest.mocked(loadCustomAiProviderSettings).mockResolvedValue(
             makeProviderSettings({
@@ -587,6 +593,7 @@ describe('directTransport — getLastResolvedModel (Fix 2)', () => {
             model: 'dead/missing-7b:free',
             flashModel: 'dead/missing-7b:free',
             source: 'env',
+            kind: 'openai',
         });
         jest.mocked(loadCustomAiProviderSettings).mockResolvedValue(
             makeProviderSettings({

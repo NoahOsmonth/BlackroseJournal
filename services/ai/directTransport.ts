@@ -188,7 +188,7 @@ function buildPreparedDirectChatRequest(
     options: DirectChatOptions,
     config: ResolvedDirectConfig,
 ): PreparedDirectChatRequest {
-    const capabilities = getProviderCapabilities(config.apiBaseUrl);
+    const capabilities = getProviderCapabilities(config.apiBaseUrl, config.kind);
     const url = buildUrl(config.apiBaseUrl);
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -201,8 +201,11 @@ function buildPreparedDirectChatRequest(
         model: options.model ?? resolveModel(payload.model, config, options.modelPurpose),
         messages: payload.messages,
         stream: payload.stream,
-        temperature: payload.temperature,
-        top_p: payload.top_p,
+        // Anthropic's compatibility layer 400s on a request that sets both, and
+        // on any temperature but 1 for its newest models, so the only portable
+        // shape is to omit both and take the endpoint's defaults.
+        temperature: capabilities.omitSamplingFields ? undefined : payload.temperature,
+        top_p: capabilities.omitSamplingFields ? undefined : payload.top_p,
         response_format: capabilities.supportsResponseFormat ? payload.response_format : undefined,
     };
     if (payload.max_tokens !== undefined) {
@@ -210,7 +213,9 @@ function buildPreparedDirectChatRequest(
     }
     if (payload.tools && payload.tools.length > 0) {
         body.tools = payload.tools;
-        body.tool_choice = payload.tool_choice ?? 'auto';
+        body.tool_choice = capabilities.forceToolChoiceUnsupported
+            ? 'auto'
+            : payload.tool_choice ?? 'auto';
     }
     if (payload.stream && payload.stream_options) {
         body.stream_options = payload.stream_options;

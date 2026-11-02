@@ -20,6 +20,7 @@ const TEST_ENV_RESOLVED_CONFIG = {
     model: 'moonshotai/kimi-k2.5:thinking',
     flashModel: 'moonshotai/kimi-k2.5',
     source: 'env',
+    kind: 'openai',
 } as const;
 
 jest.mock('../../../services/ai/directConfig', () => ({

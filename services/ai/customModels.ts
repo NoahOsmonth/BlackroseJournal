@@ -13,11 +13,88 @@ export type ContextWindowSource = 'api' | 'known' | 'fallback';
  *
  * v1 — flat single provider (`baseUrl`/`apiKey`/`freeOnly` at the top level).
  * v2 — `profiles[]` + `activeProfileId`; no vendor host baked into the shape.
+ * v3 — each profile records the provider *type* it was created as
+ *      (`ProviderKind`), so the transport can shape requests for endpoints
+ *      that only partly implement the OpenAI schema.
  *
  * Never change a stored shape without bumping this and extending
  * `migrateProviderSettings`.
  */
-export const PROVIDER_SETTINGS_SCHEMA_VERSION = 2;
+export const PROVIDER_SETTINGS_SCHEMA_VERSION = 3;
+
+/**
+ * Which OpenAI-compatible dialect a profile speaks.
+ *
+ * All three answer `POST {baseUrl}/chat/completions` with OpenAI-shaped bodies,
+ * but they differ in what they accept:
+ * - `openai`: the full schema (the default for any custom gateway).
+ * - `google`: Gemini's compatibility layer; unlisted parameters are ignored
+ *   rather than rejected.
+ * - `anthropic`: Claude's compatibility layer, which caps `temperature` at 1,
+ *   rejects `response_format: json_object`, and rejects a request that sets
+ *   both `temperature` and `top_p`.
+ *
+ * This is a per-profile user choice, not host detection: the same gateway can
+ * front several upstreams, and a user may proxy any of them.
+ */
+export type ProviderKind = 'openai' | 'google' | 'anthropic';
+
+export const PROVIDER_KINDS: readonly ProviderKind[] = ['openai', 'google', 'anthropic'];
+
+export function isProviderKind(value: unknown): value is ProviderKind {
+    return value === 'openai' || value === 'google' || value === 'anthropic';
+}
+
+/**
+ * What the add-provider picker offers, and the editable starting values each
+ * choice fills in.
+ *
+ * These are *defaults for an editable field*, not a routing table: the base URL
+ * is prefilled so the user does not have to find it in a vendor console, and
+ * they can overwrite it with a proxy or gateway. Nothing here is consulted by
+ * the transport — request shaping follows the profile's own `kind`.
+ */
+export interface ProviderKindOption {
+    readonly kind: ProviderKind;
+    readonly label: string;
+    readonly description: string;
+    readonly defaultBaseUrl: string;
+    readonly defaultLabel: string;
+    /** Where the user gets a key, shown as a hint under the API key field. */
+    readonly keyHint: string;
+}
+
+export const PROVIDER_KIND_OPTIONS: readonly ProviderKindOption[] = [
+    {
+        kind: 'openai',
+        label: 'OpenAI compatible',
+        description: 'Any endpoint that speaks the OpenAI API: a gateway, proxy or local server.',
+        defaultBaseUrl: '',
+        defaultLabel: 'Provider',
+        keyHint: 'The key your endpoint expects.',
+    },
+    {
+        kind: 'google',
+        label: 'Google AI Studio',
+        description: 'Gemini models through Google\'s OpenAI-compatible endpoint.',
+        defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+        defaultLabel: 'Google AI Studio',
+        keyHint: 'Create a key at aistudio.google.com, then paste it here.',
+    },
+    {
+        kind: 'anthropic',
+        label: 'Anthropic',
+        description: 'Claude models through Anthropic\'s OpenAI-compatible endpoint.',
+        defaultBaseUrl: 'https://api.anthropic.com/v1',
+        defaultLabel: 'Anthropic',
+        keyHint: 'Create a key at console.anthropic.com, then paste it here.',
+    },
+];
+
+export function getProviderKindOption(kind: ProviderKind): ProviderKindOption {
+    return PROVIDER_KIND_OPTIONS.find((option) => option.kind === kind)
+        ?? PROVIDER_KIND_OPTIONS[0];
+}
 
 /** Upper bound on saved profiles — keeps one AsyncStorage value small. */
 export const MAX_PROVIDER_PROFILES = 12;
@@ -41,6 +118,11 @@ export interface CustomAiModel {
 export interface ProviderProfile {
     readonly id: string;
     readonly label: string;
+    /**
+     * Which OpenAI-compatible dialect this endpoint speaks. Chosen when the
+     * provider is added; drives request shaping in the transport.
+     */
+    readonly kind: ProviderKind;
     readonly baseUrl: string;
     readonly apiKey: string;
     readonly selectedModelId: string | null;
@@ -80,6 +162,7 @@ export interface CustomAiProviderSettings {
 export interface ActiveCustomModelConfig {
     readonly profileId: string;
     readonly label: string;
+    readonly kind: ProviderKind;
     readonly apiBaseUrl: string;
     readonly apiKey: string;
     readonly model: string;
@@ -216,6 +299,7 @@ export function createProviderProfile(
     return {
         id: overrides.id ?? generateProfileId(),
         label: overrides.label ?? 'Provider',
+        kind: overrides.kind ?? 'openai',
         baseUrl: overrides.baseUrl ?? '',
         apiKey: overrides.apiKey ?? '',
         selectedModelId: overrides.selectedModelId ?? null,
@@ -451,6 +535,9 @@ function sanitizeProfile(value: unknown, index: number): ProviderProfile | null 
     return {
         id,
         label,
+        // v2 profiles predate the provider-type choice and were all plain
+        // OpenAI-compatible gateways, so that is the only safe default.
+        kind: isProviderKind(value.kind) ? value.kind : 'openai',
         baseUrl: typeof value.baseUrl === 'string' ? value.baseUrl.trim() : '',
         apiKey: typeof value.apiKey === 'string' ? value.apiKey : '',
         selectedModelId,
@@ -519,17 +606,21 @@ export function migrateProviderSettings(value: unknown): CustomAiProviderSetting
     const defaults = getDefaultCustomAiProviderSettings();
     if (!isRecord(value)) return defaults;
 
-    const version = toPositiveInteger(value.schemaVersion) ?? 1;
     const rawProfiles = Array.isArray(value.profiles) ? value.profiles : null;
 
-    if (version < PROVIDER_SETTINGS_SCHEMA_VERSION || !rawProfiles) {
-        // A v1 flat payload — or a v2-shaped record that lost its profiles.
+    // No `profiles[]` at all: a v1 flat payload, or a profile-store record that
+    // lost its profiles. Only a top-level baseUrl/apiKey means v1 — anything
+    // else is unreadable and falls back to defaults.
+    if (!rawProfiles) {
         if (typeof value.baseUrl === 'string' || typeof value.apiKey === 'string') {
             return migrateV1ToV2(value);
         }
         return defaults;
     }
 
+    // A v2 record reaches here too: `sanitizeProfile` fills in the fields v2
+    // did not store (v3's `kind` defaults to 'openai'), so an older payload is
+    // upgraded in place rather than discarded.
     const profiles = rawProfiles
         .map((profile, index) => sanitizeProfile(profile, index))
         .filter((profile): profile is ProviderProfile => profile !== null)
@@ -777,6 +868,7 @@ export async function getActiveCustomModelConfig(): Promise<ActiveCustomModelCon
     return {
         profileId: profile.id,
         label: profile.label,
+        kind: profile.kind,
         apiBaseUrl,
         apiKey,
         model: selected.id,

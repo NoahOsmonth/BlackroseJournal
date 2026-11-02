@@ -33,7 +33,11 @@ export interface JsonCompletionRequest {
 export interface JsonCompletionResult {
     /** Assistant message content (may wrap JSON in prose/fences). */
     content: string;
-    /** True when the successful attempt used response_format. */
+    /**
+     * True when the successful attempt asked for structured mode. The transport
+     * drops `response_format` for providers whose capabilities reject it, so
+     * this reports the request, not a guarantee the field reached the wire.
+     */
     usedResponseFormat: boolean;
     /** Cache / diagnostic key for the attempt. */
     model: string;

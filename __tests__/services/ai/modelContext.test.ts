@@ -40,6 +40,7 @@ const envConfig = {
     model: 'nvidia/nemotron-3-ultra-550b-a55b',
     flashModel: 'nvidia/nemotron-3-ultra-550b-a55b',
     source: 'env' as const,
+    kind: 'openai' as const,
 };
 
 describe('modelContext service', () => {

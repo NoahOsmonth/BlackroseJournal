@@ -16,7 +16,11 @@
  * All read at call time, not at module load.
  */
 
-import { getActiveCustomModelConfig, type ContextWindowSource } from './customModels';
+import {
+    getActiveCustomModelConfig,
+    type ContextWindowSource,
+    type ProviderKind,
+} from './customModels';
 
 export interface DirectConfig {
     apiKey: string;
@@ -27,6 +31,8 @@ export interface DirectConfig {
 
 export interface ResolvedDirectConfig extends DirectConfig {
     source: 'env' | 'custom';
+    /** Dialect the active provider speaks; the env seed is plain OpenAI. */
+    kind: ProviderKind;
     contextWindow?: number;
     contextWindowSource?: ContextWindowSource;
     /** Ids to try if the selected model is rejected as missing. */
@@ -170,6 +176,7 @@ export async function getResolvedDirectConfig(
             model: custom.model,
             flashModel: custom.flashModel,
             source: 'custom',
+            kind: custom.kind,
             contextWindow: custom.contextWindow,
             contextWindowSource: custom.contextWindowSource,
             fallbackModelIds: custom.fallbackModelIds,
@@ -179,6 +186,10 @@ export async function getResolvedDirectConfig(
     const config = {
         ...getDirectConfig(),
         source: 'env' as const,
+        // The env seed is documented as an OpenAI-compatible endpoint; there is
+        // no env var for a dialect, and adding one would be a second source of
+        // truth for something the profile already owns.
+        kind: 'openai' as const,
     };
     throwIfConfigResolutionAborted(signal);
     return config;

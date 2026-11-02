@@ -192,7 +192,9 @@ describe('CustomModelSettingsSection', () => {
         render(<CustomModelSettingsSection {...single} />);
 
         fireEvent.press(screen.getByText('Add provider'));
-        expect(single.addProfile).toHaveBeenCalledTimes(1);
+        // "Add provider" now asks which kind first; nothing is created until the
+        // user picks one (see the provider-kind tests below).
+        expect(single.addProfile).not.toHaveBeenCalled();
         expect(screen.queryByText('Saved providers')).toBeNull();
         expect(screen.queryByText('Remove')).toBeNull();
 
@@ -207,6 +209,34 @@ describe('CustomModelSettingsSection', () => {
 
         fireEvent.press(screen.getByText('Remove'));
         expect(multi.removeActiveProfile).toHaveBeenCalledTimes(1);
+    });
+
+    it('asks for the provider type and adds the profile the user picked', () => {
+        const props = buildProps();
+        render(<CustomModelSettingsSection {...props} />);
+
+        fireEvent.press(screen.getByText('Add provider'));
+
+        // All three kinds are offered, by name — this is the whole point of the
+        // modal: a Google or Anthropic user should not have to know that their
+        // endpoint happens to speak a partial OpenAI schema.
+        expect(screen.getByLabelText('Add OpenAI compatible provider')).toBeTruthy();
+        expect(screen.getByLabelText('Add Google AI Studio provider')).toBeTruthy();
+        expect(screen.getByLabelText('Add Anthropic provider')).toBeTruthy();
+
+        fireEvent.press(screen.getByLabelText('Add Anthropic provider'));
+        expect(props.addProfile).toHaveBeenCalledWith('anthropic');
+    });
+
+    it('adds nothing when the provider-type sheet is cancelled', () => {
+        const props = buildProps();
+        render(<CustomModelSettingsSection {...props} />);
+
+        fireEvent.press(screen.getByText('Add provider'));
+        fireEvent.press(screen.getByLabelText('Cancel adding a provider'));
+
+        expect(props.addProfile).not.toHaveBeenCalled();
+        expect(screen.queryByLabelText('Add Anthropic provider')).toBeNull();
     });
 
     it('constrains a long saved-provider chip so it cannot overflow its row', () => {

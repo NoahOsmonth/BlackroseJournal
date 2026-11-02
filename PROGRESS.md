@@ -18,7 +18,7 @@ directly to an OpenAI-compatible provider with a user-supplied key.
 | Area | State | Since | Where |
 |---|---|---|---|
 | Agent chat engine | Pi-class loop: tool shortlist → parallel pure reads → one mutating call per turn, idempotency, strict finality (status-only replies continue) | 2026-09-10 | `services/ai/agentLoop.ts`, `executeTool.ts`, `agenticGate.ts`; spec in `docs/compose/spec/` |
-| Transport | OpenRouter removed; **provider profiles** (schema v2, several per device) replace the baked-in gateway — user-supplied base URL/key/model, no vendor host or model id in code | 2026-09-10/26 | `services/ai/customModels.ts`, `directConfig.ts` |
+| Transport | OpenRouter removed; **provider profiles** (schema v3, several per device, each tagged `openai` / `google` / `anthropic`) replace the baked-in gateway — user-supplied base URL/key/model, no vendor host or model id in code | 2026-09-10/11-02 | `services/ai/customModels.ts`, `directConfig.ts`, `providerCapabilities.ts` |
 | Input handling | Bottom sheets and both chat composers ride above the soft keyboard with a concrete `KeyboardAvoidingView behavior` (Android 15+ edge-to-edge made `adjustResize` a no-op) | 2026-09-26 | `components/{entries,goals,intentions}/*Modal.tsx`, `app/chat.tsx` |
 | Local-only build | Hindsight, Supabase, managed AI gateway, and the auth surface deleted; device-local account id instead | 2026-09-18 | `services/auth/localAccount.ts`; contract in `notes/local-only-storage.md` |
 | Offline memory (Era 3) | File-semantic store with `_tmp` staging on finish; recall = intent gate → thread shortlist → manifest headers → top-K bodies, budgets 12k/file / 30k total / top-5 / 30s cache; a resolved thread's headers are merged with live `_tmp` **notes** (`type === 'note'`), and finish clears the recall cache | 2026-09-12 | `services/memory/memoryFiles.ts`, `memoryRetrieval.ts`; plan in `.planning/offline-memory/` |
@@ -40,6 +40,57 @@ suites passed / 9 skipped (298 discovered), 1634 tests green** (25 skipped),
 tsc / lint / `check:design` clean.
 
 ## Dated log
+
+### 2026-11-02 — provider type in the add-provider flow (Google AI Studio + Anthropic)
+
+Issue #8: "Add google custom provider and Anthropic compatibility not openai
+compatible." The modal offered exactly one shape — press *Add provider*, get a
+blank profile, discover the base URL yourself — so a Google AI Studio or Anthropic
+key produced a 404 against `https://host/v1` with no hint why.
+
+- **Provider *kind* is now stored per profile** (`ProviderKind = 'openai' |
+  'google' | 'anthropic'`), because a base URL cannot tell you the dialect: the
+  same host can front any upstream, and a user may point a Google profile at their
+  own proxy. `PROVIDER_SETTINGS_SCHEMA_VERSION` 2 → 3; `migrateProviderSettings`
+  was restructured so a v2 payload upgrades **in place** (the old
+  `version < CURRENT` early-exit would have returned defaults and discarded every
+  saved provider on the bump — guarded by a named sabotage test).
+- **`ProviderKindPickerSheet`** (new): the *Add provider* button opens a bottom
+  sheet offering OpenAI compatible / Google AI Studio / Anthropic with icons and a
+  one-line description each. Picking one creates the profile with that kind's name
+  and base URL prefilled, all editable in the form behind it. Cancel adds nothing.
+  `addProfile(kind?)` keeps its old no-argument behaviour for existing callers.
+- **Two-axis capability model** (`providerCapabilities.ts`): per-host overrides
+  (`zenmux.ai` → `max_completion_tokens`) and per-kind overrides, merged over
+  defaults. Anthropic's compatibility layer needed three, each documented from its
+  own docs and confirmed by live endpoint probes: omit `temperature`/`top_p`
+  (setting both is a 400, and current Claude models 400 below 1), drop
+  `response_format` (`json_object` is rejected; only `json_schema` with `strict`),
+  and keep `tool_choice` at `auto` (forced use 400s on several current models).
+  Without this, **every** turn was a guaranteed 400: `buildChatPayload` always
+  sends `temperature: 1` + `top_p: 0.95`, and `GENERATION_PRESETS.creative` sends
+  1.7 (above Anthropic's cap).
+- **Transport** (`directTransport.ts`) applies those flags when shaping the body;
+  `ResolvedDirectConfig` gained `kind` (the env seed is documented as plain
+  OpenAI — there is no env var for a dialect). Google needed no override: its
+  `/v1beta/openai/` layer ignores unknown fields.
+- **Form copy**: the section subtitle now names all three, and the API-key field
+  carries a per-kind hint ("Create a key at aistudio.google.com…"). The active-model
+  row shows the kind beside the host.
+- **Design limit**: the section hit 458 lines, so the *Advanced* block moved to
+  `ProviderAdvancedFields.tsx` (section back to 383).
+
+Verified: 4 new capability tests (incl. both axes applied together), 5 transport
+tests in a new `directTransportProviderKind.test.ts` (one named sabotage: restore
+the sampling fields → red), 5 `customModels` tests (round trip + v2-in-place
+sabotage), hook + component tests for the picker, and the full gate
+(`tsc`/`lint`/`check:design`/`npm test`). Before/After captures at
+1440×900 and 390×844, light and dark.
+
+Not done: **no live provider call** — no Google or Anthropic key exists on this
+machine, so the request shapes are pinned by unit tests against documented
+behaviour, not by a real 200. `getProviderCapabilities`' kind axis is also not
+covered by the offline-boot probe (it never opens the provider form).
 
 ### 2026-11-02 — SemVer, a changelog, and a release process
 

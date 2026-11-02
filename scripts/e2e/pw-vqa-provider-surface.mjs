@@ -39,16 +39,16 @@ const MODELS = ['anthropic/claude-sonnet-4.5', 'openai/gpt-5.1', 'google/gemini-
 
 /** Two profiles, the second with a label long enough to overflow a phone row. */
 const SETTINGS = {
-    schemaVersion: 2, enabled: true, activeProfileId: 'p1', updatedAt: 1_700_000_000_000,
+    schemaVersion: 3, enabled: true, activeProfileId: 'p1', updatedAt: 1_700_000_000_000,
     profiles: [
-        { id: 'p1', label: 'Home gateway', baseUrl: 'https://api.example.com/v1', apiKey: 'sk-vqa',
+        { id: 'p1', label: 'Home gateway', kind: 'openai', baseUrl: 'https://api.example.com/v1', apiKey: 'sk-vqa',
           selectedModelId: 'anthropic/claude-sonnet-4.5', flashModelId: 'deepseek/deepseek-v4.1-flash',
           models: MODELS, recentModelIds: ['openai/gpt-5.1'],
           modelFilterPatterns: ['claude', 'gpt', 'gemini'], fallbackModelIds: ['openai/gpt-5.1'],
           contextWindowOverride: null, fallbackContextWindow: 128000,
           createdAt: 1_700_000_000_000, updatedAt: 1_700_000_000_000 },
         { id: 'p2', label: 'Work account with a deliberately long provider name',
-          baseUrl: 'https://gateway.internal.example.net/v1', apiKey: 'sk-vqa-2',
+          kind: 'openai', baseUrl: 'https://gateway.internal.example.net/v1', apiKey: 'sk-vqa-2',
           selectedModelId: 'qwen/qwen3-max', flashModelId: null, models: [], recentModelIds: [],
           modelFilterPatterns: [], fallbackModelIds: [], contextWindowOverride: null,
           fallbackContextWindow: 128000, createdAt: 1_700_000_000_000, updatedAt: 1_700_000_000_000 },
