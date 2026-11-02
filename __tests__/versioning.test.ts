@@ -19,9 +19,19 @@ const SEMVER = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
 /** A Markdown link reference definition: `[label]: destination`. */
 const LINK_DEFINITION = /^\[([^\]]+)\]:[ \t]*(\S+)[ \t]*$/gm;
 
+/**
+ * Drop fenced code blocks before scanning for link definitions. A changelog
+ * entry that *shows* `[0.1.0]: https://…` as an example inside a fence must not
+ * satisfy the check for a real definition — that is exactly the case where the
+ * rendered link is dead but a naive scan still passes.
+ */
+function stripFencedCode(markdown: string): string {
+    return markdown.replace(/^```[\s\S]*?^```/gm, '');
+}
+
 function linkDefinitions(markdown: string): Map<string, string> {
     return new Map(
-        [...markdown.matchAll(LINK_DEFINITION)].map((m) => [m[1], m[2]])
+        [...stripFencedCode(markdown).matchAll(LINK_DEFINITION)].map((m) => [m[1], m[2]])
     );
 }
 
@@ -77,9 +87,11 @@ describe('versioning', () => {
         expect(readme).toContain('`app.json`');
         expect(readme).toContain('vX.Y.Z');
         expect(readme).toContain('appVersionSource');
-        // A tag pushed from an unmerged branch publishes a release whose code
-        // never reaches the default branch.
-        expect(readme).toMatch(/merge[^\n]*`main`[^\n]*before tagging/i);
+        // A tag pushed from an unmerged branch — or from a local main that was
+        // never pushed — publishes a release whose code never reaches the
+        // default branch, so the steps must demand remote reachability.
+        expect(readme).toMatch(/remote `main`[^\n]*before tagging/i);
+        expect(readme).toContain('origin/main');
     });
 
     it('keeps the Android versionCode with EAS', () => {

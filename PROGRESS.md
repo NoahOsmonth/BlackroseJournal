@@ -103,6 +103,20 @@ merged):
 All four sabotage-verified red then green. Gates: 290 suites / 1640 tests green,
 tsc / lint / `check:design` clean.
 
+**Follow-up: Sourcery round-2 review fixes on PR #7** (two 🟡 findings, both valid):
+
+- The round-1 README step was not enough: `git switch main && git pull` pulls
+  *from* the remote but does not push a locally merged commit, so
+  `git push origin vX.Y.Z` could still publish a tag whose commit is absent from
+  `origin/main`. The step now says to merge on the remote (or push) and verify
+  reachability with `git merge-base --is-ancestor <commit> origin/main` before
+  tagging.
+- `LINK_DEFINITION` scanned the whole changelog, so a `[0.1.0]: https://…`
+  example inside a fenced code block satisfied the check while the real
+  definition was missing. `stripFencedCode()` now removes fenced blocks first.
+  Proven load-bearing: with the strip neutralised, a changelog whose only
+  definition sits in a fence passes 6/6; with it active the same input fails.
+
 ### 2026-10-07 — open follow-ups closed (round 2): retrieval gating, dock a11y, provider rename
 
 Same day as run 4, a second pass closing the PLAN/PROGRESS follow-up list. Four

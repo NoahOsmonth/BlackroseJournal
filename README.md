@@ -177,10 +177,17 @@ changes under `## [Unreleased]` as you work, and move them into a new
 3. In `CHANGELOG.md`, turn `## [Unreleased]` into `## [X.Y.Z] - YYYY-MM-DD`, leave
    a fresh empty `## [Unreleased]` above it, and point the link refs at the new tag.
 4. Run the quality gates above and commit (`chore(release): vX.Y.Z`).
-5. **Merge that commit to `main` before tagging.** A tag pushed from an unmerged
-   branch publishes a release whose code never reaches the default branch, which
-   leaves the released version and `main` out of sync. Tag only a commit that is
-   already on `main` (`git switch main && git pull`).
+5. **Put the release commit on remote `main` before tagging.** A tag pushed from
+   an unmerged branch — or from a local `main` that was never pushed — publishes
+   a release whose code never reaches the default branch, leaving the released
+   version and `main` out of sync. Merge it on the remote (open a PR), or push
+   it, then confirm the commit is actually reachable from `origin/main`:
+
+   ```bash
+   git fetch origin
+   git merge-base --is-ancestor <release-commit> origin/main \
+       && echo "on origin/main — safe to tag"
+   ```
 6. Tag and publish. The release notes are the changelog entry for that version,
    so put it in a scratch file first (it is not committed), tag from it, and let
    `gh` reuse the tag annotation as the release body:
