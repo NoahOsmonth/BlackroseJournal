@@ -154,6 +154,22 @@ describe('crashLogStorage', () => {
         await expect(loadCrashLogState()).resolves.toEqual({ records: [], lastSeenAt: 0 });
     });
 
+    it('still records a crash whose thrown value cannot be described', async () => {
+        // A thrown object can carry a getter that throws on read; describing it
+        // must not cost us the record of the crash itself.
+        const hostile = {
+            get message(): string {
+                throw new Error('getter exploded');
+            },
+        };
+
+        const record = await recordCrashLog({ error: hostile, component: 'window.error' });
+
+        expect(record?.message).toBe('Unknown error');
+        expect(record?.component).toBe('window.error');
+        expect(storedRecords()).toHaveLength(1);
+    });
+
     it('marks the stored crashes as seen so the banner stops asking', async () => {
         await recordCrashLog({ error: new Error('seen me') });
         jest.setSystemTime(new Date('2026-06-07T10:05:00Z'));

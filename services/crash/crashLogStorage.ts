@@ -111,8 +111,21 @@ export function describeCrash(error: unknown): { message: string; stack?: string
     return { message: `Non-error value thrown: ${String(error)}`.slice(0, MAX_MESSAGE_LENGTH) };
 }
 
+/**
+ * `describeCrash` reads properties of whatever code threw: a getter, a `toString`
+ * or a `Symbol.toPrimitive` can itself throw. Keeping a record of the crash
+ * matters more than its message, so fall back instead of letting the read escape.
+ */
+function safeDescribe(error: unknown): { message: string; stack?: string } {
+    try {
+        return describeCrash(error);
+    } catch {
+        return { message: 'Unknown error' };
+    }
+}
+
 function buildRecord(input: RecordCrashInput, now: number): CrashLogRecord {
-    const { message, stack } = describeCrash(input.error);
+    const { message, stack } = safeDescribe(input.error);
     return {
         id: `crash_${now.toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
         message,
@@ -197,13 +210,14 @@ async function saveState(
 
 /**
  * Persist one crash. Resolves `null` instead of throwing when the store is
- * unreachable (no account yet, lease aborted, storage full): a crash reporter
- * that crashes is worse than a crash that was not reported.
+ * unreachable (no account yet, lease aborted, storage full) or when the thrown
+ * value cannot even be described: a crash reporter that crashes is worse than a
+ * crash that was not reported. This promise never rejects.
  */
 export async function recordCrashLog(input: RecordCrashInput): Promise<CrashLogRecord | null> {
-    const record = buildRecord(input, Date.now());
-
     try {
+        const record = buildRecord(input, Date.now());
+
         return await runAccountBoundOperation('crash-log-record', (context) =>
             enqueueMutation(async () => {
                 const storage = getStorageForAccount(context.accountId);
