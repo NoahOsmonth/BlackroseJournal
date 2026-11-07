@@ -167,7 +167,7 @@ export function GoalsSection({
                         <Pressable
                             onPress={onManage}
                             accessibilityRole="button"
-                            accessibilityLabel={`See ${overflow} more goals`}
+                            accessibilityLabel={`See ${overflow} more ${overflow === 1 ? 'goal' : 'goals'}`}
                             className="pt-3"
                         >
                             <Text className="text-[13px] text-text-secondary-light dark:text-text-secondary-dark">

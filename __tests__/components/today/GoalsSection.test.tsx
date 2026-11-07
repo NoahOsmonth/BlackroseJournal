@@ -80,4 +80,29 @@ describe('GoalsSection', () => {
         fireEvent.press(screen.getByLabelText('Write journal, goal'));
         expect(onToggle).toHaveBeenCalledWith('g1');
     });
+
+    it.each([
+        [6, 'See 1 more goal', '+1 more'],
+        [7, 'See 2 more goals', '+2 more'],
+    ])('uses singular/plural copy for %i goals', (total, label, visibleCopy) => {
+        const items = Array.from({ length: total as number }, (_, index) => ({
+            id: 'g' + index,
+            title: 'Goal ' + (index + 1),
+            type: 'goal' as const,
+            completed: false,
+        }));
+        const onManage = jest.fn();
+        render(
+            <GoalsSection
+                items={items}
+                onAddGoal={jest.fn()}
+                onManage={onManage}
+                onToggle={jest.fn()}
+            />
+        );
+
+        expect(screen.getByText(visibleCopy as string)).toBeTruthy();
+        fireEvent.press(screen.getByLabelText(label as string));
+        expect(onManage).toHaveBeenCalledTimes(1);
+    });
 });
