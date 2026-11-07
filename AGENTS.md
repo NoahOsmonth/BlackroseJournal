@@ -14,7 +14,7 @@ Skills live in this repo at `.agents/skills/` (repo-relative — resolve it from
 
 ## Task tracking: Kaneo is mandatory (rule 0)
 
-**Every task the user gives you becomes a Kaneo card before you touch code.** Not a TODO in chat, not a plan file. One card per request, status kept current, description kept current. A finished task with a stale card is a bug.
+**Every task the user gives you becomes a Kaneo card before you touch code.** Not a TODO in chat, not a plan file. The Kaneo board is the only place work is tracked: no plan file in this repo. One card per request, status kept current, description kept current. A finished task with a stale card is a bug.
 
 | Thing | Value |
 |---|---|
@@ -446,7 +446,7 @@ Key files:
 
 ## Workflow
 
-1. Read `ROADMAP.md` / the active plan folder, confirm scope, and open (or create) the Kaneo card for the task — see rule 0.
+1. Check the Kaneo board, confirm scope, and open (or create) the Kaneo card for the task — see rule 0.
 2. Implement with strict layering and modular structure.
 3. Add or update tests for the change.
 4. Run `npm test` (relevant pattern), `npx tsc --noEmit`, `npm run lint`, `npm run check:design`. Fix all failures.

@@ -1,8 +1,9 @@
 # docs/ — Documentation Index
 
-One screen. For the root-level documents (`ROADMAP.md`, `memory.md`,
-`AGENTS.md`, `README.md`) see the map in
-[`../ROADMAP.md`](../ROADMAP.md); this index covers everything under `docs/`.
+One screen. This index covers everything under `docs/`. Root-level docs are
+`memory.md` (memory-system contract), `AGENTS.md` (rules), and `README.md`
+(app overview). Forward work lives on the Kaneo board, not in a repo file:
+<http://192.168.1.188:5173>.
 
 ## Read in this order
 

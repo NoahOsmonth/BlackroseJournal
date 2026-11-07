@@ -30,7 +30,7 @@ requirements and invariants only, never implementation.
 ## Implemented Local Baseline
 
 Rosebud now has the first local-only memory slice of the larger Memory Loom
-architecture (archived 2026-09-01; the recovered roadmap lives in git history).
+architecture (archived 2026-09-01; the recovered plan lives in git history).
 
 ### Storage
 
