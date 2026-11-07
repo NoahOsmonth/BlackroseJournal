@@ -520,14 +520,28 @@ function sanitizeProfile(value: unknown, index: number): ProviderProfile | null 
     const label = typeof value.label === 'string' && value.label.trim()
         ? value.label.trim()
         : `AI service ${index + 1}`;
-    const models = sanitizeModels(value.models, fallbackContextWindow);
+    const loadedModels = sanitizeModels(value.models, fallbackContextWindow);
 
-    // A selection that is not in the cached catalogue is dropped rather than
-    // silently sent to an endpoint that may no longer serve it.
-    const selectedRaw = typeof value.selectedModelId === 'string' ? value.selectedModelId : null;
-    const selectedModelId = selectedRaw && models.some((m) => m.id === selectedRaw)
-        ? selectedRaw
+    // A selection the freshly fetched catalogue does not list is kept, and so is
+    // a stand-in entry for it: the address can serve more than it advertises,
+    // and silently forgetting the choice is worse than showing it (DEF-030).
+    const selectedRaw = typeof value.selectedModelId === 'string' && value.selectedModelId.trim()
+        ? value.selectedModelId.trim()
         : null;
+    const models = selectedRaw && !loadedModels.some((m) => m.id === selectedRaw)
+        ? [
+            {
+                id: selectedRaw,
+                name: selectedRaw,
+                ownedBy: 'chosen',
+                created: 0,
+                contextWindow: fallbackContextWindow,
+                contextWindowSource: 'fallback' as const,
+            },
+            ...loadedModels,
+        ]
+        : loadedModels;
+    const selectedModelId = selectedRaw;
     const flashRaw = typeof value.flashModelId === 'string' ? value.flashModelId : null;
     const flashModelId = flashRaw && models.some((m) => m.id === flashRaw) ? flashRaw : null;
 
@@ -770,7 +784,10 @@ export function pickModelAfterFetch(
     preferredEnvModel?: string
 ): string | null {
     const ids = new Set(models.map((model) => model.id));
-    if (previousSelectedId && ids.has(previousSelectedId)) return previousSelectedId;
+    // A chosen AI survives a refresh even when the address lists a narrower
+    // catalogue than it serves (gateways often do). Dropping the choice here
+    // sent writers back to "Choose AI" with no explanation (DEF-030).
+    if (previousSelectedId) return previousSelectedId;
     if (preferredEnvModel && ids.has(preferredEnvModel)) return preferredEnvModel;
     return models[0]?.id ?? null;
 }

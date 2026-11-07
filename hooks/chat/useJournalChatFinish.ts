@@ -43,6 +43,11 @@ interface UseJournalChatFinishOptions {
     /** Flush the live conversation to the session store before the save. */
     finalize: () => void;
     clearPersistedSession: () => Promise<void>;
+    /**
+     * Drop the stored chat and start a fresh conversation id in the same commit,
+     * so a late autosave cannot re-save the words already in the entry (DEF-030).
+     */
+    finalizePersistedSession: () => Promise<void>;
     handleNewChat: () => void;
     /** Clears the composer + the capsule query text (the draft-close path). */
     resetChatState: () => void;
@@ -59,6 +64,7 @@ export function useJournalChatFinish({
     update,
     finalize,
     clearPersistedSession,
+    finalizePersistedSession,
     handleNewChat,
     resetChatState,
     onCelebrate,
@@ -170,9 +176,11 @@ export function useJournalChatFinish({
                 });
             }
             const savedEntryId = savedEntry?.id ?? entryId;
-            // A completed entry must not linger as an active session.
+            // A completed entry must not linger as an active session: drop the
+            // stored chat and move to a fresh conversation id BEFORE the reset,
+            // so the autosave effect cannot re-save it under the old id.
             finalize();
-            await clearPersistedSession();
+            await finalizePersistedSession();
             handleNewChat();
             if (savedEntryId) {
                 void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => { });
@@ -196,7 +204,7 @@ export function useJournalChatFinish({
         }
     }, [
         finalMessages, isSaving, router, create, update, entryId, handleNewChat,
-        clearPersistedSession, finalize, onCelebrate,
+        finalizePersistedSession, finalize, onCelebrate,
     ]);
 
     return { handleClose, handleFinishEntry, isSaving, finishStage };

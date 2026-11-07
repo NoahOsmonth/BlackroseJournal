@@ -159,6 +159,7 @@ jest.mock('../../features/chat', () => {
                 handleNewChat: jest.fn(),
                 initializeMessages: jest.fn(),
                 clearPersistedSession: jest.fn(),
+                finalizePersistedSession: jest.fn(),
                 scrollToBottom: jest.fn(),
                 handleScroll: jest.fn(),
             };

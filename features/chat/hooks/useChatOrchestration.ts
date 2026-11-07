@@ -118,6 +118,11 @@ export interface UseChatOrchestrationReturn {
     initializeMessages: (initialMessages: Message[], composerDraft?: string) => void;
     /** Removes the autosaved session for the active conversation (call on finish/discard). */
     clearPersistedSession: () => Promise<void>;
+    /**
+     * Finish/discard: drop the stored session and start a fresh conversation id
+     * before the reset, so a late autosave cannot re-save the finished chat.
+     */
+    finalizePersistedSession: () => Promise<void>;
     scrollToBottom: (options?: ScrollToBottomOptions) => void;
     handleScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
     /** The prompt being used for daily check-in, if applicable */
@@ -290,6 +295,18 @@ export function useChatOrchestration({
 
         return () => clearTimeout(timer);
     }, [messages, composerActivityTick, persist?.conversationId, persist?.mode, persist?.personaId]);
+
+    // Finalization is the other half of finalize(): finish/discard calls this
+    // once its own save is done, BEFORE the conversation is reset. It drops the
+    // stored session and asks React for a fresh conversation id in the same
+    // commit, so the autosave effect never re-saves a finished chat under the
+    // old id (DEF-030: finished chats reappeared under Drafts).
+    const finalizePersistedSession = useCallback(async () => {
+        const id = persistRef.current?.conversationId;
+        setConversationId();
+        if (!id) return;
+        await removeSession(id);
+    }, [setConversationId]);
 
     const clearPersistedSession = useCallback(async () => {
         const id = persistRef.current?.conversationId;
@@ -704,6 +721,7 @@ export function useChatOrchestration({
         handleNewChat,
         initializeMessages,
         clearPersistedSession,
+        finalizePersistedSession,
         stopGeneration,
         scrollToBottom,
         handleScroll,

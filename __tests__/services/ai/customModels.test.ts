@@ -409,7 +409,9 @@ describe('customModels service (provider profiles, schema v3)', () => {
         await expect(getActiveCustomModelConfig()).resolves.toBeNull();
     });
 
-    it('drops a stored selection that is no longer in the catalogue', () => {
+    it('keeps a stored selection that the catalogue no longer lists', () => {
+        // DEF-030: an address can serve more than its catalogue advertises, so
+        // rebuilding the list must not quietly discard the writer's choice.
         const migrated = migrateProviderSettings({
             schemaVersion: PROVIDER_SETTINGS_SCHEMA_VERSION,
             enabled: true,
@@ -424,8 +426,8 @@ describe('customModels service (provider profiles, schema v3)', () => {
             }],
         });
 
-        expect(migrated.profiles[0].selectedModelId).toBeNull();
-        expect(migrated.profiles[0].models.map((m) => m.id)).toEqual(['kept/model']);
+        expect(migrated.profiles[0].selectedModelId).toBe('gone/model');
+        expect(migrated.profiles[0].models.map((m) => m.id)).toEqual(['gone/model', 'kept/model']);
     });
 
     it('keeps the kind a profile was created with', () => {

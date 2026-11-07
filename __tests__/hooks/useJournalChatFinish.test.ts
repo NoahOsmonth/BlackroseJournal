@@ -81,6 +81,7 @@ function createDeps(overrides: { messages?: typeof messages; inputValue?: string
     const update = jest.fn().mockResolvedValue(savedEntry);
     const finalize = jest.fn();
     const clearPersistedSession = jest.fn().mockResolvedValue(undefined);
+    const finalizePersistedSession = jest.fn().mockResolvedValue(undefined);
     const handleNewChat = jest.fn();
     const resetChatState = jest.fn();
     const onCelebrate = jest.fn();
@@ -92,6 +93,7 @@ function createDeps(overrides: { messages?: typeof messages; inputValue?: string
         update,
         finalize,
         clearPersistedSession,
+        finalizePersistedSession,
         handleNewChat,
         resetChatState,
         onCelebrate,
@@ -103,6 +105,7 @@ function createDeps(overrides: { messages?: typeof messages; inputValue?: string
         update,
         finalize,
         clearPersistedSession,
+        finalizePersistedSession,
         handleNewChat,
         resetChatState,
         onCelebrate,
@@ -184,7 +187,9 @@ describe('useJournalChatFinish — failed saves are visible and retryable', () =
         });
         expect(deps.create).toHaveBeenCalledTimes(2);
         expect(deps.create).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'completed' }));
-        expect(deps.clearPersistedSession).toHaveBeenCalledTimes(1);
+        // Finish drops the stored chat and moves to a fresh conversation id, so
+        // the words already saved can never reappear under Drafts (DEF-030).
+        expect(deps.finalizePersistedSession).toHaveBeenCalledTimes(1);
         expect(deps.handleNewChat).toHaveBeenCalledTimes(1);
         expect(deps.onCelebrate).toHaveBeenCalledTimes(1);
         expect(mockNotificationAsync).toHaveBeenCalledTimes(1);
