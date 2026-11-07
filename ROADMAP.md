@@ -1,8 +1,9 @@
 # ROADMAP — Blackrose Journal
 
 **Status 2026-11-07.** The app is feature-complete and local-only; this file is the
-human-readable forward view: what is open now, what comes next toward Rosebud
-parity, and what is explicitly parked. It replaces the old root `PLAN.md`.
+human-readable forward view: what comes next toward Rosebud parity and what is
+explicitly parked. The old open-work list was stale and has been removed; the
+live board is the only place work is tracked. It replaces the old root `PLAN.md`.
 
 **Live tracker: Kaneo** at <http://192.168.1.188:5173> (workspace `Blackrose`,
 project `Blackrose Journal`). Every item below already exists there as a card,
@@ -15,22 +16,6 @@ keys (`@rosebud_cloud_memory_mirror_outbox`,
 `@rosebud_memory_dataset_binding`), or any remote memory tier. The app is
 local-only by decision (2026-09-18); guard test:
 `__tests__/backend-local-only.test.ts`.
-
-## Now — open work (priority order)
-
-1. **R3 (entity/alias → temporal → prospection)** — only after a
-   real-restatement ledger prices supersession on journal-like data. The R0
-   ledger's `superseded: 0` is by design, so the gate is unmet.
-2. **Insight dock label shortening** — optional; two labels can wrap and stagger
-   the icon row (copy change, needs a call). The a11y half (Escape / Android
-   back-to-close) landed 2026-10-07.
-3. **Identity-store split** — `get_identity` vs the offline user file: an
-   unmeasured design question, deliberately left open.
-4. **Live provider gate** — `RUN_INTEGRATION_TESTS=1` and the full offline recall
-   probe need the key in the env/`.env` seed (blank on this machine); the
-   provider itself is reachable. The offline **boot** gate passes.
-5. **`customModels` v1 → v2 migration** — unit-tested only; device verification
-   outstanding.
 
 ## Next — Rosebud-parity features we do not have yet
 
