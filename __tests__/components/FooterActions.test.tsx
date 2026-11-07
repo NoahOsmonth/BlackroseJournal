@@ -34,6 +34,8 @@ describe('FooterActions', () => {
         expect(screen.getByText('Finishing')).toBeTruthy();
         expect(screen.getByLabelText('Creating your insights')).toBeTruthy();
         expect(screen.getByLabelText('Finishing entry animation')).toBeTruthy();
+        expect(screen.getByText('Keep this open while this finishes.')).toBeTruthy();
+        expect(screen.queryByText('Keep this open for a moment — your words are safe.')).toBeNull();
     });
 
     /**

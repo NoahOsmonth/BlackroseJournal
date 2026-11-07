@@ -36,6 +36,8 @@
 
 | DEF-028 | 2026-11-08 | CHECKINS-07 / Drafts | CHECKINS | Drafts list hid the writer's unsent words | S3 | 1. Type unsent words in a check-in chat. 2. Leave. 3. Open Drafts. | The Drafts row shows the writer's words and Resume restores them | Autosaved rows showed the companion opener (`What is calling for your attention right now?`) even though `composerDraft` held the writer's words | `/tmp/ego-br-drafts-label-audit.log`, `/tmp/ego-br-drafts-label-fixed.log`, `__tests__/utils/sessionTitle.test.ts` | Closed | FIXED: shared pure helper `utils/sessionTitle.ts` prefers `composerDraft`; both `app/drafts.tsx` and `app/(tabs)/entries.tsx` use it. Live after fix: `Resume SESSION TITLE LIVE WRITER WORDS.` appeared and click restored that exact text into the composer. Sabotage (`const text = fallback`) made 2 unit tests fail; restore passed 5/5. |
 
+| DEF-029 | 2026-11-08 | button zoom / saving status | JOURNAL | Saving detail promised the words were safe | S3 | 1. Press Finish entry or Close. 2. Read the status line under the footer. | Status describes the wait and claims nothing about a save that may still fail | Footer said `Keep this open for a moment — your words are safe.` even though a failed save keeps words on screen without saving them | `__tests__/components/FooterActions.test.tsx`, `/tmp/ego-br-footer-saving2.log`, `/tmp/ego-br-footer-failure3.log` | Closed | FIXED: copy is now `Keep this open while this finishes.` Red test failed on the old sentence, green after. Live saving window (storage stall) showed the new sentence in 9 of 9 samples; forced failure showed `Could not save your entry` and kept the typed words on screen. |
+
 ## Severity guide
 
 | Severity | Meaning |

@@ -109,7 +109,7 @@ export function FooterActions({
             {isSaving ? (
                 <LoadingStatus
                     label={savingLabel}
-                    detail="Keep this open for a moment — your words are safe."
+                    detail="Keep this open while this finishes."
                     compact
                 />
             ) : null}
