@@ -55,6 +55,13 @@ function textMessage(content: string, finishReason = 'stop') {
     };
 }
 
+function reasoningOnlyMessage(reasoning: string) {
+    return {
+        choices: [{ finish_reason: 'stop', message: { content: '', reasoning_content: reasoning } }],
+        usage: { prompt_tokens: 400, completion_tokens: 30, total_tokens: 430 },
+    };
+}
+
 function toolUseMessage(name: string, args: string, id = 'call_1') {
     return {
         choices: [{
@@ -182,6 +189,33 @@ describe('turn finality', () => {
 
         expect(result.content).toBe(AGENT_EXHAUSTION_FALLBACK);
         expect(result.content.trim().length).toBeGreaterThan(0);
+    });
+
+    it('never turns internal reasoning into the visible answer', async () => {
+        const reasoning = 'We need respond to user. Check the system prompt and decide whether to call tools.';
+        fetchMock
+            .mockResolvedValueOnce(jsonResponse(reasoningOnlyMessage(reasoning)))
+            .mockResolvedValueOnce(jsonResponse(textMessage('A calm answer.')));
+
+        const result = await runAgentTurnWithTools({ ...USER_TURN, capability: TIER_A });
+
+        expect(result.content).toBe('A calm answer.');
+        expect(result.content).not.toContain('We need respond');
+        expect(result.content).not.toContain('system prompt');
+        expect(result.reasoning).toContain(reasoning);
+    });
+
+    it('uses the plain fallback when the final pass also returns only reasoning', async () => {
+        const reasoning = 'Internal analysis that must never become a journal reply.';
+        fetchMock
+            .mockResolvedValueOnce(jsonResponse(reasoningOnlyMessage(reasoning)))
+            .mockResolvedValueOnce(jsonResponse(reasoningOnlyMessage(reasoning)));
+
+        const result = await runAgentTurnWithTools({ ...USER_TURN, capability: TIER_A });
+
+        expect(result.content).toBe(AGENT_EXHAUSTION_FALLBACK);
+        expect(result.content).not.toContain(reasoning);
+        expect(result.reasoning).toContain(reasoning);
     });
 
     it('announces the truncation nudge as follow_up_injected(truncated_tools)', async () => {

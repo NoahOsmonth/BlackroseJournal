@@ -44,8 +44,10 @@ export function IntentionChatHeader({
             <View className="flex-row items-center justify-between gap-3">
                 <Pressable
                     onPress={onClose}
+                    disabled={false}
                     accessibilityRole="button"
                     accessibilityLabel="Close"
+                    accessibilityState={{ disabled: false }}
                     hitSlop={10}
                     className="h-9 w-9 items-center justify-center"
                 >
@@ -54,8 +56,10 @@ export function IntentionChatHeader({
 
                 <Pressable
                     onPress={onOpenPersona}
+                    disabled={false}
                     accessibilityRole="button"
                     accessibilityLabel="Choose persona"
+                    accessibilityState={{ disabled: false }}
                     className="min-w-0 flex-1 flex-row items-center justify-center gap-2"
                 >
                     <View testID="intention-chat-persona-badge">
@@ -72,8 +76,10 @@ export function IntentionChatHeader({
 
                 <Pressable
                     onPress={onOpenDrafts}
+                    disabled={false}
                     accessibilityRole="button"
                     accessibilityLabel="Open drafts"
+                    accessibilityState={{ disabled: false }}
                     hitSlop={8}
                 >
                     <Text
@@ -96,8 +102,9 @@ export function IntentionChatHeader({
                 {onToggleThinking ? (
                     <Pressable
                         onPress={onToggleThinking}
+                        disabled={false}
                         accessibilityRole="switch"
-                        accessibilityState={{ checked: showThinking }}
+                        accessibilityState={{ checked: showThinking, disabled: false }}
                         accessibilityLabel={showThinking
                             ? 'Hide thinking'
                             : 'Show thinking'}

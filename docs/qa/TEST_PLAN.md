@@ -25,6 +25,7 @@
 *Scope change 2026-09-18: the 10 AUTH cases retired and THEME-07 retired with them (the local-only refactor removed every auth surface and the remote tiers) — 107 → 97 active cases. AUTH is preserved at `cases/retired/AUTH.csv`; THEME-07 stays as a `Retired` row so its ID is never reused.*
 *Round 2 (2026-10-07) closed the PLAN/PROGRESS follow-ups and live-verified the fixes plus the offline boot gate — no new tracker cases, dashboard unchanged: [`results/2026-10-07-round2-live.md`](results/2026-10-07-round2-live.md).*
 *Run 5 (2026-11-08) was a ProductOps discovery + QA + perf sweep: light/dark and 375px visual checks, all five tab routes, three bench scripts, one a11y copy defect fixed (DEF-018, new guard test). No CSV case statuses changed without a new execution, so the dashboard numbers above are unchanged: [`results/2026-11-08-run5.md`](results/2026-11-08-run5.md).*
+*Run 6 (2026-11-08) zoomed into chat button cause-and-effect, live `global:hy4free` testing, save failure/retry, double-press, loading/disabled states, light/dark/375px QA, deeper Archive search, offline boot and perf. CSV case statuses were not changed without new exact-case executions; the dashboard numbers above are unchanged. Full evidence: [`results/2026-11-08-run6.md`](results/2026-11-08-run6.md).*
 
 ## Case ID convention
 

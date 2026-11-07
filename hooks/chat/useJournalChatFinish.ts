@@ -8,19 +8,21 @@
  * in a fixed order.
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
+import { notifyUser } from '@/components/ui/webConfirm';
+import { generateTitle, hasContent, inferMoodEmoji } from '@/hooks/useEntryUtils';
 import { generateEntryTitle } from '@/services/ai';
 import type { Message } from '@/services/ai/ai';
 import { runJournalFinishBackground } from '@/services/journal/journalFinishSideEffects';
+import { withPendingInput } from '@/services/journal/journalPendingInput';
 import type {
     JournalEntry,
     JournalEntryCreateInput,
     JournalEntryUpdateInput,
 } from '@/services/journal/journalStorage.types';
-import { generateTitle, hasContent, inferMoodEmoji } from '@/hooks/useEntryUtils';
 import { withTimeout } from '@/utils/async';
 
 /**
@@ -32,6 +34,8 @@ const FINISH_TITLE_TIMEOUT_MS = 8_000;
 
 interface UseJournalChatFinishOptions {
     messages: Message[];
+    /** Words still in the writing slip, not yet sent as a message. */
+    inputValue: string;
     entryId?: string;
     continuedEntry: JournalEntry | null;
     create: (input: JournalEntryCreateInput) => Promise<JournalEntry>;
@@ -48,6 +52,7 @@ interface UseJournalChatFinishOptions {
 
 export function useJournalChatFinish({
     messages,
+    inputValue,
     entryId,
     continuedEntry,
     create,
@@ -61,57 +66,76 @@ export function useJournalChatFinish({
     const router = useRouter();
     const [isSaving, setIsSaving] = useState(false);
     const [finishStage, setFinishStage] = useState('Preparing your entry');
+    const finishInFlightRef = useRef(false);
+    const closeInFlightRef = useRef(false);
+    const closeCompletedRef = useRef(false);
+
+    const finalMessages = useCallback(
+        () => withPendingInput(messages, inputValue),
+        [messages, inputValue],
+    );
 
     const handleClose = useCallback(async () => {
-        finalize();
-        // Save as draft if there's content
-        if (hasContent(messages)) {
-            try {
-                const title = generateTitle(messages);
-                const emoji = inferMoodEmoji(messages);
+        if (closeInFlightRef.current || closeCompletedRef.current) return;
+        closeInFlightRef.current = true;
+        try {
+            const messagesToSave = finalMessages();
+            if (hasContent(messagesToSave)) {
+                const title = generateTitle(messagesToSave);
+                const emoji = inferMoodEmoji(messagesToSave);
 
                 if (entryId) {
                     await update(entryId, {
                         title,
                         emoji,
-                        messages,
+                        messages: messagesToSave,
                         status: continuedEntry?.status ?? 'draft',
                     });
                 } else {
                     await create({
                         title,
                         emoji,
-                        messages,
+                        messages: messagesToSave,
                         status: 'draft',
                     });
                 }
-            } catch (error) {
-                console.error('Failed to save draft:', error);
             }
+
+            // The explicit save succeeded. Only now suppress the late autosave
+            // flush; on a failed save the words must stay recoverable.
+            closeCompletedRef.current = true;
+            finalize();
+            try {
+                await clearPersistedSession();
+            } catch (error) {
+                console.warn('Could not clear the saved chat:', error);
+            }
+            resetChatState();
+            router.replace('/(tabs)/entries');
+        } catch (error) {
+            console.error('Failed to save draft:', error);
+            notifyUser('Could not save your draft', 'Your chat is still here. Please try again.');
+        } finally {
+            closeInFlightRef.current = false;
         }
-
-        // The conversation now lives as an explicit draft — drop the autosave session.
-        await clearPersistedSession();
-
-        resetChatState();
-        router.replace('/(tabs)/entries');
     }, [
-        messages, resetChatState, router, create, update, entryId, continuedEntry,
+        finalMessages, resetChatState, router, create, update, entryId, continuedEntry,
         clearPersistedSession, finalize,
     ]);
 
     const handleFinishEntry = useCallback(async () => {
-        if (!hasContent(messages) || isSaving) return;
+        const messagesToSave = finalMessages();
+        if (!hasContent(messagesToSave) || isSaving || finishInFlightRef.current) return;
+        finishInFlightRef.current = true;
 
-        finalize();
         setIsSaving(true);
         setFinishStage('Preparing your entry');
         try {
-            const entryText = messages
+            const entryText = messagesToSave
                 .filter(m => m.role === 'user')
                 .map(m => m.content)
                 .join('\n\n');
-            let title = generateTitle(messages); // Fallback
+            let title = generateTitle(messagesToSave); // Fallback
             try {
                 if (entryText.trim()) {
                     setFinishStage('Finding a title');
@@ -125,7 +149,7 @@ export function useJournalChatFinish({
                 console.warn('AI title generation failed, using fallback', err);
             }
 
-            const emoji = inferMoodEmoji(messages);
+            const emoji = inferMoodEmoji(messagesToSave);
 
             let savedEntry: JournalEntry | null = null;
             setFinishStage('Saving your entry');
@@ -134,19 +158,20 @@ export function useJournalChatFinish({
                 savedEntry = await update(entryId, {
                     title,
                     emoji,
-                    messages,
+                    messages: messagesToSave,
                     status: 'completed',
                 });
             } else {
                 savedEntry = await create({
                     title,
                     emoji,
-                    messages,
+                    messages: messagesToSave,
                     status: 'completed',
                 });
             }
             const savedEntryId = savedEntry?.id ?? entryId;
-            // Completed work must not linger as an active session.
+            // A completed entry must not linger as an active session.
+            finalize();
             await clearPersistedSession();
             handleNewChat();
             if (savedEntryId) {
@@ -163,12 +188,14 @@ export function useJournalChatFinish({
             }
         } catch (error) {
             console.error('Failed to save entry:', error);
+            notifyUser('Could not save your entry', 'Your words are still here. Please try again.');
         } finally {
+            finishInFlightRef.current = false;
             setIsSaving(false);
             setFinishStage('Preparing your entry');
         }
     }, [
-        messages, isSaving, router, create, update, entryId, handleNewChat,
+        finalMessages, isSaving, router, create, update, entryId, handleNewChat,
         clearPersistedSession, finalize, onCelebrate,
     ]);
 

@@ -25,9 +25,18 @@ interface ChatComposerBarProps {
     isPickingImage?: boolean;
     /**
      * The speaker in the icon row. `enabled` paints the icon live; `label`
-     * describes what a press does (read aloud / mute). Omit for no control.
+     * describes what a press does (read aloud / mute). `available` is false
+     * when there is nothing to read yet, so a tap cannot silently do nothing.
+     * Omit `voice` for no control; `available` defaults to true for controls
+     * that change a setting rather than read a specific reply.
      */
-    voice?: { enabled: boolean; label: string; onPress: () => void; speaking?: boolean };
+    voice?: {
+        enabled: boolean;
+        label: string;
+        onPress: () => void;
+        speaking?: boolean;
+        available?: boolean;
+    };
     /** Extra content above the verbs (the intention footer's disclaimer). */
     children?: React.ReactNode;
 }
@@ -58,6 +67,8 @@ export function ChatComposerBar({
     const isDark = useColorScheme() === 'dark';
     const iconColor = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
     const activeIconColor = isDark ? BLACKROSE_PALETTE.dark.accent : BLACKROSE_PALETTE.light.accent;
+    const photoDisabled = disabled || isPickingImage;
+    const voiceDisabled = disabled || voice?.available === false;
 
     return (
         <View className="gap-3 border-t border-hairline-light bg-background-light px-5 pb-3 pt-3 dark:border-hairline-dark dark:bg-background-dark">
@@ -66,11 +77,12 @@ export function ChatComposerBar({
                     {onPickImage ? (
                         <Pressable
                             onPress={onPickImage}
-                            disabled={disabled || isPickingImage}
+                            disabled={photoDisabled}
                             accessibilityRole="button"
                             accessibilityLabel="Attach a photo"
+                            accessibilityState={{ disabled: photoDisabled }}
                             hitSlop={8}
-                            className={disabled || isPickingImage ? 'opacity-40' : ''}
+                            className={photoDisabled ? 'opacity-40' : ''}
                         >
                             {isPickingImage ? (
                                 <ActivityIndicator size="small" color={iconColor} />
@@ -83,8 +95,10 @@ export function ChatComposerBar({
                     {pendingImage?.uri ? (
                         <Pressable
                             onPress={onRemoveImage}
+                            disabled={disabled}
                             accessibilityRole="button"
                             accessibilityLabel="Remove attached photo"
+                            accessibilityState={{ disabled }}
                             hitSlop={6}
                             className="flex-row items-center gap-1.5 rounded-control border border-hairline-light px-1.5 py-1 dark:border-hairline-dark"
                         >
@@ -102,9 +116,12 @@ export function ChatComposerBar({
                 {voice ? (
                     <Pressable
                         onPress={voice.onPress}
+                        disabled={voiceDisabled}
                         accessibilityRole="button"
                         accessibilityLabel={voice.label}
+                        accessibilityState={{ disabled: voiceDisabled }}
                         hitSlop={8}
+                        className={voiceDisabled ? 'opacity-40' : ''}
                     >
                         {/* Always a speaker, never a slashed one: a slashed glyph
                             at rest reads as "microphone, muted". Colour carries

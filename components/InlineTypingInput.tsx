@@ -147,6 +147,7 @@ export const InlineTypingInput = forwardRef<InlineTypingInputRef, InlineTypingIn
             multiline
             blurOnSubmit={false}
             editable={!disabled}
+            accessibilityState={{ disabled }}
             autoFocus
             accessibilityLabel="Write what's true"
             style={{

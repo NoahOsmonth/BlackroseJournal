@@ -1,5 +1,6 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
+import { Pressable } from 'react-native';
 import type { ReactTestInstance } from 'react-test-renderer';
 
 import { IntentionChatHeader } from '../components/intentions/IntentionChatHeader';
@@ -71,5 +72,40 @@ describe('IntentionChatHeader', () => {
         expect(model).toContain('border-hairline-light');
         expect(model).toContain('dark:border-hairline-dark');
         expect(model).not.toContain('bg-gray-100');
+    });
+
+    function sourcePressable(view: ReturnType<typeof render>, label: string) {
+        const pressableType = (Pressable as unknown as {
+            type: React.ComponentType<unknown>;
+        }).type;
+        return view.UNSAFE_getAllByType(pressableType).find(
+            (node) => node.props.accessibilityLabel === label,
+        );
+    }
+
+    it('exposes explicit states on the check-in header controls', () => {
+        const view = render(
+            <IntentionChatHeader
+                personaName="Blackrose"
+                onOpenPersona={jest.fn()}
+                onOpenDrafts={jest.fn()}
+                onClose={jest.fn()}
+                showThinking={false}
+                onToggleThinking={jest.fn()}
+            />,
+        );
+
+        expect(sourcePressable(view, 'Close')?.props.accessibilityState).toEqual(
+            expect.objectContaining({ disabled: false }),
+        );
+        expect(sourcePressable(view, 'Choose persona')?.props.accessibilityState).toEqual(
+            expect.objectContaining({ disabled: false }),
+        );
+        expect(sourcePressable(view, 'Open drafts')?.props.accessibilityState).toEqual(
+            expect.objectContaining({ disabled: false }),
+        );
+        expect(sourcePressable(view, 'Show thinking')?.props.accessibilityState).toEqual(
+            expect.objectContaining({ checked: false, disabled: false }),
+        );
     });
 });

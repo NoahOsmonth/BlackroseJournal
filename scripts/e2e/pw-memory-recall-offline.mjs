@@ -22,6 +22,7 @@ import { chromium } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { launchOptions } from '../qa/chromium.mjs';
 import { isProviderUrl, providerHost } from './providerHost.mjs';
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
@@ -175,7 +176,7 @@ async function readSeedRecord(page) {
 }
 
 async function main() {
-    const browser = await chromium.launch({ headless: HEADLESS });
+    const browser = await chromium.launch(launchOptions({ headless: HEADLESS, timeout: 60000 }));
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
 
     await context.addInitScript(

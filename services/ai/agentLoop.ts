@@ -327,11 +327,27 @@ function looksLikeToolsError(status: number, body: string): boolean {
     return false;
 }
 
+/**
+ * Reasoning is an internal field. A provider that returns only reasoning has
+ * not produced a user-facing answer; the loop must retry or use its plain
+ * fallback, never save the model's chain-of-thought as the journal reply.
+ */
 function finalizeUserFacingContent(content: string, reasoning: string): string {
+    void reasoning;
     const stripped = stripToolCallSyntax(content);
-    if (stripped.trim()) return stripped;
-    const strippedReasoning = stripToolCallSyntax(reasoning);
-    return strippedReasoning.trim() ? strippedReasoning : '';
+    return stripped.trim() ? stripped : '';
+}
+
+function mergeReasoning(...parts: string[]): string {
+    const seen = new Set<string>();
+    const merged: string[] = [];
+    for (const part of parts) {
+        const trimmed = part.trim();
+        if (!trimmed || seen.has(trimmed)) continue;
+        seen.add(trimmed);
+        merged.push(trimmed);
+    }
+    return merged.join('\n\n');
 }
 
 function emptyResult(
@@ -575,6 +591,7 @@ async function runFinalNoToolsPass(
         intermediateTexts: { round: number; text: string }[];
         promiseContinuations: number;
         providerStopReason: AgentProviderStopReason;
+        earlierReasoning: string;
     }
 ): Promise<AgentLoopResult> {
     const fallback = (reasoning: string, usage: AgentLoopResult['usage']): AgentLoopResult => ({
@@ -587,20 +604,21 @@ async function runFinalNoToolsPass(
     try {
         const final = await completeWithoutTools(agentMessages, settings, model);
         const safe = finalizeUserFacingContent(final.content, final.reasoning);
+        const reasoning = mergeReasoning(meta.earlierReasoning, final.reasoning);
         const usage = final.usage ?? meta.lastUsage;
         // A status line is never a final answer, even from the tools-disabled pass.
         if (!safe.trim() || looksLikeUnfinishedPromise(safe)) {
-            return fallback(final.reasoning, usage);
+            return fallback(reasoning, usage);
         }
         return {
             content: safe,
-            reasoning: final.reasoning,
+            reasoning,
             timings: meta.timings,
             ...baseResultFields({ ...meta, usage }),
         };
     } catch (error) {
         console.warn('Agent final no-tools pass failed:', error);
-        return fallback('', meta.lastUsage);
+        return fallback(meta.earlierReasoning, meta.lastUsage);
     }
 }
 
@@ -664,6 +682,7 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
     // Tool-use claims with nothing parsed: at most one nudge per turn.
     let toolUseNoCallsNudged = false;
     let providerStopReason: AgentProviderStopReason = 'unknown';
+    let accumulatedReasoning = '';
     /** Status lines the model wrote on turns that were not the final answer. */
     const intermediateTexts: { round: number; text: string }[] = [];
 
@@ -778,6 +797,7 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
 
         const structuredCalls = extractToolCalls(data);
         const { content, reasoning } = extractAssistantContent(data);
+        accumulatedReasoning = mergeReasoning(accumulatedReasoning, reasoning);
         providerStopReason = resolveFinishReason(data);
 
         const textParsed = capability.parseTextToolDumps
@@ -1172,6 +1192,7 @@ export async function runAgentTurnWithTools(options: AgentLoopOptions): Promise<
             intermediateTexts,
             promiseContinuations,
             providerStopReason,
+            earlierReasoning: accumulatedReasoning,
         });
     } finally {
         emitAgentEnd(stopReason);

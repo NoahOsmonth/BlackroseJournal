@@ -91,4 +91,20 @@ describe('InlineTypingInput', () => {
         fireEvent(input, 'blur');
         expect(onFocusChange).toHaveBeenLastCalledWith(false);
     });
+
+    it('exposes the writing slip as editable when the composer is available', () => {
+        render(<InlineTypingInput onSubmit={jest.fn()} />);
+        const input = screen.getByPlaceholderText("Write what's true…");
+        expect(input.props.accessibilityState).toEqual(
+            expect.objectContaining({ disabled: false }),
+        );
+    });
+
+    it('exposes the writing slip as disabled while the composer is busy', () => {
+        render(<InlineTypingInput onSubmit={jest.fn()} disabled />);
+        const input = screen.getByPlaceholderText("Write what's true…");
+        expect(input.props.accessibilityState).toEqual(
+            expect.objectContaining({ disabled: true }),
+        );
+    });
 });

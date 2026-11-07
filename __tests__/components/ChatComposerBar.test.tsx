@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { Pressable } from 'react-native';
 
 import { mockReanimated } from '../mocks/reanimatedMock';
 
@@ -93,5 +94,94 @@ describe('ChatComposerBar', () => {
         );
 
         expect(screen.getByText('Blackrose can make mistakes.')).toBeTruthy();
+    });
+
+    function sourcePressable(view: ReturnType<typeof render>, label: string) {
+        const pressableType = (Pressable as unknown as {
+            type: React.ComponentType<unknown>;
+        }).type;
+        return view.UNSAFE_getAllByType(pressableType).find(
+            (node) => node.props.accessibilityLabel === label,
+        );
+    }
+
+    it('exposes disabled photo and speaker controls while the composer is busy', () => {
+        const onPickImage = jest.fn();
+        const onVoice = jest.fn();
+        const view = render(
+            <ChatComposerBar
+                onGoDeeper={jest.fn()}
+                disabled
+                onPickImage={onPickImage}
+                voice={{ enabled: true, label: 'Read the last reply aloud', onPress: onVoice }}
+            />,
+        );
+
+        expect(sourcePressable(view, 'Attach a photo')?.props.accessibilityState).toEqual(
+            expect.objectContaining({ disabled: true }),
+        );
+        expect(sourcePressable(view, 'Read the last reply aloud')?.props.accessibilityState).toEqual(
+            expect.objectContaining({ disabled: true }),
+        );
+        fireEvent.press(screen.getByLabelText('Attach a photo'));
+        fireEvent.press(screen.getByLabelText('Read the last reply aloud'));
+        expect(onPickImage).not.toHaveBeenCalled();
+        expect(onVoice).not.toHaveBeenCalled();
+    });
+
+    it('exposes enabled photo and speaker controls when the composer is available', () => {
+        const view = render(
+            <ChatComposerBar
+                onGoDeeper={jest.fn()}
+                onPickImage={jest.fn()}
+                voice={{ enabled: false, label: 'Read the last reply aloud', onPress: jest.fn() }}
+            />,
+        );
+
+        expect(sourcePressable(view, 'Attach a photo')?.props.accessibilityState).toEqual(
+            expect.objectContaining({ disabled: false }),
+        );
+        expect(sourcePressable(view, 'Read the last reply aloud')?.props.accessibilityState).toEqual(
+            expect.objectContaining({ disabled: false }),
+        );
+    });
+
+    it('marks the speaker unavailable when there is nothing to read', () => {
+        const onVoice = jest.fn();
+        const view = render(
+            <ChatComposerBar
+                onGoDeeper={jest.fn()}
+                voice={{
+                    enabled: false,
+                    available: false,
+                    label: 'Read the last reply aloud',
+                    onPress: onVoice,
+                }}
+            />,
+        );
+
+        expect(sourcePressable(view, 'Read the last reply aloud')?.props.accessibilityState).toEqual(
+            expect.objectContaining({ disabled: true }),
+        );
+        fireEvent.press(screen.getByLabelText('Read the last reply aloud'));
+        expect(onVoice).not.toHaveBeenCalled();
+    });
+
+    it('marks the photo control busy while an image is being picked', () => {
+        const view = render(
+            <ChatComposerBar
+                onGoDeeper={jest.fn()}
+                onPickImage={jest.fn()}
+                isPickingImage
+                voice={{ enabled: false, label: 'Read the last reply aloud', onPress: jest.fn() }}
+            />,
+        );
+
+        expect(sourcePressable(view, 'Attach a photo')?.props.accessibilityState).toEqual(
+            expect.objectContaining({ disabled: true }),
+        );
+        expect(sourcePressable(view, 'Read the last reply aloud')?.props.accessibilityState).toEqual(
+            expect.objectContaining({ disabled: false }),
+        );
     });
 });

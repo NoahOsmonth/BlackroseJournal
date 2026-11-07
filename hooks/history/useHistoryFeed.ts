@@ -4,13 +4,17 @@ import { useIntentionCheckIns } from '@/hooks/intentions/useIntentionCheckIns';
 import {
     buildHistoryItems,
     buildWeeklyHistorySummary,
+    createHistorySectionSearch,
     groupHistorySections,
     HistorySection,
+    HistorySectionSearch,
     WeeklyHistorySummary,
 } from './historyUtils';
 
 interface UseHistoryFeedReturn {
     sections: HistorySection[];
+    /** Memoized full-corpus Archive search, bound to `sections`. */
+    searchSections: HistorySectionSearch;
     weeklySummary: WeeklyHistorySummary;
     draftCount: number;
     isLoading: boolean;
@@ -38,6 +42,14 @@ export function useHistoryFeed(): UseHistoryFeedReturn {
     const sections = useMemo(() => groupHistorySections(items), [items]);
     const weeklySummary = useMemo(() => buildWeeklyHistorySummary(items), [items]);
 
+    // One prepared corpus over the collections loaded above. Rebuilt only when
+    // the feed's sections change; a keystroke never re-reads storage, never
+    // mounts a second collection hook and never writes a persisted index.
+    const searchSections = useMemo(
+        () => createHistorySectionSearch(sections),
+        [sections]
+    );
+
     // Both collections are already loaded here, so the Archive header's draft
     // badge does not need a second pair of hook instances reading the same keys.
     const draftCount = drafts.length + checkInDrafts.length;
@@ -48,6 +60,7 @@ export function useHistoryFeed(): UseHistoryFeedReturn {
 
     return {
         sections,
+        searchSections,
         weeklySummary,
         draftCount,
         isLoading: journalLoading || checkInLoading,

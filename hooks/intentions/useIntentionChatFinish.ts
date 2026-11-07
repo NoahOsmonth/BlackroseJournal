@@ -5,9 +5,10 @@
  * goal stamp → drop the session) and belongs with the other check-in hooks.
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 
+import { notifyUser } from '@/components/ui/webConfirm';
 import { hasContent } from '@/hooks/journal/useEntryUtils';
 import { generateEntryTitle } from '@/services/ai';
 import type { Message } from '@/services/ai/ai';
@@ -21,7 +22,15 @@ import type {
     Intention,
     IntentionCheckInType,
 } from '@/services/intentions/intentionsStorage.types';
+import { withTimeout } from '@/utils/async';
 import { getLocalDateKey } from '@/utils/date';
+
+/**
+ * The title call is the only AI step the writer waits on before a check-in is
+ * saved. A stalled provider must fall back to the local title instead of
+ * holding Finish open.
+ */
+const FINISH_TITLE_TIMEOUT_MS = 8_000;
 
 interface UseIntentionChatFinishOptions {
     messages: Message[];
@@ -62,27 +71,40 @@ export function useIntentionChatFinish({
     const router = useRouter();
     const [isSaving, setIsSaving] = useState(false);
     const [finishStage, setFinishStage] = useState('Preparing your check-in');
+    const finishInFlightRef = useRef(false);
+    const closeInFlightRef = useRef(false);
+    const closeCompletedRef = useRef(false);
 
     const handleClose = useCallback(async () => {
+        if (closeInFlightRef.current || closeCompletedRef.current) return;
+        closeInFlightRef.current = true;
         finalize();
-        const hasDraftContent = hasContent(messages) || inputValue.trim().length > 0;
-        if (hasDraftContent) {
-            const draftId = await saveIntentionChatDraft({
-                messages,
-                inputValue,
-                draftCheckInId,
-                intentionId,
-                checkInType,
-                personaId,
-            });
-            if (draftId) onDraftSaved(draftId);
+        try {
+            const hasDraftContent = hasContent(messages) || inputValue.trim().length > 0;
+            if (hasDraftContent) {
+                const draftId = await saveIntentionChatDraft({
+                    messages,
+                    inputValue,
+                    draftCheckInId,
+                    intentionId,
+                    checkInType,
+                    personaId,
+                });
+                if (draftId) onDraftSaved(draftId);
+            }
+
+            // Saved as an explicit check-in draft — drop the autosave session.
+            await clearPersistedSession();
+            closeCompletedRef.current = true;
+
+            handleNewChat();
+            router.replace('/(tabs)/today');
+        } catch (error) {
+            console.error('Failed to save check-in draft:', error);
+            notifyUser('Could not save your draft', 'Your chat is still here. Please try again.');
+        } finally {
+            closeInFlightRef.current = false;
         }
-
-        // Saved as an explicit check-in draft — drop the autosave session.
-        await clearPersistedSession();
-
-        handleNewChat();
-        router.replace('/(tabs)/today');
     }, [
         checkInType,
         clearPersistedSession,
@@ -98,9 +120,10 @@ export function useIntentionChatFinish({
     ]);
 
     const handleFinish = useCallback(async () => {
-        if ((!hasContent(messages) && !inputValue.trim()) || isSaving) {
+        if ((!hasContent(messages) && !inputValue.trim()) || isSaving || finishInFlightRef.current) {
             return;
         }
+        finishInFlightRef.current = true;
 
         finalize();
         setIsSaving(true);
@@ -115,7 +138,11 @@ export function useIntentionChatFinish({
             if (entryText.trim()) {
                 try {
                     setFinishStage('Finding a title');
-                    generatedTitle = await generateEntryTitle({ entryText });
+                    generatedTitle = await withTimeout(
+                        generateEntryTitle({ entryText }),
+                        FINISH_TITLE_TIMEOUT_MS,
+                        'Check-in title',
+                    );
                 } catch (error) {
                     console.warn('AI title generation failed, using summary fallback', error);
                 }
@@ -154,7 +181,11 @@ export function useIntentionChatFinish({
             } else {
                 router.replace('/(tabs)/today');
             }
+        } catch (error) {
+            console.error('Failed to save check-in:', error);
+            notifyUser('Could not save your check-in', 'Your words are still here. Please try again.');
         } finally {
+            finishInFlightRef.current = false;
             setIsSaving(false);
             setFinishStage('Preparing your check-in');
         }

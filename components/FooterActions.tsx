@@ -57,6 +57,7 @@ export function FooterActions({
                     disabled={finishEntryDisabled}
                     accessibilityRole="button"
                     accessibilityLabel={isSaving ? 'Finishing entry' : 'Finish entry'}
+                    accessibilityState={{ disabled: finishEntryDisabled }}
                     style={({ pressed }) => ({
                         opacity: finishEntryDisabled && !isSaving ? 0.4 : pressed ? 0.7 : 1,
                     })}

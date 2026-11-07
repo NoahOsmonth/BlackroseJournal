@@ -4,6 +4,7 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { BLACKROSE_PALETTE } from '@/constants/theme';
+import { ModelHeaderControl } from '@/components/ai/ModelHeaderControl';
 import { RoseMark } from '@/components/ui/RoseMark';
 
 interface HeaderProps {
@@ -27,14 +28,16 @@ interface HeaderProps {
 
 /**
  * Chat header: one calm row — back chevron, a line rose beside the sitting's
- * name, and a quiet trailing verb. The model picker is reached by tapping the
- * sitting name (which carries the chevron); there is no second chrome band.
+ * name, and a quiet trailing verb — plus a small AI choice below. Both chat
+ * surfaces use the same quiet control, so the picker is never a dead prop.
  */
 export function Header({
   onClose,
   onDraftsPress,
   personaName,
   onPersonaPress,
+  onModelPress,
+  modelPickerDisabled = false,
   title,
   showThinking = true,
   onToggleThinking,
@@ -53,8 +56,10 @@ export function Header({
       <View className="flex-row items-center justify-between gap-3">
         <Pressable
           onPress={onClose}
+          disabled={!onClose}
           accessibilityRole="button"
           accessibilityLabel="Close chat"
+          accessibilityState={{ disabled: !onClose }}
           hitSlop={10}
           className="h-8 w-8 items-center justify-center"
         >
@@ -65,7 +70,8 @@ export function Header({
           onPress={onPersonaPress}
           disabled={!isPersonaPill}
           accessibilityRole={isPersonaPill ? 'button' : undefined}
-          accessibilityLabel={isPersonaPill ? `Persona: ${pillLabel}. Tap to switch.` : undefined}
+          accessibilityLabel={isPersonaPill ? 'Choose persona' : undefined}
+          accessibilityState={{ disabled: !isPersonaPill }}
           className="min-w-0 flex-1 flex-row items-center justify-center gap-2"
         >
           <RoseMark size={16} color={markColor} variant="bloom" />
@@ -81,8 +87,10 @@ export function Header({
         {onDraftsPress ? (
           <Pressable
             onPress={onDraftsPress}
+            disabled={!onDraftsPress}
             accessibilityRole="button"
             accessibilityLabel="Open drafts"
+            accessibilityState={{ disabled: !onDraftsPress }}
             hitSlop={8}
           >
             <Text
@@ -97,8 +105,9 @@ export function Header({
              away: off hides every trace of it, so the sitting reads as prose. */
           <Pressable
             onPress={onToggleThinking}
+            disabled={false}
             accessibilityRole="switch"
-            accessibilityState={{ checked: showThinking }}
+            accessibilityState={{ checked: showThinking, disabled: false }}
             accessibilityLabel={showThinking
               ? 'Hide thinking'
               : 'Show thinking'}
@@ -123,6 +132,15 @@ export function Header({
           <View className="w-8" />
         )}
       </View>
+
+      {onModelPress ? (
+        <View className="mt-2 flex-row items-center justify-center gap-3">
+          <ModelHeaderControl
+            onPress={onModelPress}
+            disabled={modelPickerDisabled}
+          />
+        </View>
+      ) : null}
     </View>
   );
 }

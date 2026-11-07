@@ -19,7 +19,6 @@ import { useScrollReveal } from '@/components/ui/useScrollReveal';
 import { BLACKROSE_PALETTE } from '@/constants/theme';
 import { navAwareBottomPadding, SCREEN_PADDING_X } from '@/constants/spacing';
 import {
-    filterHistorySectionsByQuery,
     formatWeekMeta,
     HistoryItem,
     HistorySection as HistorySectionModel,
@@ -82,7 +81,14 @@ export default function EntriesScreen() {
         ? BLACKROSE_PALETTE.dark.text2
         : BLACKROSE_PALETTE.light.text2;
     const { scrollY, onScroll } = useScrollReveal();
-    const { sections, weeklySummary, draftCount, isLoading, refresh: refreshFeed } = useHistoryFeed();
+    const {
+        sections,
+        searchSections,
+        weeklySummary,
+        draftCount,
+        isLoading,
+        refresh: refreshFeed,
+    } = useHistoryFeed();
     const { goToTab } = useTabNavigation();
 
     const weekLabel = formatWeekMeta(weeklySummary);
@@ -108,9 +114,11 @@ export default function EntriesScreen() {
     const showBanner = activeSession !== null
         && activeSession.conversationId !== dismissedId;
 
+    // Bound to the hook's memoized corpus, so every word in every completed
+    // entry/check-in is searchable without a second storage read.
     const filteredSections = useMemo(
-        () => filterHistorySectionsByQuery(sections, query),
-        [sections, query]
+        () => searchSections(query),
+        [searchSections, query]
     );
 
     const feedRows = useMemo(

@@ -222,6 +222,7 @@ export default function ChatScreen() {
     // it lives in the hook so this route only wires state and renders.
     const { handleClose, handleFinishEntry, isSaving, finishStage } = useJournalChatFinish({
         messages,
+        inputValue,
         entryId,
         continuedEntry,
         create,
@@ -233,7 +234,7 @@ export default function ChatScreen() {
         onCelebrate: () => setShowCelebration(true),
     });
 
-    const canFinish = hasContent(messages) && !isLoading && !isSaving;
+    const canFinish = (hasContent(messages) || inputValue.trim().length > 0) && !isLoading && !isSaving;
     const trimmedInput = inputValue.trim();
     const canGoDeeper = (trimmedInput.length > 0 || Boolean(pendingImage)) && !isLoading;
     const latestCompanionText = useMemo(() => {
@@ -347,6 +348,7 @@ export default function ChatScreen() {
                     isPickingImage={isPicking}
                     voice={{
                         enabled: true,
+                        available: Boolean(latestCompanionText) || isSpeaking,
                         speaking: isSpeaking,
                         label: isSpeaking ? 'Stop reading aloud' : 'Read the last reply aloud',
                         onPress: handleToggleSpeech,

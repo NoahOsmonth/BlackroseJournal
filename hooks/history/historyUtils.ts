@@ -18,6 +18,13 @@ export interface HistoryItem {
     intentionId?: string;
     /** Where the entry was written; absent on older entries → read as chat. */
     origin?: NoteOrigin;
+    /**
+     * Derived, in-memory only: the full search corpus for this item (every
+     * message's content, the title, mood and structured analysis text). It is
+     * never persisted. The visible `summary` stays the writer's first words
+     * only, so companion text never reads as authored by the writer.
+     */
+    searchableText?: string;
 }
 
 export interface HistorySection {
@@ -145,9 +152,51 @@ export function formatDateLabel(date: Date): string {
     return resolveDayMeta(date).label;
 }
 
+/** Stored rows are typed, but older/corrupt payloads may miss a field. */
+function stringField(value: unknown): string {
+    return typeof value === 'string' ? value : '';
+}
+
+/** Strings and arrays of strings only; numbers, nulls and objects are skipped. */
+function collectStringValues(value: unknown, into: string[]): void {
+    if (typeof value === 'string') {
+        if (value.trim()) into.push(value);
+    } else if (Array.isArray(value)) {
+        for (const item of value) collectStringValues(item, into);
+    }
+}
+
+/** Every message's content — user and assistant turns alike. */
+function collectMessageContent(messages: unknown, into: string[]): void {
+    if (!Array.isArray(messages)) return;
+    for (const message of messages) {
+        if (!message || typeof message !== 'object') continue;
+        const content = stringField((message as { content?: unknown }).content);
+        if (content.trim()) into.push(content);
+    }
+}
+
+/** Insight, quote, mood, topics — any text already present on the analysis row. */
+function collectAnalysisText(analysis: unknown, into: string[]): void {
+    if (!analysis || typeof analysis !== 'object') return;
+    for (const value of Object.values(analysis as Record<string, unknown>)) {
+        collectStringValues(value, into);
+    }
+}
+
+function joinSearchParts(parts: readonly string[]): string {
+    return parts.filter((part) => part.trim()).join(' ');
+}
+
+function pushField(parts: string[], value: unknown): void {
+    const text = stringField(value);
+    if (text.trim()) parts.push(text);
+}
+
 function extractSummaryFromEntry(entry: JournalEntry): string {
-    const message = entry.messages.find((m) => m.role === 'user');
-    if (!message) {
+    const messages = Array.isArray(entry.messages) ? entry.messages : [];
+    const message = messages.find((m) => m && m.role === 'user');
+    if (!message || typeof message.content !== 'string') {
         return 'No summary available.';
     }
 
@@ -160,7 +209,13 @@ export function buildHistoryItems(
     checkIns: IntentionCheckIn[]
 ): HistoryItem[] {
     const journalItems = entries.map<HistoryItem>((entry) => {
-        const mood = entry.analysis?.mood?.trim();
+        const analysisMood = entry.analysis?.mood;
+        const mood = typeof analysisMood === 'string' ? analysisMood.trim() : '';
+        const parts: string[] = [];
+        pushField(parts, entry.title);
+        if (mood) parts.push(mood);
+        collectMessageContent(entry.messages, parts);
+        collectAnalysisText(entry.analysis, parts);
         return {
             id: `journal-${entry.id}`,
             type: 'journal',
@@ -170,20 +225,30 @@ export function buildHistoryItems(
             createdAt: entry.createdAt,
             sourceId: entry.id,
             origin: entry.origin,
+            searchableText: joinSearchParts(parts),
         };
     });
 
-    const checkInItems = checkIns.map<HistoryItem>((checkIn) => ({
-        id: `checkin-${checkIn.id}`,
-        type: 'checkin',
-        title: checkIn.title,
-        summary: checkIn.summary,
-        mood: checkIn.mood?.trim() || undefined,
-        createdAt: checkIn.createdAt,
-        sourceId: checkIn.id,
-        checkInType: checkIn.type,
-        intentionId: checkIn.intentionId,
-    }));
+    const checkInItems = checkIns.map<HistoryItem>((checkIn) => {
+        const mood = stringField(checkIn.mood).trim();
+        const parts: string[] = [];
+        pushField(parts, checkIn.title);
+        pushField(parts, checkIn.summary);
+        if (mood) parts.push(mood);
+        collectMessageContent(checkIn.messages, parts);
+        return {
+            id: `checkin-${checkIn.id}`,
+            type: 'checkin',
+            title: checkIn.title,
+            summary: checkIn.summary,
+            mood: mood || undefined,
+            createdAt: checkIn.createdAt,
+            sourceId: checkIn.id,
+            checkInType: checkIn.type,
+            intentionId: checkIn.intentionId,
+            searchableText: joinSearchParts(parts),
+        };
+    });
 
     return [...journalItems, ...checkInItems].sort((a, b) => b.createdAt - a.createdAt);
 }
@@ -210,23 +275,58 @@ export function filterHistorySections(
         .filter((section) => section.items.length > 0);
 }
 
-/** Free-text search across entry title, excerpt, and mood. */
+/** A prepared full-corpus matcher bound to one feed's sections. */
+export type HistorySectionSearch = (query: string) => HistorySection[];
+
+/**
+ * The haystack for one Archive item. Completed items built above carry the
+ * full corpus in `searchableText`; legacy/plain items (hand-built view models
+ * or older rows) keep the shallow title + excerpt + mood behaviour.
+ */
+function historyItemHaystack(item: HistoryItem): string {
+    if (typeof item.searchableText === 'string' && item.searchableText.trim()) {
+        return item.searchableText;
+    }
+    return `${item.title} ${item.summary} ${item.mood ?? ''}`;
+}
+
+/**
+ * Prepare the lower-cased full corpus once. A search keystroke then only runs
+ * `includes` instead of re-lowercasing every transcript again. Pure: no I/O,
+ * no storage, no index written anywhere — the corpus lives only in this
+ * closure for as long as the caller keeps it.
+ */
+export function createHistorySectionSearch(
+    sections: readonly HistorySection[]
+): HistorySectionSearch {
+    const corpus = sections.map((section) => ({
+        section,
+        items: section.items.map((item) => ({
+            item,
+            haystack: historyItemHaystack(item).toLowerCase(),
+        })),
+    }));
+
+    return (query: string) => {
+        const needle = query.trim().toLowerCase();
+        if (!needle) return [...sections];
+        return corpus
+            .map(({ section, items }) => ({
+                ...section,
+                items: items
+                    .filter(({ haystack }) => haystack.includes(needle))
+                    .map(({ item }) => item),
+            }))
+            .filter((section) => section.items.length > 0);
+    };
+}
+
+/** Free-text search across the full entry corpus, with a shallow fallback. */
 export function filterHistorySectionsByQuery(
     sections: readonly HistorySection[],
     query: string
 ): HistorySection[] {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return [...sections];
-    return sections
-        .map((section) => ({
-            ...section,
-            items: section.items.filter((item) =>
-                `${item.title} ${item.summary} ${item.mood ?? ''}`
-                    .toLowerCase()
-                    .includes(needle)
-            ),
-        }))
-        .filter((section) => section.items.length > 0);
+    return createHistorySectionSearch(sections)(query);
 }
 
 /**

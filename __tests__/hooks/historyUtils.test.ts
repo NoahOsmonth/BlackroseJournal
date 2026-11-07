@@ -1,11 +1,15 @@
 import {
     buildHistoryItems,
     buildWeeklyHistorySummary,
+    createHistorySectionSearch,
     filterHistoryItems,
     filterHistorySections,
+    filterHistorySectionsByQuery,
     formatWeekProse,
     groupHistorySections,
     resolveDayMeta,
+    type HistoryItem,
+    type HistorySection,
 } from '../../hooks/history/historyUtils';
 import type { JournalEntry } from '../../services/journal/journalStorage.types';
 import type { IntentionCheckIn } from '../../services/intentions/intentionsStorage.types';
@@ -166,5 +170,123 @@ describe('buildHistoryItems provenance', () => {
             []
         );
         expect(items[0]?.origin).toBeUndefined();
+    });
+});
+
+describe('Archive full-corpus search', () => {
+    const at = new Date(2026, 5, 1, 9).getTime();
+
+    function sectionsOf(items: HistoryItem[]): HistorySection[] {
+        return [{ dateKey: '2026-06-01', label: 'Monday June 1', dayNumber: 1,
+            weekdayShort: 'Mon', relativeLabel: null, monthKey: '2026-06',
+            monthLabel: 'June', items }];
+    }
+
+    function transcriptEntry(): JournalEntry {
+        return { ...makeEntry('j1', at, 'Career focus'),
+            messages: [
+                { id: 'm1', role: 'user', content: 'I felt career stress today.', timestamp: at },
+                { id: 'm2', role: 'assistant', content: 'Let us follow the lantern thread.', timestamp: at },
+                { id: 'm3', role: 'user', content: 'Later I found a quicksilver lantern.', timestamp: at },
+                { id: 'm4', role: 'assistant', content: 'A nocturnal accordion played softly.', timestamp: at },
+            ],
+            analysis: { insight: 'A marigold insight about rest.', quote: 'Make room for quiet.',
+                mood: 'Reflective', topics: ['marigold', 'rest'], generatedAt: at } };
+    }
+
+    function messageCheckIn(): IntentionCheckIn {
+        return { ...makeCheckIn('c1', at), messages: [
+            { id: 'cm1', role: 'user', content: 'A velvet thunderstorm rolled in.', timestamp: at },
+            { id: 'cm2', role: 'assistant', content: 'Tell me more about the sky.', timestamp: at },
+        ] };
+    }
+
+    function ids(sections: HistorySection[]): string[] {
+        return sections.flatMap((section) => section.items.map((item) => item.id));
+    }
+    const journalSections = () => sectionsOf(buildHistoryItems([transcriptEntry()], []));
+    const checkInSections = () => sectionsOf(buildHistoryItems([], [messageCheckIn()]));
+
+    it('keeps the visible summary as the writer’s first words only', () => {
+        const journal = buildHistoryItems([transcriptEntry()], [])[0];
+        expect(journal.summary).toBe('I felt career stress today.');
+        expect(journal.summary).not.toContain('nocturnal accordion');
+        expect(journal.searchableText).toContain('nocturnal accordion');
+    });
+
+    it('finds a later user turn, not just the first message', () => {
+        expect(ids(filterHistorySectionsByQuery(journalSections(), 'quicksilver lantern')))
+            .toEqual(['journal-j1']);
+    });
+
+    it('finds an assistant reply', () => {
+        expect(ids(filterHistorySectionsByQuery(journalSections(), 'nocturnal accordion')))
+            .toEqual(['journal-j1']);
+    });
+
+    it('finds structured analysis text (insight, quote, topics)', () => {
+        expect(ids(filterHistorySectionsByQuery(journalSections(), 'marigold'))).toEqual(['journal-j1']);
+        expect(ids(filterHistorySectionsByQuery(journalSections(), 'make room for quiet')))
+            .toEqual(['journal-j1']);
+    });
+
+    it('finds a check-in message body beyond its summary', () => {
+        expect(ids(filterHistorySectionsByQuery(checkInSections(), 'velvet thunderstorm')))
+            .toEqual(['checkin-c1']);
+    });
+
+    it('matches case-insensitively', () => {
+        const sections = sectionsOf(buildHistoryItems([transcriptEntry()], [messageCheckIn()]));
+        expect(ids(filterHistorySectionsByQuery(sections, 'QUICKSILVER Lantern')))
+            .toEqual(['journal-j1']);
+        expect(ids(filterHistorySectionsByQuery(sections, 'VELVET THUNDERSTORM')))
+            .toEqual(['checkin-c1']);
+    });
+
+    it('returns every section for an empty or whitespace query', () => {
+        const sections = journalSections();
+        expect(filterHistorySectionsByQuery(sections, '')).toEqual(sections);
+        expect(filterHistorySectionsByQuery(sections, '   \n  ')).toEqual(sections);
+    });
+
+    it('returns no sections when nothing matches', () => {
+        expect(filterHistorySectionsByQuery(journalSections(), 'zephyr-nonexistent')).toEqual([]);
+    });
+
+    it('falls back to title/summary/mood for a legacy plain item', () => {
+        const legacy: HistoryItem = { id: 'legacy-1', type: 'journal', title: 'Old ledger',
+            summary: 'A faded note', mood: 'Calm', createdAt: at, sourceId: 'legacy' };
+        const sections = sectionsOf([legacy]);
+        expect(ids(filterHistorySectionsByQuery(sections, 'faded note'))).toEqual(['legacy-1']);
+        expect(ids(filterHistorySectionsByQuery(sections, 'calm'))).toEqual(['legacy-1']);
+        expect(filterHistorySectionsByQuery(sections, 'quicksilver')).toEqual([]);
+    });
+
+    it('tolerates undefined analysis/messages and non-string fields', () => {
+        const bare = makeEntry('bare', at, 'Only a title', undefined,
+            { messages: undefined, analysis: undefined }) as JournalEntry;
+        const malformed = { ...makeEntry('malformed', at, 'Odd row'),
+            messages: [
+                { id: 'x', role: 'user', content: 'writer words', timestamp: at },
+                { id: 'y', role: 'assistant', content: 12345, timestamp: at },
+            ],
+            analysis: { insight: 'still readable', quote: null, mood: 42,
+                topics: ['topic one', 7], generatedAt: at },
+        } as unknown as JournalEntry;
+        const noMessages = { ...makeCheckIn('c2', at), messages: undefined } as IntentionCheckIn;
+        const sections = sectionsOf(buildHistoryItems([bare, malformed], [noMessages]));
+        expect(ids(filterHistorySectionsByQuery(sections, 'only a title'))).toEqual(['journal-bare']);
+        expect(ids(filterHistorySectionsByQuery(sections, 'still readable')))
+            .toEqual(['journal-malformed']);
+        expect(ids(filterHistorySectionsByQuery(sections, 'evening career reset')))
+            .toEqual(['checkin-c2']);
+    });
+
+    it('prepares one reusable corpus for repeated queries', () => {
+        const sections = journalSections();
+        const search = createHistorySectionSearch(sections);
+        expect(ids(search('quicksilver'))).toEqual(['journal-j1']);
+        expect(ids(search('marigold'))).toEqual(['journal-j1']);
+        expect(search('  ')).toEqual(sections);
     });
 });
