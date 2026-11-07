@@ -10,11 +10,15 @@
 import { EntryReflectionSkeleton } from '@/components/entries/EntryReflectionSkeleton';
 import { FinishBackgroundBanner } from '@/components/entries/FinishBackgroundBanner';
 import { FeedbackCommentModal } from '@/components/intentions/FeedbackCommentModal';
+import { TaskSuggestions } from '@/components/entries/TaskSuggestions';
 import { RoseMark } from '@/components/ui/RoseMark';
 import { BLACKROSE_PALETTE } from '@/constants/theme';
+import { getLocalDateKeyFromTimestamp } from '@/utils/date';
+import { buildEntryText } from '@/utils/entryText';
 import { useRefreshOnFinishRun } from '@/hooks/journal/useRefreshOnFinishRun';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useEntryReflection } from '@/hooks/useEntryReflection';
+import { useEntryTaskSuggestions } from '@/hooks/tasks/useEntryTaskSuggestions';
 import type { AiFeedbackValue } from '@/services/feedback/feedbackStorage';
 import { saveAiFeedback } from '@/services/feedback/feedbackStorage';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -47,7 +51,17 @@ export default function EntryReflectionScreen() {
         return Array.isArray(raw) ? raw[0] : raw;
     }, [params.entryId]);
 
-    const { data, isLoading, error, refresh } = useEntryReflection(entryId);
+    const { entry, data, isLoading, error, refresh } = useEntryReflection(entryId);
+
+    // Offered only once the saved entry has loaded: the list is about what the
+    // writer actually wrote, so it waits for their words, not for the reflection.
+    const entryText = useMemo(() => (entry ? buildEntryText(entry.messages ?? []) : ''), [entry]);
+    const taskSuggestions = useEntryTaskSuggestions({
+        entryId,
+        entryText,
+        dateKey: entry?.createdAt ? getLocalDateKeyFromTimestamp(entry.createdAt) : undefined,
+        enabled: Boolean(entry),
+    });
 
     // When the background analysis lands, refresh the reflection so the
     // entry's analysis-backed content (and any regenerated reflection) shows.
@@ -165,6 +179,8 @@ export default function EntryReflectionScreen() {
                                     {data.reflection}
                                 </Text>
                             </View>
+
+                            <TaskSuggestions state={taskSuggestions} />
 
                             <View className="mt-6 flex-row overflow-hidden rounded-card border border-hairline-light dark:border-hairline-dark">
                                 <Pressable
