@@ -45,6 +45,13 @@ export function RevealItem({
             onLayout={handleLayout}
             style={[styles.wrapper, revealStyle, style]}
             className={className}
+            // The reveal box is decoration. React Native Web derives a box's
+            // name from its file name, so a screen reader announced it as
+            // "Loading" and Explore read eighteen loaders while the page was
+            // already drawn (DEF-031). Name it as what it is; do NOT mark it
+            // aria-hidden — that would hide the words inside it too.
+            accessibilityLabel=""
+            accessible={false}
         >
             {children}
         </Animated.View>
