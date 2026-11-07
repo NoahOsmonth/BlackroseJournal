@@ -9,10 +9,10 @@
 | Suite | CSV | Cases | Pass | Fail | Blocked | N/A | Untested |
 |---|---|---|---|---|---|---|---|
 | ~~AUTH~~ (retired 2026-09-18 — no auth surface) | [cases/retired/AUTH.csv](cases/retired/AUTH.csv) | ~~10~~ | — | — | — | — | — |
-| CHECKINS | [cases/CHECKINS.csv](cases/CHECKINS.csv) | 9 | 7 | 0 | 1 | 0 | 1 |
+| CHECKINS | [cases/CHECKINS.csv](cases/CHECKINS.csv) | 9 | 8 | 0 | 1 | 0 | 0 |
 | GOALS | [cases/GOALS.csv](cases/GOALS.csv) | 7 | 6 | 0 | 1 | 0 | 0 |
 | IDENTITY | [cases/IDENTITY.csv](cases/IDENTITY.csv) | 5 | 4 | 0 | 0 | 1 | 0 |
-| JOURNAL | [cases/JOURNAL.csv](cases/JOURNAL.csv) | 12 | 12 | 0 | 0 | 0 | 0 |
+| JOURNAL | [cases/JOURNAL.csv](cases/JOURNAL.csv) | 13 | 13 | 0 | 0 | 0 | 0 |
 | LIFECYCLE | [cases/LIFECYCLE.csv](cases/LIFECYCLE.csv) | 8 | 6 | 0 | 0 | 0 | 2 |
 | MEMORY | [cases/MEMORY.csv](cases/MEMORY.csv) | 10 | 9 | 0 | 1 | 0 | 0 |
 | NEGATIVE | [cases/NEGATIVE.csv](cases/NEGATIVE.csv) | 9 | 8 | 0 | 0 | 0 | 1 |
@@ -20,12 +20,13 @@
 | RESPONSIVE | [cases/RESPONSIVE.csv](cases/RESPONSIVE.csv) | 8 | 8 | 0 | 0 | 0 | 0 |
 | SETTINGS | [cases/SETTINGS.csv](cases/SETTINGS.csv) | 10 | 8 | 0 | 1 | 1 | 0 |
 | THEME | [cases/THEME.csv](cases/THEME.csv) | 12 | 11 | 0 | 0 | 1 | 0 |
-| **Total** | | **97** | **84** | **0** | **5** | **3** | **5** |
-*Executed 92 of 97 — 84 Pass / 0 Fail / 5 Blocked / 3 N/A / 5 Untested (run 4, 2026-10-07).*
+| **Total** | | **98** | **86** | **0** | **5** | **3** | **4** |
+*Executed 94 of 98 — 86 Pass / 0 Fail / 5 Blocked / 3 N/A / 4 Untested (run 7, 2026-11-08).*
 *Scope change 2026-09-18: the 10 AUTH cases retired and THEME-07 retired with them (the local-only refactor removed every auth surface and the remote tiers) — 107 → 97 active cases. AUTH is preserved at `cases/retired/AUTH.csv`; THEME-07 stays as a `Retired` row so its ID is never reused.*
 *Round 2 (2026-10-07) closed the PLAN/PROGRESS follow-ups and live-verified the fixes plus the offline boot gate — no new tracker cases, dashboard unchanged: [`results/2026-10-07-round2-live.md`](results/2026-10-07-round2-live.md).*
 *Run 5 (2026-11-08) was a ProductOps discovery + QA + perf sweep: light/dark and 375px visual checks, all five tab routes, three bench scripts, one a11y copy defect fixed (DEF-018, new guard test). No CSV case statuses changed without a new execution, so the dashboard numbers above are unchanged: [`results/2026-11-08-run5.md`](results/2026-11-08-run5.md).*
 *Run 6 (2026-11-08) zoomed into chat button cause-and-effect, live `global:hy4free` testing, save failure/retry, double-press, loading/disabled states, light/dark/375px QA, deeper Archive search, offline boot and perf. CSV case statuses were not changed without new exact-case executions; the dashboard numbers above are unchanged. Full evidence: [`results/2026-11-08-run6.md`](results/2026-11-08-run6.md).*
+*Run 7 (2026-11-08) executed the exact CHECKINS-07 draft-resume case (Pass) and the new exact JOURNAL-13 deeper Archive search case (Pass). It also fixed a Drafts label defect found during the zoom (DEF-028). Dashboard now includes those two executed cases: [`results/2026-11-08-run7.md`](results/2026-11-08-run7.md).*
 
 ## Case ID convention
 

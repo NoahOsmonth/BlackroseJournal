@@ -26,19 +26,13 @@ import {
 import { useHistoryFeed } from '@/hooks/history/useHistoryFeed';
 import { useTabNavigation } from '@/hooks/navigation/useTabNavigation';
 import { useColorScheme } from '@/hooks/theme/use-color-scheme';
+import { sessionTitle } from '@/utils/sessionTitle';
 import {
     getMostRecentActiveSession,
     type ChatSession,
 } from '@/services/ai/sessionStorage';
 
 const STAGGER_CAP = 6;
-
-function sessionTitle(session: ChatSession): string {
-    const lastUser = [...session.messages].reverse().find((m) => m.role === 'user');
-    const text = (lastUser ?? session.messages[session.messages.length - 1])?.content.trim() ?? '';
-    if (!text) return 'Tap to continue';
-    return text.length > 80 ? `${text.slice(0, 80).trim()}...` : text;
-}
 
 function isIntentionSession(session: ChatSession): boolean {
     return session.mode === 'morning'
@@ -202,7 +196,7 @@ export default function EntriesScreen() {
                     <RevealItem scrollY={scrollY}>
                         <View className="mt-1 mb-3">
                             <ResumeSessionBanner
-                                title={sessionTitle(activeSession)}
+                                title={sessionTitle(activeSession, 'Tap to continue')}
                                 onResume={handleResumeSession}
                                 onDismiss={() => setDismissedId(activeSession.conversationId)}
                             />

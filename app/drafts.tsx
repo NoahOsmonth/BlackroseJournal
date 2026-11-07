@@ -18,6 +18,7 @@ import {
     removeSession,
     type ChatSession,
 } from '@/services/ai/sessionStorage';
+import { sessionTitle } from '@/utils/sessionTitle';
 
 interface DraftItem {
     id: string;
@@ -43,13 +44,6 @@ function formatDraftTime(timestamp: number, now = new Date()): string {
     if (dayDelta === 1) return `Yesterday, ${time}`;
     const day = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     return `${day}, ${time}`;
-}
-
-function sessionTitle(session: ChatSession): string {
-    const lastUser = [...session.messages].reverse().find((m) => m.role === 'user');
-    const text = (lastUser ?? session.messages[session.messages.length - 1])?.content.trim() ?? '';
-    if (!text) return 'Untitled chat';
-    return text.length > 80 ? `${text.slice(0, 80).trim()}...` : text;
 }
 
 function isIntentionSession(session: ChatSession): boolean {
@@ -227,7 +221,7 @@ export default function DraftsScreen() {
                                 <DraftCard
                                     key={session.conversationId}
                                     label="Autosaved"
-                                    title={sessionTitle(session)}
+                                    title={sessionTitle(session, 'Untitled chat')}
                                     timeLabel={formatDraftTime(session.updatedAt)}
                                     removing={removingId === session.conversationId}
                                     onPress={() => handleResumeSession(session)}
