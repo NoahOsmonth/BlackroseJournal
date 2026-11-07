@@ -1,8 +1,14 @@
 # ROADMAP — Blackrose Journal
 
 **Status 2026-11-07.** The app is feature-complete and local-only; this file is the
-single forward view: what is open now, what comes next toward Rosebud parity, and
-what is explicitly parked. It replaces the old root `PLAN.md`.
+human-readable forward view: what is open now, what comes next toward Rosebud
+parity, and what is explicitly parked. It replaces the old root `PLAN.md`.
+
+**Live tracker: Kaneo** at <http://192.168.1.188:5173> (workspace `Blackrose`,
+project `Blackrose Journal`). Every item below already exists there as a card,
+and cards are the source of truth for status. This file is the narrative mirror;
+when they disagree, the board wins. Drive it with `uvx mcp2cli @kaneo ...` (see
+AGENTS.md rule 0).
 
 **Standing rule:** nothing here resurrects the cloud-memory platform, its storage
 keys (`@rosebud_cloud_memory_mirror_outbox`,

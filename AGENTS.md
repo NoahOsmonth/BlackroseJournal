@@ -12,6 +12,45 @@ Skills live in this repo at `.agents/skills/` (repo-relative — resolve it from
 
 ---
 
+## Task tracking: Kaneo is mandatory (rule 0)
+
+**Every task the user gives you becomes a Kaneo card before you touch code.** Not a TODO in chat, not a plan file. One card per request, status kept current, description kept current. A finished task with a stale card is a bug.
+
+| Thing | Value |
+|---|---|
+| UI | `http://192.168.1.188:5173` (workspace `Blackrose`, project `Blackrose Journal`) |
+| Project id | `uysh78e1px3k3mjmwyt5rs1w` |
+| Workspace id | `I47FwOXGEuplsmN0Tv2vgxSrr4C8MzM1` |
+| Local stack | `~/kaneo-stack` (`docker compose up -d`: kaneo + postgres + seaweedfs) |
+| API | `http://192.168.1.188:5173/api/openapi` (OpenAPI, 200+ endpoints) |
+| Key | `~/.config/kaneo/api-key`, sent as `x-api-key` |
+| mcp2cli bake | `kaneo` in `~/.config/mcp2cli/baked.json` |
+
+Drive it through **mcp2cli**, not curl and not the UI:
+
+```bash
+uvx mcp2cli @kaneo --json list-tasks --project-id uysh78e1px3k3mjmwyt5rs1w
+uvx mcp2cli @kaneo --json create-task --project-id uysh78e1px3k3mjmwyt5rs1w \
+  --title "..." --description "..." --status to-do --priority medium
+uvx mcp2cli @kaneo --json update-task-status --id <taskId> --status in-progress
+uvx mcp2cli @kaneo --json update-task-description --id <taskId> --description "..."
+```
+
+Rules:
+
+- Create the card first (status `to-do`), flip to `in-progress` when work starts, `in-review` when it is done pending verification, `done` when it lands. Trivial work still gets a card; there is no "too small to track".
+- Put the plan, findings, and blockers in the card description, not only in chat.
+- **Images in descriptions.** Visual work attaches a screenshot to the card:
+  1. `create-task-image-upload --id <taskId> --filename x.png --content-type image/png --size <bytes> --surface description` returns `{key, uploadUrl, headers}`.
+  2. `curl -X PUT "<uploadUrl>" -H "content-type: image/png" --data-binary @x.png`.
+  3. `finalize-task-image-upload --id <taskId> --stdin` with `{key, filename, contentType, size, surface:"description"}` returns `{id, url}`.
+  4. Embed `![what it shows](http://192.168.1.188:5173/api/asset/<id>)` in the description.
+- Browser work (checking the board renders, dragging cards, screenshots) goes through the **ego-browser** skill. API work goes through **mcp2cli**. Never hand-roll a Playwright browser.
+- If the stack is down: `cd ~/kaneo-stack && docker compose up -d`. Firewall already allows 5173 and 9000 on the LAN and from docker networks; if a container cannot reach the S3 endpoint, that is a ufw rule, not a Kaneo bug.
+
+---
+
+
 ## Most-violated rules (read first)
 
 ### 1. Every color is a token. Both schemes. Every `<Text>` has a `dark:` variant.
@@ -260,7 +299,7 @@ View-model types must not reuse a stored type's name (e.g. `MemoryGraphAtom` is 
 
 **Write-path coupling:** journal finish → `saveJournalEntryMemories` **and** `upsertJournalDayDigest` **and** `buildAndSaveSessionDigest` **and** `stageJournalEntryMemoryFiles` (offline `_tmp` memory files) (`journalFinishSideEffects.ts`). Check-in complete → `saveIntentionCheckInMemories` **and** `upsertCheckInDayDigest` **and** `buildAndSaveSessionDigest` **and** `stageCheckInMemoryFiles` (completed branch of `intentionsStorage.ts`). Local backup includes day digests + packed session-digest bundle (`services/backup/localBackup.ts`). Clear history must also `clearSessionDigests()`, `clearMemoryRollups()`, **and** `clearMemoryFiles()` (`useClearJournalHistory`); the dev demo clear removes memory files staged from the seed ledger's session ids only (`deleteMemoryFilesBySourceSessions`).
 
-**Two stores, one bridge (2026-09-19).** A note written on Explore lands in the atom store (`@rosebud_local_memory_shard:*`), which the always-on capsule reads — but `memory_search` reads **only** `@blackrose_memory_manifest` + `@blackrose_memory_file:<id>`, and `memoryRetrieval.ts` never imports `localMemory`. So an atoms-only write is *passively visible but not searchable*. Any new authoring surface must dual-write: atom **and** memory file. See `docs/superpowers/specs/2026-09-19-explore-memory-architecture.html`.
+**Two stores, one bridge (2026-09-19).** A note written on Explore lands in the atom store (`@rosebud_local_memory_shard:*`), which the always-on capsule reads — but `memory_search` reads **only** `@blackrose_memory_manifest` + `@blackrose_memory_file:<id>`, and `memoryRetrieval.ts` never imports `localMemory`. So an atoms-only write is *passively visible but not searchable*. Any new authoring surface must dual-write: atom **and** memory file. The design spec for that bridge is in git history (`docs/superpowers/specs/2026-09-19-explore-memory-architecture.html` before 2026-11-07).
 
 **Session digest sharding:** never store all embeddings under one AsyncStorage key (Android ~2MB/key). One record key per digest + lightweight index. Aggregate Android DB size: `AsyncStorage_db_size_in_MB` in `android/gradle.properties`.
 
@@ -407,7 +446,7 @@ Key files:
 
 ## Workflow
 
-1. Read `ROADMAP.md` / the active plan folder, confirm scope.
+1. Read `ROADMAP.md` / the active plan folder, confirm scope, and open (or create) the Kaneo card for the task — see rule 0.
 2. Implement with strict layering and modular structure.
 3. Add or update tests for the change.
 4. Run `npm test` (relevant pattern), `npx tsc --noEmit`, `npm run lint`, `npm run check:design`. Fix all failures.
