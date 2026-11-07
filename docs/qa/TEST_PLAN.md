@@ -28,6 +28,7 @@
 *Run 6 (2026-11-08) zoomed into chat button cause-and-effect, live `global:hy4free` testing, save failure/retry, double-press, loading/disabled states, light/dark/375px QA, deeper Archive search, offline boot and perf. CSV case statuses were not changed without new exact-case executions; the dashboard numbers above are unchanged. Full evidence: [`results/2026-11-08-run6.md`](results/2026-11-08-run6.md).*
 *Run 7 (2026-11-08) executed the exact CHECKINS-07 draft-resume case (Pass) and the new exact JOURNAL-13 deeper Archive search case (Pass). It also fixed a Drafts label defect found during the zoom (DEF-028). Dashboard now includes those two executed cases: [`results/2026-11-08-run7.md`](results/2026-11-08-run7.md).*
 *Run 8 (2026-11-08) continued the button zoom: the saving status line no longer promises the words are safe (DEF-029), live saving and forced-failure states were re-checked, and every Kaneo card image was verified rendering on the board. No tracker case changed: [`results/2026-11-08-run8.md`](results/2026-11-08-run8.md).*
+*Run 9 (2026-11-08) shipped the first ProductOps feature candidate: an ON THIS DAY row on Today that returns the writer's own entry from this date in an earlier year. Unit red-green plus live dark/light/375px QA: [`results/2026-11-08-run9.md`](results/2026-11-08-run9.md).*
 
 ## Case ID convention
 

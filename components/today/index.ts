@@ -8,6 +8,7 @@ export { GoalsSection, buildGoalListItems } from './GoalsSection';
 export type { GoalListItem } from './GoalsSection';
 export { InsightActionDock } from './InsightActionDock';
 export { MyIntentionsSection } from './MyIntentionsSection';
+export { OnThisDayRow } from './OnThisDayRow';
 export { TodayRitualRow } from './TodayRitualRow';
 export { TodayWritingCard } from './TodayWritingCard';
 export { WeekdaySelector } from './WeekdaySelector';

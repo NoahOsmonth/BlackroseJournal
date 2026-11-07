@@ -21,6 +21,7 @@ import {
     EntryInsightsCard,
     GoalsSection,
     MyIntentionsSection,
+    OnThisDayRow,
     TodayRitualRow,
     TodayWritingCard,
     buildGoalListItems,
@@ -34,6 +35,7 @@ import { listCheckInDrafts } from '@/services/intentions/intentionsStorage';
 import { useHeaderActions } from '@/hooks/navigation/useHeaderActions';
 import { useTabNavigation } from '@/hooks/navigation/useTabNavigation';
 import { useSelectedDay } from '@/hooks/today/useSelectedDay';
+import { useOnThisDay } from '@/hooks/today/useOnThisDay';
 import { useSavedInsights } from '@/hooks/saved-insights/useSavedInsights';
 import { getLocalDateKey } from '@/utils/date';
 import { calculateStreakStats } from '@/utils/streakStats';
@@ -53,6 +55,7 @@ export default function TodayScreen() {
     const { activeIntentions, refresh: refreshIntentions, isLoading: intentionsLoading } = useIntentions();
     const { goals, toggle: toggleGoal, refresh: refreshGoals, isLoading: goalsLoading } = useGoals();
     const { question, refresh, sourceDate } = useEntryInsightQuestion(entries);
+    const { pick: onThisDay } = useOnThisDay();
     const { add: saveInsight, isLoading: insightsLoading } = useSavedInsights();
     const { openStreakView, openSettings } = useHeaderActions();
     const { goToTab } = useTabNavigation();
@@ -285,6 +288,21 @@ export default function TodayScreen() {
                                         onSelect={(intention) => handleSelectIntention(intention.id)}
                                     />
                                 </RevealItem>
+
+                                {onThisDay ? (
+                                    <RevealItem scrollY={scrollY}>
+                                        <OnThisDayRow
+                                            pick={onThisDay}
+                                            onPress={(sourceId, type) => {
+                                                if (type === 'journal') {
+                                                    router.push({ pathname: '/entry-detail', params: { id: sourceId } });
+                                                    return;
+                                                }
+                                                router.push({ pathname: '/checkin-detail', params: { id: sourceId } });
+                                            }}
+                                        />
+                                    </RevealItem>
+                                ) : null}
 
                                 {goalListItems.length > 0 ? (
                                     <RevealItem scrollY={scrollY}>
