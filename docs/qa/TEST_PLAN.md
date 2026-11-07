@@ -2,7 +2,7 @@
 
 > **Tracker:** the CSVs in [`cases/`](cases/) are the source of truth (open in Excel).
 > **Retired cases** live in [`cases/retired/`](cases/retired/) and are excluded from the counts below.
-> **Charter:** [`../../QA-Plan.md`](../../QA-Plan.md) · **Defects:** [`DEFECTS.md`](DEFECTS.md) · **Executor prompt:** [`AI-HANDOFF-PROMPT.md`](AI-HANDOFF-PROMPT.md)
+> **Defects:** [`DEFECTS.md`](DEFECTS.md)
 
 ## Execution status dashboard
 

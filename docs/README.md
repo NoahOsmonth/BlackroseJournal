@@ -1,18 +1,17 @@
 # docs/ — Documentation Index
 
-One screen. For the root-level documents (`PLAN.md`, `memory.md`,
-`AGENTS.md`, `README.md`, `QA-Plan.md`) see the map in
-[`../PLAN.md`](../PLAN.md); this index covers everything under `docs/`.
+One screen. For the root-level documents (`ROADMAP.md`, `memory.md`,
+`AGENTS.md`, `README.md`) see the map in
+[`../ROADMAP.md`](../ROADMAP.md); this index covers everything under `docs/`.
 
 ## Read in this order
 
 | # | Document | What it is |
 |---|---|---|
 | 1 | [`plans/blackrose-design-rewrite.md`](plans/blackrose-design-rewrite.md) | The approved screen-level design plan (referenced by `constants/theme.ts`, `tailwind.config.js`) |
-| 2 | [`superpowers/specs/2026-09-19-explore-write-path-design.md`](superpowers/specs/2026-09-19-explore-write-path-design.md) | Latest design spec: the Explore write path (plus its [HTML visual companion](superpowers/specs/2026-09-19-explore-memory-architecture.html)) |
-| 3 | [`perf/ui-performance-rules.md`](perf/ui-performance-rules.md) | UI performance rules + numeric budgets for tab switches, and how to measure them |
-| 4 | [`qa/TEST_PLAN.md`](qa/TEST_PLAN.md) | QA suite index + live status dashboard |
-| 5 | [`qa/DEFECTS.md`](qa/DEFECTS.md) | Defect log (DEF-001–014) |
+| 2 | [`perf/ui-performance-rules.md`](perf/ui-performance-rules.md) | UI performance rules + numeric budgets for tab switches, and how to measure them |
+| 3 | [`qa/TEST_PLAN.md`](qa/TEST_PLAN.md) | QA suite index + live status dashboard |
+| 4 | [`qa/DEFECTS.md`](qa/DEFECTS.md) | Defect log (DEF-001–014) |
 
 ## What lives where
 
@@ -20,24 +19,18 @@ One screen. For the root-level documents (`PLAN.md`, `memory.md`,
 docs/
 ├── plans/          Approved forward-looking design plans (screen level)
 ├── perf/           UI performance rules, budgets, and the tab-switch bench
-├── superpowers/
-│   ├── plans/      Historical executable plans (kept for line-level traceability)
-│   └── specs/      Their design specs, incl. the HTML visual companion
 ├── compose/spec/   Agent-loop finality spec
 └── qa/
     ├── cases/      The test-case tracker (one CSV per suite; retired/ for history)
-    ├── results/    Dated run summaries (run1–run3)
+    ├── results/    Dated run summaries
     ├── TEST_PLAN.md    Suite index + status dashboard
-    ├── DEFECTS.md      Defect log
-    └── AI-HANDOFF-PROMPT.md   Self-contained executor prompt for a QA AI
+    └── DEFECTS.md      Defect log
 ```
 
 ## Conventions
 
-- **Historical ≠ wrong.** `docs/superpowers/` documents how things were built;
-  for what is true *now*, read [`../memory.md`](../memory.md) and the dated run
-  summaries in [`qa/results/`](qa/results/).
-- **QA execution** touches only `docs/qa/**` and `QA-Plan.md` — never app code
-  (see `QA-Plan.md` §7).
+- **Historical ≠ wrong.** For what is true *now*, read [`../memory.md`](../memory.md)
+  and the dated run summaries in [`qa/results/`](qa/results/).
+- **QA execution** touches only `docs/qa/**` — never app code.
 - Evidence screenshots referenced by QA runs live in gitignored `output/`
   at run time; the run summaries inline everything that matters.

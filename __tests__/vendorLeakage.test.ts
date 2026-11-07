@@ -14,9 +14,8 @@ import { glob } from 'glob';
  * placeholder or help string re-teaches the vendor taxonomy to users without
  * breaking a single assertion. This test is the tripwire.
  *
- * History is deliberately NOT scanned. Dated logs (docs/plans,
- * .planning, docs/qa) legitimately record what was removed; rewriting them
- * would make the repo's history lie.
+ * History is deliberately NOT scanned. Dated logs (docs/qa) legitimately
+ * record what was removed; rewriting them would make the repo's history lie.
  */
 const SOURCE_DIRS = ['app', 'components', 'hooks', 'services', 'features', 'constants', 'utils'];
 const SOURCE_GLOB = `{${SOURCE_DIRS.join(',')}}/**/*.{ts,tsx}`;

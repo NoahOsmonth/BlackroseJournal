@@ -17,8 +17,8 @@ and all LLM work goes to the provider the user configured. Everything is soft-fa
 The earlier custom cloud-memory platform (`LOCAL → MIRROR → SHADOW → CLOUD`)
 was removed on 2026-08-18; do not resurrect it or its storage keys
 (`@rosebud_cloud_memory_mirror_outbox`, `@rosebud_memory_dataset_binding`).
-Its documents were deleted in `f2415ff` and recovered read-only into
-`.planning/archive/` — requirements and invariants only, never implementation.
+Its documents were deleted in `f2415ff`; git history keeps them read-only —
+requirements and invariants only, never implementation.
 
 > **Superseded details in this file.** Hindsight is now the **fallback** tier,
 > not long-term memory; the primary long-term layer is the offline memory files
@@ -30,8 +30,7 @@ Its documents were deleted in `f2415ff` and recovered read-only into
 ## Implemented Local Baseline
 
 Rosebud now has the first local-only memory slice of the larger Memory Loom
-architecture described in `.planning/archive/idea.md` (archived 2026-09-01;
-see `.planning/archive/README.md` for what of that roadmap landed).
+architecture (archived 2026-09-01; the recovered roadmap lives in git history).
 
 ### Storage
 

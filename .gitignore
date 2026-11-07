@@ -66,12 +66,6 @@ tool-upgrade-qa.png
 pr7-*.png
 t3-pet-prompt.json
 
-# OMC agent tool state
-.omc/
-
-# OMO agent state
-.omo/
-
 # Build artifacts
 app-release.apk
 
@@ -85,26 +79,9 @@ nul
 .probe-cache/
 probes/artifacts/
 
-# Codex isolated implementation worktrees
-.worktrees/
-
 # Provider model-list cache (fetched, never commit)
 .or_models.json
 live-run*.log
 
-# PI / GSD agent framework install (installer-managed checksum manifest — regenerate, don't commit)
-/.pi/gsd-core/
-/.pi/gsd-hooks/
-/.pi/scripts/
-/.pi/extensions/
-/.pi/gsd-file-manifest.json
-/.pi/gsd-install-state.json
-/.pi/.gsd-profile
-
 # Playwright probe output (logs + screenshots, never commit)
 /output/
-.fusion/
-.pi/
-fusion.db
-fusion.db-wal
-fusion.db-shm

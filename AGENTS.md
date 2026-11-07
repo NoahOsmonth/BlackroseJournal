@@ -407,7 +407,7 @@ Key files:
 
 ## Workflow
 
-1. Read `PLAN.md` / the active plan folder, confirm scope.
+1. Read `ROADMAP.md` / the active plan folder, confirm scope.
 2. Implement with strict layering and modular structure.
 3. Add or update tests for the change.
 4. Run `npm test` (relevant pattern), `npx tsc --noEmit`, `npm run lint`, `npm run check:design`. Fix all failures.

@@ -198,7 +198,7 @@ describe('memoryRetrieval (gated lexical recall)', () => {
     });
 
     it('does not merge an unpromoted _tmp project file into a resolved thread', async () => {
-        // PLAN.md item 2 gates staged **notes** only. An unpromoted extracted
+        // The recall gate covers staged **notes** only. An unpromoted extracted
         // `project` file is a near-topic distractor until Dream promotes it; it
         // must stay off the thread-resolved path (recency fallback only) or
         // precision collapses (see probes/r2RecallDelta).
