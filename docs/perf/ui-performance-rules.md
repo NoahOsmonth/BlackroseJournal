@@ -157,15 +157,29 @@ dock tab for that route is present and visible, which means the tab tree has
 mounted. It is a shell milestone, not "the first list row painted" — a finer
 selector per screen would be a better measure and is not implemented.
 
-Threads is the clear outlier at 2.3–4.1 s across its three rounds (Today
-1.1–3.8 s, Insights 0.9–1.0 s, Archive 1.0 s). **The cause is not diagnosed.**
-An earlier draft of this section blamed the memory-graph engine; there is no
-WebView or graph engine on that screen (`app/(tabs)/explore.tsx` renders
-`MemoryHubScreen`, a ledger list), so that explanation was wrong and has been
-removed. What the numbers do say is that it is not storage: Threads reads *fewer*
-keys than Today (383 vs 417) while taking roughly three times as long to reach
-the same shell milestone, so the cost is in its render path. Profiling that is
-the first follow-up, and it is not fixed here.
+**Re-measured 2026-11-08 (QA run 11), which corrects the numbers above.** On the
+current build the same bench reports Today 1290 ms, Threads 1079 ms, Insights
+1059 ms, Archive 1056 ms. Threads is no longer an outlier and the 2.3–4.1 s
+figures above are stale; anything that repeats them is quoting a measurement
+that does not reproduce.
+
+That run also showed the milestone is the weak part of the measurement, not only
+the screen. Sampling Threads directly gave a skeleton at 381 ms and real content
+(27 lines) at 488 ms — about twice as fast as the dock milestone it is scored
+on — so the bench understates every route in this table. Two facts from it are
+worth keeping:
+
+- The screen is not slow to paint; the dock milestone is late. A per-screen
+  "first row painted" selector is still not implemented, and it is the change
+  that would make this table mean something.
+- Nothing ghosts in: 27 content lines visible and 0 still faded at both 600 ms
+  and 3100 ms, so no reveal animation is finishing after the page looks ready.
+
+One real defect did surface during that sampling and is fixed: eighteen elements
+on Threads were named "Loading" while the page was already drawn, because React
+Native Web names a box after its file name and every `RevealItem` wrapper was
+announced. See DEF-031 in `docs/qa/DEFECTS.md`; the reveal box now carries an
+empty accessible name and `accessible={false}`.
 
 No before/after pair is quoted for cold mounts: this branch changes no
 mount-path code, so the honest reading is that the numbers are unchanged and the
