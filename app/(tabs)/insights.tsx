@@ -16,6 +16,7 @@ import { InsightsSkeleton } from '@/components/insights/InsightsSkeleton';
 import { InsightsWeekLetter, INSIGHTS_UNLOCK_AT } from '@/components/insights/InsightsWeekLetter';
 import { InsightsWritingPresence } from '@/components/insights/InsightsWritingPresence';
 import { KeyThemes } from '@/components/insights/KeyThemes';
+import { MoodStrip } from '@/components/insights/MoodStrip';
 import { BottomNav } from '@/components/journal';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { RevealItem } from '@/components/ui/RevealItem';
@@ -24,6 +25,7 @@ import { StaggerEntranceItem } from '@/components/ui/StaggerEntrance';
 import { navAwareBottomPadding } from '@/constants/spacing';
 import { useThemeSettings } from '@/hooks/useThemeSettings';
 import { useWeeklyInsights } from '@/hooks/useWeeklyInsights';
+import { useWeekMood } from '@/hooks/insights/useWeekMood';
 import { useTabNavigation } from '@/hooks/navigation/useTabNavigation';
 
 export default function InsightsScreen() {
@@ -33,6 +35,7 @@ export default function InsightsScreen() {
     const { goToTab } = useTabNavigation();
     const { insights, weeklyStats, weekDateRange, isLoading } = useWeeklyInsights();
     const { emojiStyle } = useThemeSettings();
+    const { cells: moodCells } = useWeekMood();
 
     const isUnlocked = weeklyStats.entriesCount >= INSIGHTS_UNLOCK_AT;
 
@@ -68,6 +71,12 @@ export default function InsightsScreen() {
 
                         <RevealItem scrollY={scrollY}>
                             <StaggerEntranceItem index={1} totalItems={4} staggerType="linear" columns={1}>
+                                <MoodStrip cells={moodCells} />
+                            </StaggerEntranceItem>
+                        </RevealItem>
+
+                        <RevealItem scrollY={scrollY}>
+                            <StaggerEntranceItem index={2} totalItems={4} staggerType="linear" columns={1}>
                                 <InsightsWritingPresence
                                     words={weeklyStats.totalWords}
                                     entries={weeklyStats.entriesCount}
