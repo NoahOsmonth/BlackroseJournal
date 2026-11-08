@@ -163,6 +163,19 @@ export default function StreakViewScreen() {
                         </Text>
                     </Pressable>
 
+                    <Pressable
+                        onPress={() => router.push('/writing-goal')}
+                        accessibilityRole="button"
+                        accessibilityLabel="Set a gentle writing goal"
+                        testID="see-writing-goal"
+                        className="mt-3 min-h-11 flex-row items-center justify-center gap-2 rounded-control border border-hairline-light bg-surface-light px-4 dark:border-hairline-dark dark:bg-surface-dark"
+                    >
+                        <MaterialIcons name="track-changes" size={18} color={ink} />
+                        <Text className="text-[15px] text-text-light dark:text-text-dark">
+                            Set a gentle writing goal
+                        </Text>
+                    </Pressable>
+
                     <View className="h-12" />
                 </ScrollView>
             </View>

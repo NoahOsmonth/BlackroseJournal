@@ -36,6 +36,7 @@ const ACCOUNT_PRIVATE_EXACT_KEYS = [
     '@rosebud_memory_rollup_attempts',
     '@saved_insights',
     '@blackrose_starred_entries',
+    '@blackrose_writing_goal',
     '@weekly_insights_cache',
     '@blackrose_custom_ai_provider',
     '@blackrose_generation_settings',

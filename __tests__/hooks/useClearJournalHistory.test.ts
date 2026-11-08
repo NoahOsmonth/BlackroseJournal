@@ -46,6 +46,12 @@ import {
     createSavedInsight,
 } from '../../services/saved-insights/savedInsightsStorage';
 import { activateAccount, clearActiveAccount } from '../../services/account/accountRuntime';
+import {
+    getWritingGoalSettings,
+    setWritingGoalSettings,
+    subscribeWritingGoal,
+} from '../../services/goals/writingGoalSettings';
+import { DEFAULT_WRITING_GOAL } from '../../utils/writingGoal';
 import * as journalStorage from '../../services/journal/journalStorage';
 
 describe('useClearJournalHistory', () => {
@@ -95,6 +101,8 @@ describe('useClearJournalHistory', () => {
         await createSavedInsight({ question: 'Q?', sourceDate: '2026-01-01' });
         await setStarredEntryIds(['entry-1', 'entry-2']);
         expect(await listStarredEntryIds()).toHaveLength(2);
+        await setWritingGoalSettings({ wordsPerDay: 750, restDaysPerWeek: 3 });
+        expect(await getWritingGoalSettings()).toEqual({ wordsPerDay: 750, restDaysPerWeek: 3 });
         await applyIdentityPatch({ preferredName: 'Sigurd', source: 'manual' });
         expect(profileHasIdentity(await getIdentityProfile())).toBe(true);
 
@@ -118,6 +126,9 @@ describe('useClearJournalHistory', () => {
         // Stars point at journal entries; leaving them makes the Archive say
         // "2 shown" with an empty list forever (round 34 live QA).
         expect(await listStarredEntryIds()).toEqual([]);
+        // The gentle writing goal is user state too: leaving it behind makes
+        // an open goal screen keep showing a target from the wiped journal.
+        expect(await getWritingGoalSettings()).toEqual(DEFAULT_WRITING_GOAL);
     });
 
     it('tells open screens the stars are gone', async () => {
@@ -131,6 +142,19 @@ describe('useClearJournalHistory', () => {
         unsubscribe();
         expect(seen).toContainEqual([]);
         expect(await listStarredEntryIds()).toEqual([]);
+    });
+
+    it('tells an open goal screen the target is back to the default', async () => {
+        await setWritingGoalSettings({ wordsPerDay: 750, restDaysPerWeek: 3 });
+        const seen: number[] = [];
+        const unsubscribe = subscribeWritingGoal((settings) => seen.push(settings.wordsPerDay));
+        const { result } = renderHook(() => useClearJournalHistory());
+        await act(async () => {
+            await result.current.clearAll();
+        });
+        unsubscribe();
+        expect(seen).toContain(DEFAULT_WRITING_GOAL.wordsPerDay);
+        expect(await getWritingGoalSettings()).toEqual(DEFAULT_WRITING_GOAL);
     });
 
     it('survives a transient account-lease abort mid-wipe and reports no failed steps (DEF-011)', async () => {

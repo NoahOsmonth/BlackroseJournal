@@ -12,6 +12,7 @@ import { clearMemoryFiles } from '@/services/memory/memoryFiles';
 import { removeAllChatSessions } from '@/services/ai/sessionStorage';
 import { clearAllEntries } from '@/services/journal/journalStorage';
 import { clearStarredEntries } from '@/services/journal/starredEntries';
+import { clearWritingGoalSettings } from '@/services/goals/writingGoalSettings';
 import { clearAllCheckIns } from '@/services/intentions/intentionsStorage';
 import { clearCrashLogs } from '@/services/crash/crashLogStorage';
 import { getActiveAccountId } from '@/services/account/accountRuntime';
@@ -45,6 +46,7 @@ export function useClearJournalHistory(): UseClearJournalHistoryReturn {
             const steps: Array<readonly [string, () => Promise<void>]> = [
                 ['journal entries', clearAllEntries],
                 ['starred moments', clearStarredEntries],
+                ['writing goal', clearWritingGoalSettings],
                 ['intention check-ins', clearAllCheckIns],
                 ['memories from entries', () => deleteMemoryAtomsBySource('journal')],
                 ['memories from check-ins', () => deleteMemoryAtomsBySource('intention')],

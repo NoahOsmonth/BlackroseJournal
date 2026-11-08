@@ -119,6 +119,7 @@ export const LOCAL_BACKUP_DATA_KEYS = [
     SESSION_DIGEST_BACKUP_BUNDLE_KEY,
     '@saved_insights',
     '@blackrose_starred_entries',
+    '@blackrose_writing_goal',
     '@weekly_insights_cache',
     '@blackrose_custom_ai_provider',
     'user-theme-preference',
@@ -144,6 +145,7 @@ const ACCOUNT_SCOPED_BACKUP_KEYS = new Set<LocalBackupDataKey>([
     SESSION_DIGEST_BACKUP_BUNDLE_KEY,
     '@saved_insights',
     '@blackrose_starred_entries',
+    '@blackrose_writing_goal',
     '@weekly_insights_cache',
     '@blackrose_custom_ai_provider',
 ]);
