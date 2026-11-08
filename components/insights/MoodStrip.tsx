@@ -87,7 +87,7 @@ export function MoodStrip({ cells, onSelectDay }: MoodStripProps) {
                 <Text className="mt-3 text-[12px] text-text-secondary-light dark:text-text-secondary-dark">
                     {writtenDays === 0
                         ? 'No moods recorded this week yet.'
-                        : `${writtenDays} of 7 days have a mood.`}
+                        : `${writtenDays} of 7 ${writtenDays === 1 ? 'days has' : 'days have'} a mood.`}
                 </Text>
             </View>
         </View>

@@ -46,9 +46,18 @@ export function buildWeekMoodStrip(
     const cells: MoodDayCell[] = [];
     const byKey = new Map<string, MoodDayCell>();
 
-    for (let offset = 6; offset >= 0; offset -= 1) {
-        const at = new Date(nowTs);
-        at.setDate(at.getDate() - offset);
+    // The SAME calendar week the rest of Insights uses: the Sunday-to-Saturday
+    // week containing `now`. This used to be a rolling last-seven-days window,
+    // so on Sunday 8 Nov the strip rendered 2-8 Nov while the header right above
+    // it said "This week - Nov 8-14" - two different weeks on one screen, and
+    // the summary line ("5 of 7 days have a mood") counted days from the
+    // previous calendar week. Anchor on the week start instead.
+    const anchor = new Date(nowTs);
+    anchor.setHours(0, 0, 0, 0);
+    anchor.setDate(anchor.getDate() - anchor.getDay());
+    for (let offset = 0; offset < 7; offset += 1) {
+        const at = new Date(anchor);
+        at.setDate(anchor.getDate() + offset);
         const cell: MoodDayCell = {
             dateKey: dateKeyFor(at.getTime()),
             mood: null,
@@ -79,12 +88,26 @@ export function buildWeekMoodStrip(
     return cells;
 }
 
-/** "Today", "Yesterday", or the weekday name — never a raw date. */
-export function formatMoodDayLabel(cell: MoodDayCell, strip: readonly MoodDayCell[]): string {
-    const index = strip.findIndex((entry) => entry.dateKey === cell.dateKey);
-    if (index === strip.length - 1) return 'Today';
-    if (index === strip.length - 2) return 'Yesterday';
+/**
+ * "Today", "Yesterday", or the weekday name — never a raw date.
+ *
+ * This used to assume today was the last cell, which was true of the old
+ * rolling seven-day window. The strip is now the calendar week, so the rest of
+ * the week is in the future and today sits wherever the week started. Compare
+ * against the real clock instead of a position in the array.
+ */
+export function formatMoodDayLabel(
+    cell: MoodDayCell,
+    _strip: readonly MoodDayCell[],
+    now: Date | number = new Date(),
+): string {
     const [year, month, dayOfMonth] = cell.dateKey.split('-').map(Number);
     const date = new Date(year, (month ?? 1) - 1, dayOfMonth ?? 1);
+    const nowDate = new Date(now instanceof Date ? now.getTime() : now);
+    const atMidnight = (value: Date) => new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
+    const dayMs = 86_400_000;
+    const delta = Math.round((atMidnight(date) - atMidnight(nowDate)) / dayMs);
+    if (delta === 0) return 'Today';
+    if (delta === -1) return 'Yesterday';
     return DAY_NAMES[date.getDay()];
 }

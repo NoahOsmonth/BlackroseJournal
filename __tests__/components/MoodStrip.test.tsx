@@ -33,6 +33,13 @@ describe('MoodStrip', () => {
         expect(screen.getByText('3 of 7 days have a mood.')).toBeTruthy();
     });
 
+    it('uses the singular for a single day, not "1 of 7 days have"', () => {
+        render(<MoodStrip cells={week([null, null, 'Calm', null, null, null, null])} />);
+
+        expect(screen.getByText('1 of 7 days has a mood.')).toBeTruthy();
+        expect(screen.queryByText('1 of 7 days have a mood.')).toBeNull();
+    });
+
     it('labels an empty day as no writing, not as a bad mood', () => {
         render(<MoodStrip cells={week([null, 'Calm', null, null, null, null, null])} />);
         expect(screen.getByLabelText('Sunday: no writing')).toBeTruthy();
