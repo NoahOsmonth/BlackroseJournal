@@ -38,10 +38,10 @@ const ROUNDS = Number(process.env.BENCH_ROUNDS || 3);
 
 /** Dock labels and a selector that only matches once the screen has content. */
 const ROUTES = {
-  today: { label: 'Today', path: '/today' },
-  explore: { label: 'Threads', path: '/explore' },
-  insights: { label: 'Insights', path: '/insights' },
-  entries: { label: 'Archive', path: '/entries' },
+  today: { label: 'Today', path: '/today', content: '[data-testid="today-writing-card"]' },
+  explore: { label: 'Threads', path: '/explore', content: '[data-testid="theme-drift-strip"]' },
+  insights: { label: 'Insights', path: '/insights', content: '[data-testid^="mood-day-"]' },
+  entries: { label: 'Archive', path: '/entries', content: '[data-testid="archive-search-button"]' },
 };
 
 const ROUTE_KEYS = process.env.BENCH_ROUTES
@@ -54,14 +54,15 @@ for (const key of ROUTE_KEYS) {
   }
 }
 
-/**
- * Cold mount has no "route changed" event to anchor on, so the sampler watches
- * for the dock tab that belongs to the route being selected. That element only
- * exists once the tab tree has rendered, which is exactly the moment a person
- * would call the screen "there".
- */
-function contentSelectorFor(key) {
+
+/** The dock tab marks "the shell is up". */
+function dockSelectorFor(key) {
   return `[role="tab"][aria-label="${ROUTES[key].label}"]`;
+}
+
+/** The screen content marks "the writer can see their page". */
+function contentSelectorFor(key) {
+  return ROUTES[key].content;
 }
 
 async function main() {
@@ -83,7 +84,12 @@ async function main() {
       await page.addInitScript(instrument);
 
       await page.goto(BASE + route.path, { waitUntil: 'commit', timeout: 120000 });
-      await page.evaluate(startSampling, { contentSelector: contentSelectorFor(key) });
+      await page.evaluate(startSampling, {
+        dockSelector: dockSelectorFor(key),
+        contentSelector: contentSelectorFor(key),
+      });
+      // Wait on the screen's OWN content, not the dock. Waiting on the dock is
+      // what made every route look ~2x slower than the wait a person feels.
       await page.waitForFunction(
         (selector) => {
           const el = document.querySelector(selector);
@@ -102,6 +108,7 @@ async function main() {
         route: key,
         round,
         contentAtMs: sample.contentAtMs,
+        dockAtMs: sample.dockAtMs,
         frameGapMaxMs: sample.frameGapMaxMs,
         frameGapP95Ms: sample.frameGapP95Ms,
         longTaskMaxMs: sample.longTaskMaxMs,
@@ -134,6 +141,7 @@ async function main() {
     route,
     samples: samples.length,
     contentAtMs: median(samples.map((s) => s.contentAtMs ?? -1)),
+    dockAtMs: median(samples.map((s) => s.dockAtMs ?? -1)),
     frameGapMaxMs: median(samples.map((s) => s.frameGapMaxMs)),
     longTaskMaxMs: median(samples.map((s) => s.longTaskMaxMs)),
     longTaskTotalMs: median(samples.map((s) => s.longTaskTotalMs)),

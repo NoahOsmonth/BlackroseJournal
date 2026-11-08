@@ -152,10 +152,30 @@ These are ceilings with headroom over today's numbers, not achievements. A cold
 mount has no prior paint to preserve, so it is judged on time-to-content rather
 than on dropped frames.
 
-`contentAtMs` is the load-to-dock-visible milestone: the sampler waits until the
-dock tab for that route is present and visible, which means the tab tree has
-mounted. It is a shell milestone, not "the first list row painted" — a finer
-selector per screen would be a better measure and is not implemented.
+The bench reports **two** milestones per route, measured in the same cold load
+(QA run 18):
+
+| Field | What it marks |
+|---|---|
+| `dockAtMs` | the route's dock tab is present and visible — the shell mounted |
+| `contentAtMs` | that screen's **own** marker is present and visible — the writer can see their page |
+
+`contentAtMs` is the one to quote. Each route names its marker in `ROUTES`
+(`today-writing-card`, `theme-drift-strip`, a `mood-day-*` cell, `archive-search-button`),
+chosen because the screen already renders it as real content, not chrome.
+
+Before this change the bench waited on the dock alone, so it stopped at the
+shell and under-reported every route. Measured 2026-11-08 on one build:
+
+| Route | Dock | Content | Under-reported by |
+|---|---|---|---|
+| Today | 1361 ms | 1361 ms | 0 ms |
+| Threads | 1100 ms | 1250 ms | 150 ms |
+| Insights | 1099 ms | 1282 ms | 183 ms |
+| Archive | 1089 ms | 1390 ms | 301 ms |
+
+Today is unchanged because its writing card paints with the shell; the Archive
+is worst because its list hydrates first. Quote **content**, not dock.
 
 **Re-measured 2026-11-08 (QA run 11), which corrects the numbers above.** On the
 current build the same bench reports Today 1290 ms, Threads 1079 ms, Insights

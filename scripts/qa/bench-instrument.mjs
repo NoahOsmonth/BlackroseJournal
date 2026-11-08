@@ -53,6 +53,10 @@ export function instrument() {
  */
 export function startSampling(options = {}) {
   const contentSelector = options.contentSelector || null;
+  // Kaneo #49: a screen has two milestones. The dock/chrome appearing means the
+  // shell mounted; the screen's own marker appearing means the writer can see
+  // their content. They are very different waits, so both are recorded.
+  const dockSelector = options.dockSelector || null;
   const storage = window.__benchStorage;
   storage.get = 0;
   storage.set = 0;
@@ -66,6 +70,7 @@ export function startSampling(options = {}) {
     sampling: true,
     frames: [],
     contentAt: null,
+    dockAt: null,
     // [{ t, skeleton, route }] whenever either changes.
     timeline: [],
   };
@@ -99,6 +104,11 @@ export function startSampling(options = {}) {
     state.frames.push(now - last);
     last = now;
 
+    if (state.dockAt === null && dockSelector) {
+      const dock = document.querySelector(dockSelector);
+      if (dock && isVisible(dock)) state.dockAt = Math.round(now - state.start);
+    }
+
     if (state.contentAt === null && contentSelector) {
       const el = document.querySelector(contentSelector);
       if (el && isVisible(el)) state.contentAt = Math.round(now - state.start);
@@ -126,6 +136,7 @@ export function stopSampling() {
   return {
     elapsedMs: Math.round(performance.now() - state.start),
     contentAtMs: state.contentAt,
+    dockAtMs: state.dockAt,
     // `frames` is the count (what the switch/mount benches report); `gaps` is
     // the raw per-frame intervals, which the scroll bench needs to count drops.
     frames: frames.length,
