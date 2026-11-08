@@ -79,3 +79,43 @@ function daySeed(key: string): number {
 export function promptsByMood(mood: PromptMood): GuidedPrompt[] {
     return GUIDED_PROMPTS.filter((p) => p.mood === mood || p.mood === 'anytime');
 }
+
+/**
+ * A prompt built from something the writer actually kept returning to.
+ *
+ * The theme comes from collectWeeklyThemes, so it is a word they wrote, not a
+ * label we invented. Kept in their voice: an opening they finish.
+ */
+export function themePrompt(theme: string): GuidedPrompt {
+    const word = theme.trim();
+    return {
+        id: `theme-${word.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+        label: capitalize(word),
+        mood: 'anytime',
+        opening: `More about ${word} and how it has been lately:`,
+    };
+}
+
+function capitalize(word: string): string {
+    return word.length === 0 ? word : word[0].toUpperCase() + word.slice(1);
+}
+
+/**
+ * Replace one slot in a shelf with a prompt drawn from a recurring theme.
+ *
+ * The LAST slot is replaced so the generic prompts keep their place, and at
+ * least one generic prompt always survives - a writer whose week is empty gets
+ * exactly the generic shelf back.
+ */
+export function personaliseShelf(
+    shelf: readonly GuidedPrompt[],
+    theme: string | null | undefined,
+): GuidedPrompt[] {
+    const out = [...shelf];
+    const word = (theme ?? '').trim();
+    if (word.length === 0 || out.length === 0) return out;
+    const prompt = themePrompt(word);
+    if (out.some((existing) => existing.id === prompt.id)) return out;
+    out[out.length - 1] = prompt;
+    return out;
+}

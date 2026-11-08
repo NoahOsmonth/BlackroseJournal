@@ -6,25 +6,18 @@
  * can be edited, sent, or ignored. Nothing is written until they send.
  */
 
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Pressable, ScrollView, Text } from 'react-native';
 
-import { moodForHour, promptsForDay } from '@/utils/guidedPrompts';
+import type { GuidedPrompt } from '@/utils/guidedPrompts';
 
 interface GuidedPromptShelfProps {
-    /** Local date key, so the shelf is stable for the day. */
-    readonly todayKey: string;
-    /** Hour of day used to pick prompts that fit the moment. */
-    readonly hour: number;
+    /** The prompts to show, already chosen by the caller's hook. */
+    readonly prompts: readonly GuidedPrompt[];
     readonly onPick: (opening: string) => void;
 }
 
-export function GuidedPromptShelf({ todayKey, hour, onPick }: GuidedPromptShelfProps) {
-    const prompts = useMemo(
-        () => promptsForDay(todayKey, moodForHour(hour), 3),
-        [todayKey, hour],
-    );
-
+export function GuidedPromptShelf({ prompts, onPick }: GuidedPromptShelfProps) {
     if (prompts.length === 0) return null;
 
     return (

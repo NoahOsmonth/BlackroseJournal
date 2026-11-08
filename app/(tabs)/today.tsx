@@ -28,6 +28,7 @@ import {
 } from '@/components/today';
 import { useGoals } from '@/hooks/goals/useGoals';
 import { GuidedPromptShelf } from '@/components/today/GuidedPromptShelf';
+import { useGuidedPrompts } from '@/hooks/journal/useGuidedPrompts';
 import { useIntentions } from '@/hooks/intentions/useIntentions';
 import { useIntentionCheckIns } from '@/hooks/intentions/useIntentionCheckIns';
 import { useEntryInsightQuestion } from '@/hooks/insights/useEntryInsightQuestion';
@@ -146,6 +147,8 @@ export default function TodayScreen() {
         }
         router.push({ pathname: '/intentions/chat', params: { type } });
     };
+
+    const { prompts: guidedPrompts } = useGuidedPrompts(dateKey, new Date().getHours());
 
     const handleWritePress = () => {
         router.push('/chat');
@@ -271,8 +274,7 @@ export default function TodayScreen() {
 
                                 <RevealItem scrollY={scrollY}>
                                     <GuidedPromptShelf
-                                        todayKey={dateKey}
-                                        hour={new Date().getHours()}
+                                        prompts={guidedPrompts}
                                         onPick={handlePromptPick}
                                     />
                                 </RevealItem>
