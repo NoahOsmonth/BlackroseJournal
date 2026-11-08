@@ -10,6 +10,7 @@ const read = (file: string): string => fs.readFileSync(path.join(root, file), 'u
 describe('month calendar day-tap wiring', () => {
     const screen = read(relPosix(root, path.join(root, 'app/monthly-review.tsx')));
     const panel = read(relPosix(root, path.join(root, 'components/insights/MonthlyDayPanel.tsx')));
+    const writeButton = read(relPosix(root, path.join(root, 'components/insights/WriteOnDayButton.tsx')));
     const hook = read(relPosix(root, path.join(root, 'hooks/insights/useMonthlyReview.ts')));
     const yearHook = read(relPosix(root, path.join(root, 'hooks/insights/useWritingYear.ts')));
     const builder = read(relPosix(root, path.join(root, 'utils/writingDayRows.ts')));
@@ -46,8 +47,13 @@ describe('month calendar day-tap wiring', () => {
         expect(panel).toContain("pathname: item.kind === 'entry' ? '/entry-detail' : '/checkin-detail'");
         expect(panel).toContain('params: { id: item.id }');
         expect(panel).toContain('monthly-day-item-');
-        expect(panel).toContain('Nothing written on this day.');
-        expect(panel).toContain('min-h-11');
+        // The empty-day copy and the write door moved to one shared component
+        // so the month and year grids can never disagree (round 47).
+        expect(screen).toContain('<WriteOnDayButton');
+        expect(writeButton).toContain('Nothing written on this day.');
+        expect(writeButton).toContain('Write about this day');
+        expect(writeButton).toContain('min-h-11');
+        expect(panel).not.toContain('Nothing written on this day.');
     });
 
     it('plain language and both schemes, no dropped spacing utilities', () => {

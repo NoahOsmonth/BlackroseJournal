@@ -64,11 +64,7 @@ export function MonthlyDayPanel({ dateKey, day }: MonthlyDayPanelProps) {
                         </Pressable>
                     ))}
                 </View>
-            ) : (
-                <Text className={'mt-4 text-[15px] ' + SECONDARY} testID="monthly-day-empty">
-                    Nothing written on this day.
-                </Text>
-            )}
+            ) : null}
         </View>
     );
 }

@@ -2,7 +2,7 @@
  * Group already-loaded writing into local calendar days. Pure: no I/O, no
  * hooks, no clock. Callers pass timestamps plus their text/word count.
  */
-import { getLocalDateKeyFromTimestamp } from './date';
+import { getLocalDateKeyFromTimestamp, isValidIsoDateKey, parseLocalDateKey } from './date';
 
 export interface DayWritingItem<T> {
     readonly id: string;
@@ -49,3 +49,36 @@ export function formatWritingDay(dateKey: string): string {
     if (Number.isNaN(date.getTime())) return dateKey;
     return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 }
+
+/**
+ * A writer may add words to a real day that is not in the future. Corrupt,
+ * blank or impossible keys are refused rather than inventing a date.
+ * `todayKey` is passed in by the caller — no clock read inside this helper.
+ */
+export function canWriteOnDay(dateKey: string, todayKey: string): boolean {
+    if (typeof dateKey !== 'string' || typeof todayKey !== 'string') return false;
+    if (!isValidIsoDateKey(dateKey) || !isValidIsoDateKey(todayKey)) return false;
+    return dateKey <= todayKey;
+}
+
+/**
+ * Midday local on the chosen day, so a timezone edge cannot slip the entry
+ * into the day before or after. Today returns undefined: the storage layer's
+ * own `now` is already the right answer and must not be overridden.
+ * Returns undefined for any refused key as well.
+ */
+export function backfillCreatedAt(
+    dateKey: string,
+    todayKey: string,
+    now: number,
+): number | undefined {
+    if (!canWriteOnDay(dateKey, todayKey) || dateKey === todayKey) return undefined;
+    const date = parseLocalDateKey(dateKey);
+    if (!date) return undefined;
+    date.setHours(12, 0, 0, 0);
+    const timestamp = date.getTime();
+    // A past day cannot be later than the real clock. Guards against a caller
+    // passing a stale `todayKey` from a screen left open past midnight.
+    return Number.isFinite(timestamp) && timestamp < now ? timestamp : undefined;
+}
+

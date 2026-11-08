@@ -8,7 +8,9 @@ import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useNavBack } from '@/hooks/navigation/useNavBack';
 import { useWritingYear } from '@/hooks/insights/useWritingYear';
-import { formatWritingDay } from '@/utils/writingDay';
+import { WriteOnDayButton } from '@/components/insights/WriteOnDayButton';
+import { canWriteOnDay, formatWritingDay } from '@/utils/writingDay';
+import { getLocalDateKey } from '@/utils/date';
 import type { WritingDay, WritingLevel } from '@/utils/writingYear';
 
 const SERIF = { fontFamily: 'PlayfairDisplayRegular' };
@@ -79,6 +81,7 @@ export default function WritingYearScreen() {
     }, [grid.startDateKey, grid.endDateKey]);
 
     const selected = selectedDay ? daysByKey.get(selectedDay) : undefined;
+    const todayKey = getLocalDateKey();
 
     return (
         <ScreenContainer edges="top">
@@ -209,11 +212,12 @@ export default function WritingYearScreen() {
                                         </Pressable>
                                     ))}
                                 </View>
-                            ) : (
-                                <Text className={'mt-4 text-[15px] ' + SECONDARY}>
-                                    Nothing written on this day.
-                                </Text>
-                            )}
+                            ) : null}
+                            <WriteOnDayButton
+                                dateKey={selectedDay}
+                                canWrite={canWriteOnDay(selectedDay, todayKey)}
+                                hasWriting={(selected?.items.length ?? 0) > 0}
+                            />
                         </View>
                     ) : (
                         <Text className={'mt-7 text-[14px] leading-[1.5] ' + SECONDARY}>

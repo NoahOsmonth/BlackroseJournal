@@ -5,10 +5,13 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { BLACKROSE_PALETTE } from '@/constants/theme';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { MonthlyDayPanel } from '@/components/insights/MonthlyDayPanel';
+import { WriteOnDayButton } from '@/components/insights/WriteOnDayButton';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useNavBack } from '@/hooks/navigation/useNavBack';
 import { useMonthlyReview } from '@/hooks/insights/useMonthlyReview';
 import { shiftMonth, type MonthlyCalendarDay } from '@/utils/monthlyReview';
+import { canWriteOnDay } from '@/utils/writingDay';
+import { getLocalDateKey } from '@/utils/date';
 
 const SERIF = { fontFamily: 'PlayfairDisplayRegular' };
 const SECONDARY = 'text-text-secondary-light dark:text-text-secondary-dark';
@@ -45,6 +48,7 @@ export default function MonthlyReviewScreen() {
     const [period, setPeriod] = useState({ year: now.getFullYear(), month: now.getMonth() + 1 });
     const { review, daysByKey, isLoading } = useMonthlyReview(period.year, period.month);
     const [selectedDay, setSelectedDay] = useState<string | null>(null);
+    const todayKey = getLocalDateKey();
 
     const move = (delta: number) => {
         setSelectedDay(null);
@@ -159,7 +163,14 @@ export default function MonthlyReviewScreen() {
                             </View>
 
                             {selectedDay ? (
-                                <MonthlyDayPanel dateKey={selectedDay} day={selected} />
+                                <>
+                                    <MonthlyDayPanel dateKey={selectedDay} day={selected} />
+                                    <WriteOnDayButton
+                                        dateKey={selectedDay}
+                                        canWrite={canWriteOnDay(selectedDay, todayKey)}
+                                        hasWriting={(selected?.items.length ?? 0) > 0}
+                                    />
+                                </>
                             ) : null}
 
                             {/* Moods and themes */}

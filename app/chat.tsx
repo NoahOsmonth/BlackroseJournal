@@ -8,7 +8,7 @@ import { useRecentDaysContext } from '@/hooks/memory/useRecentDaysContext';
 import { usePersonas } from '@/hooks/personas/usePersonas';
 import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { KeyboardAvoidingView, ScrollView, View } from 'react-native';
+import { KeyboardAvoidingView, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChatModelPickerSheet } from '../components/ai/ChatModelPickerSheet';
 import { ChatComposerBar } from '../components/chat/ChatComposerBar';
@@ -29,6 +29,8 @@ import { useJournalEntries } from '../hooks/useJournalEntries';
 import type { JournalEntry } from '../services/journal/journalStorage.types';
 import { latestUserMemoryQuery, resolveMemoryCapsuleQuery } from '../utils/memoryCapsuleQuery';
 import { isKnownPromptId } from '../utils/promptPacks';
+import { backfillCreatedAt, canWriteOnDay, formatWritingDay } from '../utils/writingDay';
+import { getLocalDateKey } from '../utils/date';
 
 type ChatParams = {
     mode?: string;
@@ -40,6 +42,8 @@ type ChatParams = {
     seed?: string;
     /** Which starting point began this sitting; progress is counted on finish. */
     starterId?: string;
+    /** A past calendar day the writer chose; the saved entry keeps that date. */
+    writeOn?: string;
 };
 
 export default function ChatScreen() {
@@ -71,6 +75,16 @@ export default function ChatScreen() {
     // Only a real starter id may ride along to the finish; a crafted route
     // param must never invent progress.
     const starterId = starterParam && isKnownPromptId(starterParam) ? starterParam : undefined;
+    const writeOnParam = Array.isArray(params.writeOn) ? params.writeOn[0] : params.writeOn;
+    const todayKey = getLocalDateKey();
+    // A crafted or future date must never move an entry. todayKey keeps the
+    // clock read in the screen, not inside the pure helper.
+    const writeOn = writeOnParam && canWriteOnDay(writeOnParam, todayKey)
+        ? writeOnParam
+        : undefined;
+    const writeOnCreatedAt = writeOn
+        ? backfillCreatedAt(writeOn, todayKey, Date.now())
+        : undefined;
     const resolvedMode: ChatMode = modeParam === 'dailyCheckIn' || modeParam === 'continue'
         ? modeParam
         : 'freeform';
@@ -127,9 +141,10 @@ export default function ChatScreen() {
             routeParams: {
                 ...(entryId ? { entryId } : {}),
                 ...(starterId ? { starterId } : {}),
+                ...(writeOn ? { writeOn } : {}),
             },
         }),
-        [conversationId, resolvedMode, entryId, starterId]
+        [conversationId, resolvedMode, entryId, starterId, writeOn]
     );
 
     /**
@@ -199,7 +214,7 @@ export default function ChatScreen() {
         conversationId,
         mode: resolvedMode === 'continue' ? 'continue' : 'freeform',
         messages,
-        routeParams: entryId ? { entryId } : undefined,
+        routeParams: { ...(entryId ? { entryId } : {}), ...(writeOn ? { writeOn } : {}) },
         getComposerDraft: () => inputValue,
     });
 
@@ -252,6 +267,7 @@ export default function ChatScreen() {
         inputValue,
         entryId,
         continuedEntry,
+        writeOnCreatedAt,
         create,
         update,
         finalize,
@@ -337,6 +353,13 @@ export default function ChatScreen() {
                     showThinking={showThinking}
                     onToggleThinking={() => { void toggleShowThinking(); }}
                 />
+                {writeOn ? (
+                    <View className="border-b border-hairline-light bg-surface-light px-5 py-2 dark:border-hairline-dark dark:bg-surface-dark" testID="write-on-day-note">
+                        <Text className="text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
+                            {'Writing on ' + formatWritingDay(writeOn)}
+                        </Text>
+                    </View>
+                ) : null}
 
                 <ChatTranscript
                     scrollViewRef={scrollViewRef}

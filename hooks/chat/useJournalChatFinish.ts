@@ -36,6 +36,8 @@ const FINISH_TITLE_TIMEOUT_MS = 8_000;
 interface UseJournalChatFinishOptions {
     /** Guided starter this sitting began from; marked written only on a saved entry. */
     starterId?: string;
+    /** Local noon on a past day the writer chose from the calendar. Create-only. */
+    writeOnCreatedAt?: number;
     messages: Message[];
     /** Words still in the writing slip, not yet sent as a message. */
     inputValue: string;
@@ -60,6 +62,7 @@ interface UseJournalChatFinishOptions {
 
 export function useJournalChatFinish({
     starterId,
+    writeOnCreatedAt,
     messages,
     inputValue,
     entryId,
@@ -177,6 +180,8 @@ export function useJournalChatFinish({
                     emoji,
                     messages: messagesToSave,
                     status: 'completed',
+                    // Editing an existing entry must never move its date.
+                    ...(writeOnCreatedAt !== undefined ? { createdAt: writeOnCreatedAt } : {}),
                 });
             }
             const savedEntryId = savedEntry?.id ?? entryId;
@@ -213,8 +218,8 @@ export function useJournalChatFinish({
             setFinishStage('Preparing your entry');
         }
     }, [
-        finalMessages, isSaving, router, create, update, entryId, starterId, handleNewChat,
-        finalizePersistedSession, finalize, onCelebrate,
+        finalMessages, isSaving, router, create, update, entryId, starterId, writeOnCreatedAt,
+        handleNewChat, finalizePersistedSession, finalize, onCelebrate,
     ]);
 
     return { handleClose, handleFinishEntry, isSaving, finishStage };
