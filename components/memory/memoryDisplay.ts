@@ -47,13 +47,25 @@ export function profilePreview(atoms: readonly LocalMemoryAtom[]): string {
     return best?.content ?? '';
 }
 
+/**
+ * One-line summary under the portrait.
+ *
+ * These are KEYWORDS, not themes. `topMemoryThemes` ranks the distinct tags
+ * across the store, and the old 99-item cap meant the line read
+ * "33 memories · 99 themes · 4 notes" — a theme count bounded by nothing the
+ * writer could see, on a store whose real tag count (130) it silently
+ * truncated. A tag is a keyword the extractor attached to a memory; calling
+ * it a theme told the writer their journal had 99 recurring subjects when it
+ * had 33 memories. Report the true distinct-tag count, and only when it is a
+ * number a person can hold onto.
+ */
 export function memoryPortraitProse(atoms: readonly LocalMemoryAtom[]): string {
     const total = atoms.length;
-    const themes = topMemoryThemes(atoms, 99).length;
+    const keywords = topMemoryThemes(atoms, Number.POSITIVE_INFINITY).length;
     const notes = countLayer(atoms, 'note');
     const parts: string[] = [];
     parts.push(`${total} ${total === 1 ? 'memory' : 'memories'}`);
-    if (themes > 0) parts.push(`${themes} ${themes === 1 ? 'theme' : 'themes'}`);
+    if (keywords > 0) parts.push(`${keywords} ${keywords === 1 ? 'keyword' : 'keywords'}`);
     if (notes > 0) parts.push(`${notes} ${notes === 1 ? 'note' : 'notes'}`);
     return parts.join(' · ');
 }

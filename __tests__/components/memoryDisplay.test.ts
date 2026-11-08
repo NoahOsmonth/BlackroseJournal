@@ -32,7 +32,9 @@ describe('memoryDisplay helpers', () => {
             atom({ id: '2', layer: 'semantic', tags: ['a', 'b'] }),
             atom({ id: '3', layer: 'note' }),
         ];
-        expect(memoryPortraitProse(atoms)).toBe('3 memories · 2 themes · 1 note');
+        // Tags are keywords, not themes. The old label said "2 themes" for two
+        // tags, and in the real store reported 99 themes for 33 memories.
+        expect(memoryPortraitProse(atoms)).toBe('3 memories · 2 keywords · 1 note');
     });
 
     it('prefers richer profile content for portrait preview', () => {
