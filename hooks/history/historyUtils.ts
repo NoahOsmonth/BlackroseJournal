@@ -333,8 +333,18 @@ export function filterHistorySectionsByQuery(
  * Archive week meta line — "This week · Jan 18–24" per black-rose-archive.png.
  * The trailing day collapses to a bare number only when the week stays inside
  * one month; a month-crossing week keeps both month names.
+ *
+ * `spansBeforeThisWeek` is the case the concept never drew: the Archive lists
+ * every entry ever written, grouped by day, with no week filter. A bare
+ * "This week · Nov 8–14" printed above a list that runs back to 30 Oct reads as
+ * a filter the screen does not apply. When the feed reaches past this week's
+ * start the line says "This week and earlier" instead — still naming the
+ * current week, but describing every row underneath it.
  */
-export function formatWeekMeta(summary: WeeklyHistorySummary): string | null {
+export function formatWeekMeta(
+    summary: WeeklyHistorySummary,
+    options: { spansBeforeThisWeek?: boolean } = {},
+): string | null {
     const parts = summary.label.split(' - ');
     if (parts.length !== 2) return null;
     const [startLabel, endLabel] = parts;
@@ -344,7 +354,8 @@ export function formatWeekMeta(summary: WeeklyHistorySummary): string | null {
     const range = startMonth === endMonth
         ? `${startLabel}\u2013${endDay}`
         : `${startLabel}\u2013${endLabel}`;
-    return `This week \u00b7 ${range}`;
+    const lead = options.spansBeforeThisWeek ? 'This week and earlier' : 'This week';
+    return `${lead} \u00b7 ${range}`;
 }
 
 function getWeekBounds(date: Date): { start: Date; end: Date } {

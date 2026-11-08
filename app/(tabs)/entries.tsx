@@ -85,7 +85,15 @@ export default function EntriesScreen() {
     } = useHistoryFeed();
     const { goToTab } = useTabNavigation();
 
-    const weekLabel = formatWeekMeta(weeklySummary);
+    // The feed below is every entry ever written, grouped by day - it is not
+    // filtered to this week. Say so in the header rather than printing a bare
+    // "This week" above rows that reach back past it.
+    const spansBeforeThisWeek = useMemo(() => {
+        const weekStart = weeklySummary.weekDayKeys[0];
+        if (!weekStart) return false;
+        return sections.some((section) => section.dateKey < weekStart);
+    }, [sections, weeklySummary.weekDayKeys]);
+    const weekLabel = formatWeekMeta(weeklySummary, { spansBeforeThisWeek });
 
     const [searchOpen, setSearchOpen] = useState(false);
     const [query, setQuery] = useState('');
