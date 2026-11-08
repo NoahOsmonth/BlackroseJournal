@@ -6,6 +6,7 @@ import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FinishBackgroundBanner } from '@/components/entries/FinishBackgroundBanner';
+import { MoodChipRow } from '@/components/entries/MoodChipRow';
 import { HistoryEmpty } from '@/components/history/HistoryEmpty';
 import { HistoryMonthBreak } from '@/components/history/HistoryMonthBreak';
 import { HistorySection } from '@/components/history/HistorySection';
@@ -26,6 +27,12 @@ import {
 import { useHistoryFeed } from '@/hooks/history/useHistoryFeed';
 import { useStarredEntries } from '@/hooks/journal/useStarredEntries';
 import { filterStarredSections } from '@/utils/starredSections';
+import {
+    collectMoodChips,
+    countMoodItems,
+    filterSectionsByMood,
+    normalizeMood,
+} from '@/utils/moodChips';
 import {
     collectTopicChips,
     countTopicItems,
@@ -109,6 +116,7 @@ export default function EntriesScreen() {
     const [dismissedId, setDismissedId] = useState<string | null>(null);
     const [showStarredOnly, setShowStarredOnly] = useState(false);
     const [activeTopic, setActiveTopic] = useState('');
+    const [activeMood, setActiveMood] = useState('');
     const { starredIds, starredSet } = useStarredEntries();
 
     useFocusEffect(
@@ -147,9 +155,21 @@ export default function EntriesScreen() {
         [beforeTopicSections]
     );
 
-    const visibleSections = useMemo(
+    // Mood is the LAST narrowing layer. Chips come from the feed after search,
+    // starred and topic, so every number says what is actually behind the chip.
+    const afterTopicSections = useMemo(
         () => (activeTopic ? filterSectionsByTopic(beforeTopicSections, activeTopic) : beforeTopicSections),
         [activeTopic, beforeTopicSections]
+    );
+
+    const moodChips = useMemo(
+        () => collectMoodChips(afterTopicSections),
+        [afterTopicSections]
+    );
+
+    const visibleSections = useMemo(
+        () => (activeMood ? filterSectionsByMood(afterTopicSections, activeMood) : afterTopicSections),
+        [activeMood, afterTopicSections]
     );
 
     const feedRows = useMemo(
@@ -195,6 +215,11 @@ export default function EntriesScreen() {
         && countTopicItems(beforeTopicSections, activeTopic) === 0;
     const activeTopicLabel = topicChips.find((chip) => chip.label === activeTopic)?.label
         ?? normalizeTopic(activeTopic);
+    const noMoodMatches = normalizeMood(activeMood).length > 0
+        && countMoodItems(afterTopicSections, activeMood) === 0;
+    const activeMoodLabel = moodChips.find((chip) => chip.label === activeMood)?.label
+        ?? normalizeMood(activeMood);
+    const countMoodFor = (label: string) => countMoodItems(afterTopicSections, label);
 
     return (
         <ScreenContainer edges="top">
@@ -282,6 +307,13 @@ export default function EntriesScreen() {
                 </View>
             ) : null}
 
+            <MoodChipRow
+                chips={moodChips}
+                activeMood={activeMood}
+                countFor={countMoodFor}
+                onSelect={setActiveMood}
+            />
+
             {searchOpen ? (
                 <View className="px-6 pt-3">
                     <View className="rounded-control border border-hairline-light px-4 py-2.5 dark:border-hairline-dark">
@@ -325,7 +357,19 @@ export default function EntriesScreen() {
                 {isLoading && !hasAnyItems ? (
                     <HistorySkeleton />
                 ) : isEmpty ? (
-                    noTopicMatches ? (
+                    noMoodMatches ? (
+                        <View className="items-center px-8 pt-16" testID="archive-mood-empty">
+                            <Text
+                                className="text-center text-[22px] text-text-light dark:text-text-dark"
+                                style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                            >
+                                Nothing here about feeling {activeMoodLabel}
+                            </Text>
+                            <Text className="mt-3 text-center text-[15px] leading-[1.5] text-text-secondary-light dark:text-text-secondary-dark">
+                                Try another feeling, or show every entry.
+                            </Text>
+                        </View>
+                    ) : noTopicMatches ? (
                         <View className="items-center px-8 pt-16" testID="archive-topic-empty">
                             <Text
                                 className="text-center text-[22px] text-text-light dark:text-text-dark"
