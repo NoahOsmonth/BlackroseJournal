@@ -1,17 +1,24 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { router } from 'expo-router';
 
 import { BLACKROSE_PALETTE } from '@/constants/theme';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useNavBack } from '@/hooks/navigation/useNavBack';
 import { useWritingYear } from '@/hooks/insights/useWritingYear';
+import { formatWritingDay } from '@/utils/writingDay';
 import type { WritingDay, WritingLevel } from '@/utils/writingYear';
 
 const SERIF = { fontFamily: 'PlayfairDisplayRegular' };
-const WEEKDAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const SECONDARY = 'text-text-secondary-light dark:text-text-secondary-dark';
+
+/** Fixed cells. A 53-week grid must scroll horizontally, not shrink to 4px. */
+const CELL = 14;
+const GAP = 3;
+const STEP = CELL + GAP;
+const GRID_WIDTH = 53 * STEP - GAP;
 
 /** One token pair per tone step. Never interpolate a hex at runtime. */
 const LEVEL_CLASS: Record<WritingLevel, string> = {
@@ -25,7 +32,7 @@ const LEVEL_CLASS: Record<WritingLevel, string> = {
 const LEVEL_WORDS = ['Nothing written', 'A few words', 'Some writing', 'A good stretch', 'A full day'];
 
 function dayClass(day: WritingDay): string {
-    const parts = ['aspect-square w-full rounded-[2px]', LEVEL_CLASS[day.level]];
+    const parts = ['rounded-[2px]', LEVEL_CLASS[day.level]];
     if (day.isPadding) parts.push('opacity-30');
     if (day.isToday) parts.push('border border-starred-gold dark:border-starred-gold-dark');
     return parts.join(' ');
@@ -39,22 +46,39 @@ function dayAccessibilityLabel(day: WritingDay): string {
         : day.dateKey + ': ' + tone.toLowerCase() + ', ' + day.words + ' words';
 }
 
+function formatTime(timestamp: number): string {
+    return new Date(timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
 /**
- * A year of writing: 53 Sunday-first columns of seven small squares. One
- * serif moment (the title), one quiet legend, all data from the local journal.
- * No network, no AI, no new storage key.
+ * A year of writing: 53 Sunday-first columns of seven readable squares.
+ * Tapping one opens that day's writing. All data comes from the local journal
+ * through one hook; no network, no AI, no new storage key.
  */
 export default function WritingYearScreen() {
     const goBack = useNavBack('/streak-view');
     const isDark = useColorScheme() === 'dark';
     const ink = isDark ? BLACKROSE_PALETTE.dark.text : BLACKROSE_PALETTE.light.text;
-    const { grid, isLoading } = useWritingYear();
+    const { grid, daysByKey, isLoading } = useWritingYear();
+    const [selectedDay, setSelectedDay] = useState<string | null>(null);
+    const scrollRef = useRef<ScrollView>(null);
+    const didScroll = useRef(false);
+
+    // Land on the most recent week instead of forcing a swipe past a year.
+    useEffect(() => {
+        if (didScroll.current || isLoading) return;
+        didScroll.current = true;
+        const id = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 120);
+        return () => clearTimeout(id);
+    }, [isLoading]);
 
     const rangeLabel = useMemo(() => {
         const fmt = (key: string) => new Date(key + 'T12:00:00')
             .toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
         return fmt(grid.startDateKey) + ' to ' + fmt(grid.endDateKey);
     }, [grid.startDateKey, grid.endDateKey]);
+
+    const selected = selectedDay ? daysByKey.get(selectedDay) : undefined;
 
     return (
         <ScreenContainer edges="top">
@@ -94,58 +118,109 @@ export default function WritingYearScreen() {
                         </Text>
                     ) : (
                         <View className="mt-6">
-                            <View className="mb-2 h-4 w-full">
-                                {grid.monthLabels.map((month) => (
-                                    <Text
-                                        key={month.label + '-' + month.weekIndex}
-                                        className={'absolute text-[11px] ' + SECONDARY}
-                                        style={{ left: `${(month.weekIndex / grid.weeksCount) * 100}%` }}
-                                    >
-                                        {month.label}
-                                    </Text>
-                                ))}
-                            </View>
-
-                            <View className="flex-row gap-[3px]">
-                                <View className="mr-1 justify-between py-[1px]">
-                                    {WEEKDAY_INITIALS.map((initial, index) => (
-                                        <Text
-                                            key={'weekday-' + index}
-                                            className={'h-[13px] text-[10px] leading-[13px] ' + SECONDARY}
-                                        >
-                                            {index % 2 === 1 ? initial : ''}
-                                        </Text>
-                                    ))}
+                            <ScrollView
+                                ref={scrollRef}
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={{ width: GRID_WIDTH }}
+                                testID="writing-year-grid-scroll"
+                            >
+                                <View style={{ width: GRID_WIDTH }}>
+                                    {/* Labels share the grid's column origin. */}
+                                    <View className="mb-2 h-4">
+                                        {grid.monthLabels.map((month) => (
+                                            <Text
+                                                key={month.label + '-' + month.weekIndex}
+                                                className={'absolute text-[11px] ' + SECONDARY}
+                                                style={{ left: month.weekIndex * STEP }}
+                                            >
+                                                {month.label}
+                                            </Text>
+                                        ))}
+                                    </View>
+                                    <View className="flex-row gap-[3px]">
+                                        {grid.weeks.map((week, weekIndex) => (
+                                            <View key={'week-' + weekIndex} className="gap-[3px]">
+                                                {week.map((day) => (
+                                                    <Pressable
+                                                        key={day.dateKey}
+                                                        onPress={() => { if (!day.isPadding) setSelectedDay(day.dateKey); }}
+                                                        accessibilityRole="button"
+                                                        accessibilityLabel={dayAccessibilityLabel(day)}
+                                                        className={dayClass(day)}
+                                                        style={{ width: CELL, height: CELL }}
+                                                        testID={day.isToday ? 'writing-year-today' : (day.words > 0 ? 'writing-year-day-' + day.dateKey : undefined)}
+                                                    />
+                                                ))}
+                                            </View>
+                                        ))}
+                                    </View>
                                 </View>
-                                <View className="flex-1 flex-row gap-[3px]">
-                                    {grid.weeks.map((week, weekIndex) => (
-                                        <View key={'week-' + weekIndex} className="flex-1 gap-[3px]">
-                                            {week.map((day) => (
-                                                <View
-                                                    key={day.dateKey}
-                                                    accessibilityLabel={dayAccessibilityLabel(day)}
-                                                    className={dayClass(day)}
-                                                    testID={day.isToday ? 'writing-year-today' : undefined}
-                                                />
-                                            ))}
-                                        </View>
+                            </ScrollView>
+
+                            <View className="mt-3 flex-row items-center justify-between">
+                                <Text className={'text-[12px] ' + SECONDARY}>
+                                    Swipe to see earlier days
+                                </Text>
+                                <View className="flex-row items-center gap-[6px]">
+                                    <Text className={'text-[12px] ' + SECONDARY}>Less</Text>
+                                    {([0, 1, 2, 3, 4] as WritingLevel[]).map((level) => (
+                                        <View key={'legend-' + level} className={'rounded-[2px] ' + LEVEL_CLASS[level]} style={{ width: 11, height: 11 }} />
                                     ))}
+                                    <Text className={'text-[12px] ' + SECONDARY}>More</Text>
                                 </View>
                             </View>
                         </View>
                     )}
 
-                    <View className="mt-6 flex-row items-center justify-end gap-[6px]">
-                        <Text className={'mr-1 text-[12px] ' + SECONDARY}>Less</Text>
-                        {([0, 1, 2, 3, 4] as WritingLevel[]).map((level) => (
-                            <View key={'legend-' + level} className={'h-[13px] w-[13px] rounded-[2px] ' + LEVEL_CLASS[level]} />
-                        ))}
-                        <Text className={'ml-1 text-[12px] ' + SECONDARY}>More</Text>
-                    </View>
-
-                    <Text className={'mt-6 pb-10 text-[14px] leading-[1.5] ' + SECONDARY}>
-                        Every square is one day. The more you wrote, the deeper the color.
-                    </Text>
+                    {/* Tap a square -> that day's writing, in plain language. */}
+                    {selectedDay ? (
+                        <View className="mt-7">
+                            <View className="h-px w-full bg-hairline-light dark:bg-hairline-dark" />
+                            <Text className={'mt-5 text-[18px] ' + SECONDARY} style={SERIF}>
+                                {formatWritingDay(selectedDay)}
+                            </Text>
+                            {selected && selected.items.length > 0 ? (
+                                <View className="mt-3 gap-3">
+                                    {selected.items.map((item) => (
+                                        <Pressable
+                                            key={item.kind + '-' + item.id}
+                                            onPress={() => router.push({
+                                                pathname: item.kind === 'entry' ? '/entry-detail' : '/checkin-detail',
+                                                params: { id: item.id },
+                                            })}
+                                            accessibilityRole="button"
+                                            accessibilityLabel={'Open ' + item.title}
+                                            testID={'writing-day-item-' + item.id}
+                                            className="rounded-card border border-hairline-light bg-surface-light p-4 dark:border-hairline-dark dark:bg-surface-dark"
+                                        >
+                                            <View className="flex-row items-center justify-between">
+                                                <Text className="text-[15px] text-text-light dark:text-text-dark" numberOfLines={1}>
+                                                    {item.title}
+                                                </Text>
+                                                <MaterialIcons name="chevron-right" size={18} color={ink} />
+                                            </View>
+                                            <Text className={'mt-2 text-[13px] leading-[1.5] ' + SECONDARY} numberOfLines={2}>
+                                                {item.preview || formatTime(item.createdAt)}
+                                            </Text>
+                                            <Text className={'mt-2 text-[12px] ' + SECONDARY}>
+                                                {formatTime(item.createdAt)} · {item.words} words
+                                            </Text>
+                                        </Pressable>
+                                    ))}
+                                </View>
+                            ) : (
+                                <Text className={'mt-4 text-[15px] ' + SECONDARY}>
+                                    Nothing written on this day.
+                                </Text>
+                            )}
+                        </View>
+                    ) : (
+                        <Text className={'mt-7 text-[14px] leading-[1.5] ' + SECONDARY}>
+                            Every square is one day. The more you wrote, the deeper the color. Tap a square to read that day.
+                        </Text>
+                    )}
+                    <View className="h-12" />
                 </ScrollView>
             </View>
         </ScreenContainer>
