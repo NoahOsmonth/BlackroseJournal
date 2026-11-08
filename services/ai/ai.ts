@@ -44,6 +44,7 @@ import {
     hasReadableStream,
     streamChatWithXhr,
 } from './streamingTransports';
+import { replyOrFallback } from '@/utils/emptyReply';
 import { HISTORY_TOOLS_POLICY } from './tools';
 import { stripToolCallSyntax } from './tools/parseTextToolCalls';
 import {
@@ -292,7 +293,10 @@ export async function streamChat(
         // preserves the content verbatim, so we must not re-trim legitimate output here.
         const safeOnComplete: CompleteCallback = (content, reasoning) => {
             const stripped = stripToolCallSyntax(content);
-            onComplete(stripped || content, reasoning);
+            // A turn that finishes with no words is not a blank reply: it is the
+            // dead end where the writer watches "Thinking" and nothing arrives
+            // (DEF-032). Answer in plain words so the turn visibly ends.
+            onComplete(replyOrFallback(stripped || content), reasoning);
         };
 
         const xhrResult = await streamChatWithXhr(
