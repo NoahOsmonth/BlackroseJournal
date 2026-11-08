@@ -23,6 +23,11 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 import { renderHook, act, waitFor } from '@testing-library/react-native';
 import { useClearJournalHistory } from '../../hooks/journal/useClearJournalHistory';
 import { createEntry, listEntries } from '../../services/journal/journalStorage';
+import {
+    listStarredEntryIds,
+    setStarredEntryIds,
+    subscribeStarredChanges,
+} from '../../services/journal/starredEntries';
 import { createCheckIn, listCheckIns } from '../../services/intentions/intentionsStorage';
 import { listMemoryAtoms } from '../../services/memory/localMemory';
 import { listMemoryFiles } from '../../services/memory/memoryFiles';
@@ -88,6 +93,8 @@ describe('useClearJournalHistory', () => {
             1
         );
         await createSavedInsight({ question: 'Q?', sourceDate: '2026-01-01' });
+        await setStarredEntryIds(['entry-1', 'entry-2']);
+        expect(await listStarredEntryIds()).toHaveLength(2);
         await applyIdentityPatch({ preferredName: 'Sigurd', source: 'manual' });
         expect(profileHasIdentity(await getIdentityProfile())).toBe(true);
 
@@ -108,6 +115,22 @@ describe('useClearJournalHistory', () => {
         expect(await loadSessions()).toEqual([]);
         expect(await loadCachedInsights('2026-W01')).toBeNull();
         expect(await listSavedInsights()).toEqual([]);
+        // Stars point at journal entries; leaving them makes the Archive say
+        // "2 shown" with an empty list forever (round 34 live QA).
+        expect(await listStarredEntryIds()).toEqual([]);
+    });
+
+    it('tells open screens the stars are gone', async () => {
+        await setStarredEntryIds(['entry-1']);
+        const seen: string[][] = [];
+        const unsubscribe = subscribeStarredChanges((ids) => seen.push([...ids]));
+        const { result } = renderHook(() => useClearJournalHistory());
+        await act(async () => {
+            await result.current.clearAll();
+        });
+        unsubscribe();
+        expect(seen).toContainEqual([]);
+        expect(await listStarredEntryIds()).toEqual([]);
     });
 
     it('survives a transient account-lease abort mid-wipe and reports no failed steps (DEF-011)', async () => {

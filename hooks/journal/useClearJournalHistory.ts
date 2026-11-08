@@ -11,6 +11,7 @@ import { clearRollupAttempts } from '@/services/memory/memoryRollupBuild';
 import { clearMemoryFiles } from '@/services/memory/memoryFiles';
 import { removeAllChatSessions } from '@/services/ai/sessionStorage';
 import { clearAllEntries } from '@/services/journal/journalStorage';
+import { clearStarredEntries } from '@/services/journal/starredEntries';
 import { clearAllCheckIns } from '@/services/intentions/intentionsStorage';
 import { clearCrashLogs } from '@/services/crash/crashLogStorage';
 import { getActiveAccountId } from '@/services/account/accountRuntime';
@@ -43,6 +44,7 @@ export function useClearJournalHistory(): UseClearJournalHistoryReturn {
             // wholesale when the auth gateway died - DEF-011).
             const steps: Array<readonly [string, () => Promise<void>]> = [
                 ['journal entries', clearAllEntries],
+                ['starred moments', clearStarredEntries],
                 ['intention check-ins', clearAllCheckIns],
                 ['memories from entries', () => deleteMemoryAtomsBySource('journal')],
                 ['memories from check-ins', () => deleteMemoryAtomsBySource('intention')],

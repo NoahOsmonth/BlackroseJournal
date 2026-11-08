@@ -133,6 +133,27 @@ export function toggleStarredEntry(id: string): Promise<string[]> {
     });
 }
 
+/**
+ * Clear History entry point. Stars point at journal entries, so a wipe that
+ * leaves them behind makes the Archive filter claim "N shown" with an empty
+ * list forever. Writes an empty envelope (not a removeItem) so the key stays
+ * owned by this module and its shape stays valid, then notifies subscribers.
+ */
+export function clearStarredEntries(): Promise<void> {
+    return runAccountBoundOperation('starred-clear', async (context) => {
+        const storage = getStorageForAccount(context.accountId);
+        await enqueueMutation(async () => {
+            assertAccountOperationActive(context);
+            await writePayload(storage, {
+                schemaVersion: SCHEMA_VERSION,
+                ids: [],
+                updatedAt: Date.now(),
+            });
+            notifyStarredChanged([]);
+        });
+    });
+}
+
 /** Test/local-restore helper: replace the whole list in one locked write. */
 export function setStarredEntryIds(ids: readonly string[]): Promise<string[]> {
     return runAccountBoundOperation('starred-set', async (context) => {

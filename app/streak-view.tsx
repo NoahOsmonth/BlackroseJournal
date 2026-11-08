@@ -150,6 +150,19 @@ export default function StreakViewScreen() {
                         </View>
                     </View>
 
+                    <Pressable
+                        onPress={() => router.push('/writing-year')}
+                        accessibilityRole="button"
+                        accessibilityLabel="See a year of writing"
+                        testID="see-writing-year"
+                        className="mt-6 min-h-11 flex-row items-center justify-center gap-2 rounded-control border border-hairline-light bg-surface-light px-4 dark:border-hairline-dark dark:bg-surface-dark"
+                    >
+                        <MaterialIcons name="grid-on" size={18} color={ink} />
+                        <Text className="text-[15px] text-text-light dark:text-text-dark">
+                            See a year of writing
+                        </Text>
+                    </Pressable>
+
                     <View className="h-12" />
                 </ScrollView>
             </View>

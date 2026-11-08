@@ -106,6 +106,20 @@ module.exports = {
                 'starred-border': '#C89A3E',
                 'starred-border-dark': '#B98B34',
 
+                // ---- Writing-year grid: five quiet bone-to-gold steps ----------------
+                // Level 0 is an empty square. Both schemes are first-class: the
+                // light grid darkens toward ink, the dark grid brightens toward bone.
+                'year-0-light': '#EFEAE1',
+                'year-0-dark': '#242329',
+                'year-1-light': '#DCD0AE',
+                'year-1-dark': '#4A4232',
+                'year-2-light': '#C6B27A',
+                'year-2-dark': '#77673F',
+                'year-3-light': '#A98F4E',
+                'year-3-dark': '#A88D4B',
+                'year-4-light': '#7A6230',
+                'year-4-dark': '#E0BD6B',
+
                 // ---- Status banners (finish-background pill) -------------------------
                 'status-running-bg-light': '#EDE8DF',
                 'status-running-bg-dark': '#1A1A1E',
