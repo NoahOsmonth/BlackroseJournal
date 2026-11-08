@@ -34,11 +34,20 @@ uvx mcp2cli @kaneo --json create-task --project-id uysh78e1px3k3mjmwyt5rs1w \
   --title "..." --description "..." --status to-do --priority medium
 uvx mcp2cli @kaneo --json update-task-status --id <taskId> --status in-progress
 uvx mcp2cli @kaneo --json update-task-description --id <taskId> --description "..."
+
+# Count/survey the whole board — always pass --status. The unfiltered list
+# silently caps at 50 cards, so a new card that sorts past that window is
+# invisible and the totals undercount. This read 43 done while 45 were done.
+for s in to-do in-progress in-review done; do
+  uvx mcp2cli @kaneo --json list-tasks --project-id uysh78e1px3k3mjmwyt5rs1w --status $s
+done
 ```
 
 Rules:
 
 - Create the card first (status `to-do`), flip to `in-progress` when work starts, `in-review` when it is done pending verification, `done` when it lands. Trivial work still gets a card; there is no "too small to track".
+- **Always pass `--status` to `create-task`.** A card created without it lands in a default column and, once its position sorts past the first 50, does not appear in an unfiltered `list-tasks` at all — `create-task` still returns a number, so it looks created while being invisible. Confirm with `--status done` before saying a card exists.
+- **Verify a card by `get-task --id`, not by the list.** `list-tasks` is paginated to 50 without warning; `get-task` always returns the row.
 - Put the plan, findings, and blockers in the card description, not only in chat.
 - **Images in descriptions.** Visual work attaches a screenshot to the card:
   1. `create-task-image-upload --id <taskId> --filename x.png --content-type image/png --size <bytes> --surface description` returns `{key, uploadUrl, headers}`.
