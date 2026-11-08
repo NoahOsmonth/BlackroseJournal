@@ -26,6 +26,8 @@ interface DataManagementSectionProps {
     readonly seedProgress?: { readonly completed: number; readonly total: number } | null;
     readonly showDemoSeedControls?: boolean;
     readonly onClearHistory: () => void;
+    /** Opens the sealed-letters screen. */
+    readonly onLettersPress: () => void;
     readonly embedded?: boolean;
     /** True while any data operation (incl. a demo seed) is in flight. */
     readonly isSeeding?: boolean;
@@ -93,6 +95,7 @@ export function DataManagementSection({
     seedProgress = null,
     showDemoSeedControls = false,
     onClearHistory,
+    onLettersPress,
     embedded = false,
     isSeeding = false,
 }: DataManagementSectionProps) {
@@ -175,6 +178,12 @@ export function DataManagementSection({
                 detail={drive.remoteFiles[0] ? `Latest: ${drive.remoteFiles[0].name}` : 'Uses the newest Drive backup.'}
                 disabled={isBusy || driveBusy}
                 onPress={handleDriveRestore}
+            />
+            <SettingsRow
+                label="Letters to your future self"
+                detail="Write now. It stays sealed until the day you pick."
+                disabled={isBusy}
+                onPress={onLettersPress}
             />
             <SettingsRow
                 label="Clear history & memories"

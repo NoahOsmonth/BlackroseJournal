@@ -46,7 +46,7 @@ describe('DataManagementSection', () => {
                 onCreateBackup={jest.fn()}
                 onRestoreLatestBackup={jest.fn()}
                 onExportJournalJson={jest.fn()}
-                onClearHistory={jest.fn()}
+                onClearHistory={jest.fn()} onLettersPress={jest.fn()}
             />
         );
 
@@ -69,7 +69,7 @@ describe('DataManagementSection', () => {
                 showDemoSeedControls
                 onSeedDemoData={jest.fn()}
                 onClearDemoData={jest.fn()}
-                onClearHistory={jest.fn()}
+                onClearHistory={jest.fn()} onLettersPress={jest.fn()}
             />
         );
         expect(getByText('Add sample data')).toBeTruthy();
@@ -86,7 +86,7 @@ describe('DataManagementSection', () => {
                 onCreateBackup={onCreateBackup}
                 onRestoreLatestBackup={onRestoreLatestBackup}
                 onExportJournalJson={jest.fn()}
-                onClearHistory={jest.fn()}
+                onClearHistory={jest.fn()} onLettersPress={jest.fn()}
             />
         );
 
@@ -110,7 +110,7 @@ describe('DataManagementSection', () => {
                 onCreateBackup={jest.fn()}
                 onRestoreLatestBackup={jest.fn()}
                 onExportJournalJson={jest.fn()}
-                onClearHistory={jest.fn()}
+                onClearHistory={jest.fn()} onLettersPress={jest.fn()}
                 showDemoSeedControls
                 onSeedDemoData={onSeedDemoData}
                 seedProgress={{ completed: 7, total: 25 }}
@@ -142,7 +142,7 @@ describe('DataManagementSection', () => {
                 onCreateBackup={jest.fn()}
                 onRestoreLatestBackup={jest.fn()}
                 onExportJournalJson={jest.fn()}
-                onClearHistory={jest.fn()}
+                onClearHistory={jest.fn()} onLettersPress={jest.fn()}
             />
         );
 
@@ -161,5 +161,21 @@ describe('DataManagementSection', () => {
                 'Google Drive restore failed.',
             );
         });
+    });
+    it('offers letters to your future self', () => {
+        const onLettersPress = jest.fn();
+        const { getByText } = render(
+            <DataManagementSection
+                latestBackup={null}
+                isBusy={false}
+                onCreateBackup={jest.fn()}
+                onRestoreLatestBackup={jest.fn()}
+                onExportJournalJson={jest.fn()}
+                onClearHistory={jest.fn()}
+                onLettersPress={onLettersPress}
+            />,
+        );
+        fireEvent.press(getByText('Letters to your future self'));
+        expect(onLettersPress).toHaveBeenCalledTimes(1);
     });
 });

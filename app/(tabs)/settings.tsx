@@ -311,6 +311,7 @@ export default function SettingsScreen() {
                         seedProgress={seedProgress}
                         isSeeding={isSeeding}
                         onClearHistory={handleClearHistory}
+                        onLettersPress={() => router.push('/letters')}
                         embedded
                     />
                 </SettingsAccordionSection>
