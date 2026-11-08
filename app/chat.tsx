@@ -35,6 +35,8 @@ type ChatParams = {
     entryId?: string;
     resume?: string;
     topic?: string;
+    /** A starting line dropped into the input, not sent. */
+    seed?: string;
 };
 
 export default function ChatScreen() {
@@ -61,6 +63,7 @@ export default function ChatScreen() {
         ? params.promptPeriod[0]
         : params.promptPeriod;
     const topicParam = Array.isArray(params.topic) ? params.topic[0] : params.topic;
+    const seedParam = Array.isArray(params.seed) ? params.seed[0] : params.seed;
     const resolvedMode: ChatMode = modeParam === 'dailyCheckIn' || modeParam === 'continue'
         ? modeParam
         : 'freeform';
@@ -119,10 +122,22 @@ export default function ChatScreen() {
         [conversationId, resolvedMode, entryId]
     );
 
+    /**
+     * A guided prompt seeds the writing slip instead of sending anything. The
+     * writer still has to press send, so a suggestion never becomes an entry
+     * they did not write. `setText` also focuses the slip.
+     */
+    const didSeed = useRef(false);
+    useEffect(() => {
+        if (!seedParam || didSeed.current) return;
+        didSeed.current = true;
+        inputRef.current?.setText(seedParam);
+    }, [seedParam]);
+
     const initialPrompt = useMemo(() => {
         if (!topicParam) return undefined;
         return {
-            systemPrompt: `The user tapped an insight about this topic. Begin by gently exploring it with them, building on their journal entries.\n\nTopic: ${topicParam}`,
+            systemPrompt: `The user opened this chat from a suggested starting point and it is already in their input. Let them write in their own words; do not repeat their opening line back at them.\n\nStarting point: ${topicParam}`,
             triggerText: topicParam,
         };
     }, [topicParam]);

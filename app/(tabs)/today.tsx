@@ -27,6 +27,7 @@ import {
     buildGoalListItems,
 } from '@/components/today';
 import { useGoals } from '@/hooks/goals/useGoals';
+import { GuidedPromptShelf } from '@/components/today/GuidedPromptShelf';
 import { useIntentions } from '@/hooks/intentions/useIntentions';
 import { useIntentionCheckIns } from '@/hooks/intentions/useIntentionCheckIns';
 import { useEntryInsightQuestion } from '@/hooks/insights/useEntryInsightQuestion';
@@ -150,6 +151,11 @@ export default function TodayScreen() {
         router.push('/chat');
     };
 
+    /** A tapped prompt opens the chat with its opening line already there. */
+    const handlePromptPick = useCallback((opening: string) => {
+        router.push({ pathname: '/chat', params: { seed: opening } });
+    }, [router]);
+
     const handleMorningPress = () => {
         void openDailyCheckIn('morning');
     };
@@ -261,6 +267,14 @@ export default function TodayScreen() {
 
                                 <RevealItem scrollY={scrollY}>
                                     <TodayWritingCard onPress={handleWritePress} />
+                                </RevealItem>
+
+                                <RevealItem scrollY={scrollY}>
+                                    <GuidedPromptShelf
+                                        todayKey={dateKey}
+                                        hour={new Date().getHours()}
+                                        onPick={handlePromptPick}
+                                    />
                                 </RevealItem>
 
                                 <RevealItem scrollY={scrollY}>
