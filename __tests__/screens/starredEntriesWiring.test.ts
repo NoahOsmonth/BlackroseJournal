@@ -18,6 +18,7 @@ describe('starred entries UI wiring', () => {
     const section = read(relPosix(root, path.join(root, 'components/history/HistorySection.tsx')));
     const card = read(relPosix(root, path.join(root, 'components/history/HistoryEntryCard.tsx')));
     const util = read(relPosix(root, path.join(root, 'utils/starredSections.ts')));
+    const emptyStates = read(relPosix(root, path.join(root, 'components/entries/ArchiveEmptyState.tsx')));
 
     it('entry detail has one star button bound to toggleStar', () => {
         expect(detail).toContain('useStarredEntries');
@@ -46,8 +47,9 @@ describe('starred entries UI wiring', () => {
     });
 
     it('Archive shows a plain-language empty state for no starred moments', () => {
-        expect(archive).toContain('No starred moments yet');
-        expect(archive).toContain('Open an entry and tap the star');
+        expect(archive).toContain('nothingStarred={nothingStarred}');
+        expect(emptyStates).toContain('No starred moments yet');
+        expect(emptyStates).toContain('Open an entry and tap the star');
     });
 
     it('the star mark flows from section to card', () => {

@@ -12,6 +12,7 @@ describe('Archive mood chip wiring', () => {
     const util = read('utils/moodChips.ts');
     const feed = read('hooks/history/useHistoryFeed.ts');
     const moodStrip = read('utils/moodStrip.ts');
+    const emptyStates = read('components/entries/ArchiveEmptyState.tsx');
 
     it('reuses the existing mood normalizer, never a second emoji stripper', () => {
         expect(util).toContain("from '@/utils/moodStrip'");
@@ -24,11 +25,13 @@ describe('Archive mood chip wiring', () => {
         const search = screen.indexOf('searchSections(query)');
         const starred = screen.indexOf('filterStarredSections(filteredSections, starredSet)');
         const topic = screen.indexOf('filterSectionsByTopic(beforeTopicSections, activeTopic)');
-        const mood = screen.indexOf('filterSectionsByMood(afterTopicSections, activeMood)');
+        const tag = screen.indexOf('filterSectionsByTag(afterTopicSections, resolvedTag, tagsByEntry)');
+        const mood = screen.indexOf('filterSectionsByMood(afterTagSections, activeMood)');
         expect(search).toBeGreaterThan(0);
         expect(starred).toBeGreaterThan(search);
         expect(topic).toBeGreaterThan(starred);
-        expect(mood).toBeGreaterThan(topic);
+        expect(tag).toBeGreaterThan(topic);
+        expect(mood).toBeGreaterThan(tag);
         expect(screen).toContain('collectMoodChips(afterTopicSections)');
         expect(screen).toContain('const moodChips = useMemo(');
         expect(screen).toContain('const visibleSections = useMemo(');
@@ -60,9 +63,10 @@ describe('Archive mood chip wiring', () => {
         expect(row).toContain('text-text-light dark:text-text-dark');
         expect(row).not.toContain('space-y-');
         expect(row).not.toContain('space-x-');
-        expect(screen).toContain('Nothing here about feeling');
-        expect(screen).toContain('Try another feeling, or show every entry.');
-        expect(screen).toContain('testID="archive-mood-empty"');
+        expect(screen).toContain('noMoodMatches={noMoodMatches}');
+        expect(emptyStates).toContain('Nothing here about feeling');
+        expect(emptyStates).toContain('Try another feeling, or show every entry.');
+        expect(emptyStates).toContain('testID="archive-mood-empty"');
     });
 
     it('keeps utils/ pure and both UI files inside the 500-line budget', () => {
@@ -76,7 +80,7 @@ describe('Archive mood chip wiring', () => {
     it('does not break the round 39 topic chips', () => {
         expect(screen).toContain('collectTopicChips(beforeTopicSections)');
         expect(screen).toContain('testID="archive-topic-row"');
-        expect(screen).toContain('Nothing here about {activeTopicLabel}');
+        expect(emptyStates).toContain('Nothing here about');
     });
 
     it('resolves repo paths on any OS', () => {

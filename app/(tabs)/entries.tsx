@@ -7,9 +7,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FinishBackgroundBanner } from '@/components/entries/FinishBackgroundBanner';
 import { MoodChipRow } from '@/components/entries/MoodChipRow';
+import { TagChipRow } from '@/components/entries/TagChipRow';
 import { WrittenDaysRow } from '@/components/entries/WrittenDaysRow';
-import { DayEmptyState } from '@/components/entries/DayEmptyState';
-import { HistoryEmpty } from '@/components/history/HistoryEmpty';
+import { ArchiveEmptyState } from '@/components/entries/ArchiveEmptyState';
 import { HistoryMonthBreak } from '@/components/history/HistoryMonthBreak';
 import { HistorySection } from '@/components/history/HistorySection';
 import { HistorySkeleton } from '@/components/history/HistorySkeleton';
@@ -24,6 +24,7 @@ import { navAwareBottomPadding, SCREEN_PADDING_X } from '@/constants/spacing';
 import { formatWeekMeta, HistoryItem } from '@/hooks/history/historyUtils';
 import { useHistoryFeed } from '@/hooks/history/useHistoryFeed';
 import { useStarredEntries } from '@/hooks/journal/useStarredEntries';
+import { useEntryTags } from '@/hooks/journal/useEntryTags';
 import { filterStarredSections } from '@/utils/starredSections';
 import { buildFeedRows, buildWrittenDayChips, filterSectionsByDay, resolveActiveDay } from '@/utils/writtenDays';
 import {
@@ -39,6 +40,13 @@ import {
     normalizeTopic,
 } from '@/utils/topicChips';
 import { useTabNavigation } from '@/hooks/navigation/useTabNavigation';
+import {
+    collectTagChips,
+    countTagItems,
+    filterSectionsByTag,
+    formatTagLabel,
+    resolveActiveTag,
+} from '@/utils/entryTags';
 import { useColorScheme } from '@/hooks/theme/use-color-scheme';
 import { sessionTitle } from '@/utils/sessionTitle';
 import {
@@ -89,7 +97,9 @@ export default function EntriesScreen() {
     const [activeTopic, setActiveTopic] = useState('');
     const [activeMood, setActiveMood] = useState('');
     const [activeDay, setActiveDay] = useState('');
+    const [activeTag, setActiveTag] = useState('');
     const { starredIds, starredSet } = useStarredEntries();
+    const { tagsByEntry } = useEntryTags();
 
     // The feed stays fresh through the storage change bus (Kaneo #87): a
     // finished entry, a restored backup or a demo seed row notifies the two
@@ -142,21 +152,32 @@ export default function EntriesScreen() {
         [afterTopicSections]
     );
 
-    // Days come from the feed AFTER search, starred, topic and mood, so the
-    // strip never offers a day whose writing those choices just hid. A stale
-    // selection is dropped instead of leaving an Archive that looks empty.
+    // Labels narrow last; chips come from the feed after every other choice,
+    // so each number is honest. A stale selection is dropped, not left empty.
+    const tagChips = useMemo(
+        () => collectTagChips(afterTopicSections, tagsByEntry),
+        [afterTopicSections, tagsByEntry]
+    );
+    const resolvedTag = resolveActiveTag(tagChips, activeTag);
+    const afterTagSections = useMemo(
+        () => filterSectionsByTag(afterTopicSections, resolvedTag, tagsByEntry),
+        [afterTopicSections, resolvedTag, tagsByEntry]
+    );
+
+    // Days come from the feed AFTER every other choice, so the strip never
+    // offers a day whose writing those choices just hid.
     const writtenDayChips = useMemo(
-        () => buildWrittenDayChips(afterTopicSections),
-        [afterTopicSections]
+        () => buildWrittenDayChips(afterTagSections),
+        [afterTagSections]
     );
     const resolvedDay = resolveActiveDay(writtenDayChips, activeDay);
 
     const visibleSections = useMemo(() => {
         const byMood = activeMood
-            ? filterSectionsByMood(afterTopicSections, activeMood)
-            : afterTopicSections;
+            ? filterSectionsByMood(afterTagSections, activeMood)
+            : afterTagSections;
         return filterSectionsByDay(byMood, resolvedDay);
-    }, [activeMood, afterTopicSections, resolvedDay]);
+    }, [activeMood, afterTagSections, resolvedDay]);
 
     const feedRows = useMemo(
         () => buildFeedRows(visibleSections),
@@ -206,10 +227,15 @@ export default function EntriesScreen() {
     const activeMoodLabel = moodChips.find((chip) => chip.label === activeMood)?.label
         ?? normalizeMood(activeMood);
     const countMoodFor = (label: string) => countMoodItems(afterTopicSections, label);
+    // Count from the chips' feed, not the narrowed one, or other labels read 0.
+    const countTagFor = (label: string) => countTagItems(afterTopicSections, label, tagsByEntry);
     const selectedDay = visibleSections.length > 0
         ? visibleSections[0]
         : afterTopicSections.find((section) => section.dateKey === resolvedDay);
     const noDayMatches = resolvedDay.length > 0 && visibleSections.length === 0;
+    const noTagMatches = resolvedTag.length > 0
+        && countTagItems(afterTopicSections, resolvedTag, tagsByEntry) === 0;
+    const activeTagLabel = formatTagLabel(resolvedTag);
 
     return (
         <ScreenContainer edges="top">
@@ -304,6 +330,13 @@ export default function EntriesScreen() {
                 onSelect={setActiveMood}
             />
 
+            <TagChipRow
+                chips={tagChips}
+                activeTag={resolvedTag}
+                countFor={countTagFor}
+                onSelect={setActiveTag}
+            />
+
             <WrittenDaysRow
                 chips={writtenDayChips}
                 activeDay={resolvedDay}
@@ -353,51 +386,21 @@ export default function EntriesScreen() {
                 {isLoading && !hasAnyItems ? (
                     <HistorySkeleton />
                 ) : isEmpty ? (
-                    noDayMatches ? (
-                        <DayEmptyState section={selectedDay} onClear={() => setActiveDay('')} />
-                    ) : noMoodMatches ? (
-                        <View className="items-center px-8 pt-16" testID="archive-mood-empty">
-                            <Text
-                                className="text-center text-[22px] text-text-light dark:text-text-dark"
-                                style={{ fontFamily: 'PlayfairDisplayRegular' }}
-                            >
-                                Nothing here about feeling {activeMoodLabel}
-                            </Text>
-                            <Text className="mt-3 text-center text-[15px] leading-[1.5] text-text-secondary-light dark:text-text-secondary-dark">
-                                Try another feeling, or show every entry.
-                            </Text>
-                        </View>
-                    ) : noTopicMatches ? (
-                        <View className="items-center px-8 pt-16" testID="archive-topic-empty">
-                            <Text
-                                className="text-center text-[22px] text-text-light dark:text-text-dark"
-                                style={{ fontFamily: 'PlayfairDisplayRegular' }}
-                            >
-                                Nothing here about {activeTopicLabel}
-                            </Text>
-                            <Text className="mt-3 text-center text-[15px] leading-[1.5] text-text-secondary-light dark:text-text-secondary-dark">
-                                Try another word, or show every topic.
-                            </Text>
-                        </View>
-                    ) : nothingStarred ? (
-                        <View className="items-center px-8 pt-16">
-                            <Text
-                                className="text-center text-[22px] text-text-light dark:text-text-dark"
-                                style={{ fontFamily: 'PlayfairDisplayRegular' }}
-                            >
-                                No starred moments yet
-                            </Text>
-                            <Text className="mt-3 text-center text-[15px] leading-[1.5] text-text-secondary-light dark:text-text-secondary-dark">
-                                Open an entry and tap the star to keep a moment here.
-                            </Text>
-                        </View>
-                    ) : (
-                        <HistoryEmpty
-                            hasAnyItems={hasAnyItems}
-                            isSearching={isSearching}
-                            onWritePress={() => router.push('/chat')}
-                        />
-                    )
+                    <ArchiveEmptyState
+                        noTagMatches={noTagMatches}
+                        activeTagLabel={activeTagLabel}
+                        noDayMatches={noDayMatches}
+                        selectedDay={selectedDay}
+                        onClearDay={() => setActiveDay('')}
+                        noMoodMatches={noMoodMatches}
+                        activeMoodLabel={activeMoodLabel}
+                        noTopicMatches={noTopicMatches}
+                        activeTopicLabel={activeTopicLabel}
+                        nothingStarred={nothingStarred}
+                        hasAnyItems={hasAnyItems}
+                        isSearching={isSearching}
+                        onWritePress={() => router.push('/chat')}
+                    />
                 ) : (
                     <View className="gap-6 pt-4">
                         {feedRows.map((row, index) => {

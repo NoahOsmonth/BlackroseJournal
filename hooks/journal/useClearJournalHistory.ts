@@ -12,6 +12,7 @@ import { clearMemoryFiles } from '@/services/memory/memoryFiles';
 import { removeAllChatSessions } from '@/services/ai/sessionStorage';
 import { clearAllEntries } from '@/services/journal/journalStorage';
 import { clearStarredEntries } from '@/services/journal/starredEntries';
+import { clearAllEntryTags } from '@/services/journal/entryTags';
 import { clearWritingGoalSettings } from '@/services/goals/writingGoalSettings';
 import { clearSavedStarters } from '@/services/prompts/savedPromptPacks';
 import { clearWrittenStarters } from '@/services/prompts/writtenPromptStarters';
@@ -48,6 +49,7 @@ export function useClearJournalHistory(): UseClearJournalHistoryReturn {
             const steps: Array<readonly [string, () => Promise<void>]> = [
                 ['journal entries', clearAllEntries],
                 ['starred moments', clearStarredEntries],
+                ['your labels', clearAllEntryTags],
                 ['writing goal', clearWritingGoalSettings],
                 ['saved starters', clearSavedStarters],
                 ['written starters', clearWrittenStarters],

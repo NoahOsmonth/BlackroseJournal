@@ -9,9 +9,11 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { EntryAnalysisPanel } from '@/components/entries/EntryAnalysisPanel';
 import { EntryDetailSkeleton } from '@/components/entries/EntryDetailSkeleton';
 import { EntryEditModal } from '@/components/entries/EntryEditModal';
+import { EntryTagEditor } from '@/components/entries/EntryTagEditor';
 import { originLabel } from '@/components/memory/memoryDisplay';
 import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
 import { useStarredEntries } from '@/hooks/journal/useStarredEntries';
+import { useEntryTags } from '@/hooks/journal/useEntryTags';
 import { useJournalEntryActions } from '@/hooks/journal/useJournalEntryActions';
 import { useEntryImage } from '@/hooks/journal/useEntryImage';
 import { useNavBack } from '@/hooks/navigation/useNavBack';
@@ -42,6 +44,7 @@ export default function EntryDetailScreen() {
     } = useJournalEntryActions();
     const entryImage = useEntryImage();
     const { isStarred, toggleStar } = useStarredEntries();
+    const tags = useEntryTags();
     const starred = Boolean(entryId) && isStarred(entryId);
 
     useEffect(() => {
@@ -216,6 +219,7 @@ export default function EntryDetailScreen() {
                                 analysis={entry.analysis}
                                 isLoading={isAnalyzing}
                             />
+                            {entryId ? <EntryTagEditor entryId={entryId} tags={tags} /> : null}
                             {entry.messages.map((message) => (
                                 <ChatMessage
                                     key={message.id}

@@ -10,6 +10,7 @@ describe('Archive topic chip wiring', () => {
     const screen = read('app/(tabs)/entries.tsx');
     const util = read('utils/topicChips.ts');
     const feed = read('hooks/history/useHistoryFeed.ts');
+    const emptyStates = read('components/entries/ArchiveEmptyState.tsx');
 
     it('derives chips from the narrowed feed, one memo, no new storage read', () => {
         expect(screen).toContain('collectTopicChips(beforeTopicSections)');
@@ -48,8 +49,9 @@ describe('Archive topic chip wiring', () => {
     it('has an All reset, a plain empty state and plain-language copy', () => {
         expect(screen).toContain('setActiveTopic(\'\')');
         expect(screen).toContain('Show every topic');
-        expect(screen).toContain('Nothing here about');
-        expect(screen).toContain('Try another word, or show every topic.');
+        expect(screen).toContain('noTopicMatches={noTopicMatches}');
+        expect(emptyStates).toContain('Nothing here about');
+        expect(emptyStates).toContain('Try another word, or show every topic.');
     });
 
     it('keeps both schemes on every chip label and all spacing on flex containers', () => {

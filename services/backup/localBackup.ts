@@ -44,6 +44,7 @@ import {
     importJournalEntriesForAccount,
     importJournalEntriesSnapshot,
 } from '@/services/journal/journalStorage';
+import { importEntryTagsSnapshot } from '@/services/journal/entryTags';
 import {
     importGoalsForAccount,
     importGoalsSnapshot,
@@ -119,6 +120,7 @@ export const LOCAL_BACKUP_DATA_KEYS = [
     SESSION_DIGEST_BACKUP_BUNDLE_KEY,
     '@saved_insights',
     '@blackrose_starred_entries',
+    '@blackrose_entry_tags',
     '@blackrose_writing_goal',
     '@blackrose_saved_prompt_starters',
     '@blackrose_written_prompt_starters',
@@ -147,6 +149,7 @@ const ACCOUNT_SCOPED_BACKUP_KEYS = new Set<LocalBackupDataKey>([
     SESSION_DIGEST_BACKUP_BUNDLE_KEY,
     '@saved_insights',
     '@blackrose_starred_entries',
+    '@blackrose_entry_tags',
     '@blackrose_writing_goal',
     '@blackrose_saved_prompt_starters',
     '@blackrose_written_prompt_starters',
@@ -602,6 +605,9 @@ async function restoreBackupItem(
     assertAccountOperationActive(context);
     const value = item?.value ?? null;
     switch (item?.key) {
+        case '@blackrose_entry_tags':
+            await importEntryTagsSnapshot(value);
+            break;
         case '@journal_entries':
             await importJournalEntriesSnapshot(
                 value,
@@ -694,6 +700,7 @@ export function restoreLocalBackup(
                     || key === '@goals'
                     || key === '@intentions'
                     || key === '@intention_checkins'
+                    || key === '@blackrose_entry_tags'
                 ) {
                     await restoreBackupItem(item ?? { key, value: null }, context);
                     continue;

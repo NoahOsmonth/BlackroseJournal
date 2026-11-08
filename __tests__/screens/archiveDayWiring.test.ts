@@ -10,25 +10,31 @@ describe('Archive browse-by-day wiring', () => {
     const row = read('components/entries/WrittenDaysRow.tsx');
     const empty = read('components/entries/DayEmptyState.tsx');
     const util = read('utils/writtenDays.ts');
+    const emptyStates = read('components/entries/ArchiveEmptyState.tsx');
 
     it('the day strip is rendered by the Archive screen', () => {
         expect(screen).toContain('<WrittenDaysRow');
         expect(screen).toContain('chips={writtenDayChips}');
         expect(screen).toContain('activeDay={resolvedDay}');
         expect(screen).toContain('onSelect={setActiveDay}');
-        expect(screen).toContain('<DayEmptyState');
-        expect(screen).toContain('onClear={() => setActiveDay(\'\')}');
+        expect(screen).toContain('<ArchiveEmptyState');
+        expect(screen).toContain('onClearDay={() => setActiveDay(\'\')}');
+        expect(emptyStates).toContain('<DayEmptyState');
+        expect(emptyStates).toContain('onClear={props.onClearDay}');
     });
 
     it('the chips come from the narrowed feed, not the whole journal', () => {
         // A chip must not offer a day whose writing search/starred/topic hid.
-        expect(screen).toContain('buildWrittenDayChips(afterTopicSections)');
+        // Writer-chosen labels are now the layer immediately before days.
+        expect(screen).toContain('buildWrittenDayChips(afterTagSections)');
         expect(screen).not.toContain('buildWrittenDayChips(sections)');
+        expect(screen).toContain('resolveActiveTag(tagChips, activeTag)');
         expect(screen).toContain('resolveActiveDay(writtenDayChips, activeDay)');
     });
 
     it('the day filter is a real layer in the chain, not just a label', () => {
-        expect(screen).toContain('filterSectionsByMood(afterTopicSections, activeMood)');
+        expect(screen).toContain('filterSectionsByTag(afterTopicSections, resolvedTag, tagsByEntry)');
+        expect(screen).toContain('filterSectionsByMood(afterTagSections, activeMood)');
         expect(screen).toContain('filterSectionsByDay(byMood, resolvedDay)');
         expect(screen).toContain('buildFeedRows(visibleSections)');
     });
