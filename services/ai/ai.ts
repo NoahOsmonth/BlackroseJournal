@@ -45,6 +45,7 @@ import {
     streamChatWithXhr,
 } from './streamingTransports';
 import { replyOrFallback } from '@/utils/emptyReply';
+import { isEmptyReply, nextEmptyReplyStep } from '@/utils/emptyReplyRetry';
 import { HISTORY_TOOLS_POLICY } from './tools';
 import { stripToolCallSyntax } from './tools/parseTextToolCalls';
 import {
@@ -123,13 +124,39 @@ async function resolveLocalAiRuntime(): Promise<LocalAiRuntime> {
     };
 }
 
-export async function streamChat(
+/** What one streaming attempt produced (Kaneo #50). */
+interface ChatAttemptResult {
+    readonly ok: boolean;
+    readonly content: string;
+    readonly reasoning: string;
+}
+
+/**
+ * The writer's configured backup AI options, in their order of preference.
+ * Missing key or offline is not an error here: no backups simply means the
+ * retry stops after the no-tools attempt.
+ */
+async function resolveFallbackModels(): Promise<readonly string[]> {
+    try {
+        const config = await getResolvedDirectConfig();
+        return (config.fallbackModelIds ?? []).filter((id) => id.trim().length > 0);
+    } catch {
+        return [];
+    }
+}
+
+/**
+ * One streaming attempt. Returns the words it produced when there is a usable
+ * answer, or an empty string/failure flag so the caller can decide about a retry
+ * (Kaneo #50).
+ */
+async function streamChatOnce(
     messages: Message[],
     onChunk: StreamingCallback,
     onComplete: CompleteCallback,
     onError: ErrorCallback,
     options?: string | StreamChatOptions
-): Promise<void> {
+): Promise<ChatAttemptResult> {
     try {
         beginChatTurn();
         const resolved = resolveStreamOptions(options);
@@ -291,12 +318,15 @@ export async function streamChat(
         // Fix 3: strip any residual tool syntax from the final streamed content.
         // stripToolCallSyntax already trims when it removes a tool dump and otherwise
         // preserves the content verbatim, so we must not re-trim legitimate output here.
+        let turnContent = '';
+        let turnReasoning = '';
+
         const safeOnComplete: CompleteCallback = (content, reasoning) => {
             const stripped = stripToolCallSyntax(content);
-            // A turn that finishes with no words is not a blank reply: it is the
-            // dead end where the writer watches "Thinking" and nothing arrives
-            // (DEF-032). Answer in plain words so the turn visibly ends.
-            onComplete(replyOrFallback(stripped || content), reasoning);
+            // Do not complete here: the turn may still be retried (Kaneo #50).
+            // Record what arrived and let the caller decide.
+            turnContent = stripped || content;
+            turnReasoning = reasoning;
         };
 
         const xhrResult = await streamChatWithXhr(
@@ -308,7 +338,7 @@ export async function streamChat(
         });
         if (xhrResult.ok) {
             logStreamBudget(xhrResult.usage);
-            return;
+            return { ok: true, content: turnContent, reasoning: turnReasoning };
         }
 
         const response = await fetchChatCompletion(streamPayload, resolved.signal);
@@ -323,19 +353,72 @@ export async function streamChat(
                 ...(resolved.signal ? { signal: resolved.signal } : {}),
             });
             logStreamBudget(streamUsage);
-            return;
+            return { ok: true, content: turnContent, reasoning: turnReasoning };
         }
         throwIfUserAborted(resolved.signal);
         const fallbackResult = await readNonStreamingResponse(response);
         logStreamBudget(fallbackResult.usage ?? null);
         await emitSimulatedStreaming(fallbackResult, onChunk);
         safeOnComplete(fallbackResult.content, fallbackResult.reasoning);
+        return { ok: true, content: turnContent, reasoning: turnReasoning };
     } catch (error) {
         onError(normalizeUnknownError(error));
+        return { ok: false, content: '', reasoning: '' };
     } finally {
         // Deferred background work (idle Dream) waits for this to reach zero.
         endChatTurn();
     }
+}
+
+/**
+ * Stream a reply, retrying once when the AI produces no words (Kaneo #50).
+ *
+ * A reasoning-only model can think for a whole reply and then answer nothing.
+ * DEF-032 made that visible; this tries to turn it into a real reply first —
+ * once without tools, then once on a configured backup — and only then falls
+ * back to the plain sentence.
+ */
+export async function streamChat(
+    messages: Message[],
+    onChunk: StreamingCallback,
+    onComplete: CompleteCallback,
+    onError: ErrorCallback,
+    options?: string | StreamChatOptions,
+): Promise<void> {
+    const base = resolveStreamOptions(options);
+    const fallbackModels = await resolveFallbackModels();
+    let attempt = await streamChatOnce(messages, onChunk, onComplete, onError, options);
+
+    // A failed attempt already reported the reason through onError. Returning here
+    // matters: falling through would also complete the turn, so the writer would
+    // see an error message AND a reply bubble for one failure.
+    if (!attempt.ok) return;
+
+    let triedWithoutTools = false;
+    let triedFallback = false;
+    let currentOptions: string | StreamChatOptions | undefined = options;
+
+    while (attempt.ok && isEmptyReply(attempt.content)) {
+        const step = nextEmptyReplyStep({
+            triedWithoutTools,
+            triedFallback,
+            toolsWereOff: base.enableHistoryTools === false,
+            fallbackModels,
+        });
+        if (step.kind === 'give-up') break;
+
+        if (step.kind === 'retry-without-tools') {
+            triedWithoutTools = true;
+            currentOptions = { ...(typeof currentOptions === 'string' ? { systemPrompt: currentOptions } : currentOptions ?? {}), enableHistoryTools: false };
+        } else {
+            triedFallback = true;
+            currentOptions = { ...(typeof currentOptions === 'string' ? { systemPrompt: currentOptions } : currentOptions ?? {}), model: step.model };
+        }
+        attempt = await streamChatOnce(messages, onChunk, onComplete, onError, currentOptions);
+        if (!attempt.ok) return;
+    }
+
+    onComplete(replyOrFallback(attempt.content), attempt.reasoning);
 }
 
 export async function completeChat(
