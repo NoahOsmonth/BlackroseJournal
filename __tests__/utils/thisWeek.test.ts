@@ -63,15 +63,28 @@ describe('collectWeeklyThemes', () => {
 });
 
 describe('weekWindowKeys', () => {
-    it('ends on today and covers seven days', () => {
+    // The window is the CALENDAR week (Sunday to Saturday) containing the key,
+    // the same span Insights uses for the weekly letter, the writing stats and
+    // the unlock threshold. It used to be a rolling seven days ending today,
+    // so on Sunday 8 Nov Goals said "this week" about 2-8 Nov while Insights
+    // said it about 8-14 Nov.
+    it('covers the calendar week containing the key, Sunday first', () => {
         const keys = weekWindowKeys('2026-11-08');
         expect(keys).toHaveLength(7);
-        expect(keys[6]).toBe('2026-11-08');
-        expect(keys[0]).toBe('2026-11-02');
+        expect(keys[0]).toBe('2026-11-08');
+        expect(keys[6]).toBe('2026-11-14');
+    });
+
+    it('anchors on the week, not on the given day', () => {
+        // Wednesday 11 Nov belongs to the same Sun-Sat week as Sunday 8 Nov.
+        expect(weekWindowKeys('2026-11-11')).toEqual(weekWindowKeys('2026-11-08'));
     });
 
     it('crosses a month boundary', () => {
-        expect(weekWindowKeys('2026-03-02')[0]).toBe('2026-02-24');
+        // Mon 2 Mar 2026 sits in the week starting Sun 1 Mar; the week before
+        // it starts Sun 22 Feb.
+        expect(weekWindowKeys('2026-02-25')[0]).toBe('2026-02-22');
+        expect(weekWindowKeys('2026-02-25')[6]).toBe('2026-02-28');
     });
 
     it('gives up quietly on a malformed key', () => {

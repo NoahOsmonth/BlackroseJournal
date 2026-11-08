@@ -126,14 +126,27 @@ export function collectWeeklyThemes(entries: readonly ThemeEntry[], totalDays = 
     };
 }
 
-/** Which day keys fall inside the window ending on `todayKey`. */
+/**
+ * Which day keys fall inside the CALENDAR week (Sunday to Saturday)
+ * containing `todayKey`.
+ *
+ * This used to be a rolling seven days ending today, which is a different
+ * set of days from the one Insights calls "this week" (run 28 fixed the same
+ * mistake in the mood strip): on Sunday 8 Nov a rolling window covers 2-8 Nov
+ * while the weekly letter, the writing stats and the unlock threshold all use
+ * 8-14 Nov. Two screens calling different seven-day spans "this week" is the
+ * bug; anchor on the week start so the whole app agrees.
+ */
 export function weekWindowKeys(todayKey: string, totalDays = 7): string[] {
     const [year, month, day] = todayKey.split('-').map(Number);
     if (!year || !month || !day) return [];
-    const end = Date.UTC(year, month - 1, day);
+    // Walk back to the Sunday of the week containing todayKey, then forward.
+    // Date.UTC keeps this arithmetic free of local-DST hour shifts.
+    const anchor = new Date(Date.UTC(year, month - 1, day));
+    anchor.setUTCDate(anchor.getUTCDate() - anchor.getUTCDay());
     const keys: string[] = [];
-    for (let offset = totalDays - 1; offset >= 0; offset -= 1) {
-        const d = new Date(end - offset * 86400000);
+    for (let offset = 0; offset < totalDays; offset += 1) {
+        const d = new Date(anchor.getTime() + offset * 86400000);
         keys.push(d.toISOString().slice(0, 10));
     }
     return keys;

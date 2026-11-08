@@ -10,11 +10,48 @@ jest.mock('@/hooks/account/useActiveAccountId', () => ({
     useActiveAccountId: () => 'account-1',
 }));
 
+// Relative to the CALENDAR week (Sunday to Saturday) containing today, because
+// that is the window useThisWeek now uses. `daysAgo` alone is not enough: two
+// days back can still land in last week when today is Sunday or Monday.
+function startOfThisWeek(): Date {
+    const d = new Date();
+    d.setHours(12, 0, 0, 0);
+    d.setDate(d.getDate() - d.getDay());
+    return d;
+}
+
 function daysAgo(days: number): number {
     const d = new Date();
     d.setDate(d.getDate() - days);
     return d.getTime();
 }
+
+/** Absolute timestamp for the Sunday of the current calendar week. */
+function weekStartMs(): number {
+    const d = startOfThisWeek();
+    d.setHours(12, 0, 0, 0);
+    return d.getTime();
+}
+
+
+
+
+/** Like `entry`, but at an absolute timestamp instead of a relative offset. */
+function datedEntry(id: string, at: number, text: string, status = 'completed') {
+    return {
+        id,
+        title: '',
+        emoji: '',
+        status,
+        createdAt: at,
+        updatedAt: at,
+        messages: [{ id: 'm1', role: 'user', content: text, timestamp: at }],
+    };
+}
+
+
+
+
 
 function entry(id: string, daysBack: number, text: string, status = 'completed') {
     return {
@@ -35,8 +72,8 @@ describe('useThisWeek', () => {
 
     it('counts themes from entries inside the week', async () => {
         mockListEntries.mockResolvedValue([
-            entry('a', 1, 'Sleep was rough again, kept waking up.'),
-            entry('b', 3, 'Finally slept through after a long walk.'),
+            datedEntry('a', weekStartMs(), 'Sleep was rough again, kept waking up.'),
+            datedEntry('b', weekStartMs() + 3 * 86400000, 'Finally slept through after a long walk.'),
         ]);
         const { result } = renderHook(() => useThisWeek());
         await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -47,7 +84,7 @@ describe('useThisWeek', () => {
     it('ignores entries older than the week', async () => {
         mockListEntries.mockResolvedValue([
             entry('old', 20, 'Sleep and work and worry every single day.'),
-            entry('new', 1, 'Short note about the rain.'),
+            entry('new', 0, 'Short note about the rain.'),
         ]);
         const { result } = renderHook(() => useThisWeek());
         await waitFor(() => expect(result.current.isLoading).toBe(false));
