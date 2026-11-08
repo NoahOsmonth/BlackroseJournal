@@ -28,6 +28,8 @@ import {
 } from '@/components/today';
 import { useGoals } from '@/hooks/goals/useGoals';
 import { GuidedPromptShelf } from '@/components/today/GuidedPromptShelf';
+import { RecurringThemesCard } from '@/components/today/RecurringThemesCard';
+import { useRecurringThemes } from '@/hooks/memory/useRecurringThemes';
 import { useGuidedPrompts } from '@/hooks/journal/useGuidedPrompts';
 import { useIntentions } from '@/hooks/intentions/useIntentions';
 import { useIntentionCheckIns } from '@/hooks/intentions/useIntentionCheckIns';
@@ -149,6 +151,7 @@ export default function TodayScreen() {
     };
 
     const { prompts: guidedPrompts } = useGuidedPrompts(dateKey, new Date().getHours());
+    const recurringThemes = useRecurringThemes();
 
     const handleWritePress = () => {
         router.push('/chat');
@@ -346,6 +349,17 @@ export default function TodayScreen() {
                                         />
                                     </RevealItem>
                                 ) : null}
+
+                                {!recurringThemes.isLoading && (
+                                    <RevealItem scrollY={scrollY}>
+                                        <RecurringThemesCard
+                                            themes={recurringThemes.themes}
+                                            needsMoreWeeks={recurringThemes.needsMoreWeeks}
+                                            weekCount={recurringThemes.weekCount}
+                                            isUnavailable={recurringThemes.isUnavailable}
+                                        />
+                                    </RevealItem>
+                                )}
                             </View>
                         </SpatialView>
                     </Animated.ScrollView>
