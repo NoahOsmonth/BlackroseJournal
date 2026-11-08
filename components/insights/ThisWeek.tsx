@@ -30,7 +30,7 @@ export function ThisWeek({ ledger, onOpenWeek }: ThisWeekProps) {
 
     return (
         <View
-            className="rounded-card border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-5 gap-3"
+            className="rounded-card border border-hairline-light dark:border-hairline-dark bg-surface-light dark:bg-surface-dark p-5 gap-3"
             aria-label="What kept coming back this week"
         >
             <Text className="text-[11px] uppercase tracking-[1.6px] text-text-secondary-light dark:text-text-secondary-dark">
