@@ -294,6 +294,8 @@ The person using this app writes in it; they did not build it and do not know wh
 | `@intentions`, `@intention_checkins` | `services/intentions/intentionsStorage.ts` |
 | `@goals` | `services/goals/goalsStorage.ts` |
 | `@blackrose_writing_goal` | `services/goals/writingGoalSettings.ts` |
+| `@blackrose_saved_prompt_starters` | `services/prompts/savedPromptPacks.ts` |
+| `@blackrose_written_prompt_starters` | `services/prompts/writtenPromptStarters.ts` |
 | `@rosebud_local_memory` (v3 header index: shardCount + atomCount, **no atoms**) + `@rosebud_local_memory_shard:<0-7>` (atom bodies, ~425 KB per key at the 4000-atom cap) | `services/memory/localMemory.ts` |
 | `@rosebud_identity_profile` (always-on name/pronouns/people/facts) | `services/memory/identityProfile.ts` |
 | `@blackrose_day_digests` (calendar-day rollups for AI history tools) | `services/memory/dayDigestStorage.ts` |

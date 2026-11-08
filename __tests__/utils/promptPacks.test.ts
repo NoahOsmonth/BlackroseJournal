@@ -3,9 +3,12 @@ import {
     allPackPrompts,
     isKnownPromptId,
     normalizeSavedPromptIds,
+    normalizeWrittenStarterIds,
     packById,
+    packProgress,
     promptsInPack,
     savedPrompts,
+    writtenIdsInPack,
 } from '../../utils/promptPacks';
 import { GUIDED_PROMPTS } from '../../utils/guidedPrompts';
 
@@ -75,5 +78,46 @@ describe('prompt packs', () => {
     it('is deterministic', () => {
         expect([...allPackPrompts()]).toEqual([...allPackPrompts()]);
         expect(normalizeSavedPromptIds(['body', 'worry'])).toEqual(normalizeSavedPromptIds(['body', 'worry']));
+    });
+
+    describe('pack progress', () => {
+        const quiet = PROMPT_PACKS.find((pack) => pack.id === 'quiet-start')!;
+        const total = new Set(promptsInPack(quiet).map((prompt) => prompt.id)).size;
+
+        it('counts nothing before any starter was written', () => {
+            expect(packProgress(quiet, [])).toEqual({ done: 0, total });
+        });
+
+        it('counts distinct ids that this pack actually offers', () => {
+            const offered = [...new Set(promptsInPack(quiet).map((prompt) => prompt.id))];
+            expect(packProgress(quiet, [offered[0], offered[1], offered[0]])).toEqual({ done: 2, total });
+        });
+
+        it('ignores ids from other packs and unknown ids', () => {
+            const outside = allPackPrompts().find((prompt) => !promptsInPack(quiet).some((p) => p.id === prompt.id))!;
+            expect(packProgress(quiet, [outside.id, 'not-a-starter', '']).done).toBe(0);
+        });
+
+        it('never reports more done than the pack offers', () => {
+            const many = [...allPackPrompts().map((prompt) => prompt.id), 'theme-extra'];
+            const result = packProgress(quiet, many);
+            expect(result.done).toBe(result.total);
+        });
+
+        it('safe normalize drops blanks, duplicates and unknown ids', () => {
+            expect(normalizeWrittenStarterIds(['body', 'body', '', null, 'unknown-id', 7])).toEqual(['body']);
+            expect(normalizeWrittenStarterIds(null)).toEqual([]);
+            expect(normalizeWrittenStarterIds('body')).toEqual([]);
+        });
+
+        it("writtenIdsInPack returns only the pack's written rows", () => {
+            const offered = [...new Set(promptsInPack(quiet).map((prompt) => prompt.id))];
+            const set = writtenIdsInPack(quiet, [offered[0], 'unknown-id']);
+            expect([...set]).toEqual([offered[0]]);
+        });
+
+        it('is deterministic', () => {
+            expect(packProgress(quiet, ['body'])).toEqual(packProgress(quiet, ['body']));
+        });
     });
 });

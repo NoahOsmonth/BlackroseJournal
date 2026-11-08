@@ -38,6 +38,7 @@ const ACCOUNT_PRIVATE_EXACT_KEYS = [
     '@blackrose_starred_entries',
     '@blackrose_writing_goal',
     '@blackrose_saved_prompt_starters',
+    '@blackrose_written_prompt_starters',
     '@weekly_insights_cache',
     '@blackrose_custom_ai_provider',
     '@blackrose_generation_settings',

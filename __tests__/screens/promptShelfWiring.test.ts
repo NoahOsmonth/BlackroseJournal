@@ -18,6 +18,9 @@ describe('prompt shelf wiring', () => {
     const backup = read(relPosix(root, path.join(root, 'services/backup/localBackup.ts')));
     const ownership = read(relPosix(root, path.join(root, 'services/account/legacyDataOwnership.ts')));
     const clear = read(relPosix(root, path.join(root, 'hooks/journal/useClearJournalHistory.ts')));
+    const chat = read(relPosix(root, path.join(root, 'app/chat.tsx')));
+    const finish = read(relPosix(root, path.join(root, 'hooks/chat/useJournalChatFinish.ts')));
+    const todayShelf = read(relPosix(root, path.join(root, 'components/today/GuidedPromptShelf.tsx')));
 
     it('registers the route in the root stack', () => {
         expect(layout).toContain('name="prompt-shelf"');
@@ -41,10 +44,10 @@ describe('prompt shelf wiring', () => {
         expect(code).not.toContain('useFocusEffect');
     });
 
-    it('a starter tap opens chat with the same seed path as Today', () => {
+    it('a starter tap opens chat with its seed AND its id', () => {
         expect(screen).toContain("pathname: '/chat'");
-        expect(screen).toContain('params: { seed: opening }');
-        expect(screen).toContain('onPress={() => onPick(prompt.opening)}');
+        expect(screen).toContain('params: { seed: opening, starterId }');
+        expect(screen).toContain('onPress={() => onPick(prompt.opening, prompt.id)}');
         expect(screen).toContain('prompt-starter-');
     });
 
@@ -76,15 +79,50 @@ describe('prompt shelf wiring', () => {
         expect(screen).toContain('dark:border-hairline-dark');
     });
 
-    it('couples the new key to backup, ownership and Clear History', () => {
+    it('couples both starter keys to backup, ownership and Clear History', () => {
         expect(backup.match(/saved_prompt_starters/g)).toHaveLength(2);
+        expect(backup.match(/written_prompt_starters/g)).toHaveLength(2);
         expect(ownership).toContain('@blackrose_saved_prompt_starters');
+        expect(ownership).toContain('@blackrose_written_prompt_starters');
         expect(clear).toContain("['saved starters', clearSavedStarters]");
+        expect(clear).toContain("['written starters', clearWrittenStarters]");
         expect(clear).toContain("from '@/services/prompts/savedPromptPacks'");
+        expect(clear).toContain("from '@/services/prompts/writtenPromptStarters'");
+    });
+
+    it('shows a real progress bar driven by written ids, not taps', () => {
+        expect(screen).toContain('useWrittenStarters()');
+        expect(screen).toContain('packProgress(pack, writtenIds)');
+        expect(screen).toContain('pack-progress-fill-');
+        expect(screen).toContain('accessibilityRole="progressbar"');
+        expect(screen).toContain('accessibilityLabel={done + \' of \' + total + \' written\'}');
+        expect(screen).toContain('accessibilityValue={{ min: 0, max: total, now: done');
+        expect(screen).toContain('width: `${pct}%`');
+        expect(screen).toContain('bg-accent-green dark:bg-accent-green-dark');
+        expect(screen).toContain('starter-written-');
+        expect(screen).not.toContain('markStarterWritten(');
+    });
+
+    it('counts progress only after the entry was saved', () => {
+        expect(finish).toContain('if (starterId) {');
+        expect(finish).toContain('void markStarterWritten(starterId).catch(() => undefined)');
+        expect(finish).toContain("from '@/services/prompts/writtenPromptStarters'");
+        const saveIndex = finish.indexOf("status: 'completed'");
+        const markIndex = finish.indexOf('markStarterWritten(starterId)');
+        expect(saveIndex).toBeGreaterThan(-1);
+        expect(markIndex).toBeGreaterThan(saveIndex);
+        expect(chat).toContain('starterId?: string');
+        expect(chat).toContain('...(starterId ? { starterId } : {})');
+        expect(chat).toContain('isKnownPromptId(starterParam)');
     });
 
     it('keeps the screen under the 500-line design limit', () => {
         expect(screen.split(/\r?\n/).length).toBeLessThanOrEqual(500);
+    });
+
+    it('Today starter door carries the id too', () => {
+        expect(today).toContain('params: { seed: prompt.opening, starterId: prompt.id }');
+        expect(todayShelf).toContain('onPress={() => onPick(prompt)}');
     });
 
     it('resolves source paths on any OS', () => {

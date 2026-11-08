@@ -17,6 +17,7 @@ import { generateTitle, hasContent, inferMoodEmoji } from '@/hooks/useEntryUtils
 import { generateEntryTitle } from '@/services/ai';
 import type { Message } from '@/services/ai/ai';
 import { runJournalFinishBackground } from '@/services/journal/journalFinishSideEffects';
+import { markStarterWritten } from '@/services/prompts/writtenPromptStarters';
 import { withPendingInput } from '@/services/journal/journalPendingInput';
 import type {
     JournalEntry,
@@ -33,6 +34,8 @@ import { withTimeout } from '@/utils/async';
 const FINISH_TITLE_TIMEOUT_MS = 8_000;
 
 interface UseJournalChatFinishOptions {
+    /** Guided starter this sitting began from; marked written only on a saved entry. */
+    starterId?: string;
     messages: Message[];
     /** Words still in the writing slip, not yet sent as a message. */
     inputValue: string;
@@ -56,6 +59,7 @@ interface UseJournalChatFinishOptions {
 }
 
 export function useJournalChatFinish({
+    starterId,
     messages,
     inputValue,
     entryId,
@@ -176,6 +180,12 @@ export function useJournalChatFinish({
                 });
             }
             const savedEntryId = savedEntry?.id ?? entryId;
+            // Day One 2026 counts COMPLETED prompts, not taps. Only a starter
+            // whose entry was just saved earns progress, and a failed side
+            // effect never blocks the entry the writer already finished.
+            if (starterId) {
+                void markStarterWritten(starterId).catch(() => undefined);
+            }
             // A completed entry must not linger as an active session: drop the
             // stored chat and move to a fresh conversation id BEFORE the reset,
             // so the autosave effect cannot re-save it under the old id.
@@ -203,7 +213,7 @@ export function useJournalChatFinish({
             setFinishStage('Preparing your entry');
         }
     }, [
-        finalMessages, isSaving, router, create, update, entryId, handleNewChat,
+        finalMessages, isSaving, router, create, update, entryId, starterId, handleNewChat,
         finalizePersistedSession, finalize, onCelebrate,
     ]);
 

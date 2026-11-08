@@ -28,6 +28,7 @@ import { hasContent } from '../hooks/useEntryUtils';
 import { useJournalEntries } from '../hooks/useJournalEntries';
 import type { JournalEntry } from '../services/journal/journalStorage.types';
 import { latestUserMemoryQuery, resolveMemoryCapsuleQuery } from '../utils/memoryCapsuleQuery';
+import { isKnownPromptId } from '../utils/promptPacks';
 
 type ChatParams = {
     mode?: string;
@@ -37,6 +38,8 @@ type ChatParams = {
     topic?: string;
     /** A starting line dropped into the input, not sent. */
     seed?: string;
+    /** Which starting point began this sitting; progress is counted on finish. */
+    starterId?: string;
 };
 
 export default function ChatScreen() {
@@ -64,6 +67,10 @@ export default function ChatScreen() {
         : params.promptPeriod;
     const topicParam = Array.isArray(params.topic) ? params.topic[0] : params.topic;
     const seedParam = Array.isArray(params.seed) ? params.seed[0] : params.seed;
+    const starterParam = Array.isArray(params.starterId) ? params.starterId[0] : params.starterId;
+    // Only a real starter id may ride along to the finish; a crafted route
+    // param must never invent progress.
+    const starterId = starterParam && isKnownPromptId(starterParam) ? starterParam : undefined;
     const resolvedMode: ChatMode = modeParam === 'dailyCheckIn' || modeParam === 'continue'
         ? modeParam
         : 'freeform';
@@ -117,9 +124,12 @@ export default function ChatScreen() {
         () => ({
             conversationId,
             mode: (resolvedMode === 'continue' ? 'continue' : 'freeform') as 'continue' | 'freeform',
-            routeParams: entryId ? { entryId } : undefined,
+            routeParams: {
+                ...(entryId ? { entryId } : {}),
+                ...(starterId ? { starterId } : {}),
+            },
         }),
-        [conversationId, resolvedMode, entryId]
+        [conversationId, resolvedMode, entryId, starterId]
     );
 
     /**
@@ -237,6 +247,7 @@ export default function ChatScreen() {
     // Ending a sitting (draft or complete) is orchestration, not screen state:
     // it lives in the hook so this route only wires state and renders.
     const { handleClose, handleFinishEntry, isSaving, finishStage } = useJournalChatFinish({
+        starterId,
         messages,
         inputValue,
         entryId,

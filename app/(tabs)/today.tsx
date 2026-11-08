@@ -158,8 +158,8 @@ export default function TodayScreen() {
     };
 
     /** A tapped prompt opens the chat with its opening line already there. */
-    const handlePromptPick = useCallback((opening: string) => {
-        router.push({ pathname: '/chat', params: { seed: opening } });
+    const handlePromptPick = useCallback((prompt: { id: string; opening: string }) => {
+        router.push({ pathname: '/chat', params: { seed: prompt.opening, starterId: prompt.id } });
     }, [router]);
 
     const handleMorningPress = () => {

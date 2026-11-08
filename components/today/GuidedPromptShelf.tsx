@@ -14,7 +14,7 @@ import type { GuidedPrompt } from '@/utils/guidedPrompts';
 interface GuidedPromptShelfProps {
     /** The prompts to show, already chosen by the caller's hook. */
     readonly prompts: readonly GuidedPrompt[];
-    readonly onPick: (opening: string) => void;
+    readonly onPick: (prompt: GuidedPrompt) => void;
 }
 
 export function GuidedPromptShelf({ prompts, onPick }: GuidedPromptShelfProps) {
@@ -31,7 +31,7 @@ export function GuidedPromptShelf({ prompts, onPick }: GuidedPromptShelfProps) {
             {prompts.map((prompt) => (
                 <Pressable
                     key={prompt.id}
-                    onPress={() => onPick(prompt.opening)}
+                    onPress={() => onPick(prompt)}
                     accessibilityRole="button"
                     accessibilityLabel={`Start with: ${prompt.opening}`}
                     className="min-h-[44px] justify-center rounded-full border border-hairline-light dark:border-hairline-dark px-4"

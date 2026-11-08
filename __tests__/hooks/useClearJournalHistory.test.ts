@@ -56,6 +56,11 @@ import {
     listSavedStarters,
     toggleSavedStarter,
 } from '../../services/prompts/savedPromptPacks';
+import {
+    listWrittenStarters,
+    markStarterWritten,
+    subscribeWrittenStarters,
+} from '../../services/prompts/writtenPromptStarters';
 import * as journalStorage from '../../services/journal/journalStorage';
 
 describe('useClearJournalHistory', () => {
@@ -109,6 +114,8 @@ describe('useClearJournalHistory', () => {
         expect(await getWritingGoalSettings()).toEqual({ wordsPerDay: 750, restDaysPerWeek: 3 });
         await toggleSavedStarter('one-thing');
         expect(await listSavedStarters()).toEqual(['one-thing']);
+        await markStarterWritten('body');
+        expect(await listWrittenStarters()).toEqual(['body']);
         await applyIdentityPatch({ preferredName: 'Sigurd', source: 'manual' });
         expect(profileHasIdentity(await getIdentityProfile())).toBe(true);
 
@@ -138,6 +145,22 @@ describe('useClearJournalHistory', () => {
         // Saved starters are user state too: a wiped journal must not keep
         // an open shelf showing favorites (round 44 coupling).
         expect(await listSavedStarters()).toEqual([]);
+        // Written starters describe the wiped journal; leaving them makes
+        // every pack claim progress on entries that no longer exist.
+        expect(await listWrittenStarters()).toEqual([]);
+    });
+
+    it('tells an open shelf the progress is gone', async () => {
+        await markStarterWritten('body');
+        const seen: string[][] = [];
+        const unsubscribe = subscribeWrittenStarters((ids) => seen.push([...ids]));
+        const { result } = renderHook(() => useClearJournalHistory());
+        await act(async () => {
+            await result.current.clearAll();
+        });
+        unsubscribe();
+        expect(seen).toContainEqual([]);
+        expect(await listWrittenStarters()).toEqual([]);
     });
 
     it('tells open screens the stars are gone', async () => {

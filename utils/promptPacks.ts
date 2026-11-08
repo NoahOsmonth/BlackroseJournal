@@ -104,3 +104,45 @@ export function savedPrompts(ids: readonly string[]): readonly GuidedPrompt[] {
         .map((id) => GUIDED_PROMPTS.find((prompt) => prompt.id === id))
         .filter((prompt): prompt is GuidedPrompt => Boolean(prompt));
 }
+
+export interface PackProgress {
+    readonly done: number;
+    readonly total: number;
+}
+
+/**
+ * Safe read of the ids a writer actually finished. Drops blanks, duplicates
+ * and unknown ids, so a corrupt or future payload cannot fake progress.
+ */
+export function normalizeWrittenStarterIds(value: unknown): readonly string[] {
+    return normalizeSavedPromptIds(value);
+}
+
+/**
+ * Progress is counted over DISTINCT starters a pack really offers. A pack may
+ * share a starter with another pack (e.g. 'small-win'), so written ids outside
+ * this pack are ignored. `done` can never exceed `total`.
+ */
+export function packProgress(
+    pack: PromptPack,
+    writtenIds: readonly string[],
+): PackProgress {
+    const offered = new Set(promptsInPack(pack).map((prompt) => prompt.id));
+    const written = new Set(normalizeWrittenStarterIds(writtenIds));
+    let done = 0;
+    for (const id of offered) {
+        if (written.has(id)) done += 1;
+    }
+    const total = offered.size;
+    return { done: Math.min(done, total), total };
+}
+
+/** Ids of the prompts in one pack that were written. Used for row markers. */
+export function writtenIdsInPack(
+    pack: PromptPack,
+    writtenIds: readonly string[],
+): ReadonlySet<string> {
+    const safe = new Set(normalizeWrittenStarterIds(writtenIds));
+    return new Set(promptsInPack(pack).map((prompt) => prompt.id).filter((id) => safe.has(id)));
+}
+

@@ -19,11 +19,12 @@ describe('GuidedPromptShelf', () => {
         }
     });
 
-    it('hands back the opening line, not the label', () => {
+    it('hands back the whole prompt, so its id can travel to the chat', () => {
         const onPick = jest.fn();
         const { getByTestId } = render(<GuidedPromptShelf prompts={SHELF} onPick={onPick} />);
         fireEvent.press(getByTestId(`guided-prompt-${SHELF[0].id}`));
-        expect(onPick).toHaveBeenCalledWith(SHELF[0].opening);
+        expect(onPick).toHaveBeenCalledWith(SHELF[0]);
+        expect(onPick.mock.calls[0][0]).toMatchObject({ id: SHELF[0].id, opening: SHELF[0].opening });
     });
 
     it('reads out as a sentence to a screen reader', () => {
