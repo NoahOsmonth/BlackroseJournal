@@ -6,7 +6,10 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { BLACKROSE_PALETTE } from '@/constants/theme';
 import { navAwareBottomPadding } from '@/constants/spacing';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { router } from 'expo-router';
 import { useGoals } from '@/hooks/goals/useGoals';
+import { useThisWeek } from '@/hooks/journal/useThisWeek';
+import { ThisWeek } from '@/components/insights/ThisWeek';
 import { useNavBack } from '@/hooks/navigation/useNavBack';
 import { GoalGroup } from '@/components/goals/GoalGroup';
 import { GoalQuickAddModal } from '@/components/goals/GoalQuickAddModal';
@@ -22,6 +25,7 @@ export default function GoalsScreen() {
     const isDark = useColorScheme() === 'dark';
     const iconColor = isDark ? BLACKROSE_PALETTE.dark.text : BLACKROSE_PALETTE.light.text;
     const { goals, habits, toggle, create, update, remove, isLoading } = useGoals();
+    const { ledger } = useThisWeek();
     const [showAdd, setShowAdd] = useState(false);
     const [editingGoal, setEditingGoal] = useState<{ id: string; title: string; type: 'goal' | 'habit' } | null>(null);
 
@@ -120,6 +124,8 @@ export default function GoalsScreen() {
                     showsVerticalScrollIndicator={false}
                 >
                     <View className="gap-8">
+                        <ThisWeek ledger={ledger} onOpenWeek={() => router.navigate('/entries')} />
+
                         <GoalGroup
                             label="Today"
                             items={todayGoals.map((goal) => ({
