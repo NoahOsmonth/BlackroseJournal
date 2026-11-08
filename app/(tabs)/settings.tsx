@@ -15,6 +15,7 @@ import {
     CustomModelSettingsSection,
     DataManagementSection,
     GenerationSettingsSection,
+    ReminderSettingsSection,
     IdentitySettingsSection,
     MemorySettingsSection,
     SettingsAccordionSection,
@@ -29,6 +30,8 @@ import {
     memorySummary,
 } from '@/components/settings';
 import { useIdentityProfile } from '@/hooks/memory/useIdentityProfile';
+import { useReminders } from '@/hooks/settings/useReminders';
+import { describeReminderSchedule } from '@/utils/reminders';
 import { useLocalMemories } from '@/hooks/memory/useLocalMemories';
 import { useCustomAiModels } from '@/hooks/settings/useCustomAiModels';
 import { useGenerationSettings } from '@/hooks/settings/useGenerationSettings';
@@ -91,10 +94,14 @@ export default function SettingsScreen() {
         });
     }, []);
 
+    const reminders = useReminders();
+    const reminderSummary = describeReminderSchedule(reminders.settings);
+
     const summaries = useMemo(() => ({
         appearance: appearanceSummary(theme, emojiStyle),
         color: colorThemeSummary(colorTheme),
         generation: generationSummary(generation.settings),
+        reminders: reminderSummary,
         customAi: customAiSummary(customAi.settings),
         data: dataManagementSummary(Boolean(latestBackup)),
         identity: identitySettingsSummary(identity.profile),
@@ -285,6 +292,19 @@ export default function SettingsScreen() {
                     onToggle={toggleSection}
                 >
                     <CustomModelSettingsSection {...customAi} embedded />
+                </SettingsAccordionSection>
+
+                <SettingsAccordionSection
+                    id="reminders"
+                    index={2}
+                    title="Reminders"
+                    hint="Gentle nudges to write"
+                    summary={reminderSummary}
+                    icon="notifications-none"
+                    expanded={expandedIds.has('reminders')}
+                    onToggle={toggleSection}
+                >
+                    <ReminderSettingsSection />
                 </SettingsAccordionSection>
 
                 <SettingsAccordionSection

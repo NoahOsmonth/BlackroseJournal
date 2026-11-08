@@ -5,6 +5,7 @@ export { ColorThemeSettingsSection } from './ColorThemeSettingsSection';
 export { CustomModelSettingsSection } from './CustomModelSettingsSection';
 export { DataManagementSection } from './DataManagementSection';
 export { GenerationSettingsSection } from './GenerationSettingsSection';
+export { ReminderSettingsSection } from './ReminderSettingsSection';
 export { IdentitySettingsSection } from './IdentitySettingsSection';
 export { MemorySettingsSection } from './MemorySettingsSection';
 export { SettingsAccordionSection } from './SettingsAccordionSection';
