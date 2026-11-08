@@ -361,6 +361,35 @@ async function ensureMigrated(
     });
 }
 
+/**
+ * Rewrite a v1 single-key payload into shards, using a store already in hand.
+ *
+ * Split out of ensureMigrated so the read path can migrate from the store it
+ * just loaded instead of re-reading the index to ask whether migration is
+ * needed. A failed migration is announced and does not break the read; the v1
+ * payload stays loadable until the shard write succeeds.
+ */
+async function migrateLegacyPayload(
+    storage: AccountStorageAdapter,
+    store: JournalStore,
+    context: AccountOperationContext,
+): Promise<void> {
+    await withMutationLock(async () => {
+        assertAccountOperationActive(context);
+        try {
+            // Save the store we already loaded. saveStore rewrites the index
+            // into the sharded shape, which is the migration itself.
+            await saveStore(storage, store, store.map, context);
+        } catch (error) {
+            console.warn(
+                'Journal storage: shard migration failed; the v1 payload is '
+                + 'still readable and migration will retry on the next load.',
+                error,
+            );
+        }
+    });
+}
+
 async function readIndexSummaries(
     storage: AccountStorageAdapter,
     context: AccountOperationContext,
@@ -391,8 +420,12 @@ async function listEntriesForAccount(
     context: AccountOperationContext,
 ): Promise<JournalEntry[]> {
     assertAccountOperationActive(context);
-    await ensureMigrated(storage, context);
     const store = await loadStore(storage, context);
+    // loadStore already parsed the index, so it can tell us whether the v1
+    // payload is still there. ensureMigrated() used to read the same key a
+    // second time on every single load, which is the duplicate read rule R2
+    // names (and one of the two @journal_entries reads per tab switch).
+    if (store.legacy) await migrateLegacyPayload(storage, store, context);
     let list = Object.values(store.map);
 
     if (status) {
