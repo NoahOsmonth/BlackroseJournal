@@ -14,14 +14,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 interface WeeklyInsightItem {
     createdAt: number;
     messages: Message[];
+    /** Journal entries and check-ins share a shape but not a label. */
+    kind: 'journal' | 'checkin';
 }
 
 function toWeeklyInsightItem<T extends { createdAt: number; messages?: Message[] | null }>(
-    item: T
+    item: T,
+    kind: WeeklyInsightItem['kind'],
 ): WeeklyInsightItem {
     return {
         createdAt: item.createdAt,
         messages: item.messages ?? [],
+        kind,
     };
 }
 
@@ -52,8 +56,8 @@ export function useWeeklyInsights() {
         endOfWeek.setHours(23, 59, 59, 999);
 
         const allItems = [
-            ...journalEntries.map(toWeeklyInsightItem),
-            ...checkIns.map(toWeeklyInsightItem),
+            ...journalEntries.map((item) => toWeeklyInsightItem(item, 'journal')),
+            ...checkIns.map((item) => toWeeklyInsightItem(item, 'checkin')),
         ];
 
         return allItems.filter(item => {
@@ -140,6 +144,12 @@ export function useWeeklyInsights() {
     // label below advances.
     const weeklyStats = useMemo(() => {
         const weeklyItems = getWeeklyItems(renderWeekStart);
+        // A check-in is not an entry. The tile used to print one number labelled
+        // "Entries" for journal entries + check-ins combined, so a week with one
+        // entry and two check-ins read as "3 Entries" - telling the writer they
+        // journaled three times when they wrote once.
+        const journalItems = weeklyItems.filter((item) => item.kind === 'journal');
+        const checkInItems = weeklyItems.filter((item) => item.kind === 'checkin');
         const totalWords = weeklyItems.reduce((sum, item) => {
             return sum + item.messages
                 .filter(m => m.role === 'user')
@@ -160,6 +170,8 @@ export function useWeeklyInsights() {
 
         return {
             entriesCount: weeklyItems.length,
+            journalCount: journalItems.length,
+            checkInCount: checkInItems.length,
             totalWords,
             dailyWords,
             maxWords,

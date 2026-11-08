@@ -79,7 +79,8 @@ export default function InsightsScreen() {
                             <StaggerEntranceItem index={2} totalItems={4} staggerType="linear" columns={1}>
                                 <InsightsWritingPresence
                                     words={weeklyStats.totalWords}
-                                    entries={weeklyStats.entriesCount}
+                                    entries={weeklyStats.journalCount}
+                                    checkIns={weeklyStats.checkInCount}
                                     dailyWords={weeklyStats.dailyWords}
                                     maxWords={weeklyStats.maxWords}
                                 />

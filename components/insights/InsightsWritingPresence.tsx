@@ -9,30 +9,49 @@ const BAR_MIN = 8;
 
 interface InsightsWritingPresenceProps {
     words: number;
+    /** Journal entries only - check-ins are counted separately. */
     entries: number;
+    checkIns: number;
     dailyWords: number[];
     maxWords: number;
 }
 
-function proseLine(words: number, entries: number, dailyWords: number[]): string {
+function proseLine(
+    words: number,
+    entries: number,
+    checkIns: number,
+    dailyWords: number[],
+): string {
     const activeDays = dailyWords.filter((count) => count > 0).length;
-    const entryWord = entries === 1 ? 'entry' : 'entries';
     const dayWord = activeDays === 1 ? 'day' : 'days';
     if (entries === 0 && words === 0) {
         return 'No writing yet this week';
     }
     const wordPart = words > 0 ? `${words.toLocaleString()} words · ` : '';
-    return `${wordPart}${entries} ${entryWord} · ${activeDays} ${dayWord}`;
+    // Say the thing that was actually done. "3 entries" for one entry and two
+    // check-ins overstates the journal; name check-ins when there are any.
+    const parts = [`${entries} ${entries === 1 ? 'entry' : 'entries'}`];
+    if (checkIns > 0) {
+        parts.push(`${checkIns} check-${checkIns === 1 ? 'in' : 'ins'}`);
+    }
+    parts.push(`${activeDays} ${dayWord}`);
+    return `${wordPart}${parts.join(' · ')}`;
 }
 
 export function InsightsWritingPresence({
     words,
     entries,
+    checkIns,
     dailyWords,
     maxWords,
 }: InsightsWritingPresenceProps) {
     const ceiling = Math.max(maxWords, 1);
-    const line = proseLine(words, entries, dailyWords);
+    const line = proseLine(words, entries, checkIns, dailyWords);
+    // One string, not two adjacent expressions: RN keeps those as separate
+    // children, which reads inconsistently to screen readers and to tests.
+    const entryLabel = checkIns > 0
+        ? `${entries === 1 ? 'Entry' : 'Entries'} + ${checkIns} check-${checkIns === 1 ? 'in' : 'ins'}`
+        : entries === 1 ? 'Entry' : 'Entries';
 
     return (
         <View
@@ -70,7 +89,7 @@ export function InsightsWritingPresence({
                         {entries}
                     </Text>
                     <Text className="mt-1 text-[14px] text-text-secondary-light dark:text-text-secondary-dark">
-                        {entries === 1 ? 'Entry' : 'Entries'}
+                        {entryLabel}
                     </Text>
                 </View>
             </View>
