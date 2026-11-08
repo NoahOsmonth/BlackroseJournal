@@ -12,6 +12,7 @@ import { EntryEditModal } from '@/components/entries/EntryEditModal';
 import { originLabel } from '@/components/memory/memoryDisplay';
 import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
 import { useJournalEntryActions } from '@/hooks/journal/useJournalEntryActions';
+import { useEntryImage } from '@/hooks/journal/useEntryImage';
 import { useNavBack } from '@/hooks/navigation/useNavBack';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getLocalDateKey, formatLocalTime } from '@/utils/date';
@@ -38,6 +39,7 @@ export default function EntryDetailScreen() {
         saveText,
         remove,
     } = useJournalEntryActions();
+    const entryImage = useEntryImage();
 
     useEffect(() => {
         let isActive = true;
@@ -52,7 +54,9 @@ export default function EntryDetailScreen() {
             setIsLoading(false);
         };
         load();
-        return () => {
+    
+
+    return () => {
             isActive = false;
         };
     }, [entryId, getById]);
@@ -114,6 +118,14 @@ export default function EntryDetailScreen() {
         }
     }, [entryId, remove, goBack]);
 
+    /** Compose the share image from the entry as it stands right now. */
+    const handleExportImage = useCallback(() => {
+        if (!entry) return;
+        const authored = new Date(entry.createdAt);
+        const dateLabel = authoredLabel ? authoredLabel.replace('Written ', '') : getLocalDateKey(authored);
+        void entryImage.exportImage(buildEntryText(entry.messages), dateLabel, colorScheme === 'dark');
+    }, [entry, authoredLabel, entryImage, colorScheme]);
+
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>
             <View className="flex-1 max-w-md mx-auto w-full">
@@ -134,6 +146,15 @@ export default function EntryDetailScreen() {
                         {title}
                     </Text>
                     <Pressable
+                        onPress={handleExportImage}
+                        className="p-2"
+                        accessibilityRole="button"
+                        accessibilityLabel="Share this entry as an image"
+                        disabled={!entry || entryImage.isExporting}
+                    >
+                        <MaterialIcons name="ios-share" size={24} color={iconColor} />
+                    </Pressable>
+                    <Pressable
                         onPress={() => setIsMenuOpen(true)}
                         className="p-2 -mr-2"
                         accessibilityRole="button"
@@ -143,6 +164,12 @@ export default function EntryDetailScreen() {
                         <MaterialIcons name="more-vert" size={24} color={iconColor} />
                     </Pressable>
                 </View>
+
+                {entryImage.message && (
+                    <Text className="px-6 pb-2 text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
+                        {entryImage.message}
+                    </Text>
+                )}
 
                 {authoredLabel && (
                     <Text className="-mt-2 px-4 pb-1 text-[12px] text-ink-2-light dark:text-ink-2-dark">{authoredLabel}</Text>
