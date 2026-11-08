@@ -7,6 +7,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FinishBackgroundBanner } from '@/components/entries/FinishBackgroundBanner';
 import { MoodChipRow } from '@/components/entries/MoodChipRow';
+import { WrittenDaysRow } from '@/components/entries/WrittenDaysRow';
+import { DayEmptyState } from '@/components/entries/DayEmptyState';
 import { HistoryEmpty } from '@/components/history/HistoryEmpty';
 import { HistoryMonthBreak } from '@/components/history/HistoryMonthBreak';
 import { HistorySection } from '@/components/history/HistorySection';
@@ -19,14 +21,11 @@ import { StaggerEntranceItem } from '@/components/ui/StaggerEntrance';
 import { useScrollReveal } from '@/components/ui/useScrollReveal';
 import { BLACKROSE_PALETTE } from '@/constants/theme';
 import { navAwareBottomPadding, SCREEN_PADDING_X } from '@/constants/spacing';
-import {
-    formatWeekMeta,
-    HistoryItem,
-    HistorySection as HistorySectionModel,
-} from '@/hooks/history/historyUtils';
+import { formatWeekMeta, HistoryItem } from '@/hooks/history/historyUtils';
 import { useHistoryFeed } from '@/hooks/history/useHistoryFeed';
 import { useStarredEntries } from '@/hooks/journal/useStarredEntries';
 import { filterStarredSections } from '@/utils/starredSections';
+import { buildFeedRows, buildWrittenDayChips, filterSectionsByDay, resolveActiveDay } from '@/utils/writtenDays';
 import {
     collectMoodChips,
     countMoodItems,
@@ -53,33 +52,6 @@ function isIntentionSession(session: ChatSession): boolean {
     return session.mode === 'morning'
         || session.mode === 'evening'
         || session.mode === 'intention';
-}
-
-type FeedRow =
-    | { kind: 'month'; key: string; label: string }
-    | { kind: 'section'; key: string; section: HistorySectionModel };
-
-function buildFeedRows(sections: HistorySectionModel[]): FeedRow[] {
-    const rows: FeedRow[] = [];
-    let previousMonthKey: string | null = null;
-
-    sections.forEach((section) => {
-        if (previousMonthKey !== null && section.monthKey !== previousMonthKey) {
-            rows.push({
-                kind: 'month',
-                key: `month-${section.monthKey}-${section.dateKey}`,
-                label: section.monthLabel,
-            });
-        }
-        previousMonthKey = section.monthKey;
-        rows.push({
-            kind: 'section',
-            key: section.dateKey,
-            section,
-        });
-    });
-
-    return rows;
 }
 
 export default function EntriesScreen() {
@@ -117,6 +89,7 @@ export default function EntriesScreen() {
     const [showStarredOnly, setShowStarredOnly] = useState(false);
     const [activeTopic, setActiveTopic] = useState('');
     const [activeMood, setActiveMood] = useState('');
+    const [activeDay, setActiveDay] = useState('');
     const { starredIds, starredSet } = useStarredEntries();
 
     useFocusEffect(
@@ -167,10 +140,21 @@ export default function EntriesScreen() {
         [afterTopicSections]
     );
 
-    const visibleSections = useMemo(
-        () => (activeMood ? filterSectionsByMood(afterTopicSections, activeMood) : afterTopicSections),
-        [activeMood, afterTopicSections]
+    // Days come from the feed AFTER search, starred, topic and mood, so the
+    // strip never offers a day whose writing those choices just hid. A stale
+    // selection is dropped instead of leaving an Archive that looks empty.
+    const writtenDayChips = useMemo(
+        () => buildWrittenDayChips(afterTopicSections),
+        [afterTopicSections]
     );
+    const resolvedDay = resolveActiveDay(writtenDayChips, activeDay);
+
+    const visibleSections = useMemo(() => {
+        const byMood = activeMood
+            ? filterSectionsByMood(afterTopicSections, activeMood)
+            : afterTopicSections;
+        return filterSectionsByDay(byMood, resolvedDay);
+    }, [activeMood, afterTopicSections, resolvedDay]);
 
     const feedRows = useMemo(
         () => buildFeedRows(visibleSections),
@@ -220,6 +204,10 @@ export default function EntriesScreen() {
     const activeMoodLabel = moodChips.find((chip) => chip.label === activeMood)?.label
         ?? normalizeMood(activeMood);
     const countMoodFor = (label: string) => countMoodItems(afterTopicSections, label);
+    const selectedDay = visibleSections.length > 0
+        ? visibleSections[0]
+        : afterTopicSections.find((section) => section.dateKey === resolvedDay);
+    const noDayMatches = resolvedDay.length > 0 && visibleSections.length === 0;
 
     return (
         <ScreenContainer edges="top">
@@ -314,6 +302,12 @@ export default function EntriesScreen() {
                 onSelect={setActiveMood}
             />
 
+            <WrittenDaysRow
+                chips={writtenDayChips}
+                activeDay={resolvedDay}
+                onSelect={setActiveDay}
+            />
+
             {searchOpen ? (
                 <View className="px-6 pt-3">
                     <View className="rounded-control border border-hairline-light px-4 py-2.5 dark:border-hairline-dark">
@@ -357,7 +351,9 @@ export default function EntriesScreen() {
                 {isLoading && !hasAnyItems ? (
                     <HistorySkeleton />
                 ) : isEmpty ? (
-                    noMoodMatches ? (
+                    noDayMatches ? (
+                        <DayEmptyState section={selectedDay} onClear={() => setActiveDay('')} />
+                    ) : noMoodMatches ? (
                         <View className="items-center px-8 pt-16" testID="archive-mood-empty">
                             <Text
                                 className="text-center text-[22px] text-text-light dark:text-text-dark"
