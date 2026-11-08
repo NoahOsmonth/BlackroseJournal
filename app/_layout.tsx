@@ -133,6 +133,7 @@ export default function RootLayout() {
                                     <Stack.Screen name="suggestions" />
                                     <Stack.Screen name="streak-view" />
                                     <Stack.Screen name="writing-year" />
+                                    <Stack.Screen name="monthly-review" />
                                     <Stack.Screen name="streak-haiku" options={{ presentation: 'modal' }} />
                                     <Stack.Screen name="ask-rosebud" />
                                     <Stack.Screen name="memory-graph" />

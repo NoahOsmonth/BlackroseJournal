@@ -3,7 +3,8 @@
  */
 
 import React from 'react';
-import { Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -23,6 +24,8 @@ import { RevealItem } from '@/components/ui/RevealItem';
 import { useScrollReveal } from '@/components/ui/useScrollReveal';
 import { StaggerEntranceItem } from '@/components/ui/StaggerEntrance';
 import { navAwareBottomPadding } from '@/constants/spacing';
+import { BLACKROSE_PALETTE } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useThemeSettings } from '@/hooks/useThemeSettings';
 import { useWeeklyInsights } from '@/hooks/useWeeklyInsights';
 import { useWeekMood } from '@/hooks/insights/useWeekMood';
@@ -36,6 +39,8 @@ export default function InsightsScreen() {
     const { insights, weeklyStats, weekDateRange, isLoading } = useWeeklyInsights();
     const { emojiStyle } = useThemeSettings();
     const { cells: moodCells } = useWeekMood();
+    const isDark = useColorScheme() === 'dark';
+    const iconColor = isDark ? BLACKROSE_PALETTE.dark.text : BLACKROSE_PALETTE.light.text;
 
     const isUnlocked = weeklyStats.entriesCount >= INSIGHTS_UNLOCK_AT;
 
@@ -115,6 +120,21 @@ export default function InsightsScreen() {
 
                         <RevealItem scrollY={scrollY}>
                             <InsightsAskRow onPress={() => router.push('/ask-rosebud')} />
+                        </RevealItem>
+
+                        <RevealItem scrollY={scrollY}>
+                            <Pressable
+                                onPress={() => router.push('/monthly-review')}
+                                accessibilityRole="button"
+                                accessibilityLabel="See a month in review"
+                                testID="see-monthly-review"
+                                className="min-h-11 flex-row items-center justify-center gap-2 rounded-control border border-hairline-light bg-surface-light px-4 dark:border-hairline-dark dark:bg-surface-dark"
+                            >
+                                <MaterialIcons name="calendar-month" size={18} color={iconColor} />
+                                <Text className="text-[15px] text-text-light dark:text-text-dark">
+                                    See a month in review
+                                </Text>
+                            </Pressable>
                         </RevealItem>
                     </View>
                 </Animated.ScrollView>
