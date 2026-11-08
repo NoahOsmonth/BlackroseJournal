@@ -296,7 +296,7 @@ export default function SettingsScreen() {
 
                 <SettingsAccordionSection
                     id="reminders"
-                    index={2}
+                    index={4}
                     title="Reminders"
                     hint="Gentle nudges to write"
                     summary={reminderSummary}
@@ -309,7 +309,7 @@ export default function SettingsScreen() {
 
                 <SettingsAccordionSection
                     id="data"
-                    index={4}
+                    index={5}
                     title="Your data"
                     hint="Everything stays on device"
                     summary={summaries.data}
@@ -338,7 +338,7 @@ export default function SettingsScreen() {
 
                 <SettingsAccordionSection
                     id="identity"
-                    index={5}
+                    index={6}
                     title="Identity"
                     hint="What Blackrose always remembers"
                     summary={summaries.identity}
@@ -359,7 +359,7 @@ export default function SettingsScreen() {
 
                 <SettingsAccordionSection
                     id="memory"
-                    index={6}
+                    index={7}
                     title="Memory"
                     hint="What Blackrose remembers"
                     summary={summaries.memory}
@@ -377,7 +377,7 @@ export default function SettingsScreen() {
 
                 <SettingsAccordionSection
                     id="account"
-                    index={7}
+                    index={8}
                     title="Account"
                     hint="Stored on this device"
                     summary={summaries.account}
@@ -390,7 +390,7 @@ export default function SettingsScreen() {
 
                 <SettingsAccordionSection
                     id="about"
-                    index={8}
+                    index={9}
                     title="About"
                     hint="Version and privacy"
                     summary={summaries.about}
