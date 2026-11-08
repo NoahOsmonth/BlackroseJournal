@@ -52,6 +52,10 @@ import {
     subscribeWritingGoal,
 } from '../../services/goals/writingGoalSettings';
 import { DEFAULT_WRITING_GOAL } from '../../utils/writingGoal';
+import {
+    listSavedStarters,
+    toggleSavedStarter,
+} from '../../services/prompts/savedPromptPacks';
 import * as journalStorage from '../../services/journal/journalStorage';
 
 describe('useClearJournalHistory', () => {
@@ -103,6 +107,8 @@ describe('useClearJournalHistory', () => {
         expect(await listStarredEntryIds()).toHaveLength(2);
         await setWritingGoalSettings({ wordsPerDay: 750, restDaysPerWeek: 3 });
         expect(await getWritingGoalSettings()).toEqual({ wordsPerDay: 750, restDaysPerWeek: 3 });
+        await toggleSavedStarter('one-thing');
+        expect(await listSavedStarters()).toEqual(['one-thing']);
         await applyIdentityPatch({ preferredName: 'Sigurd', source: 'manual' });
         expect(profileHasIdentity(await getIdentityProfile())).toBe(true);
 
@@ -129,6 +135,9 @@ describe('useClearJournalHistory', () => {
         // The gentle writing goal is user state too: leaving it behind makes
         // an open goal screen keep showing a target from the wiped journal.
         expect(await getWritingGoalSettings()).toEqual(DEFAULT_WRITING_GOAL);
+        // Saved starters are user state too: a wiped journal must not keep
+        // an open shelf showing favorites (round 44 coupling).
+        expect(await listSavedStarters()).toEqual([]);
     });
 
     it('tells open screens the stars are gone', async () => {

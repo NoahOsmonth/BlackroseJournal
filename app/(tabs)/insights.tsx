@@ -159,6 +159,18 @@ export default function InsightsScreen() {
                                     Look back on this day
                                 </Text>
                             </Pressable>
+                            <Pressable
+                                onPress={() => router.push('/prompt-shelf')}
+                                accessibilityRole="button"
+                                accessibilityLabel="Browse starting points"
+                                testID="see-prompt-shelf"
+                                className="mt-3 min-h-11 flex-row items-center justify-center gap-2 rounded-control border border-hairline-light bg-surface-light px-4 dark:border-hairline-dark dark:bg-surface-dark"
+                            >
+                                <MaterialIcons name="lightbulb-outline" size={18} color={iconColor} />
+                                <Text className="text-[15px] text-text-light dark:text-text-dark">
+                                    Browse starting points
+                                </Text>
+                            </Pressable>
                         </RevealItem>
                     </View>
                 </Animated.ScrollView>

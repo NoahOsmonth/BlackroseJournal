@@ -120,6 +120,7 @@ export const LOCAL_BACKUP_DATA_KEYS = [
     '@saved_insights',
     '@blackrose_starred_entries',
     '@blackrose_writing_goal',
+    '@blackrose_saved_prompt_starters',
     '@weekly_insights_cache',
     '@blackrose_custom_ai_provider',
     'user-theme-preference',
@@ -146,6 +147,7 @@ const ACCOUNT_SCOPED_BACKUP_KEYS = new Set<LocalBackupDataKey>([
     '@saved_insights',
     '@blackrose_starred_entries',
     '@blackrose_writing_goal',
+    '@blackrose_saved_prompt_starters',
     '@weekly_insights_cache',
     '@blackrose_custom_ai_provider',
 ]);

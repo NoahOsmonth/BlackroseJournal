@@ -5,7 +5,7 @@
  */
 
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { Share, Text, View } from 'react-native';
+import { Pressable, Share, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
@@ -280,6 +280,17 @@ export default function TodayScreen() {
                                         prompts={guidedPrompts}
                                         onPick={handlePromptPick}
                                     />
+                                    <Pressable
+                                        onPress={() => router.push('/prompt-shelf')}
+                                        accessibilityRole="button"
+                                        accessibilityLabel="See all starting points"
+                                        testID="see-prompt-shelf"
+                                        className="mt-3 min-h-11 flex-row items-center justify-center gap-2"
+                                    >
+                                        <Text className="text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
+                                            See all starting points
+                                        </Text>
+                                    </Pressable>
                                 </RevealItem>
 
                                 <RevealItem scrollY={scrollY}>

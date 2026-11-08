@@ -13,6 +13,7 @@ import { removeAllChatSessions } from '@/services/ai/sessionStorage';
 import { clearAllEntries } from '@/services/journal/journalStorage';
 import { clearStarredEntries } from '@/services/journal/starredEntries';
 import { clearWritingGoalSettings } from '@/services/goals/writingGoalSettings';
+import { clearSavedStarters } from '@/services/prompts/savedPromptPacks';
 import { clearAllCheckIns } from '@/services/intentions/intentionsStorage';
 import { clearCrashLogs } from '@/services/crash/crashLogStorage';
 import { getActiveAccountId } from '@/services/account/accountRuntime';
@@ -47,6 +48,7 @@ export function useClearJournalHistory(): UseClearJournalHistoryReturn {
                 ['journal entries', clearAllEntries],
                 ['starred moments', clearStarredEntries],
                 ['writing goal', clearWritingGoalSettings],
+                ['saved starters', clearSavedStarters],
                 ['intention check-ins', clearAllCheckIns],
                 ['memories from entries', () => deleteMemoryAtomsBySource('journal')],
                 ['memories from check-ins', () => deleteMemoryAtomsBySource('intention')],
