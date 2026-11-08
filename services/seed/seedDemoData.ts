@@ -945,7 +945,21 @@ export function seedDemoDataIfFirstLaunch(): Promise<boolean> {
                     return false;
                 }
 
-                await seedDemoDataForAccount(storage, context, requireActiveAccountId());
+                // Same deterministic-memory guard as seedDemoData() below.
+                // Without it the first-launch seed paid ~11 provider round-trips
+                // for rows that carry their own analysis, and every cold mount
+                // re-ran extraction (23 settings loads, 11 extractions) before
+                // anything painted.
+                // Same deterministic-memory guard as seedDemoData() below.
+                // Without it the first-launch seed paid ~11 provider round-trips
+                // for rows that carry their own analysis, and every cold mount
+                // re-ran extraction (23 settings loads, 11 extractions) before
+                // anything painted.
+                await runWithDeterministicMemoryExtraction(() => seedDemoDataForAccount(
+                    storage,
+                    context,
+                    requireActiveAccountId(),
+                ));
                 assertAccountOperationActive(context);
                 return true;
             } catch (error) {
