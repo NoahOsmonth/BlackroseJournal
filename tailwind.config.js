@@ -100,6 +100,12 @@ module.exports = {
                 'accent-green-dark': '#7A9E7E',
                 'accent-yellow': '#8A6A2F',
 
+                // ---- Starred entries (quiet gold, legible on both voids) ------------
+                'starred-gold': '#D9A441',
+                'starred-gold-dark': '#E8BE68',
+                'starred-border': '#C89A3E',
+                'starred-border-dark': '#B98B34',
+
                 // ---- Status banners (finish-background pill) -------------------------
                 'status-running-bg-light': '#EDE8DF',
                 'status-running-bg-dark': '#1A1A1E',

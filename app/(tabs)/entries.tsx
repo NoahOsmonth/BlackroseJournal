@@ -1,7 +1,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
-import { TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -24,6 +24,8 @@ import {
     HistorySection as HistorySectionModel,
 } from '@/hooks/history/historyUtils';
 import { useHistoryFeed } from '@/hooks/history/useHistoryFeed';
+import { useStarredEntries } from '@/hooks/journal/useStarredEntries';
+import { filterStarredSections } from '@/utils/starredSections';
 import { useTabNavigation } from '@/hooks/navigation/useTabNavigation';
 import { useColorScheme } from '@/hooks/theme/use-color-scheme';
 import { sessionTitle } from '@/utils/sessionTitle';
@@ -99,6 +101,8 @@ export default function EntriesScreen() {
     const [query, setQuery] = useState('');
     const [activeSession, setActiveSession] = useState<ChatSession | null>(null);
     const [dismissedId, setDismissedId] = useState<string | null>(null);
+    const [showStarredOnly, setShowStarredOnly] = useState(false);
+    const { starredIds, starredSet } = useStarredEntries();
 
     useFocusEffect(
         useCallback(() => {
@@ -123,9 +127,14 @@ export default function EntriesScreen() {
         [searchSections, query]
     );
 
+    const visibleSections = useMemo(
+        () => (showStarredOnly ? filterStarredSections(filteredSections, starredSet) : filteredSections),
+        [showStarredOnly, filteredSections, starredSet]
+    );
+
     const feedRows = useMemo(
-        () => buildFeedRows(filteredSections),
-        [filteredSections]
+        () => buildFeedRows(visibleSections),
+        [visibleSections]
     );
 
     const handleResumeSession = () => {
@@ -160,7 +169,8 @@ export default function EntriesScreen() {
 
     const hasAnyItems = sections.length > 0;
     const isSearching = query.trim().length > 0;
-    const isEmpty = !isLoading && filteredSections.length === 0;
+    const isEmpty = !isLoading && visibleSections.length === 0;
+    const nothingStarred = showStarredOnly && starredIds.length === 0;
 
     return (
         <ScreenContainer edges="top">
@@ -171,6 +181,31 @@ export default function EntriesScreen() {
                 onDraftsPress={() => router.push('/drafts')}
                 onSearchPress={() => setSearchOpen((open) => !open)}
             />
+
+            <View className="px-6 pb-1 pt-1">
+                <Pressable
+                    onPress={() => setShowStarredOnly((value) => !value)}
+                    accessibilityRole="button"
+                    accessibilityLabel={showStarredOnly ? 'Show every entry' : 'Show only starred entries'}
+                    accessibilityState={{ selected: showStarredOnly }}
+                    testID="archive-starred-filter"
+                    className={`self-start rounded-control border px-3 py-1.5 ${
+                        showStarredOnly
+                            ? 'border-starred-border bg-surface-light dark:border-starred-border-dark dark:bg-surface-dark'
+                            : 'border-hairline-light bg-background-light dark:border-hairline-dark dark:bg-background-dark'
+                    }`}
+                >
+                    <Text className={`text-[14px] ${
+                        showStarredOnly
+                            ? 'text-text-light dark:text-text-dark'
+                            : 'text-text-secondary-light dark:text-text-secondary-dark'
+                    }`}>
+                        {showStarredOnly
+                            ? `Starred · ${starredIds.length} shown`
+                            : `Starred · ${starredIds.length}`}
+                    </Text>
+                </Pressable>
+            </View>
 
             {searchOpen ? (
                 <View className="px-6 pt-3">
@@ -215,11 +250,25 @@ export default function EntriesScreen() {
                 {isLoading && !hasAnyItems ? (
                     <HistorySkeleton />
                 ) : isEmpty ? (
-                    <HistoryEmpty
-                        hasAnyItems={hasAnyItems}
-                        isSearching={isSearching}
-                        onWritePress={() => router.push('/chat')}
-                    />
+                    nothingStarred ? (
+                        <View className="items-center px-8 pt-16">
+                            <Text
+                                className="text-center text-[22px] text-text-light dark:text-text-dark"
+                                style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                            >
+                                No starred moments yet
+                            </Text>
+                            <Text className="mt-3 text-center text-[15px] leading-[1.5] text-text-secondary-light dark:text-text-secondary-dark">
+                                Open an entry and tap the star to keep a moment here.
+                            </Text>
+                        </View>
+                    ) : (
+                        <HistoryEmpty
+                            hasAnyItems={hasAnyItems}
+                            isSearching={isSearching}
+                            onWritePress={() => router.push('/chat')}
+                        />
+                    )
                 ) : (
                     <View className="gap-6 pt-4">
                         {feedRows.map((row, index) => {
@@ -229,6 +278,7 @@ export default function EntriesScreen() {
                                 <HistorySection
                                     section={row.section}
                                     onPressItem={handlePressItem}
+                                    starredIds={starredSet}
                                 />
                             );
 

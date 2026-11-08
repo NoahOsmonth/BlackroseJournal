@@ -11,6 +11,7 @@ import { EntryDetailSkeleton } from '@/components/entries/EntryDetailSkeleton';
 import { EntryEditModal } from '@/components/entries/EntryEditModal';
 import { originLabel } from '@/components/memory/memoryDisplay';
 import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
+import { useStarredEntries } from '@/hooks/journal/useStarredEntries';
 import { useJournalEntryActions } from '@/hooks/journal/useJournalEntryActions';
 import { useEntryImage } from '@/hooks/journal/useEntryImage';
 import { useNavBack } from '@/hooks/navigation/useNavBack';
@@ -40,6 +41,8 @@ export default function EntryDetailScreen() {
         remove,
     } = useJournalEntryActions();
     const entryImage = useEntryImage();
+    const { isStarred, toggleStar } = useStarredEntries();
+    const starred = Boolean(entryId) && isStarred(entryId);
 
     useEffect(() => {
         let isActive = true;
@@ -145,6 +148,23 @@ export default function EntryDetailScreen() {
                     >
                         {title}
                     </Text>
+                    <Pressable
+                        onPress={() => { if (entryId) void toggleStar(entryId); }}
+                        className="p-2"
+                        accessibilityRole="button"
+                        accessibilityLabel={starred ? 'Remove from starred' : 'Add to starred'}
+                        accessibilityState={{ selected: starred }}
+                        disabled={!entry}
+                        testID="entry-star-button"
+                    >
+                        <MaterialIcons
+                            name={starred ? 'star' : 'star-border'}
+                            size={24}
+                            color={starred
+                                ? (colorScheme === 'dark' ? '#E8BE68' : '#D9A441')
+                                : iconColor}
+                        />
+                    </Pressable>
                     <Pressable
                         onPress={handleExportImage}
                         className="p-2"

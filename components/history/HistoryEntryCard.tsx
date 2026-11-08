@@ -1,14 +1,18 @@
 import React from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { HistoryItem } from '@/hooks/history/historyUtils';
 import { originLabel } from '@/components/memory/memoryDisplay';
+import { useColorScheme } from '@/hooks/theme/use-color-scheme';
 
 interface HistoryEntryCardProps {
     item: HistoryItem;
     onPress: () => void;
     isLast?: boolean;
+    /** A starred entry shows a small gold star beside its label. */
+    isStarred?: boolean;
 }
 
 const SECONDARY_TEXT_CLASS = 'text-text-secondary-light dark:text-text-secondary-dark';
@@ -37,9 +41,10 @@ function resolveLabel(item: HistoryItem): string {
  * chrome on the card: type does the work, and the mood is the only trailing
  * detail.
  */
-export function HistoryEntryCard({ item, onPress, isLast = false }: HistoryEntryCardProps) {
+export function HistoryEntryCard({ item, onPress, isLast = false, isStarred = false }: HistoryEntryCardProps) {
     const label = resolveLabel(item);
     const moodLabel = item.mood?.trim() || null;
+    const isDark = useColorScheme() === 'dark';
 
     const handlePress = () => {
         if (Platform.OS !== 'web') {
@@ -62,7 +67,16 @@ export function HistoryEntryCard({ item, onPress, isLast = false }: HistoryEntry
         >
             <View className="gap-3 px-6">
                 <View className="flex-row items-center justify-between">
-                    <Text className={`text-[14px] ${SECONDARY_TEXT_CLASS}`}>{label}</Text>
+                    <View className="flex-row items-center gap-2">
+                        <Text className={`text-[14px] ${SECONDARY_TEXT_CLASS}`}>{label}</Text>
+                        {isStarred ? (
+                            <MaterialIcons
+                                name="star"
+                                size={15}
+                                color={isDark ? '#E8BE68' : '#D9A441'}
+                            />
+                        ) : null}
+                    </View>
                     <Text className={`text-[14px] ${SECONDARY_TEXT_CLASS}`}>
                         {formatTime(item.createdAt)}
                     </Text>
