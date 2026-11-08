@@ -312,6 +312,7 @@ export default function TodayScreen() {
                                     <RevealItem scrollY={scrollY}>
                                         <OnThisDayRow
                                             pick={onThisDay}
+                                            onSeeAll={() => router.push('/on-this-day')}
                                             onPress={(sourceId, type) => {
                                                 if (type === 'journal') {
                                                     router.push({ pathname: '/entry-detail', params: { id: sourceId } });

@@ -17,9 +17,11 @@ export type OnThisDayMemory = OnThisDayEntry & { sourceId: string };
 interface OnThisDayRowProps {
     pick: OnThisDayPick<OnThisDayMemory> | null;
     onPress: (sourceId: string, type: 'journal' | 'checkin') => void;
+    /** Opens the full view with every past year, not just this one memory. */
+    onSeeAll?: () => void;
 }
 
-export function OnThisDayRow({ pick, onPress }: OnThisDayRowProps) {
+export function OnThisDayRow({ pick, onPress, onSeeAll }: OnThisDayRowProps) {
     if (!pick) return null;
 
     const { entry, label } = pick;
@@ -27,7 +29,23 @@ export function OnThisDayRow({ pick, onPress }: OnThisDayRowProps) {
 
     return (
         <View className="gap-2">
-            <SectionLabel>{label}</SectionLabel>
+            <SectionLabel
+                action={onSeeAll ? (
+                    <Pressable
+                        onPress={onSeeAll}
+                        accessibilityRole="button"
+                        accessibilityLabel="See all years"
+                        testID="see-on-this-day"
+                        className="min-h-11 justify-center px-2"
+                    >
+                        <Text className="text-[12px] text-text-secondary-light dark:text-text-secondary-dark">
+                            See all years
+                        </Text>
+                    </Pressable>
+                ) : undefined}
+            >
+                {label}
+            </SectionLabel>
             <View className="overflow-hidden rounded-card border border-hairline-light dark:border-hairline-dark">
                 <Pressable
                     onPress={() => onPress(entry.sourceId, type)}

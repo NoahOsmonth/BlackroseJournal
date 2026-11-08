@@ -147,6 +147,18 @@ export default function InsightsScreen() {
                                     Set a gentle writing goal
                                 </Text>
                             </Pressable>
+                            <Pressable
+                                onPress={() => router.push('/on-this-day')}
+                                accessibilityRole="button"
+                                accessibilityLabel="Look back on this day"
+                                testID="see-on-this-day"
+                                className="mt-3 min-h-11 flex-row items-center justify-center gap-2 rounded-control border border-hairline-light bg-surface-light px-4 dark:border-hairline-dark dark:bg-surface-dark"
+                            >
+                                <MaterialIcons name="history" size={18} color={iconColor} />
+                                <Text className="text-[15px] text-text-light dark:text-text-dark">
+                                    Look back on this day
+                                </Text>
+                            </Pressable>
                         </RevealItem>
                     </View>
                 </Animated.ScrollView>
