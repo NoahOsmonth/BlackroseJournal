@@ -54,6 +54,15 @@ describe('month-in-review feature wiring', () => {
         expect(screen).toContain('monthly-calendar');
     });
 
+    it('puts weekday labels on the same fixed columns as the day cells', () => {
+        // Round 37 zoom-in QA: flex-1 headers measured 55px while the day cells
+        // were 36px at a 40px pitch, so labels drifted off their columns.
+        const header = screen.slice(screen.indexOf('WEEKDAYS.map'), screen.indexOf('review.calendar.map'));
+        expect(header).toContain('style={{ width: CELL }}');
+        expect(header).not.toContain('flex-1');
+        expect(header).toContain('gap-[4px]');
+    });
+
     it('offers previous and next month controls', () => {
         expect(screen).toContain('monthly-prev');
         expect(screen).toContain('monthly-next');

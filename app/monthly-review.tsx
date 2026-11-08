@@ -120,9 +120,11 @@ export default function MonthlyReviewScreen() {
 
                             {/* Month calendar with fixed cells */}
                             <View testID="monthly-calendar">
+                                {/* Header cells share the day cells' fixed width and gap,
+                                    so each weekday sits exactly above its own column. */}
                                 <View className="mb-3 flex-row gap-[4px]">
                                     {WEEKDAYS.map((label) => (
-                                        <View key={label} className="flex-1 items-center">
+                                        <View key={label} className="items-center" style={{ width: CELL }}>
                                             <Text className={'text-[11px] ' + SECONDARY}>{label}</Text>
                                         </View>
                                     ))}
