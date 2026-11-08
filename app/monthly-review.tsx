@@ -4,6 +4,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { BLACKROSE_PALETTE } from '@/constants/theme';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
+import { MonthlyDayPanel } from '@/components/insights/MonthlyDayPanel';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useNavBack } from '@/hooks/navigation/useNavBack';
 import { useMonthlyReview } from '@/hooks/insights/useMonthlyReview';
@@ -16,12 +17,13 @@ const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 /** Fixed-size cells so the calendar never shrinks to unreadable dots. */
 const CELL = 36;
 
-function dayClass(day: MonthlyCalendarDay): string {
+function dayClass(day: MonthlyCalendarDay, isSelected: boolean): string {
     const parts = ['items-center justify-center rounded-[3px]'];
     if (day.dateKey === null) parts.push('opacity-0');
     else if (day.hasWriting) parts.push('bg-bone-light dark:bg-bone-dark');
     else parts.push('bg-surface-2-light dark:bg-surface-2-dark');
     if (day.isToday) parts.push('border border-starred-gold dark:border-starred-gold-dark');
+    if (isSelected) parts.push('border-2 border-starred-gold dark:border-starred-gold-dark');
     return parts.join(' ');
 }
 
@@ -41,9 +43,15 @@ export default function MonthlyReviewScreen() {
     const ink = isDark ? BLACKROSE_PALETTE.dark.text : BLACKROSE_PALETTE.light.text;
     const now = new Date();
     const [period, setPeriod] = useState({ year: now.getFullYear(), month: now.getMonth() + 1 });
-    const { review, isLoading } = useMonthlyReview(period.year, period.month);
+    const { review, daysByKey, isLoading } = useMonthlyReview(period.year, period.month);
+    const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
-    const move = (delta: number) => setPeriod((p) => shiftMonth(p.year, p.month, delta));
+    const move = (delta: number) => {
+        setSelectedDay(null);
+        setPeriod((p) => shiftMonth(p.year, p.month, delta));
+    };
+
+    const selected = selectedDay ? daysByKey.get(selectedDay) : undefined;
 
     return (
         <ScreenContainer edges="top">
@@ -131,21 +139,28 @@ export default function MonthlyReviewScreen() {
                                 </View>
                                 <View className="flex-row flex-wrap gap-[4px]">
                                     {review.calendar.map((day, index) => (
-                                        <View
+                                        <Pressable
                                             key={day.dateKey ?? 'pad-' + index}
-                                            className={dayClass(day)}
+                                            onPress={() => { if (day.dateKey) setSelectedDay(day.dateKey); }}
+                                            accessibilityRole="button"
+                                            hitSlop={4}
+                                            className={dayClass(day, selectedDay === day.dateKey)}
                                             style={{ width: CELL, height: CELL }}
                                             testID={day.dateKey ? 'monthly-day-' + day.dateKey : undefined}
                                             accessibilityLabel={day.dateKey ? day.dateKey + (day.hasWriting ? ', writing saved' : ', nothing written') : ''}
                                         >
                                             <Text className={dayTextClass(day)}>{day.dayNumber ?? ''}</Text>
-                                        </View>
+                                        </Pressable>
                                     ))}
                                 </View>
                                 <Text className={'mt-3 text-[13px] ' + SECONDARY}>
-                                    A filled square is a day you wrote.
+                                    A filled square is a day you wrote. Tap a day to read it.
                                 </Text>
                             </View>
+
+                            {selectedDay ? (
+                                <MonthlyDayPanel dateKey={selectedDay} day={selected} />
+                            ) : null}
 
                             {/* Moods and themes */}
                             <View className="gap-4">

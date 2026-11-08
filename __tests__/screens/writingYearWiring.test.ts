@@ -76,8 +76,11 @@ describe('writing-year feature wiring', () => {
         expect(screen).toContain('setSelectedDay(day.dateKey)');
         expect(screen).toContain('writing-day-item-');
         expect(screen).toContain("pathname: item.kind === 'entry' ? '/entry-detail' : '/checkin-detail'");
-        expect(hook).toContain('groupWritingByDay(rows)');
+        // Round 43: day rows moved to one shared pure builder for both grids.
+        expect(hook).toContain('buildWritingDayRows(entries, checkIns)');
         expect(hook).not.toContain('listEntries(');
+        const shared = read(relPosix(root, path.join(root, 'utils/writingDayRows.ts')));
+        expect(shared).toContain('groupWritingByDay(rows)');
     });
 
     it('resolves source paths on any OS', () => {

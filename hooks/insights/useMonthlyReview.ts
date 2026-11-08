@@ -1,6 +1,8 @@
 /**
  * Feeds the pure month builder from the collections the app has already
  * loaded. No new storage reads (R2 in docs/perf/ui-performance-rules.md).
+ * The day list shares ONE useMemo with the review, so tapping a calendar
+ * square never triggers another read.
  */
 import { useMemo } from 'react';
 
@@ -8,6 +10,7 @@ import { useJournalEntries } from '@/hooks/journal/useJournalEntries';
 import { useIntentionCheckIns } from '@/hooks/intentions/useIntentionCheckIns';
 import { buildEntryText } from '@/utils/entryText';
 import { buildMonthlyReview, type MonthlyWritingRecord } from '@/utils/monthlyReview';
+import { buildWritingDayRows, type WritingDayGroup } from '@/utils/writingDayRows';
 
 function countWords(text: string): number {
     const trimmed = text.trim();
@@ -16,6 +19,7 @@ function countWords(text: string): number {
 
 export interface UseMonthlyReviewReturn {
     readonly review: ReturnType<typeof buildMonthlyReview>;
+    readonly daysByKey: ReadonlyMap<string, WritingDayGroup>;
     readonly isLoading: boolean;
 }
 
@@ -23,7 +27,7 @@ export function useMonthlyReview(year: number, month: number): UseMonthlyReviewR
     const { completed: entries, isLoading: entriesLoading } = useJournalEntries();
     const { completed: checkIns, isLoading: checkInsLoading } = useIntentionCheckIns();
 
-    const review = useMemo(() => {
+    const { review, daysByKey } = useMemo(() => {
         const records: MonthlyWritingRecord[] = [];
         entries.forEach((entry) => {
             const text = buildEntryText(entry.messages);
@@ -45,8 +49,11 @@ export function useMonthlyReview(year: number, month: number): UseMonthlyReviewR
                 mood: checkIn.mood,
             });
         });
-        return buildMonthlyReview(records, year, month, new Date());
+        return {
+            review: buildMonthlyReview(records, year, month, new Date()),
+            daysByKey: buildWritingDayRows(entries, checkIns),
+        };
     }, [entries, checkIns, year, month]);
 
-    return { review, isLoading: entriesLoading || checkInsLoading };
+    return { review, daysByKey, isLoading: entriesLoading || checkInsLoading };
 }
