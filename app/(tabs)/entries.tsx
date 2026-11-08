@@ -1,7 +1,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -26,6 +26,12 @@ import {
 import { useHistoryFeed } from '@/hooks/history/useHistoryFeed';
 import { useStarredEntries } from '@/hooks/journal/useStarredEntries';
 import { filterStarredSections } from '@/utils/starredSections';
+import {
+    collectTopicChips,
+    countTopicItems,
+    filterSectionsByTopic,
+    normalizeTopic,
+} from '@/utils/topicChips';
 import { useTabNavigation } from '@/hooks/navigation/useTabNavigation';
 import { useColorScheme } from '@/hooks/theme/use-color-scheme';
 import { sessionTitle } from '@/utils/sessionTitle';
@@ -102,6 +108,7 @@ export default function EntriesScreen() {
     const [activeSession, setActiveSession] = useState<ChatSession | null>(null);
     const [dismissedId, setDismissedId] = useState<string | null>(null);
     const [showStarredOnly, setShowStarredOnly] = useState(false);
+    const [activeTopic, setActiveTopic] = useState('');
     const { starredIds, starredSet } = useStarredEntries();
 
     useFocusEffect(
@@ -127,9 +134,22 @@ export default function EntriesScreen() {
         [searchSections, query]
     );
 
-    const visibleSections = useMemo(
+    // Order matters: search narrows the corpus first, then the starred filter,
+    // then the topic. Chips are derived from THAT narrowed feed, so a chip's
+    // number always says how many entries are actually behind it.
+    const beforeTopicSections = useMemo(
         () => (showStarredOnly ? filterStarredSections(filteredSections, starredSet) : filteredSections),
         [showStarredOnly, filteredSections, starredSet]
+    );
+
+    const topicChips = useMemo(
+        () => collectTopicChips(beforeTopicSections),
+        [beforeTopicSections]
+    );
+
+    const visibleSections = useMemo(
+        () => (activeTopic ? filterSectionsByTopic(beforeTopicSections, activeTopic) : beforeTopicSections),
+        [activeTopic, beforeTopicSections]
     );
 
     const feedRows = useMemo(
@@ -171,6 +191,10 @@ export default function EntriesScreen() {
     const isSearching = query.trim().length > 0;
     const isEmpty = !isLoading && visibleSections.length === 0;
     const nothingStarred = showStarredOnly && starredIds.length === 0;
+    const noTopicMatches = normalizeTopic(activeTopic).length > 0
+        && countTopicItems(beforeTopicSections, activeTopic) === 0;
+    const activeTopicLabel = topicChips.find((chip) => chip.label === activeTopic)?.label
+        ?? normalizeTopic(activeTopic);
 
     return (
         <ScreenContainer edges="top">
@@ -183,29 +207,80 @@ export default function EntriesScreen() {
             />
 
             <View className="px-6 pb-1 pt-1">
-                <Pressable
-                    onPress={() => setShowStarredOnly((value) => !value)}
-                    accessibilityRole="button"
-                    accessibilityLabel={showStarredOnly ? 'Show every entry' : 'Show only starred entries'}
-                    accessibilityState={{ selected: showStarredOnly }}
-                    testID="archive-starred-filter"
-                    className={`self-start rounded-control border px-3 py-1.5 ${
-                        showStarredOnly
-                            ? 'border-starred-border bg-surface-light dark:border-starred-border-dark dark:bg-surface-dark'
-                            : 'border-hairline-light bg-background-light dark:border-hairline-dark dark:bg-background-dark'
-                    }`}
-                >
-                    <Text className={`text-[14px] ${
-                        showStarredOnly
-                            ? 'text-text-light dark:text-text-dark'
-                            : 'text-text-secondary-light dark:text-text-secondary-dark'
-                    }`}>
-                        {showStarredOnly
-                            ? `Starred · ${starredIds.length} shown`
-                            : `Starred · ${starredIds.length}`}
-                    </Text>
-                </Pressable>
+                <View className="flex-row flex-wrap items-center gap-2">
+                    <Pressable
+                        onPress={() => setShowStarredOnly((value) => !value)}
+                        accessibilityRole="button"
+                        accessibilityLabel={showStarredOnly ? 'Show every entry' : 'Show only starred entries'}
+                        accessibilityState={{ selected: showStarredOnly }}
+                        testID="archive-starred-filter"
+                        className={`min-h-11 justify-center rounded-control border px-3 ${
+                            showStarredOnly
+                                ? 'border-starred-border bg-surface-light dark:border-starred-border-dark dark:bg-surface-dark'
+                                : 'border-hairline-light bg-background-light dark:border-hairline-dark dark:bg-background-dark'
+                        }`}
+                    >
+                        <Text className={`text-[14px] ${
+                            showStarredOnly
+                                ? 'text-text-light dark:text-text-dark'
+                                : 'text-text-secondary-light dark:text-text-secondary-dark'
+                        }`}>
+                            {showStarredOnly
+                                ? `Starred · ${starredIds.length} shown`
+                                : `Starred · ${starredIds.length}`}
+                        </Text>
+                    </Pressable>
+                </View>
             </View>
+
+            {topicChips.length > 0 ? (
+                <View className="pb-1 pt-1" testID="archive-topic-row">
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={{ paddingHorizontal: SCREEN_PADDING_X, gap: 8 }}
+                        accessibilityLabel="Browse by topic"
+                    >
+                        <Pressable
+                            onPress={() => setActiveTopic('')}
+                            accessibilityRole="button"
+                            accessibilityLabel="Show every topic"
+                            accessibilityState={{ selected: normalizeTopic(activeTopic).length === 0 }}
+                            testID="topic-chip-all"
+                            className={`min-h-11 justify-center rounded-full border px-4 ${
+                                normalizeTopic(activeTopic).length === 0
+                                    ? 'border-accent-green bg-surface-light dark:border-accent-green-dark dark:bg-surface-dark'
+                                    : 'border-hairline-light bg-background-light dark:border-hairline-dark dark:bg-background-dark'
+                            }`}
+                        >
+                            <Text className="text-[14px] text-text-light dark:text-text-dark">All</Text>
+                        </Pressable>
+                        {topicChips.map((chip) => {
+                            const selected = activeTopic === chip.label;
+                            const shown = countTopicItems(beforeTopicSections, chip.label);
+                            return (
+                                <Pressable
+                                    key={chip.label}
+                                    onPress={() => setActiveTopic(selected ? '' : chip.label)}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`Topic ${chip.label}, ${shown} ${shown === 1 ? 'entry' : 'entries'}`}
+                                    accessibilityState={{ selected }}
+                                    testID={`topic-chip-${chip.label}`}
+                                    className={`min-h-11 justify-center rounded-full border px-4 ${
+                                        selected
+                                            ? 'border-accent-green bg-surface-light dark:border-accent-green-dark dark:bg-surface-dark'
+                                            : 'border-hairline-light bg-background-light dark:border-hairline-dark dark:bg-background-dark'
+                                    }`}
+                                >
+                                    <Text className="text-[14px] text-text-light dark:text-text-dark">
+                                        {chip.label} · {shown}
+                                    </Text>
+                                </Pressable>
+                            );
+                        })}
+                    </ScrollView>
+                </View>
+            ) : null}
 
             {searchOpen ? (
                 <View className="px-6 pt-3">
@@ -250,7 +325,19 @@ export default function EntriesScreen() {
                 {isLoading && !hasAnyItems ? (
                     <HistorySkeleton />
                 ) : isEmpty ? (
-                    nothingStarred ? (
+                    noTopicMatches ? (
+                        <View className="items-center px-8 pt-16" testID="archive-topic-empty">
+                            <Text
+                                className="text-center text-[22px] text-text-light dark:text-text-dark"
+                                style={{ fontFamily: 'PlayfairDisplayRegular' }}
+                            >
+                                Nothing here about {activeTopicLabel}
+                            </Text>
+                            <Text className="mt-3 text-center text-[15px] leading-[1.5] text-text-secondary-light dark:text-text-secondary-dark">
+                                Try another word, or show every topic.
+                            </Text>
+                        </View>
+                    ) : nothingStarred ? (
                         <View className="items-center px-8 pt-16">
                             <Text
                                 className="text-center text-[22px] text-text-light dark:text-text-dark"
