@@ -8,17 +8,62 @@ export interface AccountStorageAdapter {
     getAllKeys?(): Promise<readonly string[]>;
 }
 
+/**
+ * Cold-mount read coalescing (Kaneo #81).
+ *
+ * Expo Router mounts every tab screen at boot, so ~19 collection hooks ask the
+ * SAME keys in the same tick (measured 424 storage reads, e.g. goals 31x,
+ * local memory 31x). Concurrent readers of one full scoped key share ONE
+ * in-flight promise. This is NOT a settled-value cache: the entry is removed
+ * as soon as the read settles, so backup restore, demo seed and direct writers
+ * cannot be masked by stale data (round 32 reverted a settled cache for exactly
+ * this reason). A write/remove invalidates the key too, so a read started after
+ * a write can never join a pre-write promise (R5 tap freshness).
+ *
+ * Module-level on purpose: getStorageForAccount builds a fresh adapter per
+ * call, so a per-adapter map would coalesce nothing.
+ */
+const inFlightReads = new Map<string, Promise<string | null>>();
+
+function readCoalesced(
+    adapter: AccountStorageAdapter,
+    scopedKey: string,
+): Promise<string | null> {
+    const pending = inFlightReads.get(scopedKey);
+    if (pending) return pending;
+    const read = adapter.getItem(scopedKey).finally(() => {
+        // Only delete our own entry; a write may have already cleared it.
+        if (inFlightReads.get(scopedKey) === read) {
+            inFlightReads.delete(scopedKey);
+        }
+    });
+    inFlightReads.set(scopedKey, read);
+    return read;
+}
+
+function invalidateRead(scopedKey: string): void {
+    inFlightReads.delete(scopedKey);
+}
+
 export function createAccountScopedStorageAdapter(
     adapter: AccountStorageAdapter,
     accountId: string | null = getActiveAccountId(),
 ): AccountStorageAdapter {
     return {
-        getItem: (key) => adapter.getItem(getAccountScopedStorageKeyForAccount(key, accountId)),
-        setItem: (key, value) => adapter.setItem(
+        getItem: (key) => readCoalesced(
+            adapter,
             getAccountScopedStorageKeyForAccount(key, accountId),
-            value,
         ),
-        removeItem: (key) => adapter.removeItem(getAccountScopedStorageKeyForAccount(key, accountId)),
+        setItem: (key, value) => {
+            const scopedKey = getAccountScopedStorageKeyForAccount(key, accountId);
+            invalidateRead(scopedKey);
+            return adapter.setItem(scopedKey, value);
+        },
+        removeItem: (key) => {
+            const scopedKey = getAccountScopedStorageKeyForAccount(key, accountId);
+            invalidateRead(scopedKey);
+            return adapter.removeItem(scopedKey);
+        },
     };
 }
 
@@ -28,10 +73,13 @@ let storageAdapter: AccountStorageAdapter = AsyncStorage;
 let mutationQueue: Promise<void> = Promise.resolve();
 
 export function setAccountStorageAdapter(adapter: AccountStorageAdapter): void {
+    // A new backend must never inherit pending reads from the previous one.
+    inFlightReads.clear();
     storageAdapter = adapter;
 }
 
 export function resetAccountStorageAdapter(): void {
+    inFlightReads.clear();
     storageAdapter = AsyncStorage;
 }
 
@@ -67,9 +115,20 @@ export function getStorageForAccount(accountId: string | null): AccountStorageAd
 }
 
 export const accountScopedStorage: AccountStorageAdapter = {
-    getItem: (ownerKey) => storageAdapter.getItem(getAccountScopedStorageKey(ownerKey)),
-    setItem: (ownerKey, value) => storageAdapter.setItem(getAccountScopedStorageKey(ownerKey), value),
-    removeItem: (ownerKey) => storageAdapter.removeItem(getAccountScopedStorageKey(ownerKey)),
+    getItem: (ownerKey) => readCoalesced(
+        storageAdapter,
+        getAccountScopedStorageKey(ownerKey),
+    ),
+    setItem: (ownerKey, value) => {
+        const scopedKey = getAccountScopedStorageKey(ownerKey);
+        invalidateRead(scopedKey);
+        return storageAdapter.setItem(scopedKey, value);
+    },
+    removeItem: (ownerKey) => {
+        const scopedKey = getAccountScopedStorageKey(ownerKey);
+        invalidateRead(scopedKey);
+        return storageAdapter.removeItem(scopedKey);
+    },
 };
 
 function enqueueMutation<T>(operation: () => Promise<T>): Promise<T> {
