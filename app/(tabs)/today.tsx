@@ -7,7 +7,6 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, Share, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 import Animated from 'react-native-reanimated';
@@ -54,10 +53,10 @@ export default function TodayScreen() {
     const insets = useSafeAreaInsets();
     const { scrollY, onScroll } = useScrollReveal();
     const { selectedDay, serifDateLabel } = useSelectedDay();
-    const { completed: entries, refresh: refreshEntries, isLoading: entriesLoading } = useJournalEntries();
-    const { completed: checkIns, refresh: refreshCheckIns, isLoading: checkInsLoading } = useIntentionCheckIns();
-    const { activeIntentions, refresh: refreshIntentions, isLoading: intentionsLoading } = useIntentions();
-    const { goals, toggle: toggleGoal, refresh: refreshGoals, isLoading: goalsLoading } = useGoals();
+    const { completed: entries, isLoading: entriesLoading } = useJournalEntries();
+    const { completed: checkIns, isLoading: checkInsLoading } = useIntentionCheckIns();
+    const { activeIntentions, isLoading: intentionsLoading } = useIntentions();
+    const { goals, toggle: toggleGoal, isLoading: goalsLoading } = useGoals();
     const { question, refresh, sourceDate } = useEntryInsightQuestion(entries);
     const { pick: onThisDay } = useOnThisDay();
     const { add: saveInsight, isLoading: insightsLoading } = useSavedInsights();
@@ -66,14 +65,7 @@ export default function TodayScreen() {
 
     const isLoading = entriesLoading || checkInsLoading || intentionsLoading || goalsLoading || insightsLoading;
 
-    const refreshAll = useCallback(() => {
-        void refreshEntries();
-        void refreshCheckIns();
-        void refreshIntentions();
-        void refreshGoals();
-    }, [refreshEntries, refreshCheckIns, refreshIntentions, refreshGoals]);
 
-    useFocusEffect(refreshAll);
 
     const [showAddGoal, setShowAddGoal] = useState(false);
     const [isInsightHidden, setInsightHidden] = useState(false);
@@ -190,7 +182,7 @@ export default function TodayScreen() {
         setShowAddGoal(false);
         const { createGoal } = await import('@/services/goals/goalsStorage');
         await createGoal({ title, type, dateKey: type === 'goal' ? dateKey : undefined });
-        await refreshGoals();
+        // The storage change bus refreshes useGoals; no second parse here.
     };
 
     const handleToggleGoal = (id: string) => {

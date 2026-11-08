@@ -8,6 +8,7 @@ import {
 } from '@/services/intentions/intentionsStorage';
 import { Intention, IntentionCreateInput, IntentionUpdateInput } from '@/services/intentions/intentionsStorage.types';
 import { useActiveAccountId } from '@/hooks/account/useActiveAccountId';
+import { useCollectionRefresh } from '@/hooks/collections/useCollectionRefresh';
 
 interface UseIntentionsReturn {
     intentions: Intention[];
@@ -20,6 +21,8 @@ interface UseIntentionsReturn {
     archive: (id: string) => Promise<Intention | null>;
     remove: (id: string) => Promise<boolean>;
 }
+
+const INTENTION_KEYS = ['@intentions'];
 
 export function useIntentions(): UseIntentionsReturn {
     const accountId = useActiveAccountId();
@@ -44,6 +47,8 @@ export function useIntentions(): UseIntentionsReturn {
             setIsLoading(false);
         }
     }, []);
+
+    useCollectionRefresh(INTENTION_KEYS, refresh);
 
     useEffect(() => {
         if (accountId) {

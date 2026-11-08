@@ -45,6 +45,38 @@ function invalidateRead(scopedKey: string): void {
     inFlightReads.delete(scopedKey);
 }
 
+/**
+ * Collection change bus (Kaneo #87).
+ *
+ * Screens must stay fresh after a write made ANYWHERE - a finished journal
+ * entry, a restored backup, a demo seed row, or an Explore note - without
+ * re-reading four whole collections on every tab focus. Every write in this
+ * app funnels through this adapter's setItem/removeItem, so a signal here is
+ * the single honest source of truth. A listener receives the UNSCOPED owner
+ * key (e.g. @journal_entries), never account-specific data.
+ *
+ * This is deliberately NOT a settled-value cache: round 32 reverted one
+ * because direct writers (backup restore, demo seed) left it stale. Listeners
+ * re-read through the same coalesced adapter, so nothing is ever masked.
+ */
+export type CollectionChangeListener = (ownerKey: string) => void;
+const collectionListeners = new Set<CollectionChangeListener>();
+
+export function subscribeCollectionChanges(listener: CollectionChangeListener): () => void {
+    collectionListeners.add(listener);
+    return () => { collectionListeners.delete(listener); };
+}
+
+function notifyCollectionChanged(ownerKey: string): void {
+    collectionListeners.forEach((listener) => {
+        try {
+            listener(ownerKey);
+        } catch {
+            // One broken listener must never break a storage write.
+        }
+    });
+}
+
 export function createAccountScopedStorageAdapter(
     adapter: AccountStorageAdapter,
     accountId: string | null = getActiveAccountId(),
@@ -54,15 +86,19 @@ export function createAccountScopedStorageAdapter(
             adapter,
             getAccountScopedStorageKeyForAccount(key, accountId),
         ),
-        setItem: (key, value) => {
+        setItem: async (key, value) => {
             const scopedKey = getAccountScopedStorageKeyForAccount(key, accountId);
             invalidateRead(scopedKey);
-            return adapter.setItem(scopedKey, value);
+            await adapter.setItem(scopedKey, value);
+            // Notify only after the write really landed. A failed write must
+            // never make a screen show data that is not there.
+            notifyCollectionChanged(key);
         },
-        removeItem: (key) => {
+        removeItem: async (key) => {
             const scopedKey = getAccountScopedStorageKeyForAccount(key, accountId);
             invalidateRead(scopedKey);
-            return adapter.removeItem(scopedKey);
+            await adapter.removeItem(scopedKey);
+            notifyCollectionChanged(key);
         },
     };
 }

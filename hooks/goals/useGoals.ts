@@ -8,6 +8,7 @@ import {
 } from '@/services/goals/goalsStorage';
 import { GoalCreateInput, GoalItem, GoalUpdateInput } from '@/services/goals/goalsStorage.types';
 import { useActiveAccountId } from '@/hooks/account/useActiveAccountId';
+import { useCollectionRefresh } from '@/hooks/collections/useCollectionRefresh';
 
 interface UseGoalsReturn {
     goals: GoalItem[];
@@ -20,6 +21,8 @@ interface UseGoalsReturn {
     toggle: (id: string, dateKey?: string) => Promise<GoalItem | null>;
     habits: GoalItem[];
 }
+
+const GOAL_KEYS = ['@goals'];
 
 export function useGoals(): UseGoalsReturn {
     const accountId = useActiveAccountId();
@@ -44,6 +47,8 @@ export function useGoals(): UseGoalsReturn {
             setIsLoading(false);
         }
     }, []);
+
+    useCollectionRefresh(GOAL_KEYS, refresh);
 
     useEffect(() => {
         if (accountId) {

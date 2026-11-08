@@ -8,6 +8,9 @@ import {
     createEntry,
     deleteEntry,
     getEntry,
+    JOURNAL_ENTRIES_SHARD_COUNT,
+    JOURNAL_ENTRIES_SHARD_KEY_PREFIX,
+    JOURNAL_ENTRIES_STORAGE_KEY,
     listEntries,
     updateEntry,
 } from '@/services/journal/journalStorage';
@@ -18,6 +21,7 @@ import {
 } from '@/services/journal/journalStorage.types';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useActiveAccountId } from '@/hooks/account/useActiveAccountId';
+import { useCollectionRefresh } from '@/hooks/collections/useCollectionRefresh';
 
 interface UseJournalEntriesReturn {
     entries: JournalEntry[];
@@ -31,6 +35,11 @@ interface UseJournalEntriesReturn {
     remove: (id: string) => Promise<boolean>;
     getById: (id: string) => Promise<JournalEntry | null>;
 }
+
+const ENTRY_KEYS = [
+    JOURNAL_ENTRIES_STORAGE_KEY,
+    ...Array.from({ length: JOURNAL_ENTRIES_SHARD_COUNT }, (_, i) => JOURNAL_ENTRIES_SHARD_KEY_PREFIX + i),
+];
 
 export function useJournalEntries(): UseJournalEntriesReturn {
     const accountId = useActiveAccountId();
@@ -63,6 +72,9 @@ export function useJournalEntries(): UseJournalEntriesReturn {
             setIsLoading(false);
         }
     }, []);
+
+    // Freshness comes from real writes, not a focus poll (Kaneo #87).
+    useCollectionRefresh(ENTRY_KEYS, refresh);
 
     useEffect(() => {
         if (accountId) {

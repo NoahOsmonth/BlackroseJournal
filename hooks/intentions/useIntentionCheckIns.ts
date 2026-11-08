@@ -11,6 +11,7 @@ import {
     IntentionCheckInUpdateInput,
 } from '@/services/intentions/intentionsStorage.types';
 import { useActiveAccountId } from '@/hooks/account/useActiveAccountId';
+import { useCollectionRefresh } from '@/hooks/collections/useCollectionRefresh';
 
 interface UseIntentionCheckInsReturn {
     checkIns: IntentionCheckIn[];
@@ -23,6 +24,8 @@ interface UseIntentionCheckInsReturn {
     update: (id: string, updates: IntentionCheckInUpdateInput) => Promise<IntentionCheckIn | null>;
     remove: (id: string) => Promise<boolean>;
 }
+
+const CHECK_IN_KEYS = ['@intention_checkins'];
 
 export function useIntentionCheckIns(): UseIntentionCheckInsReturn {
     const accountId = useActiveAccountId();
@@ -54,6 +57,8 @@ export function useIntentionCheckIns(): UseIntentionCheckInsReturn {
             setIsLoading(false);
         }
     }, []);
+
+    useCollectionRefresh(CHECK_IN_KEYS, refresh);
 
     useEffect(() => {
         if (accountId) {

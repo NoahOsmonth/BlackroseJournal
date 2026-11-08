@@ -68,7 +68,6 @@ export default function EntriesScreen() {
         weeklySummary,
         draftCount,
         isLoading,
-        refresh: refreshFeed,
     } = useHistoryFeed();
     const { goToTab } = useTabNavigation();
 
@@ -92,17 +91,20 @@ export default function EntriesScreen() {
     const [activeDay, setActiveDay] = useState('');
     const { starredIds, starredSet } = useStarredEntries();
 
+    // The feed stays fresh through the storage change bus (Kaneo #87): a
+    // finished entry, a restored backup or a demo seed row notifies the two
+    // collection hooks directly. Only the small draft banner still needs a
+    // focus check, so a tab press no longer parses the entire journal.
     useFocusEffect(
         useCallback(() => {
             let isActive = true;
-            void refreshFeed();
             getMostRecentActiveSession().then((session) => {
                 if (isActive) setActiveSession(session);
             });
             return () => {
                 isActive = false;
             };
-        }, [refreshFeed])
+        }, [])
     );
 
     const showBanner = activeSession !== null
