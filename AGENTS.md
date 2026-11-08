@@ -48,6 +48,8 @@ Rules:
 - Create the card first (status `to-do`), flip to `in-progress` when work starts, `in-review` when it is done pending verification, `done` when it lands. Trivial work still gets a card; there is no "too small to track".
 - **Always pass `--status` to `create-task`.** A card created without it lands in a default column and, once its position sorts past the first 50, does not appear in an unfiltered `list-tasks` at all — `create-task` still returns a number, so it looks created while being invisible. Confirm with `--status done` before saying a card exists.
 - **Verify a card by `get-task --id`, not by the list.** `list-tasks` is paginated to 50 without warning; `get-task` always returns the row.
+- `list-tasks` returns tasks nested at `data.columns[].tasks` (pick the column whose `slug` matches the `--status` you passed). Parsing the response as a flat array yields a confident **0 cards** — read the shape before counting the board.
+- Task and epic descriptions cap at ~20,000 characters. **Appending** a round note to a full epic silently truncates the new text away while `update-task-description` still exits 0. **Prepend** the newest round, then `get-task --id` and assert the new marker string is present.
 - Put the plan, findings, and blockers in the card description, not only in chat.
 - **Images in descriptions.** Visual work attaches a screenshot to the card:
   1. `create-task-image-upload --id <taskId> --filename x.png --content-type image/png --size <bytes> --surface description` returns `{key, uploadUrl, headers}`.
@@ -423,6 +425,7 @@ There is no backend and no managed gateway: the app talks to the provider above 
 - **Test layout:** >10 tests in a folder → split into `__tests__/{components,hooks,services,screens}/`. `<Subject>.test.ts(x)` matching source. Cap test files at 300 lines. Shared mocks in `__tests__/mocks/` or `__mocks__/`. Prefer user-centric assertions over snapshots.
 - **No `any`:** if a type is genuinely unknown, use `unknown` and narrow it.
 - **Tab-screen refresh paths have budgets, not opinions.** A dock press re-focuses the destination screen without unmounting it, so a refresh that re-reads a collection three times or flips `isLoading` back to `true` reads as a stutter — issue #9 (Threads → Today) was 206 ms of blocked main thread and is now 67 ms. Rules R1–R6 plus the numeric budgets live in `docs/perf/ui-performance-rules.md`; measure with `node scripts/qa/tab-switch-bench.mjs` before and after touching a collection hook or tab screen, with `node scripts/qa/route-mount-bench.mjs` for anything on a screen's first-load path, and with `node scripts/qa/scroll-bench.mjs` for what renders inside a scroll container. Jest cannot see any of it.
+- **Browser `localStorage.getItem` is synchronous; AsyncStorage's promise wrapper is the async layer.** A probe that calls `.finally()` on `Storage.prototype.getItem`'s return value throws/wraps a string and reports a fake "4 reads" while the real bench counts 424. Wrap sync `getItem` with a plain counter (`bench-instrument.mjs` does this), and coalesce at the **async adapter** (`services/account/accountScopedStorage.ts`), never at the sync storage prototype. Verify a perf fix with a controlled A/B (sabotage the lever off, exact inverse on) — before/after alone can be noise.
 
 ## AI chat architecture (mental model)
 
