@@ -15,6 +15,19 @@ interface InsightsWeekLetterProps {
     onWritePress?: () => void;
 }
 
+/**
+ * The unlock threshold counts journal entries AND check-ins (both are writing),
+ * but the line must not call a check-in an entry. Run 31 fixed exactly that
+ * mislabel in the Writing stats tile; this sibling kept saying "2 more
+ * entries" underneath a tile that had just said "1 Entry + 2 check-ins".
+ * The threshold is deliberately combined, so the copy says "more writing" -
+ * it is true whether the next thing the writer does is an entry or a check-in.
+ */
+export function unlockLine(remaining: number, verb: 'Unlocks' | 'Requires'): string {
+    const amount = remaining === 1 ? 'one more bit of writing' : `${remaining} more moments of writing`;
+    return verb === 'Unlocks' ? `Unlocks with ${amount}` : `Requires ${amount}`;
+}
+
 export function InsightsWeekLetter({
     isUnlocked,
     entriesCount,
@@ -68,9 +81,7 @@ export function InsightsWeekLetter({
                 />
                 <View className="flex-1">
                     <Text className="text-[16px] text-text-light dark:text-text-dark">
-                        {entriesCount >= UNLOCK_AT
-                            ? 'Unlocking'
-                            : `Unlocks with ${remaining} more ${remaining === 1 ? 'entry' : 'entries'}`}
+                        {entriesCount >= UNLOCK_AT ? 'Unlocking' : unlockLine(remaining, 'Unlocks')}
                     </Text>
                     <Text className="mt-1 text-[14px] leading-relaxed text-text-secondary-light dark:text-text-secondary-dark">
                         Get a weekly in-depth analysis of your themes, patterns, and more.
@@ -83,7 +94,7 @@ export function InsightsWeekLetter({
                 <Text className="text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
                     {entriesCount >= UNLOCK_AT
                         ? 'Analysis in progress'
-                        : `Requires ${remaining} more ${remaining === 1 ? 'entry' : 'entries'}`}
+                        : unlockLine(remaining, 'Requires')}
                 </Text>
             </View>
         </View>

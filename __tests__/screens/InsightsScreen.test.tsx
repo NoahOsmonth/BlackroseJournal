@@ -84,7 +84,10 @@ describe('InsightsScreen', () => {
         render(<InsightsScreen />);
 
         expect(screen.getByText('Insights')).toBeTruthy();
-        expect(screen.getByText(/Requires 2 more entries/)).toBeTruthy();
+        // Not "2 more entries": the threshold counts check-ins too, and run 31
+        // established that a check-in is not an entry.
+        expect(screen.getByText(/Requires 2 more moments of writing/)).toBeTruthy();
+        expect(screen.queryByText(/more entries/)).toBeNull();
         expect(screen.queryByText(/Saturday/i)).toBeNull();
         expect(screen.queryByText(/AI Executive Summary/i)).toBeNull();
         expect(screen.getByText('Writing stats')).toBeTruthy();
