@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { listMemoryRollups } from '@/services/memory/memoryRollupStorage';
+import { listWeeklyRollupRead } from '@/services/memory/memoryRollupStorage';
 import type { MemoryRollup } from '@/services/memory/memoryRollup.types';
 import {
     findRecurringThemes,
@@ -39,8 +39,14 @@ export function useRecurringThemes(): UseRecurringThemesReturn {
         let isActive = true;
         (async () => {
             try {
-                const rows = await listMemoryRollups({ kind: 'week' });
-                if (isActive) setRollups(rows);
+                const { rollups: rows, status } = await listWeeklyRollupRead();
+                if (isActive) {
+                    setRollups(rows);
+                    // 'unreadable' is the only honest failure signal: without it a
+                    // broken read renders as "you have not written enough", which
+                    // is a claim about the writer we cannot support.
+                    setIsUnavailable(status === 'unreadable');
+                }
             } catch {
                 if (isActive) {
                     setRollups([]);

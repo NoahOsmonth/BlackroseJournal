@@ -141,6 +141,55 @@ async function loadIndexUnlocked(): Promise<MemoryRollupIndex> {
     }
 }
 
+/**
+ * Whether the index could actually be opened.
+ *
+ * 'empty' and 'unreadable' look identical to every caller today, which is how a
+ * storage failure becomes "you have written nothing" on screen. Callers that
+ * tell the writer something about their own history need to tell them apart.
+ */
+export type MemoryRollupIndexStatus = 'ok' | 'empty' | 'unreadable';
+
+export interface MemoryRollupIndexRead {
+    readonly index: MemoryRollupIndex;
+    readonly status: MemoryRollupIndexStatus;
+}
+
+/**
+ * Read the index and say how it went.
+ *
+ * Still returns a safe empty index on failure so nothing crashes; the status is
+ * what lets a caller stop reporting a failed read as an empty one.
+ */
+async function readIndexUnlocked(): Promise<MemoryRollupIndexRead> {
+    let json: string | null;
+    try {
+        json = await storageAdapter.getItem(MEMORY_ROLLUP_INDEX_KEY);
+    } catch {
+        return { index: emptyIndex(), status: 'unreadable' };
+    }
+    if (!json) return { index: emptyIndex(), status: 'empty' };
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(json);
+    } catch {
+        // Something is there but cannot be read: damaged, not absent.
+        return { index: emptyIndex(), status: 'unreadable' };
+    }
+    if (!isRecord(parsed) || !Array.isArray(parsed.entries)) {
+        return { index: emptyIndex(), status: 'unreadable' };
+    }
+    const entries: MemoryRollupIndexEntry[] = [];
+    for (const row of parsed.entries) {
+        const e = sanitizeIndexEntry(row);
+        if (e) entries.push(e);
+    }
+    return {
+        index: { schemaVersion: MEMORY_ROLLUP_SCHEMA_VERSION, entries },
+        status: entries.length > 0 ? 'ok' : 'empty',
+    };
+}
+
 async function saveIndexUnlocked(index: MemoryRollupIndex): Promise<void> {
     await storageAdapter.setItem(
         MEMORY_ROLLUP_INDEX_KEY,
@@ -217,6 +266,30 @@ export async function listMemoryRollupIndex(
         entries = entries.slice(0, Math.max(0, options.limit));
     }
     return entries;
+}
+
+/**
+ * Weekly rollups plus whether they could be read at all (Kaneo #55).
+ *
+ * Same rows as `listMemoryRollups({ kind: 'week' })`, but a caller that shows
+ * the writer something about their own history can now tell "nothing written"
+ * from "could not open it". A failed read is not a verdict about the writer.
+ */
+export async function listWeeklyRollupRead(): Promise<{
+    readonly rollups: MemoryRollup[];
+    readonly status: MemoryRollupIndexStatus;
+}> {
+    return runAccountBoundOperation('memory-rollup-read', async () => {
+        const { index, status } = await readIndexUnlocked();
+        if (status === 'unreadable') return { rollups: [], status };
+        const rollups: MemoryRollup[] = [];
+        for (const entry of index.entries) {
+            if (entry.kind !== 'week') continue;
+            const row = await getMemoryRollup(entry.kind, entry.periodKey);
+            if (row) rollups.push(row);
+        }
+        return { rollups, status };
+    });
 }
 
 export async function listMemoryRollups(
