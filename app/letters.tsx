@@ -9,6 +9,7 @@ import { navAwareBottomPadding } from '@/constants/spacing';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useLetters } from '@/hooks/letters/useLetters';
 import { LoadingStatus } from '@/components/ui/LoadingStatus';
+import { UnlockDatePicker } from '@/components/letters/UnlockDatePicker';
 import { getLocalDateKey } from '@/utils/date';
 import { letterDraftIssue } from '@/utils/letters';
 
@@ -101,17 +102,11 @@ export default function LettersScreen() {
                                     style={{ textAlignVertical: 'top' }}
                                     accessibilityLabel="Your letter"
                                 />
-                                <TextInput
+                                <UnlockDatePicker
+                                    todayKey={todayKey}
                                     value={unlockDate}
-                                    onChangeText={setUnlockDate}
-                                    placeholder="YYYY-MM-DD"
-                                    placeholderTextColor={isDark ? '#8A8580' : '#6B6560'}
-                                    className="rounded-control border border-hairline-light dark:border-hairline-dark px-3 py-2 text-[15px] text-text-light dark:text-text-dark"
-                                    accessibilityLabel="Day this letter opens"
+                                    onChange={setUnlockDate}
                                 />
-                                <Text className="text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
-                                    Opens on {formatDay(unlockDate)}
-                                </Text>
                                 {issue ? (
                                     <Text className="text-[13px] text-text-secondary-light dark:text-text-secondary-dark">{issue}</Text>
                                 ) : null}
