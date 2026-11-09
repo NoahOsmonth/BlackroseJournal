@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react';
 import { Share } from 'react-native';
-import { downloadTextFile } from '@/components/ui/webDownload';
+import { downloadDataUrl, downloadTextFile } from '@/components/ui/webDownload';
 import { EXPORT_PALETTES, buildEntryImage, entryImageFileName } from '@/utils/entryImage';
+import { svgToPngDataUrl } from '@/utils/svgToPng';
 
 export interface UseEntryImageReturn {
     readonly isExporting: boolean;
@@ -33,6 +34,14 @@ export function useEntryImage(): UseEntryImageReturn {
                 dateLabel,
                 palette: isDark ? EXPORT_PALETTES.dark : EXPORT_PALETTES.light,
             });
+            // PNG first: some chat apps will not preview an SVG at all, so the
+            // shareable file is the raster one. The SVG stays as the fallback
+            // because it is the only format this build can always produce.
+            const png = await svgToPngDataUrl(svg, 1080);
+            if (png && downloadDataUrl(entryImageFileName(dateLabel, 'png'), png)) {
+                setMessage('Image saved to your downloads.');
+                return;
+            }
             const fileName = entryImageFileName(dateLabel);
             if (downloadTextFile(fileName, svg, 'image/svg+xml')) {
                 setMessage('Image saved to your downloads.');

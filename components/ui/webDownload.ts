@@ -28,3 +28,23 @@ export function downloadTextFile(fileName: string, contents: string, mimeType = 
     URL.revokeObjectURL(url);
     return true;
 }
+
+/**
+ * Deliver a data URL (a rasterised image) as a real download.
+ *
+ * Separate from downloadTextFile because the payload is already encoded - wrapping
+ * it in a Blob would decode and re-encode the bytes for nothing.
+ */
+export function downloadDataUrl(fileName: string, dataUrl: string): boolean {
+    if (typeof document === 'undefined') {
+        return false;
+    }
+    const anchor = document.createElement('a');
+    anchor.href = dataUrl;
+    anchor.download = fileName;
+    anchor.rel = 'noopener';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    return true;
+}

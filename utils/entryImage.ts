@@ -136,7 +136,9 @@ export function buildEntryImage({
     ].filter((line) => line !== '').join('\n');
 }
 
-export function entryImageFileName(dateLabel: string): string {
+export type EntryImageFormat = 'png' | 'svg';
+
+export function entryImageFileName(dateLabel: string, format: EntryImageFormat = 'svg'): string {
     const safe = dateLabel.trim().replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    return `blackrose-${safe || 'entry'}.svg`;
+    return `blackrose-${safe || 'entry'}.${format}`;
 }

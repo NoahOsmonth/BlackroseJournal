@@ -101,6 +101,7 @@ describe('entryImageFileName', () => {
 
     it('strips characters a file system dislikes', () => {
         expect(entryImageFileName('8/11/2026')).toBe('blackrose-8-11-2026.svg');
+        expect(entryImageFileName('8 Nov 2026', 'png')).toBe('blackrose-8-Nov-2026.png');
     });
 
     it('still produces a usable name from an empty day', () => {
