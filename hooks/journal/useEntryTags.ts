@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useActiveAccountId } from '@/hooks/account/useActiveAccountId';
 import {
     addEntryTag,
+    deleteEntryTag,
     type EntryTagMap,
     listEntryTags,
     removeEntryTag,
@@ -23,6 +24,8 @@ export interface UseEntryTagsReturn {
     readonly removeTag: (entryId: string, label: string) => Promise<void>;
     /** Rename one label everywhere, merging into the target when it exists. */
     readonly renameTag: (from: string, to: string) => Promise<void>;
+    /** Remove one label from every entry that uses it. */
+    readonly deleteTag: (label: string) => Promise<void>;
     readonly refresh: () => Promise<void>;
 }
 
@@ -70,9 +73,12 @@ export function useEntryTags(): UseEntryTagsReturn {
     const renameTag = useCallback(async (from: string, to: string) => {
         await renameEntryTag(from, to);
     }, []);
+    const deleteTag = useCallback(async (label: string) => {
+        await deleteEntryTag(label);
+    }, []);
 
     return useMemo(
-        () => ({ tagsByEntry, tagsFor, addTag, removeTag, renameTag, refresh }),
-        [tagsByEntry, tagsFor, addTag, removeTag, renameTag, refresh],
+        () => ({ tagsByEntry, tagsFor, addTag, removeTag, renameTag, deleteTag, refresh }),
+        [tagsByEntry, tagsFor, addTag, removeTag, renameTag, deleteTag, refresh],
     );
 }

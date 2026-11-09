@@ -79,9 +79,7 @@ export default function EntriesScreen() {
     } = useHistoryFeed();
     const { goToTab } = useTabNavigation();
 
-    // The feed below is every entry ever written, grouped by day - it is not
-    // filtered to this week. Say so in the header rather than printing a bare
-    // "This week" above rows that reach back past it.
+    // The feed is every entry ever written, not this week - so the header says so.
     const spansBeforeThisWeek = useMemo(() => {
         const weekStart = weeklySummary.weekDayKeys[0];
         if (!weekStart) return false;
@@ -99,7 +97,7 @@ export default function EntriesScreen() {
     const [activeDay, setActiveDay] = useState('');
     const [activeTag, setActiveTag] = useState('');
     const { starredIds, starredSet } = useStarredEntries();
-    const { tagsByEntry, renameTag } = useEntryTags();
+    const { tagsByEntry, renameTag, deleteTag } = useEntryTags();
 
     // The feed stays fresh through the storage change bus (Kaneo #87): a
     // finished entry, a restored backup or a demo seed row notifies the two
@@ -336,6 +334,7 @@ export default function EntriesScreen() {
                 countFor={countTagFor}
                 onSelect={setActiveTag}
                 onRename={(from, to) => { void renameTag(from, to); setActiveTag(to); }}
+                onDelete={(label) => { void deleteTag(label); setActiveTag(''); }}
             />
 
             <WrittenDaysRow

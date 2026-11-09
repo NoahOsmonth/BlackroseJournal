@@ -17,6 +17,8 @@ interface TagChipRowProps {
     readonly onSelect: (label: string) => void;
     /** Rename the active label everywhere. The chip is hidden without it. */
     readonly onRename?: (from: string, to: string) => void;
+    /** Remove the active label from every entry. */
+    readonly onDelete?: (label: string) => void;
 }
 
 const chipBase = 'min-h-11 justify-center rounded-full border px-4 ';
@@ -24,7 +26,7 @@ const chipOn = 'border-accent-green bg-surface-light dark:border-accent-green-da
 const chipOff = 'border-hairline-light bg-background-light dark:border-hairline-dark dark:bg-background-dark';
 const labelClass = 'text-[14px] text-text-light dark:text-text-dark';
 
-export function TagChipRow({ chips, activeTag, countFor, onSelect, onRename }: TagChipRowProps) {
+export function TagChipRow({ chips, activeTag, countFor, onSelect, onRename, onDelete }: TagChipRowProps) {
     const [renaming, setRenaming] = useState(false);
     if (chips.length === 0) return null;
     const allSelected = activeTag.trim().length === 0;
@@ -87,6 +89,7 @@ export function TagChipRow({ chips, activeTag, countFor, onSelect, onRename }: T
                         onRename(activeTag, next);
                         setRenaming(false);
                     }}
+                    onDelete={onDelete}
                 />
             ) : null}
         </View>

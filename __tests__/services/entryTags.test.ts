@@ -4,6 +4,7 @@ import { activateAccount, clearActiveAccount } from '../../services/account/acco
 import {
     addEntryTag,
     clearAllEntryTags,
+    deleteEntryTag,
     ENTRY_TAGS_KEY,
     getEntryTags,
     importEntryTagsSnapshot,
@@ -181,5 +182,65 @@ describe('renaming one label across the journal', () => {
         await renameEntryTag('work', 'WORK');
         expect(notifications).toBe(0);
         off();
+    });
+});
+
+describe('deleting a label for good', () => {
+    beforeEach(async () => {
+        await clearActiveAccount();
+        setAccountStorageAdapter(memoryAdapter().adapter);
+        await activateAccount('labels-delete-account');
+    });
+    afterEach(async () => { await clearActiveAccount(); });
+
+    it('drops the label from every entry and leaves the others alone', async () => {
+        await setEntryTagMap({ e1: ['work'], e2: ['work', 'family'], e3: ['trip'] });
+        await deleteEntryTag('work');
+        expect(await getEntryTags('e1')).toEqual([]);
+        expect(await getEntryTags('e2')).toEqual(['family']);
+        expect(await getEntryTags('e3')).toEqual(['trip']);
+    });
+
+    it('removes an entry that has no labels left, so no empty label survives', async () => {
+        const m = memoryAdapter();
+        setAccountStorageAdapter(m.adapter);
+        await setEntryTagMap({ e1: ['work'], e2: ['family'] });
+        await deleteEntryTag('work');
+        const key = [...m.rows.keys()].find((k) => k.includes(ENTRY_TAGS_KEY.slice(1)));
+        const raw = JSON.parse(m.rows.get(key!) ?? '{}');
+        // Assert the raw bytes: an empty array would still make the entry look tagged.
+        expect(Object.keys(raw.byEntry)).toEqual(['e2']);
+        expect(raw.byEntry.e2).toEqual(['family']);
+    });
+
+    it('is a no-op when no entry uses the label, and does not notify', async () => {
+        await setEntryTagMap({ e1: ['work'] });
+        let notifications = 0;
+        const off = subscribeEntryTagChanges(() => { notifications += 1; });
+        await deleteEntryTag('ghost');
+        expect(notifications).toBe(0);
+        off();
+    });
+
+    it('refuses an empty label instead of clearing everything', async () => {
+        await setEntryTagMap({ e1: ['work'], e2: ['family'] });
+        await deleteEntryTag('   ');
+        expect(await getEntryTags('e1')).toEqual(['work']);
+        expect(await getEntryTags('e2')).toEqual(['family']);
+    });
+
+    it('notifies once so a mounted screen stops showing the label', async () => {
+        await setEntryTagMap({ e1: ['work'] });
+        const seen: string[][] = [];
+        const off = subscribeEntryTagChanges((map) => seen.push(Object.keys(map)));
+        await deleteEntryTag('work');
+        expect(seen).toEqual([[]]);
+        off();
+    });
+
+    it('normalizes the label before matching, so casing still deletes', async () => {
+        await setEntryTagMap({ e1: ['work'] });
+        await deleteEntryTag('  WORK  ');
+        expect(await getEntryTags('e1')).toEqual([]);
     });
 });

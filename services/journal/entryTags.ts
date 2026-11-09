@@ -233,6 +233,35 @@ export function renameEntryTag(from: string, to: string): Promise<EntryTagMap> {
     });
 }
 
+/**
+ * Delete one label for good: drop it from every entry. Entries left with no
+ * labels lose their key entirely, so the chip row cannot show an empty label.
+ */
+export function deleteEntryTag(label: string): Promise<EntryTagMap> {
+    return runAccountBoundOperation('entry-tags-delete', async (context) => {
+        const storage = getStorageForAccount(context.accountId);
+        return enqueueMutation(async () => {
+            assertAccountOperationActive(context);
+            const victim = normalizeTag(label);
+            if (victim.length === 0) return toMap(await readPayload(storage));
+            const payload = await readPayload(storage);
+            const next: Record<string, string[]> = {};
+            let changed = false;
+            Object.entries(payload.byEntry).forEach(([entryId, tags]) => {
+                if (!tags.includes(victim)) {
+                    next[entryId] = [...tags];
+                    return;
+                }
+                changed = true;
+                const kept = tags.filter((tag) => tag !== victim);
+                if (kept.length > 0) next[entryId] = kept;
+            });
+            if (!changed) return toMap(payload);
+            return writePayload(storage, next);
+        });
+    });
+}
+
 /** Clear History: an empty envelope keeps the key owned and its shape valid. */
 export function clearAllEntryTags(): Promise<void> {
     return runAccountBoundOperation('entry-tags-clear', async (context) => {

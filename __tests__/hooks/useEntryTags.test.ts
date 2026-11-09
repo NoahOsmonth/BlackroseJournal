@@ -52,4 +52,14 @@ describe('a label written anywhere refreshes a mounted hook', () => {
         expect(result.current.tagsFor('e2')).toEqual(['work']);
         unmount();
     });
+
+    it('deletes a label for every mounted consumer at once', async () => {
+        const { result, unmount } = renderHook(() => useEntryTags());
+        await act(async () => { await setEntryTagMap({ e1: ['work'], e2: ['work', 'family'] }); });
+        await waitFor(() => expect(result.current.tagsFor('e1')).toEqual(['work']));
+        await act(async () => { await result.current.deleteTag('work'); });
+        await waitFor(() => expect(result.current.tagsFor('e1')).toEqual([]));
+        expect(result.current.tagsFor('e2')).toEqual(['family']);
+        unmount();
+    });
 });

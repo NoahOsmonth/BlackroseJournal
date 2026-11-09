@@ -7,6 +7,7 @@ import React, { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Pressable, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { webConfirm } from '@/components/ui/webConfirm';
 import { BLACKROSE_PALETTE } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { formatTagLabel, normalizeTag } from '@/utils/entryTags';
@@ -22,9 +23,11 @@ interface TagRenameSheetProps {
     readonly current: string;
     readonly onCancel: () => void;
     readonly onSubmit: (next: string) => void;
+    /** Remove the label from every entry. Hidden when the screen cannot delete. */
+    readonly onDelete?: (label: string) => void;
 }
 
-export function TagRenameSheet({ visible, current, onCancel, onSubmit }: TagRenameSheetProps) {
+export function TagRenameSheet({ visible, current, onCancel, onSubmit, onDelete }: TagRenameSheetProps) {
     const insets = useSafeAreaInsets();
     const isDark = useColorScheme() === 'dark';
     const placeholder = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
@@ -37,6 +40,16 @@ export function TagRenameSheet({ visible, current, onCancel, onSubmit }: TagRena
         setDraft(formatTagLabel(current));
         setRefused(false);
     }, [visible, current]);
+
+    // Deleting touches every entry that used the label, so it asks first.
+    const remove = () => {
+        if (!onDelete) return;
+        const answer = webConfirm(
+            'Delete the label "' + formatTagLabel(current) + '"? It will be removed from every entry that uses it.',
+        );
+        if (answer === false) return;
+        onDelete(current);
+    };
 
     const submit = () => {
         const next = normalizeTag(draft);
@@ -100,6 +113,17 @@ export function TagRenameSheet({ visible, current, onCancel, onSubmit }: TagRena
                             <Text className="text-[16px] text-white dark:text-white">Save</Text>
                         </Pressable>
                     </View>
+                    {onDelete ? (
+                        <Pressable
+                            onPress={remove}
+                            accessibilityRole="button"
+                            accessibilityLabel={'Delete the label ' + formatTagLabel(current)}
+                            testID="tag-rename-delete"
+                            className="mt-3 min-h-12 items-center justify-center rounded-control"
+                        >
+                            <Text className="text-[15px] text-danger-light dark:text-danger-dark">Delete this label</Text>
+                        </Pressable>
+                    ) : null}
                 </View>
             </KeyboardAvoidingView>
         </Modal>

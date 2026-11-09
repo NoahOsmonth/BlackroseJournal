@@ -126,4 +126,32 @@ describe('writer-chosen label wiring (Kaneo #88)', () => {
         // The service refuses it too, so the UI cannot delete a label by accident.
         expect(service).toContain('target.length === 0');
     });
+
+    it('deletes a label from the chip row, through the hook, not storage', () => {
+        expect(archive).toContain('deleteTag');
+        expect(archive).toContain("onDelete={(label) => { void deleteTag(label); setActiveTag(''); }}");
+        expect(row).toContain('readonly onDelete?: (label: string) => void');
+        expect(row).toContain('onDelete={onDelete}');
+        expect(sheet).toContain('testID="tag-rename-delete"');
+        expect(sheet).toContain('Delete this label');
+        expect(hook).toContain('deleteEntryTag(label)');
+        expect(hook).toContain('readonly deleteTag: (label: string) => Promise<void>');
+        expect(service).toContain('export function deleteEntryTag(label: string)');
+        expect(sheet).not.toContain('AsyncStorage');
+    });
+
+    it('deleting asks first, because it touches every entry that used the label', () => {
+        // Alert.alert is a silent no-op on web, so the confirm must be webConfirm.
+        expect(sheet).toContain('webConfirm(');
+        expect(sheet).toContain('if (answer === false) return;');
+        expect(sheet).toContain('It will be removed from every entry that uses it.');
+        expect(sheet).not.toContain('Alert.alert');
+        expect(sheet).toContain('min-h-12');
+        expect(sheet).toContain('dark:text-danger-dark');
+    });
+
+    it('an entry left with no labels loses its key, so no empty label is shown', () => {
+        expect(service).toContain('if (kept.length > 0) next[entryId] = kept;');
+        expect(service).toContain('if (!changed) return toMap(payload);');
+    });
 });
