@@ -9,6 +9,7 @@ import {
     importEntryTagsSnapshot,
     listEntryTags,
     removeEntryTag,
+    renameEntryTag,
     setEntryTagMap,
     subscribeEntryTagChanges,
 } from '../../services/journal/entryTags';
@@ -103,5 +104,82 @@ describe('writer-chosen labels storage', () => {
             addEntryTag('e1', 'family'),
         ]);
         expect([...(await getEntryTags('e1'))].sort()).toEqual(['family', 'work']);
+    });
+});
+
+describe('renaming one label across the journal', () => {
+    beforeEach(async () => {
+        await clearActiveAccount();
+        setAccountStorageAdapter(memoryAdapter().adapter);
+        await activateAccount('labels-account');
+    });
+    afterEach(async () => { await clearActiveAccount(); });
+
+    it('moves every entry from the old name to the new one', async () => {
+        await setEntryTagMap({ e1: ['wrok'], e2: ['wrok', 'family'], e3: ['trip'] });
+        await renameEntryTag('wrok', 'work');
+        expect(await getEntryTags('e1')).toEqual(['work']);
+        expect([...(await getEntryTags('e2'))].sort()).toEqual(['family', 'work']);
+        expect(await getEntryTags('e3')).toEqual(['trip']);
+        // No trace of the typo anywhere.
+        const all = await listEntryTags();
+        expect(Object.values(all).flat()).not.toContain('wrok');
+    });
+
+    it('merges into a label that already exists without duplicating it', async () => {
+        // e1 has BOTH names; after the merge it must carry the target once.
+        const m = memoryAdapter();
+        setAccountStorageAdapter(m.adapter);
+        await setEntryTagMap({ e1: ['job', 'work'], e2: ['job'] });
+        await renameEntryTag('job', 'work');
+        expect(await getEntryTags('e1')).toEqual(['work']);
+        expect(await getEntryTags('e2')).toEqual(['work']);
+        // Assert the RAW stored bytes: the reader de-duplicates on parse, so a
+        // stored duplicate would look correct through getEntryTags and would
+        // then travel into a backup file.
+        const key = [...m.rows.keys()].find((k) => k.includes(ENTRY_TAGS_KEY.slice(1)));
+        const raw = JSON.parse(m.rows.get(key!) ?? '{}');
+        expect(raw.byEntry.e1).toEqual(['work']);
+        expect(raw.byEntry.e2).toEqual(['work']);
+    });
+
+    it('refuses an empty new name instead of deleting the label', async () => {
+        await setEntryTagMap({ e1: ['work'] });
+        await renameEntryTag('work', '   ');
+        expect(await getEntryTags('e1')).toEqual(['work']);
+    });
+
+    it('normalizes both sides, so casing and spaces do not create a twin', async () => {
+        await setEntryTagMap({ e1: ['Work'] });
+        await renameEntryTag('  WORK ', '  Family  ');
+        expect(await getEntryTags('e1')).toEqual(['family']);
+    });
+
+    it('is a no-op when the old name is not used, and does not notify', async () => {
+        await setEntryTagMap({ e1: ['work'] });
+        let notifications = 0;
+        const off = subscribeEntryTagChanges(() => { notifications += 1; });
+        await renameEntryTag('ghost', 'work');
+        expect(notifications).toBe(0);
+        expect(await getEntryTags('e1')).toEqual(['work']);
+        off();
+    });
+
+    it('notifies once so a mounted screen follows the new name', async () => {
+        await setEntryTagMap({ e1: ['wrok'] });
+        const seen: (readonly string[])[] = [];
+        const off = subscribeEntryTagChanges((map) => seen.push(map.e1 ?? []));
+        await renameEntryTag('wrok', 'work');
+        expect(seen).toEqual([['work']]);
+        off();
+    });
+
+    it('is a no-op when the name is unchanged', async () => {
+        await setEntryTagMap({ e1: ['work'] });
+        let notifications = 0;
+        const off = subscribeEntryTagChanges(() => { notifications += 1; });
+        await renameEntryTag('work', 'WORK');
+        expect(notifications).toBe(0);
+        off();
     });
 });

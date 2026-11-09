@@ -109,9 +109,12 @@ async function readPayload(storage: AccountStorageAdapter): Promise<EntryTagsPay
 }
 
 async function writePayload(storage: AccountStorageAdapter, byEntry: Record<string, string[]>): Promise<EntryTagMap> {
+    // Normalize on the way IN, not only on read. A rename that merges into an
+    // existing label would otherwise store the same label twice, and a reader
+    // silently de-duplicating it hid that from the tests.
     const payload: EntryTagsPayload = {
         schemaVersion: SCHEMA_VERSION,
-        byEntry,
+        byEntry: normalizeMap(byEntry),
         updatedAt: Date.now(),
     };
     await storage.setItem(ENTRY_TAGS_KEY, JSON.stringify(payload));
@@ -189,6 +192,42 @@ export function removeEntryTag(entryId: string, label: string): Promise<EntryTag
             const next = { ...payload.byEntry };
             if (kept.length === 0) delete next[entryId];
             else next[entryId] = kept;
+            return writePayload(storage, next);
+        });
+    });
+}
+
+/**
+ * Rename one label across the whole journal, merging into the target when it
+ * already exists. Without this a typo is permanent: the only escape would be
+ * opening every entry and removing it by hand.
+ */
+export function renameEntryTag(from: string, to: string): Promise<EntryTagMap> {
+    return runAccountBoundOperation('entry-tags-rename', async (context) => {
+        const storage = getStorageForAccount(context.accountId);
+        return enqueueMutation(async () => {
+            assertAccountOperationActive(context);
+            const source = normalizeTag(from);
+            const target = normalizeTag(to);
+            const payload = await readPayload(storage);
+            // An empty name would delete the label and a too-long one would be
+            // trimmed on write; refuse both instead of half-applying a rename.
+            if (source.length === 0 || target.length === 0 || target.length > MAX_LABEL_LENGTH || source === target) {
+                return toMap(payload);
+            }
+            const next: Record<string, string[]> = {};
+            let changed = false;
+            Object.entries(payload.byEntry).forEach(([entryId, tags]) => {
+                if (!tags.includes(source)) {
+                    next[entryId] = [...tags];
+                    return;
+                }
+                changed = true;
+                // writePayload normalizes on write, so merging into an existing
+                // label cannot leave the same label twice on one entry.
+                next[entryId] = tags.map((tag) => (tag === source ? target : tag));
+            });
+            if (!changed) return toMap(payload);
             return writePayload(storage, next);
         });
     });

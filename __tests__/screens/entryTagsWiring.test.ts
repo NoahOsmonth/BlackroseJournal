@@ -11,6 +11,7 @@ describe('writer-chosen label wiring (Kaneo #88)', () => {
     const detail = read('app/entry-detail.tsx');
     const editor = read('components/entries/EntryTagEditor.tsx');
     const row = read('components/entries/TagChipRow.tsx');
+    const sheet = read('components/entries/TagRenameSheet.tsx');
     const service = read('services/journal/entryTags.ts');
     const hook = read('hooks/journal/useEntryTags.ts');
     const util = read('utils/entryTags.ts');
@@ -86,5 +87,43 @@ describe('writer-chosen label wiring (Kaneo #88)', () => {
         expect(archive.split('\n').length).toBeLessThanOrEqual(450);
         expect(editor.split('\n').length).toBeLessThanOrEqual(500);
         expect(row.split('\n').length).toBeLessThanOrEqual(500);
+    });
+
+    it('renames a label from the chip row, through the hook, not storage', () => {
+        expect(archive).toContain('renameTag');
+        expect(archive).toContain('onRename={(from, to) => { void renameTag(from, to); setActiveTag(to); }}');
+        expect(row).toContain('readonly onRename?: (from: string, to: string) => void');
+        expect(row).toContain('testID="tag-chip-rename"');
+        expect(row).toContain('<TagRenameSheet');
+        expect(row).toContain('onRename(activeTag, next)');
+        // The chip only exists once a label is chosen.
+        expect(row).toContain('const canRename = Boolean(onRename) && !allSelected;');
+        expect(hook).toContain('renameEntryTag(from, to)');
+        expect(hook).toContain('readonly renameTag: (from: string, to: string) => Promise<void>');
+        expect(service).toContain('export function renameEntryTag(from: string, to: string)');
+        expect(sheet).not.toContain('AsyncStorage');
+        expect(sheet).not.toContain('@blackrose_');
+    });
+
+    it('the rename sheet is an accessible Modal with both schemes and 44px targets', () => {
+        expect(sheet).toContain('<Modal');
+        expect(sheet).toContain('KeyboardAvoidingView');
+        expect(sheet).toContain('testID="tag-rename-sheet"');
+        expect(sheet).toContain('testID="tag-rename-input"');
+        expect(sheet).toContain('testID="tag-rename-save"');
+        expect(sheet).toContain('min-h-12');
+        expect(sheet).toContain('dark:bg-surface-dark');
+        expect(sheet).toContain('dark:text-text-dark');
+        expect(sheet).not.toMatch(/space-y-|space-x-/);
+        expect(sheet).toContain('export function TagRenameSheet(');
+    });
+
+    it('an empty new name is refused in the sheet, not silently applied', () => {
+        expect(sheet).toContain('if (next.length === 0) {');
+        expect(sheet).toContain('setRefused(true)');
+        expect(sheet).toContain('testID="tag-rename-refused"');
+        expect(sheet).toContain('Give it a name first.');
+        // The service refuses it too, so the UI cannot delete a label by accident.
+        expect(service).toContain('target.length === 0');
     });
 });

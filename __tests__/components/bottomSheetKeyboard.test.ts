@@ -54,6 +54,7 @@ describe('bottom-sheet keyboard handling', () => {
     it('finds the app bottom sheets (guard against the scan silently matching nothing)', () => {
         expect(sheets.map((s) => s.file).sort()).toEqual([
             'components/entries/EntryEditModal.tsx',
+            'components/entries/TagRenameSheet.tsx',
             'components/goals/GoalEditModal.tsx',
             'components/goals/GoalQuickAddModal.tsx',
             'components/intentions/FeedbackCommentModal.tsx',

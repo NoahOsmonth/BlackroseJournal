@@ -99,7 +99,7 @@ export default function EntriesScreen() {
     const [activeDay, setActiveDay] = useState('');
     const [activeTag, setActiveTag] = useState('');
     const { starredIds, starredSet } = useStarredEntries();
-    const { tagsByEntry } = useEntryTags();
+    const { tagsByEntry, renameTag } = useEntryTags();
 
     // The feed stays fresh through the storage change bus (Kaneo #87): a
     // finished entry, a restored backup or a demo seed row notifies the two
@@ -227,7 +227,7 @@ export default function EntriesScreen() {
     const activeMoodLabel = moodChips.find((chip) => chip.label === activeMood)?.label
         ?? normalizeMood(activeMood);
     const countMoodFor = (label: string) => countMoodItems(afterTopicSections, label);
-    // Count from the chips' feed, not the narrowed one, or other labels read 0.
+    // Count from the chips' feed, not the narrowed one, or others read 0.
     const countTagFor = (label: string) => countTagItems(afterTopicSections, label, tagsByEntry);
     const selectedDay = visibleSections.length > 0
         ? visibleSections[0]
@@ -335,6 +335,7 @@ export default function EntriesScreen() {
                 activeTag={resolvedTag}
                 countFor={countTagFor}
                 onSelect={setActiveTag}
+                onRename={(from, to) => { void renameTag(from, to); setActiveTag(to); }}
             />
 
             <WrittenDaysRow

@@ -12,6 +12,7 @@ import {
     type EntryTagMap,
     listEntryTags,
     removeEntryTag,
+    renameEntryTag,
     subscribeEntryTagChanges,
 } from '@/services/journal/entryTags';
 
@@ -20,6 +21,8 @@ export interface UseEntryTagsReturn {
     readonly tagsFor: (entryId: string) => readonly string[];
     readonly addTag: (entryId: string, label: string) => Promise<void>;
     readonly removeTag: (entryId: string, label: string) => Promise<void>;
+    /** Rename one label everywhere, merging into the target when it exists. */
+    readonly renameTag: (from: string, to: string) => Promise<void>;
     readonly refresh: () => Promise<void>;
 }
 
@@ -37,12 +40,17 @@ export function useEntryTags(): UseEntryTagsReturn {
 
     useEffect(() => {
         let isActive = true;
-        void listEntryTags().then((map) => {
-            if (isActive) setTagsByEntry(map);
-        }).catch(() => undefined);
+        // A write can land between the first read starting and resolving. The
+        // subscription carries the fresher map, so the stale read must not
+        // clobber it - otherwise a label added right after mount disappears.
+        let notified = false;
         const unsubscribe = subscribeEntryTagChanges((map) => {
+            notified = true;
             if (isActive) setTagsByEntry(map);
         });
+        void listEntryTags().then((map) => {
+            if (isActive && !notified) setTagsByEntry(map);
+        }).catch(() => undefined);
         return () => {
             isActive = false;
             unsubscribe();
@@ -59,8 +67,12 @@ export function useEntryTags(): UseEntryTagsReturn {
     const removeTag = useCallback(async (entryId: string, label: string) => {
         await removeEntryTag(entryId, label);
     }, []);
+    const renameTag = useCallback(async (from: string, to: string) => {
+        await renameEntryTag(from, to);
+    }, []);
 
-    return useMemo(() => ({ tagsByEntry, tagsFor, addTag, removeTag, refresh }), [
-        tagsByEntry, tagsFor, addTag, removeTag, refresh,
-    ]);
+    return useMemo(
+        () => ({ tagsByEntry, tagsFor, addTag, removeTag, renameTag, refresh }),
+        [tagsByEntry, tagsFor, addTag, removeTag, renameTag, refresh],
+    );
 }
