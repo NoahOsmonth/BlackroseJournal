@@ -16,6 +16,8 @@ import { useStarredEntries } from '@/hooks/journal/useStarredEntries';
 import { useEntryTags } from '@/hooks/journal/useEntryTags';
 import { useJournalEntryActions } from '@/hooks/journal/useJournalEntryActions';
 import { useEntryImage } from '@/hooks/journal/useEntryImage';
+import { useEntryPhoto } from '@/hooks/journal/useEntryPhoto';
+import { EntryPhoto } from '@/components/journal/EntryPhoto';
 import { useNavBack } from '@/hooks/navigation/useNavBack';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getLocalDateKey, formatLocalTime } from '@/utils/date';
@@ -43,6 +45,7 @@ export default function EntryDetailScreen() {
         remove,
     } = useJournalEntryActions();
     const entryImage = useEntryImage();
+    const entryPhoto = useEntryPhoto(entryId ?? null);
     const { isStarred, toggleStar } = useStarredEntries();
     const tags = useEntryTags();
     const starred = Boolean(entryId) && isStarred(entryId);
@@ -169,6 +172,16 @@ export default function EntryDetailScreen() {
                         />
                     </Pressable>
                     <Pressable
+                        onPress={() => { void entryPhoto.addPhoto(); }}
+                        className="p-2"
+                        accessibilityRole="button"
+                        accessibilityLabel="Add a photo to this entry"
+                        testID="entry-photo-add"
+                        disabled={!entry || entryPhoto.isBusy}
+                    >
+                        <MaterialIcons name="add-photo-alternate" size={24} color={iconColor} />
+                    </Pressable>
+                    <Pressable
                         onPress={handleExportImage}
                         className="p-2"
                         accessibilityRole="button"
@@ -198,6 +211,15 @@ export default function EntryDetailScreen() {
                     <Text className="-mt-2 px-4 pb-1 text-[12px] text-ink-2-light dark:text-ink-2-dark">{authoredLabel}</Text>
                 )}
 
+                {entryPhoto.message && (
+                    <Text
+                        testID="entry-photo-message"
+                        className="px-6 pb-2 text-[13px] text-text-secondary-light dark:text-text-secondary-dark"
+                    >
+                        {entryPhoto.message}
+                    </Text>
+                )}
+
                 {isLoading && <EntryDetailSkeleton />}
 
                 {!isLoading && !entry && (
@@ -215,6 +237,11 @@ export default function EntryDetailScreen() {
                 {!isLoading && entry && (
                     <ScrollView className="flex-1 px-6" showsVerticalScrollIndicator={false}>
                         <View className="gap-y-5">
+                            <EntryPhoto
+                                photo={entryPhoto.photo}
+                                isBusy={entryPhoto.isBusy}
+                                onRemove={() => { void entryPhoto.clearPhoto(); }}
+                            />
                             <EntryAnalysisPanel
                                 analysis={entry.analysis}
                                 isLoading={isAnalyzing}
