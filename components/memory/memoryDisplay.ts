@@ -166,6 +166,19 @@ const LEDGER_MONTHS = [
 ];
 
 /** Margin date column: month over day, plus the ISO key the row keys on. */
+/**
+ * Which ledger rows open a new day (Kaneo #112).
+ *
+ * Day granularity, not month: the month is dropped only on a repeat of a day
+ * already shown above it, the way a printed ledger handles continuation - and it is
+ * the same signal that inks a day's first row as the day-start.
+ */
+export function showMonthFlags(atoms: readonly { createdAt: number }[]): boolean[] {
+    return atoms.map((atom, index) => index === 0
+        || formatLedgerDate(atoms[index - 1]!.createdAt).iso
+            !== formatLedgerDate(atom.createdAt).iso);
+}
+
 export function formatLedgerDate(timestamp: number): { month: string; day: string; iso: string } {
     const date = new Date(timestamp);
     const month = LEDGER_MONTHS[date.getMonth()] ?? '';

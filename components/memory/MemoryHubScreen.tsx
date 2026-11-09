@@ -29,8 +29,8 @@ import { MemoryLedgerRow } from './MemoryLedgerRow';
 import { MemoryPortrait } from './MemoryPortrait';
 import {
     filterMemoryAtoms,
-    formatLedgerDate,
     memoryAtomRoute,
+    showMonthFlags,
     type MemoryLayerFilter,
 } from './memoryDisplay';
 
@@ -75,6 +75,9 @@ export function MemoryHubScreen() {
 
     const visibleAtoms = filteredAtoms.slice(0, visibleCount);
     const remaining = Math.max(0, filteredAtoms.length - visibleAtoms.length);
+
+    // Computed when the visible rows change, not on every keystroke (Kaneo #112).
+    const showMonthByIndex = useMemo(() => showMonthFlags(visibleAtoms), [visibleAtoms]);
 
     const handleTabPress = (tab: TabRoute) => {
         if (tab !== 'explore') {
@@ -302,9 +305,7 @@ export function MemoryHubScreen() {
                                                         // first row as the day-start (the row inks
                                                         // it). Two notes on different days of one
                                                         // month each open their own date block.
-                                                        showMonth={index === 0
-                                                            || formatLedgerDate(visibleAtoms[index - 1]!.createdAt).iso
-                                                                !== formatLedgerDate(atom.createdAt).iso}
+                                                        showMonth={showMonthByIndex[index] ?? false}
                                                         onDelete={deleteAtom}
                                                         onThemePress={setQuery}
                                                         onOpen={handleOpenAtom}

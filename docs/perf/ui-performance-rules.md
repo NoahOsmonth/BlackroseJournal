@@ -148,6 +148,32 @@ budgets are set from:
 | Storage reads during a cold mount | **≤ 450** | Every collection loads once; well past that is a duplicate read |
 | Content visible on Today | **≤ 2000 ms** | Beyond ~2 s a cold open reads as broken |
 
+## What a cold-mount number is actually measuring (2026-11-09, round 71)
+
+A cold mount in the dev server spends most of its long-task budget evaluating the
+dev bundle, not running the app. Measured that round:
+
+| Reading | Value |
+|---|---|
+| Dev bundle | 10.7 MB, 1,960 modules, 3.2 MB first-party across 485 files |
+| Everything in localStorage after boot | **48 KB** |
+| Longest task, cold mount | ~244 ms |
+
+48 KB of storage cannot produce 244 ms of parsing. So the number is dominated by
+module evaluation and first render, and **shrinking app data will not move it**. Two
+things follow:
+
+- Do not chase the cold-mount number with storage work. It was measured once as 876 ms
+  of long tasks with a top key read 31 times, and that read is the deliberate
+  freshness check in `localMemory` (one `getItem` per load, shards only on a miss) —
+  worth a few milliseconds, not hundreds.
+- Use the **tab-switch** bench for app-work regressions. It runs after the bundle is
+  already evaluated, so it measures what this codebase actually controls. Its budget
+  is ≤100 ms per switch, and `today -> explore` sits at the ceiling (117 ms before
+  the round-71 hoist, 101 ms after) because the memory hub is a single big tree.
+
+`lazy: true` on the tab navigator was measured that round and changed nothing
+(876 → 834 ms, inside noise): the tab navigator already mounts on first focus.
 These are ceilings with headroom over today's numbers, not achievements. A cold
 mount has no prior paint to preserve, so it is judged on time-to-content rather
 than on dropped frames.
