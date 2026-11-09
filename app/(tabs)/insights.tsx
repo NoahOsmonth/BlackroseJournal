@@ -18,6 +18,7 @@ import { InsightsWeekLetter, INSIGHTS_UNLOCK_AT } from '@/components/insights/In
 import { InsightsWritingPresence } from '@/components/insights/InsightsWritingPresence';
 import { KeyThemes } from '@/components/insights/KeyThemes';
 import { MoodStrip } from '@/components/insights/MoodStrip';
+import { DayMoodCard } from '@/components/insights/DayMoodCard';
 import { BottomNav } from '@/components/journal';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { RevealItem } from '@/components/ui/RevealItem';
@@ -78,6 +79,11 @@ export default function InsightsScreen() {
                             <StaggerEntranceItem index={1} totalItems={4} staggerType="linear" columns={1}>
                                 <MoodStrip cells={moodCells} />
                             </StaggerEntranceItem>
+                        </RevealItem>
+
+                        {/* Renders nothing until there is a pattern to name. */}
+                        <RevealItem scrollY={scrollY}>
+                            <DayMoodCard />
                         </RevealItem>
 
                         <RevealItem scrollY={scrollY}>
