@@ -81,7 +81,7 @@ export function ChatComposerBar({
                             accessibilityRole="button"
                             accessibilityLabel="Attach a photo"
                             accessibilityState={{ disabled: photoDisabled }}
-                            hitSlop={8}
+                            hitSlop={12}
                             className={photoDisabled ? 'opacity-40' : ''}
                         >
                             {isPickingImage ? (
@@ -120,7 +120,7 @@ export function ChatComposerBar({
                         accessibilityRole="button"
                         accessibilityLabel={voice.label}
                         accessibilityState={{ disabled: voiceDisabled }}
-                        hitSlop={8}
+                        hitSlop={12}
                         className={voiceDisabled ? 'opacity-40' : ''}
                     >
                         {/* Always a speaker, never a slashed one: a slashed glyph

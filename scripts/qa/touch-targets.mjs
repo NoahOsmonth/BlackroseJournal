@@ -18,8 +18,18 @@
 import { chromium } from 'playwright';
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
-const ROUTES = ['/today', '/insights', '/explore', '/entries', '/settings'];
 const SCHEMES = ['light', 'dark'];
+
+/**
+ * Static routes plus the ones that need a real record to render. Entry detail
+ * and chat were never swept before round 56 because they open on an empty or
+ * "not found" state without an id, and an empty state measures like a good
+ * screen.
+ */
+const STATIC_ROUTES = [
+    '/today', '/insights', '/explore', '/entries', '/settings',
+    '/goals', '/prompt-shelf', '/on-this-day', '/streak-view', '/drafts',
+];
 const asJson = process.argv.includes('--json');
 
 const PROBE = () => {
@@ -111,6 +121,41 @@ const browser = await chromium.launch({ executablePath: process.env.PW_CHROME_PA
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e.message)));
+
+/** Pull a real entry id out of the account-scoped journal key. */
+async function findEntryId() {
+    await page.goto(BASE + '/entries', { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(6000);
+    // The key is account-scoped (`@blackrose_account:v1:<acct>:journal_entries`)
+    // and the payload nests `entries` as an id-keyed map, not an array. A probe
+    // that assumes `@journal_entries` finds nothing and silently skips entry
+    // detail - which is exactly what happened on the first run of this sweep.
+    return page.evaluate(() => {
+        const keys = Object.keys(localStorage);
+        const exact = keys.find((k) => k.endsWith(':journal_entries'));
+        const shard = keys.find((k) => k.includes(':journal_entries_shard:'));
+        for (const key of [exact, shard].filter(Boolean)) {
+            try {
+                const raw = JSON.parse(localStorage.getItem(key));
+                const bag = raw && raw.entries ? raw.entries : raw;
+                const ids = Array.isArray(bag) ? bag.map((row) => row && row.id) : Object.keys(bag || {});
+                const first = ids.find((id) => typeof id === 'string' && id.length > 0);
+                if (first) return first;
+            } catch {
+                continue;
+            }
+        }
+        return null;
+    });
+}
+
+const entryId = await findEntryId();
+const ROUTES = [
+    ...STATIC_ROUTES,
+    ...(entryId ? ['/entry-detail?id=' + entryId, '/chat'] : ['/chat']),
+];
+if (!asJson) console.log('entry id: ' + (entryId || 'none found - entry detail skipped'));
+else console.error('entry id: ' + (entryId || 'none found - entry detail skipped'));
 
 const results = [];
 for (const scheme of SCHEMES) {

@@ -72,7 +72,7 @@ export function Header({
           accessibilityRole={isPersonaPill ? 'button' : undefined}
           accessibilityLabel={isPersonaPill ? 'Choose persona' : undefined}
           accessibilityState={{ disabled: !isPersonaPill }}
-          className="min-w-0 flex-1 flex-row items-center justify-center gap-2"
+          className="min-h-11 min-w-0 flex-1 flex-row items-center justify-center gap-2"
         >
           <RoseMark size={16} color={markColor} variant="bloom" />
           <Text

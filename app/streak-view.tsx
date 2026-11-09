@@ -13,7 +13,10 @@ import { buildCalendarDays } from '@/utils/streakStats';
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const HAIRLINE_BORDER = 'border-hairline-light dark:border-hairline-dark';
 const HAIRLINE_RULE = 'bg-hairline-light dark:bg-hairline-dark';
-const HAIRLINE_TEXT = 'text-hairline-light dark:text-hairline-dark';
+// Weekday captions are text, so they use a text token. The hairline tokens
+// (#E2DCD2 light / #2C2A26 dark) are border colours: as text they measured 1.2:1
+// and 1.4:1 against their own background, i.e. effectively invisible.
+const WEEKDAY_TEXT = 'text-text-secondary-light dark:text-text-secondary-dark';
 const SERIF = { fontFamily: 'PlayfairDisplayRegular' };
 
 /**
@@ -111,7 +114,7 @@ export default function StreakViewScreen() {
                                         className="w-[14.28%] items-center py-2"
                                     >
                                         <Text
-                                            className={`text-[12px] uppercase tracking-[1.2px] ${HAIRLINE_TEXT}`}
+                                            className={`text-[12px] uppercase tracking-[1.2px] ${WEEKDAY_TEXT}`}
                                         >
                                             {label}
                                         </Text>

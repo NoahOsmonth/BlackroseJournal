@@ -203,7 +203,7 @@ export function AgentToolActivity({
                 accessibilityRole="button"
                 accessibilityLabel={expanded ? 'Hide thinking' : 'Show thinking'}
                 accessibilityState={{ expanded }}
-                hitSlop={6}
+                hitSlop={10}
                 className="flex-row items-center gap-1.5 self-start py-0.5"
             >
                 {isWorking ? (

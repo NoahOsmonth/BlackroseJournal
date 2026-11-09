@@ -174,6 +174,7 @@ export default function GoalsScreen() {
                         accessibilityRole="button"
                         accessibilityLabel="Add goal or habit"
                         hitSlop={8}
+                        className="min-h-11 justify-center"
                     >
                         <Text
                             className="text-[16px] text-text-light underline dark:text-text-dark"
