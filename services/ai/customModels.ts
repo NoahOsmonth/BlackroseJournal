@@ -748,14 +748,23 @@ export async function fetchOpenAiCompatibleModels(input: {
         throw new CustomModelSettingsError('Your AI service sent something the app couldn’t read.');
     });
 
-    const models = parseOpenAiCompatibleModels(json, input.fallbackContextWindow)
-        .filter((model) => matchesModelFilter(model.id, patterns));
+    // Keep everything the service returned (Kaneo #114). The filter used to run here,
+    // before the list was saved, so a filtered-out model left no trace: the picker
+    // could not say "the service sent it and your filter hid it", and changing the
+    // filter words required a re-fetch to see anything new. The filter is a view now,
+    // applied where the list is shown.
+    const models = parseOpenAiCompatibleModels(json, input.fallbackContextWindow);
 
     if (models.length === 0) {
+        throw new CustomModelSettingsError('No usable AI options were returned.');
+    }
+
+    const visible = models.filter((model) => matchesModelFilter(model.id, patterns));
+    if (visible.length === 0) {
         throw new CustomModelSettingsError(
-            patterns.length > 0
-                ? 'No AI options matched your filter words. Change them in Settings.'
-                : 'No usable AI options were returned.'
+            'Your AI service sent '
+            + models.length
+            + ' options, but none matched your filter words. Clear them in Settings.'
         );
     }
 

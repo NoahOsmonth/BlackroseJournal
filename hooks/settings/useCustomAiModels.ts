@@ -53,6 +53,7 @@ export interface UseCustomAiModelsReturn {
     setApiKey: (value: string) => void;
     setFallbackContextWindow: (value: string) => void;
     setModelFilterPatterns: (value: string) => void;
+    clearModelFilter: () => Promise<void>;
     fetchModels: () => Promise<void>;
     saveSettings: () => Promise<void>;
     selectModel: (modelId: string) => Promise<void>;
@@ -207,6 +208,22 @@ export function useCustomAiModels(): UseCustomAiModelsReturn {
         }
     }, [draft, persist, profile, settings]);
 
+    /**
+     * Reveal every option the service already sent (Kaneo #114).
+     *
+     * Filter words are a view over the saved list, so clearing them needs no
+     * re-fetch: the whole catalogue is already stored.
+     */
+    const clearModelFilter = useCallback(async () => {
+        const base = profile ?? createProviderProfile();
+        await persist(withUpdatedProfile(settings, {
+            ...base,
+            modelFilterPatterns: [],
+            updatedAt: Date.now(),
+        }));
+        setStatus({ kind: 'success', message: 'Showing every AI option.' });
+    }, [persist, profile, settings]);
+
     const saveSettings = useCallback(async () => {
         setIsSaving(true);
         setStatus(EMPTY_STATUS);
@@ -342,6 +359,7 @@ export function useCustomAiModels(): UseCustomAiModelsReturn {
         setApiKey,
         setFallbackContextWindow,
         setModelFilterPatterns,
+        clearModelFilter,
         fetchModels,
         saveSettings,
         selectModel,

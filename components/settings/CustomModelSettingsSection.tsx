@@ -82,6 +82,7 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
         setApiKey,
         setFallbackContextWindow,
         setModelFilterPatterns,
+        clearModelFilter,
         fetchModels,
         saveSettings,
         selectModel,
@@ -364,6 +365,9 @@ export function CustomModelSettingsSection(props: CustomModelSettingsSectionProp
                 }}
                 onRefresh={() => {
                     void fetchModels();
+                }}
+                onClearFilter={() => {
+                    void clearModelFilter();
                 }}
                 onClose={() => setPickerOpen(false)}
             />

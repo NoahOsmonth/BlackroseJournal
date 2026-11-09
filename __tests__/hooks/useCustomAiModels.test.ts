@@ -114,7 +114,11 @@ describe('useCustomAiModels', () => {
         );
     });
 
-    it('narrows the catalogue with the user filter patterns', async () => {
+    /**
+     * Kaneo #114: the filter narrows the VIEW, not the saved list. Saving only the
+     * survivors is how a fetched model vanished with no trace.
+     */
+    it('keeps the whole catalogue and records the filter words', async () => {
         mockCatalogue();
         const { result } = await renderLoaded();
 
@@ -123,8 +127,24 @@ describe('useCustomAiModels', () => {
         act(() => result.current.setModelFilterPatterns(':free'));
         await act(async () => { await result.current.fetchModels(); });
 
-        expect(result.current.profile?.models.map((m) => m.id)).toEqual(['tencent/hy3:free']);
+        expect(result.current.profile?.models.map((m) => m.id))
+            .toEqual(['openai/gpt-4', 'tencent/hy3:free']);
         expect(result.current.profile?.modelFilterPatterns).toEqual([':free']);
+    });
+
+    it('clears the filter words so every option is visible again', async () => {
+        mockCatalogue();
+        const { result } = await renderLoaded();
+
+        act(() => result.current.setBaseUrl(HOST));
+        act(() => result.current.setApiKey('test-key'));
+        act(() => result.current.setModelFilterPatterns(':free'));
+        await act(async () => { await result.current.fetchModels(); });
+        await act(async () => { await result.current.clearModelFilter(); });
+
+        expect(result.current.profile?.modelFilterPatterns).toEqual([]);
+        // No re-fetch: the whole catalogue was already saved.
+        expect(result.current.profile?.models).toHaveLength(2);
     });
 
     it('rejects selecting a model that is not in the catalogue', async () => {

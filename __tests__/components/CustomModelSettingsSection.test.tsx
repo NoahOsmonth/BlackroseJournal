@@ -56,6 +56,7 @@ function buildProps(): UseCustomAiModelsReturn {
         setApiKey: jest.fn(),
         setFallbackContextWindow: jest.fn(),
         setModelFilterPatterns: jest.fn(),
+    clearModelFilter: jest.fn(),
         fetchModels: jest.fn(),
         saveSettings: jest.fn(),
         selectModel: jest.fn(),

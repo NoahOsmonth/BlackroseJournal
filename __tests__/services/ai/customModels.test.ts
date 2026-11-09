@@ -151,7 +151,15 @@ describe('customModels service (provider profiles, schema v3)', () => {
         expect(result.models.map((m) => m.id)).toEqual(['openai/gpt-4', 'tencent/hy3:free']);
     });
 
-    it('applies the user-supplied filter patterns to the fetched catalogue', async () => {
+    /**
+     * Round 74 (Kaneo #114): the filter is a VIEW, not a write.
+     *
+     * It used to run before the list was saved, so a filtered-out model left no
+     * trace: the picker could not say "the service sent it and your filter hid
+     * it", and changing the filter words required another fetch. Now every model
+     * the service sent is kept, and the filter narrows what is shown.
+     */
+    it('keeps every model the service sent, filter words or not', async () => {
         fetchMock.mockResolvedValue(new Response(JSON.stringify({
             data: [
                 { id: 'openai/gpt-4', context_length: 8192 },
@@ -165,10 +173,10 @@ describe('customModels service (provider profiles, schema v3)', () => {
             modelFilterPatterns: [':free'],
         });
 
-        expect(result.models.map((m) => m.id)).toEqual(['tencent/hy3:free']);
+        expect(result.models.map((m) => m.id)).toEqual(['openai/gpt-4', 'tencent/hy3:free']);
     });
 
-    it('reports an empty filtered catalogue instead of silently returning nothing', async () => {
+    it('says how many options the filter hid instead of returning nothing', async () => {
         fetchMock.mockResolvedValue(new Response(JSON.stringify({
             data: [{ id: 'openai/gpt-4', context_length: 8192 }],
         }), { status: 200 }));
@@ -177,7 +185,7 @@ describe('customModels service (provider profiles, schema v3)', () => {
             baseUrl: HOST,
             apiKey: 'test-key',
             modelFilterPatterns: [':free'],
-        })).rejects.toThrow(/No AI options matched your filter words/);
+        })).rejects.toThrow(/sent 1 options, but none matched your filter words/);
     });
 
     /**

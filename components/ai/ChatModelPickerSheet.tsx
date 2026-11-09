@@ -15,6 +15,7 @@ import { LoadingBar } from '@/components/ui/LoadingBar';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { ChatModelOption } from '@/features/chat/modelPicker.types';
+import { matchesModelFilter } from '@/utils/ai/modelDisplay';
 import { ModelPickerRow } from './ModelPickerRow';
 
 export type ChatModelPickerSheetProps = {
@@ -34,6 +35,8 @@ export type ChatModelPickerSheetProps = {
     readonly error?: string | null;
     readonly onSelect: (modelId: string) => void;
     readonly onRefresh?: () => void;
+    /** Reveal every option the service sent, without fetching again (Kaneo #114). */
+    readonly onClearFilter?: () => void;
     readonly onClose: () => void;
     readonly onOpenSettings?: () => void;
 };
@@ -81,6 +84,7 @@ export function ChatModelPickerSheet({
     error = null,
     onSelect,
     onRefresh,
+    onClearFilter,
     onClose,
     onOpenSettings,
 }: ChatModelPickerSheetProps) {
@@ -91,13 +95,25 @@ export function ChatModelPickerSheet({
     const iconColor = isDark ? '#F9FAFB' : '#111827';
     const [query, setQuery] = useState('');
 
+    // The saved list is everything the service sent; the filter words narrow the
+    // view (Kaneo #114). Applying them here rather than at fetch time is what lets
+    // the sheet say how many are hidden and reveal them without another fetch.
+    const allowed = useMemo(() => models.filter(
+        (model) => matchesModelFilter(model.id, filterPatterns),
+    ), [models, filterPatterns]);
+    const hiddenByFilter = models.length - allowed.length;
+    const countLabel = models.length === 0
+        ? 'No options yet.'
+        : 'Showing ' + allowed.length + ' of ' + models.length + ' options from '
+            + (hostLabel || 'your AI service') + '.';
+
     const filtered = useMemo(() => {
         const needle = query.trim().toLowerCase();
-        if (!needle) return [...models];
-        return models.filter((model) => (
+        if (!needle) return [...allowed];
+        return allowed.filter((model) => (
             `${model.id} ${model.name ?? ''}`.toLowerCase().includes(needle)
         ));
-    }, [models, query]);
+    }, [allowed, query]);
 
     const listData = useMemo((): ListItem[] => {
         const items: ListItem[] = [{ type: 'note' }];
@@ -273,9 +289,36 @@ export function ChatModelPickerSheet({
                             renderItem={({ item }) => {
                                 if (item.type === 'note') {
                                     return (
-                                        <Text className="text-xs text-subtext-light dark:text-subtext-dark mb-1">
-                                            Applies to the next reply in this chat.
-                                        </Text>
+                                        <View className="mb-1 gap-2">
+                                            <Text className="text-xs text-subtext-light dark:text-subtext-dark">
+                                                Applies to the next reply in this chat.
+                                            </Text>
+                                            {/* Say what the list is: which service it came
+                                                from and how many of its options the
+                                                filter words are hiding (Kaneo #114). */}
+                                            <Text
+                                                testID="model-picker-count"
+                                                className="text-xs text-subtext-light dark:text-subtext-dark"
+                                            >
+                                                {countLabel}
+                                            </Text>
+                                            {hiddenByFilter > 0 && onClearFilter ? (
+                                                <Pressable
+                                                    onPress={onClearFilter}
+                                                    accessibilityRole="button"
+                                                    accessibilityLabel={'Show all ' + models.length + ' options'}
+                                                    testID="model-picker-clear-filter"
+                                                    className="min-h-11 flex-row items-center gap-2 self-start rounded-control border border-hairline-light px-3 dark:border-hairline-dark"
+                                                >
+                                                    <Text className="text-[13px] text-text-light dark:text-text-dark">
+                                                        {'Show all ' + models.length}
+                                                    </Text>
+                                                    <Text className="text-[12px] text-subtext-light dark:text-subtext-dark">
+                                                        {'(' + hiddenByFilter + ' hidden by your filter words)'}
+                                                    </Text>
+                                                </Pressable>
+                                            ) : null}
+                                        </View>
                                     );
                                 }
                                 if (item.type === 'section') {
