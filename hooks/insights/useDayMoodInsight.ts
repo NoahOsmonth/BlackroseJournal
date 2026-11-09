@@ -1,32 +1,21 @@
 /**
- * The day-feeling summary for Insights (Kaneo #99).
+ * The day-feeling summary for Insights (Kaneo #99, lens added in #103).
  *
- * Same shape as useDayMood: subscribe before the first read, and let an in-flight
- * read stand down if a change already landed. That race wiped a fresh tap in
- * round 57; it would silently show stale counts here.
+ * Takes the days rather than reading them: the card already holds one
+ * subscription for the strip, and a second one would resolve a tick later and
+ * draw the strip empty for a frame.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 
-import { DayMood, listDayMoods, subscribeDayMoods } from '@/services/journal/dayMood';
+import { DayMood } from '@/services/journal/dayMood';
 import { getLocalDateKey } from '@/utils/date';
 import { buildDayMoodInsight, DayMoodInsight, INSIGHT_WINDOW_DAYS } from '@/utils/dayMoodInsights';
 
-export function useDayMoodInsight(windowDays: number = INSIGHT_WINDOW_DAYS): DayMoodInsight {
-    const [days, setDays] = useState<Record<string, DayMood>>({});
+export function useDayMoodInsight(
+    days: Record<string, DayMood>,
+    windowDays: number = INSIGHT_WINDOW_DAYS,
+): DayMoodInsight {
     const todayKey = getLocalDateKey();
-
-    useEffect(() => {
-        let active = true;
-        let sawChange = false;
-        const unsubscribe = subscribeDayMoods((next) => {
-            sawChange = true;
-            if (active) setDays(next);
-        });
-        void listDayMoods().then((next) => {
-            if (active && !sawChange) setDays(next);
-        });
-        return () => { active = false; unsubscribe(); };
-    }, []);
 
     return useMemo(
         () => buildDayMoodInsight(days, todayKey, windowDays),

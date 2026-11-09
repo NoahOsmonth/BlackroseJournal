@@ -104,6 +104,27 @@ describe('DayMoodCard', () => {
         expect(screen.getByTestId('day-mood-lighter').props.children).toBe('4 days: Movement');
     });
 
+    it('draws the last thirty days, gaps included (Kaneo #104)', async () => {
+        await seed(0, 'heavy');
+        await seed(3, 'light');
+        render(<DayMoodCard />);
+        await waitFor(() => expect(screen.getByTestId('day-mood-strip')).toBeTruthy());
+
+        const bars = screen.getAllByRole('image');
+        expect(bars).toHaveLength(30);
+        const labels = bars.map((bar) => bar.props.accessibilityLabel as string);
+        // Oldest first, so the newest day is the last bar.
+        expect(labels[labels.length - 1]).toMatch(/: Heavy$/);
+        expect(labels[labels.length - 4]).toMatch(/: Light$/);
+        expect(labels.filter((label) => label.endsWith('no entry'))).toHaveLength(28);
+    });
+
+    it('keeps the strip out of a card that has nothing to show', async () => {
+        render(<DayMoodCard />);
+        await waitFor(() => expect(screen.queryByTestId('day-mood-card')).toBeNull());
+        expect(screen.queryByTestId('day-mood-strip')).toBeNull();
+    });
+
     it('shows both sides in plain words', async () => {
         await seed(0, 'light', ['people']);
         await seed(1, 'heavy', ['work']);

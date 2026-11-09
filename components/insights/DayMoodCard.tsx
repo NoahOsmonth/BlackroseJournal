@@ -10,7 +10,9 @@
 import React, { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
+import { useDayMoodDays } from '@/hooks/insights/useDayMoodDays';
 import { useDayMoodInsight } from '@/hooks/insights/useDayMoodInsight';
+import { DayMoodStrip } from './DayMoodStrip';
 import {
     INSIGHT_WINDOW_DAYS,
     INSIGHT_WINDOWS,
@@ -33,7 +35,8 @@ const lensLabelOff = 'text-[13px] text-text-secondary-light dark:text-text-secon
 
 export function DayMoodCard() {
     const [windowDays, setWindowDays] = useState<number>(INSIGHT_WINDOW_DAYS);
-    const insight = useDayMoodInsight(windowDays);
+    const days = useDayMoodDays();
+    const insight = useDayMoodInsight(days, windowDays);
     if (!insight.hasAnything) return null;
 
     const lens = insightWindow(windowDays);
@@ -47,6 +50,8 @@ export function DayMoodCard() {
             <Text testID="day-mood-period" className={columnLabel}>
                 Looking at {lens.sentence}
             </Text>
+
+            <DayMoodStrip days={days} />
 
             {insight.leanLine ? (
                 <Text testID="day-mood-lean" className={lean}>{insight.leanLine}</Text>

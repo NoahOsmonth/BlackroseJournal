@@ -101,6 +101,21 @@ module.exports = {
                 'accent-yellow': '#8A6A2F',
 
                 // ---- Starred entries (quiet gold, legible on both voids) ------------
+                // ---- Day feeling strip (Kaneo #104) -------------------------------
+                // One lighter -> heavier ramp, not five unrelated hues: the moods
+                // already mean "how heavy was today", and a ramp says that without
+                // a legend. Never colour-only - each bar carries its own words.
+                'mood-1-light': '#D9C9AC',
+                'mood-1-dark': '#4A4234',
+                'mood-2-light': '#CFC4AE',
+                'mood-2-dark': '#554B3E',
+                'mood-3-light': '#AC9C82',
+                'mood-3-dark': '#7A6A55',
+                'mood-4-light': '#8A7358',
+                'mood-4-dark': '#A08C72',
+                'mood-5-light': '#6B5344',
+                'mood-5-dark': '#C4A98F',
+
                 'starred-gold': '#D9A441',
                 'starred-gold-dark': '#E8BE68',
                 'starred-border': '#C89A3E',

@@ -9,6 +9,7 @@ import React from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { SCREEN_PADDING_X } from '@/constants/spacing';
+import { useDayMoodDays } from '@/hooks/insights/useDayMoodDays';
 import { useDayMoodInsight } from '@/hooks/insights/useDayMoodInsight';
 import { useDayMood } from '@/hooks/today/useDayMood';
 import { DAY_FACTORS, DAY_MOODS, MAX_DAY_FACTORS } from '@/utils/dayMood';
@@ -22,7 +23,7 @@ const heading = 'text-[13px] tracking-[0.4px] text-text-secondary-light dark:tex
 
 export function DayMoodRow() {
     const { moodId, factorIds, setFeeling, toggleFactor } = useDayMood();
-    const insight = useDayMoodInsight();
+    const insight = useDayMoodInsight(useDayMoodDays());
     const atCap = factorIds.length >= MAX_DAY_FACTORS;
 
     return (
