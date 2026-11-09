@@ -11,6 +11,7 @@ import {
     importEntryTagsSnapshot,
     listEntryTags,
     removeEntryTag,
+    removeEntryTagFromMany,
     renameEntryTag,
     setEntryTagMap,
     subscribeEntryTagChanges,
@@ -318,4 +319,74 @@ describe('addEntryTagToMany', () => {
         expect(seen).toHaveLength(1);
     });
 });
+});
+
+describe('removeEntryTagFromMany', () => {
+    beforeEach(async () => {
+        await clearActiveAccount();
+        setAccountStorageAdapter(memoryAdapter().adapter);
+        await activateAccount('labels-remove-many');
+    });
+    afterEach(async () => { await clearActiveAccount(); });
+
+    it('takes the label off every picked entry', async () => {
+        await setEntryTagMap({ a: ['trip', 'work'], b: ['trip'], c: ['trip', 'quiet'] });
+        await removeEntryTagFromMany(['a', 'b', 'c'], 'trip');
+        expect(await getEntryTags('a')).toEqual(['work']);
+        expect(await getEntryTags('b')).toEqual([]);
+        expect(await getEntryTags('c')).toEqual(['quiet']);
+    });
+
+    it('writes once for many entries, not once per entry', async () => {
+        const { rows, adapter } = memoryAdapter();
+        let writes = 0;
+        setAccountStorageAdapter({ ...adapter, setItem: (k, v) => { writes += 1; return adapter.setItem(k, v); } });
+        await activateAccount('labels-remove-many');
+        await setEntryTagMap({ a: ['trip'], b: ['trip'], c: ['trip'], d: ['trip'] });
+        const before = writes;
+        await removeEntryTagFromMany(['a', 'b', 'c', 'd'], 'trip');
+        expect(writes - before).toBe(1);
+        expect(rows.size).toBe(1);
+    });
+
+    it('drops the entry key when its last label goes', async () => {
+        const { rows } = memoryAdapter();
+        setAccountStorageAdapter({
+            getItem: (k) => Promise.resolve(rows.get(k) ?? null),
+            setItem: (k, v) => { rows.set(k, v); return Promise.resolve(); },
+            removeItem: (k) => { rows.delete(k); return Promise.resolve(); },
+        });
+        await activateAccount('labels-remove-many');
+        await setEntryTagMap({ a: ['trip'] });
+        await removeEntryTagFromMany(['a'], 'trip');
+        const raw = JSON.parse(rows.get(Array.from(rows.keys())[0]) as string);
+        expect(raw.byEntry).toEqual({});
+    });
+
+    it('leaves entries that never had the label alone', async () => {
+        await setEntryTagMap({ a: ['work'], b: ['quiet'] });
+        await removeEntryTagFromMany(['a', 'b'], 'trip');
+        expect(await getEntryTags('a')).toEqual(['work']);
+        expect(await getEntryTags('b')).toEqual(['quiet']);
+    });
+
+    it('ignores the same id twice and an empty label', async () => {
+        await setEntryTagMap({ a: ['trip'] });
+        await removeEntryTagFromMany(['a', 'a'], 'trip');
+        expect(await getEntryTags('a')).toEqual([]);
+        await setEntryTagMap({ a: ['trip'] });
+        await removeEntryTagFromMany(['a'], '   ');
+        expect(await getEntryTags('a')).toEqual(['trip']);
+    });
+
+    it('does not notify when nothing changed, and once when it did', async () => {
+        await setEntryTagMap({ a: ['work'] });
+        const seen: unknown[] = [];
+        const unsubscribe = subscribeEntryTagChanges((map) => { seen.push(map); });
+        await removeEntryTagFromMany(['a'], 'trip');
+        expect(seen).toHaveLength(0);
+        await removeEntryTagFromMany(['a'], 'work');
+        unsubscribe();
+        expect(seen).toHaveLength(1);
+    });
 });

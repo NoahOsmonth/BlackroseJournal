@@ -204,7 +204,30 @@ describe('picking several entries and labelling them (Kaneo #91)', () => {
 
     it('finishing or cancelling clears the picks, so a stale set cannot label later', () => {
         const submits = archive.slice(archive.indexOf('onSubmit={(label) => {'));
-        expect(submits.slice(0, 240)).toContain('setPicked([])');
+        expect(submits.slice(0, 400)).toContain('setPicked([])');
         expect(archive).toContain('setPicking(false);');
+    });
+
+    it('the removal offers only labels the whole selection shares', () => {
+        expect(archive).toContain('sharedLabels(picked, tagsByEntry)');
+        expect(archive).toContain('onRemoveLabel={shared.length > 0');
+        expect(bar).toContain("testID=\"selection-remove\"");
+        expect(bar).toContain('{onRemoveLabel ? (');
+    });
+
+    it('removing a batch goes through the hook, one write, like adding', () => {
+        expect(archive).toContain("bulkMode === 'add' ? addTagMany(picked, label) : removeTagMany(picked, label)");
+        expect(archive).not.toContain('removeEntryTagFromMany');
+        expect(hook).toContain('await removeEntryTagFromMany(entryIds, label)');
+        const many = service.slice(service.indexOf('export function removeEntryTagFromMany'));
+        const fnBody = many.slice(0, many.indexOf('export function removeEntryTag('));
+        expect(fnBody.split('readPayload(').length - 1).toBe(2);
+        expect(fnBody.split('writePayload(').length - 1).toBe(1);
+    });
+
+    it('one sheet serves both modes, so there is one keyboard contract', () => {
+        expect(sheet).toContain("export type BulkLabelMode = 'add' | 'remove'");
+        expect(sheet).toContain('mode === \'add\' ?');
+        expect(archive).toContain('mode={bulkMode}');
     });
 });

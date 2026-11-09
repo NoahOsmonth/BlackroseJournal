@@ -1,31 +1,38 @@
 /**
- * Put one label on several picked entries at once. Same sheet contract as the
- * rename sheet: the KeyboardAvoidingView is the backdrop (so the sheet rides
- * above the keyboard), a full-bleed Pressable dismisses, and the content is a
- * plain View anchored to the bottom.
+ * Label several picked entries at once. Two modes, one sheet: add a new label,
+ * or remove one the whole selection shares. Same sheet contract as the rename
+ * sheet — the KeyboardAvoidingView is the backdrop so the sheet rides above the
+ * keyboard, a full-bleed Pressable dismisses, and the content is a plain View.
  */
 import React, { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Pressable, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BLACKROSE_PALETTE } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/theme/use-color-scheme';
-import { normalizeTag } from '@/utils/entryTags';
+import { formatTagLabel, normalizeTag } from '@/utils/entryTags';
 
 const SERIF = { fontFamily: 'PlayfairDisplayRegular' };
 const HAIRLINE = 'border-hairline-light dark:border-hairline-dark';
 const INK = 'text-text-light dark:text-text-dark';
 const QUIET = 'text-text-secondary-light dark:text-text-secondary-dark';
 
+export type BulkLabelMode = 'add' | 'remove';
+
 interface BulkLabelSheetProps {
     readonly visible: boolean;
-    /** How many entries the label will be added to. */
+    /** How many entries are picked. */
     readonly count: number;
+    readonly mode: BulkLabelMode;
+    /** Labels every picked entry shares; only used by the remove mode. */
+    readonly sharedLabels: readonly string[];
     readonly onCancel: () => void;
     readonly onSubmit: (label: string) => void;
 }
 
-export function BulkLabelSheet({ visible, count, onCancel, onSubmit }: BulkLabelSheetProps) {
+export function BulkLabelSheet({
+    visible, count, mode, sharedLabels, onCancel, onSubmit,
+}: BulkLabelSheetProps) {
     const insets = useSafeAreaInsets();
     const isDark = useColorScheme() === 'dark';
     const placeholder = isDark ? BLACKROSE_PALETTE.dark.text2 : BLACKROSE_PALETTE.light.text2;
@@ -48,9 +55,10 @@ export function BulkLabelSheet({ visible, count, onCancel, onSubmit }: BulkLabel
         onSubmit(next);
     };
 
-    const summary = count === 1
-        ? 'This adds one label to 1 entry.'
-        : `This adds one label to ${count} entries.`;
+    const entriesLabel = count === 1 ? '1 entry' : `${count} entries`;
+    const summary = mode === 'add'
+        ? `This adds one label to ${entriesLabel}.`
+        : `This takes one label off ${entriesLabel}.`;
 
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onCancel}>
@@ -63,30 +71,57 @@ export function BulkLabelSheet({ visible, count, onCancel, onSubmit }: BulkLabel
                 >
                     <View className="mb-5 h-1 w-10 self-center rounded-full bg-hairline-light dark:bg-hairline-dark" />
                     <Text className={`text-[26px] leading-[34px] ${INK}`} style={SERIF}>
-                        Label these entries
+                        {mode === 'add' ? 'Label these entries' : 'Take off a label'}
                     </Text>
                     <Text className={`mt-2 text-[14px] leading-[20px] ${QUIET}`}>
                         {summary}
                     </Text>
-                    <TextInput
-                        value={draft}
-                        onChangeText={(value) => {
-                            setDraft(value);
-                            if (refused) setRefused(false);
-                        }}
-                        placeholder="A word that means something to you"
-                        placeholderTextColor={placeholder}
-                        accessibilityLabel="A name for this label"
-                        testID="bulk-label-input"
-                        autoFocus
-                        maxLength={40}
-                        className={`mt-4 min-h-12 rounded-control border ${HAIRLINE} px-4 py-3 text-[16px] ${INK}`}
-                    />
-                    {refused ? (
-                        <Text className={`mt-2 text-[13px] ${QUIET}`} testID="bulk-label-refused">
-                            Give the label a name first.
-                        </Text>
-                    ) : null}
+
+                    {mode === 'add' ? (
+                        <>
+                            <TextInput
+                                value={draft}
+                                onChangeText={(value) => {
+                                    setDraft(value);
+                                    if (refused) setRefused(false);
+                                }}
+                                placeholder="A word that means something to you"
+                                placeholderTextColor={placeholder}
+                                accessibilityLabel="A name for this label"
+                                testID="bulk-label-input"
+                                autoFocus
+                                maxLength={40}
+                                className={`mt-4 min-h-12 rounded-control border ${HAIRLINE} px-4 py-3 text-[16px] ${INK}`}
+                            />
+                            {refused ? (
+                                <Text className={`mt-2 text-[13px] ${QUIET}`} testID="bulk-label-refused">
+                                    Give the label a name first.
+                                </Text>
+                            ) : null}
+                        </>
+                    ) : (
+                        <ScrollView className="mt-4" style={{ maxHeight: 240 }} testID="bulk-remove-list">
+                            {sharedLabels.length === 0 ? (
+                                <Text className={`text-[15px] ${QUIET}`} testID="bulk-remove-empty">
+                                    These entries do not share a label.
+                                </Text>
+                            ) : (
+                                sharedLabels.map((label) => (
+                                    <Pressable
+                                        key={label}
+                                        onPress={() => onSubmit(label)}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={`Take off the label ${formatTagLabel(label)}`}
+                                        testID={`bulk-remove-${label}`}
+                                        className={`min-h-12 justify-center border-b ${HAIRLINE}`}
+                                    >
+                                        <Text className={`text-[16px] ${INK}`}>{formatTagLabel(label)}</Text>
+                                    </Pressable>
+                                ))
+                            )}
+                        </ScrollView>
+                    )}
+
                     <View className="mt-6 flex-row gap-4">
                         <Pressable
                             onPress={onCancel}
@@ -97,15 +132,17 @@ export function BulkLabelSheet({ visible, count, onCancel, onSubmit }: BulkLabel
                         >
                             <Text className={`text-[16px] ${INK}`}>Cancel</Text>
                         </Pressable>
-                        <Pressable
-                            onPress={submit}
-                            accessibilityRole="button"
-                            accessibilityLabel="Add this label to the picked entries"
-                            testID="bulk-label-save"
-                            className="min-h-12 flex-1 items-center justify-center rounded-control bg-accent-green dark:bg-accent-green-dark"
-                        >
-                            <Text className="text-[16px] text-white dark:text-white">Add label</Text>
-                        </Pressable>
+                        {mode === 'add' ? (
+                            <Pressable
+                                onPress={submit}
+                                accessibilityRole="button"
+                                accessibilityLabel="Add this label to the picked entries"
+                                testID="bulk-label-save"
+                                className="min-h-12 flex-1 items-center justify-center rounded-control bg-accent-green dark:bg-accent-green-dark"
+                            >
+                                <Text className="text-[16px] text-white dark:text-white">Add label</Text>
+                            </Pressable>
+                        ) : null}
                     </View>
                 </View>
             </KeyboardAvoidingView>

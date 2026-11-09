@@ -9,7 +9,8 @@ import { FinishBackgroundBanner } from '@/components/entries/FinishBackgroundBan
 import { MoodChipRow } from '@/components/entries/MoodChipRow';
 import { TagChipRow } from '@/components/entries/TagChipRow';
 import { SelectionBar } from '@/components/entries/SelectionBar';
-import { BulkLabelSheet } from '@/components/entries/BulkLabelSheet';
+import { BulkLabelSheet, type BulkLabelMode } from '@/components/entries/BulkLabelSheet';
+import { sharedLabels } from '@/utils/bulkLabels';
 import { WrittenDaysRow } from '@/components/entries/WrittenDaysRow';
 import { ArchiveEmptyState } from '@/components/entries/ArchiveEmptyState';
 import { HistoryMonthBreak } from '@/components/history/HistoryMonthBreak';
@@ -65,7 +66,7 @@ export default function EntriesScreen() {
     } = useHistoryFeed();
     const { goToTab } = useTabNavigation();
 
-    // The feed is every entry ever written, not this week - so the header says so.
+    // The feed is every entry ever written, not this week - the header says so.
     const spansBeforeThisWeek = useMemo(() => {
         const weekStart = weeklySummary.weekDayKeys[0];
         if (!weekStart) return false;
@@ -85,8 +86,9 @@ export default function EntriesScreen() {
     const [picking, setPicking] = useState(false);
     const [picked, setPicked] = useState<string[]>([]);
     const [labelSheetOpen, setLabelSheetOpen] = useState(false);
+    const [bulkMode, setBulkMode] = useState<BulkLabelMode>('add');
     const { starredIds, starredSet } = useStarredEntries();
-    const { tagsByEntry, renameTag, deleteTag, addTagMany } = useEntryTags();
+    const { tagsByEntry, renameTag, deleteTag, addTagMany, removeTagMany } = useEntryTags();
 
     // The feed stays fresh through the storage change bus (Kaneo #87): a
     // finished entry, a restored backup or a demo seed row notifies the two
@@ -107,8 +109,7 @@ export default function EntriesScreen() {
     const showBanner = activeSession !== null
         && activeSession.conversationId !== dismissedId;
 
-    // The narrowing chain (search -> starred -> topic -> label -> mood -> day)
-    // lives in the hook: the order is behaviour, so it is tested there.
+    // The narrowing chain lives in the hook: the order is behaviour, so it is tested there.
     const {
         beforeTopicSections,
         afterTopicSections,
@@ -148,8 +149,7 @@ export default function EntriesScreen() {
     };
 
     const handlePressItem = useCallback((item: HistoryItem) => {
-        // While picking, a journal row toggles instead of opening. Check-ins keep
-        // opening: labels belong to entries, so there is nothing to pick there.
+        // Picking toggles a journal row; check-ins keep opening (labels belong to entries).
         if (picking && item.type === 'journal') {
             setPicked((prev) => (prev.includes(item.sourceId)
                 ? prev.filter((id) => id !== item.sourceId)
@@ -168,6 +168,9 @@ export default function EntriesScreen() {
     }, [picking, router]);
 
     const pickedSet = useMemo(() => new Set(picked), [picked]);
+    // Only labels the whole selection shares can be taken off.
+    const shared = useMemo(() => sharedLabels(picked, tagsByEntry), [picked, tagsByEntry]);
+    const openBulkSheet = (mode: BulkLabelMode) => { setBulkMode(mode); setLabelSheetOpen(true); };
     const hasAnyItems = sections.length > 0;
     const isSearching = query.trim().length > 0;
     const isEmpty = !isLoading && visibleSections.length === 0;
@@ -412,7 +415,8 @@ export default function EntriesScreen() {
             {picking ? (
                 <SelectionBar
                     count={picked.length}
-                    onLabel={() => setLabelSheetOpen(true)}
+                    onLabel={() => openBulkSheet('add')}
+                    onRemoveLabel={shared.length > 0 ? () => openBulkSheet('remove') : undefined}
                     onDone={() => {
                         setPicking(false);
                         setPicked([]);
@@ -423,9 +427,11 @@ export default function EntriesScreen() {
             <BulkLabelSheet
                 visible={labelSheetOpen}
                 count={picked.length}
+                mode={bulkMode}
+                sharedLabels={shared}
                 onCancel={() => setLabelSheetOpen(false)}
                 onSubmit={(label) => {
-                    void addTagMany(picked, label);
+                    void (bulkMode === 'add' ? addTagMany(picked, label) : removeTagMany(picked, label));
                     setLabelSheetOpen(false);
                     setPicking(false);
                     setPicked([]);

@@ -10,6 +10,7 @@ import { useActiveAccountId } from '@/hooks/account/useActiveAccountId';
 import {
     addEntryTag,
     addEntryTagToMany,
+    removeEntryTagFromMany,
     deleteEntryTag,
     type EntryTagMap,
     listEntryTags,
@@ -24,6 +25,8 @@ export interface UseEntryTagsReturn {
     readonly addTag: (entryId: string, label: string) => Promise<void>;
     /** Add one label to several entries in a single write. */
     readonly addTagMany: (entryIds: readonly string[], label: string) => Promise<void>;
+    /** Remove one label from several entries in a single write. */
+    readonly removeTagMany: (entryIds: readonly string[], label: string) => Promise<void>;
     readonly removeTag: (entryId: string, label: string) => Promise<void>;
     /** Rename one label everywhere, merging into the target when it exists. */
     readonly renameTag: (from: string, to: string) => Promise<void>;
@@ -73,6 +76,9 @@ export function useEntryTags(): UseEntryTagsReturn {
     const addTagMany = useCallback(async (entryIds: readonly string[], label: string) => {
         await addEntryTagToMany(entryIds, label);
     }, []);
+    const removeTagMany = useCallback(async (entryIds: readonly string[], label: string) => {
+        await removeEntryTagFromMany(entryIds, label);
+    }, []);
     const removeTag = useCallback(async (entryId: string, label: string) => {
         await removeEntryTag(entryId, label);
     }, []);
@@ -84,7 +90,13 @@ export function useEntryTags(): UseEntryTagsReturn {
     }, []);
 
     return useMemo(
-        () => ({ tagsByEntry, tagsFor, addTag, addTagMany, removeTag, renameTag, deleteTag, refresh }),
-        [tagsByEntry, tagsFor, addTag, addTagMany, removeTag, renameTag, deleteTag, refresh],
+        () => ({
+            tagsByEntry, tagsFor, addTag, addTagMany, removeTag, removeTagMany,
+            renameTag, deleteTag, refresh,
+        }),
+        [
+            tagsByEntry, tagsFor, addTag, addTagMany, removeTag, removeTagMany,
+            renameTag, deleteTag, refresh,
+        ],
     );
 }

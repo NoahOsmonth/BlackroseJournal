@@ -212,6 +212,38 @@ export function addEntryTagToMany(entryIds: readonly string[], label: string): P
         });
     });
 }
+/**
+ * Removes one label from several entries with a SINGLE read and a SINGLE write,
+ * the mirror of `addEntryTagToMany`. Entries that never had the label are left
+ * alone, and an entry whose last label goes away loses its key entirely.
+ */
+export function removeEntryTagFromMany(entryIds: readonly string[], label: string): Promise<EntryTagMap> {
+    return runAccountBoundOperation('entry-tags-remove-many', async (context) => {
+        const storage = getStorageForAccount(context.accountId);
+        return enqueueMutation(async () => {
+            assertAccountOperationActive(context);
+            const tag = normalizeTag(label);
+            const targets = Array.from(new Set(entryIds)).filter((id) => id.length > 0);
+            if (tag.length === 0 || targets.length === 0) {
+                return toMap(await readPayload(storage));
+            }
+            const payload = await readPayload(storage);
+            const next = { ...payload.byEntry };
+            let changed = false;
+            for (const entryId of targets) {
+                const current = next[entryId];
+                if (!current || !current.includes(tag)) continue;
+                const kept = current.filter((item) => item !== tag);
+                if (kept.length > 0) next[entryId] = kept;
+                else delete next[entryId];
+                changed = true;
+            }
+            if (!changed) return toMap(payload);
+            return writePayload(storage, next);
+        });
+    });
+}
+
 export function removeEntryTag(entryId: string, label: string): Promise<EntryTagMap> {
     return runAccountBoundOperation('entry-tags-remove', async (context) => {
         const storage = getStorageForAccount(context.accountId);

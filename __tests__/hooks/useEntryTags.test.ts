@@ -72,4 +72,15 @@ describe('a label written anywhere refreshes a mounted hook', () => {
         expect(result.current.tagsFor('c')).toEqual(['trip']);
         unmount();
     });
+
+    it('takes a label off every picked entry through one hook call', async () => {
+        const { result, unmount } = renderHook(() => useEntryTags());
+        await act(async () => { await setEntryTagMap({ a: ['trip'], b: ['trip'], c: ['trip'] }); });
+        await waitFor(() => expect(result.current.tagsFor('a')).toEqual(['trip']));
+        await act(async () => { await result.current.removeTagMany(['a', 'b', 'c'], 'trip'); });
+        await waitFor(() => expect(result.current.tagsFor('a')).toEqual([]));
+        expect(result.current.tagsFor('b')).toEqual([]);
+        expect(result.current.tagsFor('c')).toEqual([]);
+        unmount();
+    });
 });
