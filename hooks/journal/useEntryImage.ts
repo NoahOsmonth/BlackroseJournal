@@ -8,7 +8,12 @@ export interface UseEntryImageReturn {
     readonly isExporting: boolean;
     /** Plain sentence to show the writer, or null while nothing has happened. */
     readonly message: string | null;
-    readonly exportImage: (entryText: string, dateLabel: string, isDark: boolean) => Promise<void>;
+    readonly exportImage: (
+        entryText: string,
+        dateLabel: string,
+        isDark: boolean,
+        photo?: { dataUrl: string; width: number; height: number } | null,
+    ) => Promise<void>;
 }
 
 /**
@@ -21,7 +26,12 @@ export function useEntryImage(): UseEntryImageReturn {
     const [isExporting, setIsExporting] = useState(false);
     const [message, setMessage] = useState<string | null>(null);
 
-    const exportImage = useCallback(async (entryText: string, dateLabel: string, isDark: boolean) => {
+    const exportImage = useCallback(async (
+        entryText: string,
+        dateLabel: string,
+        isDark: boolean,
+        photo?: { dataUrl: string; width: number; height: number } | null,
+    ) => {
         if (entryText.trim().length === 0) {
             setMessage('There is nothing in this entry to share yet.');
             return;
@@ -33,6 +43,7 @@ export function useEntryImage(): UseEntryImageReturn {
                 entryText,
                 dateLabel,
                 palette: isDark ? EXPORT_PALETTES.dark : EXPORT_PALETTES.light,
+                photo: photo ?? undefined,
             });
             // PNG first: some chat apps will not preview an SVG at all, so the
             // shareable file is the raster one. The SVG stays as the fallback

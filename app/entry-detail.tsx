@@ -132,8 +132,13 @@ export default function EntryDetailScreen() {
         if (!entry) return;
         const authored = new Date(entry.createdAt);
         const dateLabel = authoredLabel ? authoredLabel.replace('Written ', '') : getLocalDateKey(authored);
-        void entryImage.exportImage(buildEntryText(entry.messages), dateLabel, colorScheme === 'dark');
-    }, [entry, authoredLabel, entryImage, colorScheme]);
+        void entryImage.exportImage(
+            buildEntryText(entry.messages),
+            dateLabel,
+            colorScheme === 'dark',
+            entryPhoto.photo,
+        );
+    }, [entry, authoredLabel, entryImage, colorScheme, entryPhoto.photo]);
 
     return (
         <SafeAreaView className="flex-1 bg-background-light dark:bg-background-dark" edges={['top']}>

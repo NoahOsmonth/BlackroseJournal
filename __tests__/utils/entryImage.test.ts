@@ -94,6 +94,51 @@ describe('buildEntryImage', () => {
     });
 });
 
+describe('the photo on the card (Kaneo #107)', () => {
+    const PHOTO = { dataUrl: 'data:image/jpeg;base64,AAAA', width: 1200, height: 800 };
+
+    const base = {
+        entryText: 'A short entry.',
+        dateLabel: '8 Nov 2026',
+        palette: EXPORT_PALETTES.light,
+    };
+
+    it('draws no image at all when the entry has no photo', () => {
+        expect(buildEntryImage(base)).not.toContain('<image');
+    });
+
+    it('draws the photo above the words, clipped to rounded corners', () => {
+        const svg = buildEntryImage({ ...base, photo: PHOTO });
+        expect(svg).toContain('<image href="data:image/jpeg;base64,AAAA"');
+        expect(svg).toContain('clip-path="url(#entry-photo-clip)"');
+        expect(svg).toContain('preserveAspectRatio="xMidYMid slice"');
+        // The photo comes before the first text row, so it reads as a page.
+        expect(svg.indexOf('<image')).toBeLessThan(svg.indexOf('A short entry.'));
+    });
+
+    it('makes the card taller by exactly the photo and its gap', () => {
+        const heightOf = (svg: string) => Number(svg.match(/height="(\d+)"/)?.[1]);
+        const without = heightOf(buildEntryImage(base));
+        const withPhoto = heightOf(buildEntryImage({ ...base, photo: PHOTO }));
+        // 1200x800 across an 844px text column -> 563px tall, plus a 40px gap.
+        expect(withPhoto - without).toBe(563 + 40);
+    });
+
+    it('caps a tall portrait so it cannot crowd out the words', () => {
+        const heightOf = (svg: string) => Number(svg.match(/height="(\d+)"/)?.[1]);
+        const without = heightOf(buildEntryImage(base));
+        const withPortrait = heightOf(
+            buildEntryImage({ ...base, photo: { dataUrl: 'data:image/png;base64,BBBB', width: 600, height: 2400 } }),
+        );
+        expect(withPortrait - without).toBe(640 + 40);
+    });
+
+    it('ignores a photo with no readable size instead of drawing an empty box', () => {
+        expect(buildEntryImage({ ...base, photo: { dataUrl: 'data:image/png;base64,CCCC', width: 0, height: 0 } }))
+            .not.toContain('<image');
+    });
+});
+
 describe('entryImageFileName', () => {
     it('names the file after the day', () => {
         expect(entryImageFileName('8 Nov 2026')).toBe('blackrose-8-Nov-2026.svg');

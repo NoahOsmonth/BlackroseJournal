@@ -46,6 +46,8 @@ export interface ExportImageInput {
     readonly palette: ExportPalette;
     /** Card width in px. */
     readonly width?: number;
+    /** The entry's photo, drawn above the words (Kaneo #107). */
+    readonly photo?: { readonly dataUrl: string; readonly width: number; readonly height: number };
 }
 
 const WIDTH = 1080;
@@ -98,11 +100,15 @@ export function wrapText(text: string, maxChars = MAX_LINE_CHARS): string[] {
 /** The title line and the trailing signature, both plain. */
 const MAX_LINES = 40;
 
+/** Tallest the photo may be drawn, so a portrait cannot crowd out the words. */
+const PHOTO_MAX_HEIGHT = 640;
+
 export function buildEntryImage({
     entryText,
     dateLabel,
     palette,
     width = WIDTH,
+    photo,
 }: ExportImageInput): string {
     const allLines = wrapText(entryText.trim());
     const lines = allLines.slice(0, MAX_LINES);
@@ -111,15 +117,32 @@ export function buildEntryImage({
     const headerHeight = 150;
     const footerHeight = 110;
     const bodyHeight = lines.length * LINE_HEIGHT;
-    const height = PADDING * 2 + headerHeight + bodyHeight + footerHeight;
-
     const textX = PADDING + 44;
+    const textWidth = width - textX - PADDING;
+
+    // The photo sits above the words, the way it would on a page. Its height is
+    // capped so a tall portrait cannot push the text off the card.
+    const photoHeight = photo && photo.width > 0 && photo.height > 0
+        ? Math.min(Math.round(textWidth * (photo.height / photo.width)), PHOTO_MAX_HEIGHT)
+        : 0;
+    const photoGap = photoHeight > 0 ? 40 : 0;
+    const height = PADDING * 2 + headerHeight + photoHeight + photoGap + bodyHeight + footerHeight;
+    const bodyTop = PADDING + headerHeight + photoHeight + photoGap;
     const rows = lines
         .map((line, index) => {
-            const y = PADDING + headerHeight + index * LINE_HEIGHT + FONT_SIZE;
+            const y = bodyTop + index * LINE_HEIGHT + FONT_SIZE;
             return `    <text x="${textX}" y="${y}" font-family="Georgia, serif" font-size="${FONT_SIZE}" fill="${palette.text}">${escapeXml(line)}</text>`;
         })
         .join('\n');
+
+    // Rounded corners on the photo, clipped rather than masked: every SVG
+    // renderer that matters supports clipPath, and the PNG pass goes through one.
+    const photoBlock = photoHeight > 0 && photo
+        ? [
+            `  <clipPath id="entry-photo-clip"><rect x="${textX}" y="${PADDING + headerHeight}" width="${textWidth}" height="${photoHeight}" rx="18"/></clipPath>`,
+            `  <image href="${photo.dataUrl}" x="${textX}" y="${PADDING + headerHeight}" width="${textWidth}" height="${photoHeight}" preserveAspectRatio="xMidYMid slice" clip-path="url(#entry-photo-clip)"/>`,
+        ].join('\n')
+        : '';
 
     return [
         `<?xml version="1.0" encoding="UTF-8"?>`,
@@ -128,6 +151,7 @@ export function buildEntryImage({
         `  <rect x="${PADDING / 2}" y="${PADDING / 2}" width="${width - PADDING}" height="${height - PADDING}" rx="24" fill="${palette.surface}" stroke="${palette.hairline}" stroke-width="2"/>`,
         `  <text x="${textX}" y="${PADDING + 54}" font-family="Georgia, serif" font-size="26" letter-spacing="4" fill="${palette.muted}">${escapeXml(dateLabel.toUpperCase())}</text>`,
         `  <line x1="${textX}" y1="${PADDING + 84}" x2="${textX + 96}" y2="${PADDING + 84}" stroke="${palette.hairline}" stroke-width="2"/>`,
+        photoBlock,
         rows,
         truncated ? `  <text x="${textX}" y="${PADDING + headerHeight + lines.length * LINE_HEIGHT + 44}" font-family="Georgia, serif" font-size="26" fill="${palette.muted}">…</text>` : '',
         `  <text x="${textX}" y="${height - PADDING - 8}" font-family="Georgia, serif" font-size="26" fill="${palette.muted}">Blackrose</text>`,
