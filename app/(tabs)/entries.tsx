@@ -9,8 +9,8 @@ import { FinishBackgroundBanner } from '@/components/entries/FinishBackgroundBan
 import { MoodChipRow } from '@/components/entries/MoodChipRow';
 import { TagChipRow } from '@/components/entries/TagChipRow';
 import { SelectionBar } from '@/components/entries/SelectionBar';
-import { BulkLabelSheet, type BulkLabelMode } from '@/components/entries/BulkLabelSheet';
-import { sharedLabels } from '@/utils/bulkLabels';
+import { BulkLabelSheet } from '@/components/entries/BulkLabelSheet';
+import { useEntryPicker } from '@/hooks/journal/useEntryPicker';
 import { WrittenDaysRow } from '@/components/entries/WrittenDaysRow';
 import { ArchiveEmptyState } from '@/components/entries/ArchiveEmptyState';
 import { HistoryMonthBreak } from '@/components/history/HistoryMonthBreak';
@@ -83,10 +83,7 @@ export default function EntriesScreen() {
     const [activeMood, setActiveMood] = useState('');
     const [activeDay, setActiveDay] = useState('');
     const [activeTag, setActiveTag] = useState('');
-    const [picking, setPicking] = useState(false);
-    const [picked, setPicked] = useState<string[]>([]);
-    const [labelSheetOpen, setLabelSheetOpen] = useState(false);
-    const [bulkMode, setBulkMode] = useState<BulkLabelMode>('add');
+
     const { starredIds, starredSet } = useStarredEntries();
     const { tagsByEntry, renameTag, deleteTag, addTagMany, removeTagMany } = useEntryTags();
 
@@ -119,6 +116,7 @@ export default function EntriesScreen() {
         writtenDayChips,
         resolvedDay,
         visibleSections,
+        shownJournalIds,
     } = useArchiveFilters({
         searchSections, starredSet, tagsByEntry,
         query, showStarredOnly, activeTopic, activeTag, activeMood, activeDay,
@@ -147,12 +145,14 @@ export default function EntriesScreen() {
         }
     };
 
+    const picker = useEntryPicker({ tagsByEntry, addTagMany, removeTagMany });
+    const { picking, picked, pickedSet, shared } = picker;
+    const allPicked = shownJournalIds.length > 0 && picked.length === shownJournalIds.length;
+
     const handlePressItem = useCallback((item: HistoryItem) => {
         // Picking toggles a journal row; check-ins keep opening (labels belong to entries).
         if (picking && item.type === 'journal') {
-            setPicked((prev) => (prev.includes(item.sourceId)
-                ? prev.filter((id) => id !== item.sourceId)
-                : [...prev, item.sourceId]));
+            picker.toggle(item.sourceId);
             return;
         }
         if (item.type === 'journal') {
@@ -164,12 +164,8 @@ export default function EntriesScreen() {
             return;
         }
         router.push({ pathname: '/checkin-detail', params: { id: item.sourceId } });
-    }, [picking, router]);
+    }, [picking, picker, router]);
 
-    const pickedSet = useMemo(() => new Set(picked), [picked]);
-    // Only labels the whole selection shares can be taken off (sharedLabels).
-    const shared = useMemo(() => sharedLabels(picked, tagsByEntry), [picked, tagsByEntry]);
-    const openBulkSheet = (mode: BulkLabelMode) => { setBulkMode(mode); setLabelSheetOpen(true); };
     const hasAnyItems = sections.length > 0;
     const isSearching = query.trim().length > 0;
     const isEmpty = !isLoading && visibleSections.length === 0;
@@ -228,10 +224,7 @@ export default function EntriesScreen() {
                         </Text>
                     </Pressable>
                     <Pressable
-                        onPress={() => {
-                            setPicking((value) => !value);
-                            setPicked([]);
-                        }}
+                        onPress={picker.togglePicking}
                         accessibilityRole="button"
                         accessibilityLabel={picking ? 'Stop picking entries' : 'Pick several entries'}
                         accessibilityState={{ selected: picking }}
@@ -414,28 +407,23 @@ export default function EntriesScreen() {
             {picking ? (
                 <SelectionBar
                     count={picked.length}
-                    onLabel={() => openBulkSheet('add')}
-                    onRemoveLabel={shared.length > 0 ? () => openBulkSheet('remove') : undefined}
+                    onLabel={() => picker.openSheet('add')}
+                    onRemoveLabel={shared.length > 0 ? () => picker.openSheet('remove') : undefined}
                     noSharedLabel={picked.length > 1 && shared.length === 0}
-                    onDone={() => {
-                        setPicking(false);
-                        setPicked([]);
-                    }}
+                    shownCount={shownJournalIds.length}
+                    allPicked={allPicked}
+                    onPickAll={() => picker.pickAll(allPicked ? [] : shownJournalIds)}
+                    onDone={picker.togglePicking}
                 />
             ) : null}
 
             <BulkLabelSheet
-                visible={labelSheetOpen}
+                visible={picker.sheetOpen}
                 count={picked.length}
-                mode={bulkMode}
+                mode={picker.mode}
                 sharedLabels={shared}
-                onCancel={() => setLabelSheetOpen(false)}
-                onSubmit={(label) => {
-                    void (bulkMode === 'add' ? addTagMany(picked, label) : removeTagMany(picked, label));
-                    setLabelSheetOpen(false);
-                    setPicking(false);
-                    setPicked([]);
-                }}
+                onCancel={picker.closeSheet}
+                onSubmit={picker.submit}
             />
 
             <BottomNav

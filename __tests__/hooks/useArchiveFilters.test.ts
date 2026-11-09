@@ -92,4 +92,22 @@ describe('useArchiveFilters', () => {
         expect(result.current.resolvedDay).toBe('');
         expect(result.current.visibleSections).toHaveLength(1);
     });
+
+    it('reports the journal rows on screen, which is what pick-all means', () => {
+        const { result } = run();
+        expect(result.current.shownJournalIds).toEqual(['a', 'b', 'c']);
+    });
+
+    it('leaves check-ins out of the pickable set, because labels belong to entries', () => {
+        const mixed = [
+            section('2026-11-02', [item('a', 'Walk'), item('chk', 'Morning check-in', { type: 'checkin' })]),
+        ];
+        const { result } = run({ searchSections: () => mixed });
+        expect(result.current.shownJournalIds).toEqual(['a']);
+    });
+
+    it('the pickable set follows the filters, not the whole archive', () => {
+        const { result } = run({ activeTag: 'walk' });
+        expect(result.current.shownJournalIds).toEqual(['a']);
+    });
 });

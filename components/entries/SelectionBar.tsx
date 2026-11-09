@@ -20,10 +20,17 @@ interface SelectionBarProps {
      * broken button.
      */
     readonly noSharedLabel?: boolean;
+    /** How many entries are on screen right now, so "all" can be exact. */
+    readonly shownCount: number;
+    /** True when every entry on screen is already picked. */
+    readonly allPicked: boolean;
+    readonly onPickAll: () => void;
     readonly onDone: () => void;
 }
 
-export function SelectionBar({ count, onLabel, onRemoveLabel, onDone, noSharedLabel = false }: SelectionBarProps) {
+export function SelectionBar({
+    count, onLabel, onRemoveLabel, onDone, shownCount, allPicked, onPickAll, noSharedLabel = false,
+}: SelectionBarProps) {
     const picked = count === 1 ? '1 picked' : `${count} picked`;
     return (
         <View
@@ -39,6 +46,18 @@ export function SelectionBar({ count, onLabel, onRemoveLabel, onDone, noSharedLa
             <Text className={`flex-1 text-[15px] ${INK}`} testID="selection-count">
                 {picked}
             </Text>
+            {shownCount > 1 ? (
+                <Pressable
+                    onPress={onPickAll}
+                    accessibilityRole="button"
+                    accessibilityLabel={allPicked ? 'Unpick every entry shown' : 'Pick every entry shown'}
+                    accessibilityState={{ selected: allPicked }}
+                    testID="selection-pick-all"
+                    className={`min-h-11 justify-center rounded-full border ${HAIRLINE} px-4`}
+                >
+                    <Text className={`text-[14px] ${INK}`}>{allPicked ? 'None' : 'All'}</Text>
+                </Pressable>
+            ) : null}
             <Pressable
                 onPress={onLabel}
                 accessibilityRole="button"

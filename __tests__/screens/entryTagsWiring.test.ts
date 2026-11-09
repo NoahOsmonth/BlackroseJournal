@@ -167,10 +167,12 @@ describe('picking several entries and labelling them (Kaneo #91)', () => {
     const card = read('components/history/HistoryEntryCard.tsx');
     const hook = read('hooks/journal/useEntryTags.ts');
     const service = read('services/journal/entryTags.ts');
+    const picker = read('hooks/journal/useEntryPicker.ts');
 
     it('the batch goes through the hook, never straight to the service', () => {
-        expect(archive).toContain('addTagMany(picked, label)');
+        expect(picker).toContain("mode === 'add' ? addTagMany(ids, label) : removeTagMany(ids, label)");
         expect(archive).not.toContain('addEntryTagToMany');
+        expect(archive).not.toContain('removeEntryTagFromMany');
         expect(hook).toContain('await addEntryTagToMany(entryIds, label)');
     });
 
@@ -203,20 +205,23 @@ describe('picking several entries and labelling them (Kaneo #91)', () => {
     });
 
     it('finishing or cancelling clears the picks, so a stale set cannot label later', () => {
-        const submits = archive.slice(archive.indexOf('onSubmit={(label) => {'));
-        expect(submits.slice(0, 400)).toContain('setPicked([])');
-        expect(archive).toContain('setPicking(false);');
+        const submit = picker.slice(picker.indexOf('const submit = useCallback'));
+        expect(submit.slice(0, 400)).toContain('setPicked([])');
+        expect(submit.slice(0, 400)).toContain('setPicking(false)');
+        // Stopping pick mode always drops the picks, never keeps them for later.
+        const toggle = picker.slice(picker.indexOf('const togglePicking'));
+        expect(toggle.slice(0, 260)).toContain('if (was) setPicked([])');
     });
 
     it('the removal offers only labels the whole selection shares', () => {
-        expect(archive).toContain('sharedLabels(picked, tagsByEntry)');
+        expect(picker).toContain('sharedLabels(picked, tagsByEntry)');
         expect(archive).toContain('onRemoveLabel={shared.length > 0');
         expect(bar).toContain("testID=\"selection-remove\"");
         expect(bar).toContain('{onRemoveLabel ? (');
     });
 
     it('removing a batch goes through the hook, one write, like adding', () => {
-        expect(archive).toContain("bulkMode === 'add' ? addTagMany(picked, label) : removeTagMany(picked, label)");
+        expect(picker).toContain("mode === 'add' ? addTagMany(ids, label) : removeTagMany(ids, label)");
         expect(archive).not.toContain('removeEntryTagFromMany');
         expect(hook).toContain('await removeEntryTagFromMany(entryIds, label)');
         const many = service.slice(service.indexOf('export function removeEntryTagFromMany'));
@@ -228,7 +233,14 @@ describe('picking several entries and labelling them (Kaneo #91)', () => {
     it('one sheet serves both modes, so there is one keyboard contract', () => {
         expect(sheet).toContain("export type BulkLabelMode = 'add' | 'remove'");
         expect(sheet).toContain('mode === \'add\' ?');
-        expect(archive).toContain('mode={bulkMode}');
+        expect(archive).toContain('mode={picker.mode}');
+    });
+
+    it('offers picking every entry on screen, and says when they all are', () => {
+        expect(bar).toContain('testID="selection-pick-all"');
+        expect(bar).toContain('shownCount > 1');
+        expect(archive).toContain('onPickAll={() => picker.pickAll(allPicked ? [] : shownJournalIds)}');
+        expect(archive).toContain('const allPicked = shownJournalIds.length > 0 && picked.length === shownJournalIds.length');
     });
 
     it('explains a hidden Remove instead of leaving an empty gap', () => {

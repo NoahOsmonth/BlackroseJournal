@@ -97,6 +97,14 @@ export function useArchiveFilters(input: ArchiveFilterInput) {
         return filterSectionsByDay(byMood, resolvedDay);
     }, [activeMood, afterTagSections, resolvedDay]);
 
+    // The journal rows currently on screen: what "pick all" means.
+    const shownJournalIds = useMemo(
+        () => visibleSections.flatMap((section) => section.items
+            .filter((item) => item.type === 'journal')
+            .map((item) => item.sourceId)),
+        [visibleSections]
+    );
+
     return {
         filteredSections,
         beforeTopicSections,
@@ -109,5 +117,6 @@ export function useArchiveFilters(input: ArchiveFilterInput) {
         writtenDayChips,
         resolvedDay,
         visibleSections,
+        shownJournalIds,
     };
 }
