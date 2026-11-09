@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useActiveAccountId } from '@/hooks/account/useActiveAccountId';
 import {
     addEntryTag,
+    addEntryTagToMany,
     deleteEntryTag,
     type EntryTagMap,
     listEntryTags,
@@ -21,6 +22,8 @@ export interface UseEntryTagsReturn {
     readonly tagsByEntry: EntryTagMap;
     readonly tagsFor: (entryId: string) => readonly string[];
     readonly addTag: (entryId: string, label: string) => Promise<void>;
+    /** Add one label to several entries in a single write. */
+    readonly addTagMany: (entryIds: readonly string[], label: string) => Promise<void>;
     readonly removeTag: (entryId: string, label: string) => Promise<void>;
     /** Rename one label everywhere, merging into the target when it exists. */
     readonly renameTag: (from: string, to: string) => Promise<void>;
@@ -67,6 +70,9 @@ export function useEntryTags(): UseEntryTagsReturn {
     const addTag = useCallback(async (entryId: string, label: string) => {
         await addEntryTag(entryId, label);
     }, []);
+    const addTagMany = useCallback(async (entryIds: readonly string[], label: string) => {
+        await addEntryTagToMany(entryIds, label);
+    }, []);
     const removeTag = useCallback(async (entryId: string, label: string) => {
         await removeEntryTag(entryId, label);
     }, []);
@@ -78,7 +84,7 @@ export function useEntryTags(): UseEntryTagsReturn {
     }, []);
 
     return useMemo(
-        () => ({ tagsByEntry, tagsFor, addTag, removeTag, renameTag, deleteTag, refresh }),
-        [tagsByEntry, tagsFor, addTag, removeTag, renameTag, deleteTag, refresh],
+        () => ({ tagsByEntry, tagsFor, addTag, addTagMany, removeTag, renameTag, deleteTag, refresh }),
+        [tagsByEntry, tagsFor, addTag, addTagMany, removeTag, renameTag, deleteTag, refresh],
     );
 }

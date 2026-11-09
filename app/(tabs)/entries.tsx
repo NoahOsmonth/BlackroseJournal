@@ -8,6 +8,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FinishBackgroundBanner } from '@/components/entries/FinishBackgroundBanner';
 import { MoodChipRow } from '@/components/entries/MoodChipRow';
 import { TagChipRow } from '@/components/entries/TagChipRow';
+import { SelectionBar } from '@/components/entries/SelectionBar';
+import { BulkLabelSheet } from '@/components/entries/BulkLabelSheet';
 import { WrittenDaysRow } from '@/components/entries/WrittenDaysRow';
 import { ArchiveEmptyState } from '@/components/entries/ArchiveEmptyState';
 import { HistoryMonthBreak } from '@/components/history/HistoryMonthBreak';
@@ -25,28 +27,12 @@ import { formatWeekMeta, HistoryItem } from '@/hooks/history/historyUtils';
 import { useHistoryFeed } from '@/hooks/history/useHistoryFeed';
 import { useStarredEntries } from '@/hooks/journal/useStarredEntries';
 import { useEntryTags } from '@/hooks/journal/useEntryTags';
-import { filterStarredSections } from '@/utils/starredSections';
-import { buildFeedRows, buildWrittenDayChips, filterSectionsByDay, resolveActiveDay } from '@/utils/writtenDays';
-import {
-    collectMoodChips,
-    countMoodItems,
-    filterSectionsByMood,
-    normalizeMood,
-} from '@/utils/moodChips';
-import {
-    collectTopicChips,
-    countTopicItems,
-    filterSectionsByTopic,
-    normalizeTopic,
-} from '@/utils/topicChips';
+import { useArchiveFilters } from '@/hooks/journal/useArchiveFilters';
+import { buildFeedRows } from '@/utils/writtenDays';
+import { countMoodItems, normalizeMood } from '@/utils/moodChips';
+import { countTopicItems, normalizeTopic } from '@/utils/topicChips';
 import { useTabNavigation } from '@/hooks/navigation/useTabNavigation';
-import {
-    collectTagChips,
-    countTagItems,
-    filterSectionsByTag,
-    formatTagLabel,
-    resolveActiveTag,
-} from '@/utils/entryTags';
+import { countTagItems, formatTagLabel } from '@/utils/entryTags';
 import { useColorScheme } from '@/hooks/theme/use-color-scheme';
 import { sessionTitle } from '@/utils/sessionTitle';
 import {
@@ -96,8 +82,11 @@ export default function EntriesScreen() {
     const [activeMood, setActiveMood] = useState('');
     const [activeDay, setActiveDay] = useState('');
     const [activeTag, setActiveTag] = useState('');
+    const [picking, setPicking] = useState(false);
+    const [picked, setPicked] = useState<string[]>([]);
+    const [labelSheetOpen, setLabelSheetOpen] = useState(false);
     const { starredIds, starredSet } = useStarredEntries();
-    const { tagsByEntry, renameTag, deleteTag } = useEntryTags();
+    const { tagsByEntry, renameTag, deleteTag, addTagMany } = useEntryTags();
 
     // The feed stays fresh through the storage change bus (Kaneo #87): a
     // finished entry, a restored backup or a demo seed row notifies the two
@@ -118,64 +107,22 @@ export default function EntriesScreen() {
     const showBanner = activeSession !== null
         && activeSession.conversationId !== dismissedId;
 
-    // Bound to the hook's memoized corpus, so every word in every completed
-    // entry/check-in is searchable without a second storage read.
-    const filteredSections = useMemo(
-        () => searchSections(query),
-        [searchSections, query]
-    );
-
-    // Order matters: search narrows the corpus first, then the starred filter,
-    // then the topic. Chips are derived from THAT narrowed feed, so a chip's
-    // number always says how many entries are actually behind it.
-    const beforeTopicSections = useMemo(
-        () => (showStarredOnly ? filterStarredSections(filteredSections, starredSet) : filteredSections),
-        [showStarredOnly, filteredSections, starredSet]
-    );
-
-    const topicChips = useMemo(
-        () => collectTopicChips(beforeTopicSections),
-        [beforeTopicSections]
-    );
-
-    // Mood is the LAST narrowing layer. Chips come from the feed after search,
-    // starred and topic, so every number says what is actually behind the chip.
-    const afterTopicSections = useMemo(
-        () => (activeTopic ? filterSectionsByTopic(beforeTopicSections, activeTopic) : beforeTopicSections),
-        [activeTopic, beforeTopicSections]
-    );
-
-    const moodChips = useMemo(
-        () => collectMoodChips(afterTopicSections),
-        [afterTopicSections]
-    );
-
-    // Labels narrow last; chips come from the feed after every other choice,
-    // so each number is honest. A stale selection is dropped, not left empty.
-    const tagChips = useMemo(
-        () => collectTagChips(afterTopicSections, tagsByEntry),
-        [afterTopicSections, tagsByEntry]
-    );
-    const resolvedTag = resolveActiveTag(tagChips, activeTag);
-    const afterTagSections = useMemo(
-        () => filterSectionsByTag(afterTopicSections, resolvedTag, tagsByEntry),
-        [afterTopicSections, resolvedTag, tagsByEntry]
-    );
-
-    // Days come from the feed AFTER every other choice, so the strip never
-    // offers a day whose writing those choices just hid.
-    const writtenDayChips = useMemo(
-        () => buildWrittenDayChips(afterTagSections),
-        [afterTagSections]
-    );
-    const resolvedDay = resolveActiveDay(writtenDayChips, activeDay);
-
-    const visibleSections = useMemo(() => {
-        const byMood = activeMood
-            ? filterSectionsByMood(afterTagSections, activeMood)
-            : afterTagSections;
-        return filterSectionsByDay(byMood, resolvedDay);
-    }, [activeMood, afterTagSections, resolvedDay]);
+    // The narrowing chain (search -> starred -> topic -> label -> mood -> day)
+    // lives in the hook: the order is behaviour, so it is tested there.
+    const {
+        beforeTopicSections,
+        afterTopicSections,
+        topicChips,
+        moodChips,
+        tagChips,
+        resolvedTag,
+        writtenDayChips,
+        resolvedDay,
+        visibleSections,
+    } = useArchiveFilters({
+        searchSections, starredSet, tagsByEntry,
+        query, showStarredOnly, activeTopic, activeTag, activeMood, activeDay,
+    });
 
     const feedRows = useMemo(
         () => buildFeedRows(visibleSections),
@@ -201,6 +148,14 @@ export default function EntriesScreen() {
     };
 
     const handlePressItem = useCallback((item: HistoryItem) => {
+        // While picking, a journal row toggles instead of opening. Check-ins keep
+        // opening: labels belong to entries, so there is nothing to pick there.
+        if (picking && item.type === 'journal') {
+            setPicked((prev) => (prev.includes(item.sourceId)
+                ? prev.filter((id) => id !== item.sourceId)
+                : [...prev, item.sourceId]));
+            return;
+        }
         if (item.type === 'journal') {
             router.push({ pathname: '/entry-detail', params: { id: item.sourceId } });
             return;
@@ -210,8 +165,9 @@ export default function EntriesScreen() {
             return;
         }
         router.push({ pathname: '/checkin-detail', params: { id: item.sourceId } });
-    }, [router]);
+    }, [picking, router]);
 
+    const pickedSet = useMemo(() => new Set(picked), [picked]);
     const hasAnyItems = sections.length > 0;
     const isSearching = query.trim().length > 0;
     const isEmpty = !isLoading && visibleSections.length === 0;
@@ -267,6 +223,21 @@ export default function EntriesScreen() {
                             {showStarredOnly
                                 ? `Starred · ${starredIds.length} shown`
                                 : `Starred · ${starredIds.length}`}
+                        </Text>
+                    </Pressable>
+                    <Pressable
+                        onPress={() => {
+                            setPicking((value) => !value);
+                            setPicked([]);
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel={picking ? 'Stop picking entries' : 'Pick several entries'}
+                        accessibilityState={{ selected: picking }}
+                        testID="archive-pick-toggle"
+                        className="min-h-11 justify-center rounded-control border border-hairline-light px-3 dark:border-hairline-dark"
+                    >
+                        <Text className="text-[14px] text-text-secondary-light dark:text-text-secondary-dark">
+                            {picking ? 'Cancel' : 'Pick'}
                         </Text>
                     </Pressable>
                 </View>
@@ -411,6 +382,7 @@ export default function EntriesScreen() {
                                     section={row.section}
                                     onPressItem={handlePressItem}
                                     starredIds={starredSet}
+                                    selectedIds={picking ? pickedSet : undefined}
                                 />
                             );
 
@@ -436,6 +408,29 @@ export default function EntriesScreen() {
                     </View>
                 )}
             </Animated.ScrollView>
+
+            {picking ? (
+                <SelectionBar
+                    count={picked.length}
+                    onLabel={() => setLabelSheetOpen(true)}
+                    onDone={() => {
+                        setPicking(false);
+                        setPicked([]);
+                    }}
+                />
+            ) : null}
+
+            <BulkLabelSheet
+                visible={labelSheetOpen}
+                count={picked.length}
+                onCancel={() => setLabelSheetOpen(false)}
+                onSubmit={(label) => {
+                    void addTagMany(picked, label);
+                    setLabelSheetOpen(false);
+                    setPicking(false);
+                    setPicked([]);
+                }}
+            />
 
             <BottomNav
                 activeTab="entries"

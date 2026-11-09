@@ -19,6 +19,9 @@ describe('writer-chosen label wiring (Kaneo #88)', () => {
     const clear = read('hooks/journal/useClearJournalHistory.ts');
     const ownership = read('services/account/legacyDataOwnership.ts');
     const agents = read('AGENTS.md');
+    // The narrowing chain moved into this hook (round 52); the order it
+    // enforces is the invariant, so the assertions follow the code.
+    const filters = read('hooks/journal/useArchiveFilters.ts');
 
     it('one owner owns the key with a schema envelope and a serialized queue', () => {
         expect(service).toContain("export const ENTRY_TAGS_KEY = '@blackrose_entry_tags'");
@@ -42,9 +45,9 @@ describe('writer-chosen label wiring (Kaneo #88)', () => {
     });
 
     it('the Archive filter chain puts labels LAST before days', () => {
-        expect(archive).toContain('filterSectionsByTag(afterTopicSections, resolvedTag, tagsByEntry)');
-        expect(archive).toContain('buildWrittenDayChips(afterTagSections)');
-        expect(archive).toContain('resolveActiveTag(tagChips, activeTag)');
+        expect(filters).toContain('filterSectionsByTag(afterTopicSections, resolvedTag, tagsByEntry)');
+        expect(filters).toContain('buildWrittenDayChips(afterTagSections)');
+        expect(filters).toContain('resolveActiveTag(tagChips, activeTag)');
         expect(archive).toContain('<TagChipRow');
         expect(archive).toContain('noTagMatches={noTagMatches}');
         expect(row).toContain('testID="archive-tag-row"');
@@ -54,7 +57,7 @@ describe('writer-chosen label wiring (Kaneo #88)', () => {
     });
 
     it('chips count honestly against the narrowed feed, no extra storage read', () => {
-        expect(archive).toContain('collectTagChips(afterTopicSections, tagsByEntry)');
+        expect(filters).toContain('collectTagChips(afterTopicSections, tagsByEntry)');
         expect(archive).toContain('countTagItems(afterTopicSections, label, tagsByEntry)');
         expect(archive).toContain('countFor={countTagFor}');
         expect(util).not.toContain('AsyncStorage');
@@ -153,5 +156,55 @@ describe('writer-chosen label wiring (Kaneo #88)', () => {
     it('an entry left with no labels loses its key, so no empty label is shown', () => {
         expect(service).toContain('if (kept.length > 0) next[entryId] = kept;');
         expect(service).toContain('if (!changed) return toMap(payload);');
+    });
+});
+
+describe('picking several entries and labelling them (Kaneo #91)', () => {
+    const archive = read('app/(tabs)/entries.tsx');
+    const bar = read('components/entries/SelectionBar.tsx');
+    const sheet = read('components/entries/BulkLabelSheet.tsx');
+    const section = read('components/history/HistorySection.tsx');
+    const card = read('components/history/HistoryEntryCard.tsx');
+    const hook = read('hooks/journal/useEntryTags.ts');
+    const service = read('services/journal/entryTags.ts');
+
+    it('the batch goes through the hook, never straight to the service', () => {
+        expect(archive).toContain('addTagMany(picked, label)');
+        expect(archive).not.toContain('addEntryTagToMany');
+        expect(hook).toContain('await addEntryTagToMany(entryIds, label)');
+    });
+
+    it('one write covers every picked entry', () => {
+        const many = service.slice(service.indexOf('export function addEntryTagToMany'));
+        const body = many.slice(0, many.indexOf('export function removeEntryTag'));
+        // One read, one write, and the per-entry work inside that single cycle.
+        expect(body.split('readPayload(').length - 1).toBe(2);
+        expect(body.split('writePayload(').length - 1).toBe(1);
+        expect(body).toContain('enqueueMutation(');
+    });
+
+    it('the screen shows the bar and the sheet only while picking', () => {
+        expect(archive).toContain('{picking ? (');
+        expect(archive).toContain('selectedIds={picking ? pickedSet : undefined}');
+        expect(archive).toContain('testID="archive-pick-toggle"');
+        expect(bar).toContain('testID="selection-bar"');
+        expect(sheet).toContain('testID="bulk-label-sheet"');
+    });
+
+    it('only journal entries are pickable, because labels belong to entries', () => {
+        expect(section).toContain("item.type === 'journal'");
+        expect(archive).toContain("picking && item.type === 'journal'");
+    });
+
+    it('a picked row says so out loud, for screen readers', () => {
+        expect(card).toContain("'Unpick'")
+        expect(card).toContain("'Pick'")
+        expect(card).toContain('accessibilityState={selected === undefined ? undefined : { selected }}');
+    });
+
+    it('finishing or cancelling clears the picks, so a stale set cannot label later', () => {
+        const submits = archive.slice(archive.indexOf('onSubmit={(label) => {'));
+        expect(submits.slice(0, 240)).toContain('setPicked([])');
+        expect(archive).toContain('setPicking(false);');
     });
 });

@@ -13,6 +13,12 @@ interface HistoryEntryCardProps {
     isLast?: boolean;
     /** A starred entry shows a small gold star beside its label. */
     isStarred?: boolean;
+    /**
+     * Selection mode: a tap picks the entry instead of opening it, and a picked
+     * row shows a check so the choice stays visible while scrolling.
+     * `undefined` means selection mode is off.
+     */
+    selected?: boolean;
 }
 
 const SECONDARY_TEXT_CLASS = 'text-text-secondary-light dark:text-text-secondary-dark';
@@ -41,7 +47,9 @@ function resolveLabel(item: HistoryItem): string {
  * chrome on the card: type does the work, and the mood is the only trailing
  * detail.
  */
-export function HistoryEntryCard({ item, onPress, isLast = false, isStarred = false }: HistoryEntryCardProps) {
+export function HistoryEntryCard({
+    item, onPress, isLast = false, isStarred = false, selected,
+}: HistoryEntryCardProps) {
     const label = resolveLabel(item);
     const moodLabel = item.mood?.trim() || null;
     const isDark = useColorScheme() === 'dark';
@@ -56,7 +64,10 @@ export function HistoryEntryCard({ item, onPress, isLast = false, isStarred = fa
     return (
         <Pressable
             onPress={handlePress}
-            accessibilityLabel={`Open ${item.title}`}
+            accessibilityLabel={selected === undefined
+                ? `Open ${item.title}`
+                : `${selected ? 'Unpick' : 'Pick'} ${item.title}`}
+            accessibilityState={selected === undefined ? undefined : { selected }}
             accessibilityRole="button"
             style={({ pressed }) => [
                 { transform: [{ scale: pressed ? 0.985 : 1 }] },
@@ -74,6 +85,13 @@ export function HistoryEntryCard({ item, onPress, isLast = false, isStarred = fa
                                 name="star"
                                 size={15}
                                 color={isDark ? '#E8BE68' : '#D9A441'}
+                            />
+                        ) : null}
+                        {selected ? (
+                            <MaterialIcons
+                                name="check-circle"
+                                size={16}
+                                color={isDark ? '#A8BFA3' : '#4C6B4A'}
                             />
                         ) : null}
                     </View>

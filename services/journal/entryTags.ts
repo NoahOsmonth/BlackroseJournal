@@ -179,6 +179,39 @@ export function addEntryTag(entryId: string, label: string): Promise<EntryTagMap
     });
 }
 
+/**
+ * Adds one label to several entries with a SINGLE read and a SINGLE write.
+ * Tagging 12 entries one at a time means 12 read-modify-write cycles against
+ * one AsyncStorage key; batching them inside the same serialized mutation
+ * makes it one cycle and cannot interleave with another writer.
+ *
+ * Entries that already carry the label, or that are already at the per-entry
+ * limit, are left exactly as they are. Returns the resulting map.
+ */
+export function addEntryTagToMany(entryIds: readonly string[], label: string): Promise<EntryTagMap> {
+    return runAccountBoundOperation('entry-tags-add-many', async (context) => {
+        const storage = getStorageForAccount(context.accountId);
+        return enqueueMutation(async () => {
+            assertAccountOperationActive(context);
+            const tag = normalizeTag(label);
+            const targets = Array.from(new Set(entryIds)).filter((id) => id.length > 0);
+            if (tag.length === 0 || tag.length > MAX_LABEL_LENGTH || targets.length === 0) {
+                return toMap(await readPayload(storage));
+            }
+            const payload = await readPayload(storage);
+            const next = { ...payload.byEntry };
+            let changed = false;
+            for (const entryId of targets) {
+                const current = next[entryId] ?? [];
+                if (current.includes(tag) || current.length >= MAX_LABELS_PER_ENTRY) continue;
+                next[entryId] = [...current, tag];
+                changed = true;
+            }
+            if (!changed) return toMap(payload);
+            return writePayload(storage, next);
+        });
+    });
+}
 export function removeEntryTag(entryId: string, label: string): Promise<EntryTagMap> {
     return runAccountBoundOperation('entry-tags-remove', async (context) => {
         const storage = getStorageForAccount(context.accountId);

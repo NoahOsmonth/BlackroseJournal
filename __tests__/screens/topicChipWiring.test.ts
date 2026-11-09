@@ -8,22 +8,23 @@ const read = (file: string): string => fs.readFileSync(path.join(root, relPosix(
 
 describe('Archive topic chip wiring', () => {
     const screen = read('app/(tabs)/entries.tsx');
+    const chain = read('hooks/journal/useArchiveFilters.ts');
     const util = read('utils/topicChips.ts');
     const feed = read('hooks/history/useHistoryFeed.ts');
     const emptyStates = read('components/entries/ArchiveEmptyState.tsx');
 
     it('derives chips from the narrowed feed, one memo, no new storage read', () => {
-        expect(screen).toContain('collectTopicChips(beforeTopicSections)');
-        expect(screen).toContain('const topicChips = useMemo(');
-        expect(screen).toContain('filterSectionsByTopic(beforeTopicSections, activeTopic)');
+        expect(chain).toContain('collectTopicChips(beforeTopicSections)');
+        expect(chain).toContain('const topicChips = useMemo(');
+        expect(chain).toContain('filterSectionsByTopic(beforeTopicSections, activeTopic)');
         expect(screen).not.toContain('collectTopicChips(sections)');
         expect(feed).not.toContain('topicChips');
     });
 
     it('applies search, then starred, then topic - in that order', () => {
-        const filtered = screen.indexOf('searchSections(query)');
-        const starred = screen.indexOf('filterStarredSections(filteredSections, starredSet)');
-        const topic = screen.indexOf('filterSectionsByTopic(beforeTopicSections, activeTopic)');
+        const filtered = chain.indexOf('searchSections(query)');
+        const starred = chain.indexOf('filterStarredSections(filteredSections, starredSet)');
+        const topic = chain.indexOf('filterSectionsByTopic(beforeTopicSections, activeTopic)');
         expect(filtered).toBeGreaterThan(0);
         expect(starred).toBeGreaterThan(filtered);
         expect(topic).toBeGreaterThan(starred);

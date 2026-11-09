@@ -8,6 +8,7 @@ const read = (file: string): string => fs.readFileSync(path.join(root, relPosix(
 
 describe('Archive mood chip wiring', () => {
     const screen = read('app/(tabs)/entries.tsx');
+    const chain = read('hooks/journal/useArchiveFilters.ts');
     const row = read('components/entries/MoodChipRow.tsx');
     const util = read('utils/moodChips.ts');
     const feed = read('hooks/history/useHistoryFeed.ts');
@@ -22,19 +23,19 @@ describe('Archive mood chip wiring', () => {
     });
 
     it('puts mood LAST in the filter chain after search, starred and topic', () => {
-        const search = screen.indexOf('searchSections(query)');
-        const starred = screen.indexOf('filterStarredSections(filteredSections, starredSet)');
-        const topic = screen.indexOf('filterSectionsByTopic(beforeTopicSections, activeTopic)');
-        const tag = screen.indexOf('filterSectionsByTag(afterTopicSections, resolvedTag, tagsByEntry)');
-        const mood = screen.indexOf('filterSectionsByMood(afterTagSections, activeMood)');
+        const search = chain.indexOf('searchSections(query)');
+        const starred = chain.indexOf('filterStarredSections(filteredSections, starredSet)');
+        const topic = chain.indexOf('filterSectionsByTopic(beforeTopicSections, activeTopic)');
+        const tag = chain.indexOf('filterSectionsByTag(afterTopicSections, resolvedTag, tagsByEntry)');
+        const mood = chain.indexOf('filterSectionsByMood(afterTagSections, activeMood)');
         expect(search).toBeGreaterThan(0);
         expect(starred).toBeGreaterThan(search);
         expect(topic).toBeGreaterThan(starred);
         expect(tag).toBeGreaterThan(topic);
         expect(mood).toBeGreaterThan(tag);
-        expect(screen).toContain('collectMoodChips(afterTopicSections)');
-        expect(screen).toContain('const moodChips = useMemo(');
-        expect(screen).toContain('const visibleSections = useMemo(');
+        expect(chain).toContain('collectMoodChips(afterTopicSections)');
+        expect(chain).toContain('const moodChips = useMemo(');
+        expect(chain).toContain('const visibleSections = useMemo(');
     });
 
     it('counts honestly against the narrowed feed, no new storage read', () => {
@@ -78,7 +79,7 @@ describe('Archive mood chip wiring', () => {
     });
 
     it('does not break the round 39 topic chips', () => {
-        expect(screen).toContain('collectTopicChips(beforeTopicSections)');
+        expect(chain).toContain('collectTopicChips(beforeTopicSections)');
         expect(screen).toContain('testID="archive-topic-row"');
         expect(emptyStates).toContain('Nothing here about');
     });

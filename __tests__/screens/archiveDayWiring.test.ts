@@ -7,6 +7,7 @@ const read = (file: string) => fs.readFileSync(path.join(root, file), 'utf8');
 
 describe('Archive browse-by-day wiring', () => {
     const screen = read('app/(tabs)/entries.tsx');
+    const chain = read('hooks/journal/useArchiveFilters.ts');
     const row = read('components/entries/WrittenDaysRow.tsx');
     const empty = read('components/entries/DayEmptyState.tsx');
     const util = read('utils/writtenDays.ts');
@@ -26,16 +27,16 @@ describe('Archive browse-by-day wiring', () => {
     it('the chips come from the narrowed feed, not the whole journal', () => {
         // A chip must not offer a day whose writing search/starred/topic hid.
         // Writer-chosen labels are now the layer immediately before days.
-        expect(screen).toContain('buildWrittenDayChips(afterTagSections)');
+        expect(chain).toContain('buildWrittenDayChips(afterTagSections)');
         expect(screen).not.toContain('buildWrittenDayChips(sections)');
-        expect(screen).toContain('resolveActiveTag(tagChips, activeTag)');
-        expect(screen).toContain('resolveActiveDay(writtenDayChips, activeDay)');
+        expect(chain).toContain('resolveActiveTag(tagChips, activeTag)');
+        expect(chain).toContain('resolveActiveDay(writtenDayChips, activeDay)');
     });
 
     it('the day filter is a real layer in the chain, not just a label', () => {
-        expect(screen).toContain('filterSectionsByTag(afterTopicSections, resolvedTag, tagsByEntry)');
-        expect(screen).toContain('filterSectionsByMood(afterTagSections, activeMood)');
-        expect(screen).toContain('filterSectionsByDay(byMood, resolvedDay)');
+        expect(chain).toContain('filterSectionsByTag(afterTopicSections, resolvedTag, tagsByEntry)');
+        expect(chain).toContain('filterSectionsByMood(afterTagSections, activeMood)');
+        expect(chain).toContain('filterSectionsByDay(byMood, resolvedDay)');
         expect(screen).toContain('buildFeedRows(visibleSections)');
     });
 

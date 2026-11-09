@@ -1,0 +1,48 @@
+/**
+ * The bar that appears while entries are picked in the Archive. It replaces
+ * nothing: it sits above the dock, says how many are picked, and offers the two
+ * actions that make sense — label them, or stop picking.
+ */
+import React from 'react';
+import { Pressable, Text, View } from 'react-native';
+
+const HAIRLINE = 'border-hairline-light dark:border-hairline-dark';
+const INK = 'text-text-light dark:text-text-dark';
+
+interface SelectionBarProps {
+    readonly count: number;
+    readonly onLabel: () => void;
+    readonly onDone: () => void;
+}
+
+export function SelectionBar({ count, onLabel, onDone }: SelectionBarProps) {
+    const picked = count === 1 ? '1 picked' : `${count} picked`;
+    return (
+        <View
+            className={`flex-row items-center gap-3 border-t ${HAIRLINE} bg-surface-light px-6 py-3 dark:bg-surface-dark`}
+            testID="selection-bar"
+        >
+            <Text className={`flex-1 text-[15px] ${INK}`} testID="selection-count">
+                {picked}
+            </Text>
+            <Pressable
+                onPress={onLabel}
+                accessibilityRole="button"
+                accessibilityLabel="Add a label to the picked entries"
+                testID="selection-label"
+                className={`min-h-11 justify-center rounded-full border ${HAIRLINE} px-4`}
+            >
+                <Text className={`text-[14px] ${INK}`}>Add label</Text>
+            </Pressable>
+            <Pressable
+                onPress={onDone}
+                accessibilityRole="button"
+                accessibilityLabel="Stop picking"
+                testID="selection-done"
+                className="min-h-11 justify-center rounded-full bg-accent-green px-4 dark:bg-accent-green-dark"
+            >
+                <Text className="text-[14px] text-white dark:text-white">Done</Text>
+            </Pressable>
+        </View>
+    );
+}

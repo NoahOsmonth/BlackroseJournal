@@ -53,6 +53,7 @@ const sheets = files
 describe('bottom-sheet keyboard handling', () => {
     it('finds the app bottom sheets (guard against the scan silently matching nothing)', () => {
         expect(sheets.map((s) => s.file).sort()).toEqual([
+            'components/entries/BulkLabelSheet.tsx',
             'components/entries/EntryEditModal.tsx',
             'components/entries/TagRenameSheet.tsx',
             'components/goals/GoalEditModal.tsx',

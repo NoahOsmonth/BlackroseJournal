@@ -15,6 +15,7 @@ const read = (file: string): string => fs.readFileSync(path.join(root, file), 'u
 describe('starred entries UI wiring', () => {
     const detail = read(relPosix(root, path.join(root, 'app/entry-detail.tsx')));
     const archive = read(relPosix(root, path.join(root, 'app/(tabs)/entries.tsx')));
+    const chain = read(relPosix(root, path.join(root, 'hooks/journal/useArchiveFilters.ts')));
     const section = read(relPosix(root, path.join(root, 'components/history/HistorySection.tsx')));
     const card = read(relPosix(root, path.join(root, 'components/history/HistoryEntryCard.tsx')));
     const util = read(relPosix(root, path.join(root, 'utils/starredSections.ts')));
@@ -33,7 +34,7 @@ describe('starred entries UI wiring', () => {
     });
 
     it('Archive computes the starred filter and feeds it into the feed rows', () => {
-        expect(archive).toContain('filterStarredSections(filteredSections, starredSet)');
+        expect(chain).toContain('filterStarredSections(filteredSections, starredSet)');
         expect(archive).toContain('buildFeedRows(visibleSections)');
         expect(archive).toContain('archive-starred-filter');
     });

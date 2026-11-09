@@ -62,4 +62,14 @@ describe('a label written anywhere refreshes a mounted hook', () => {
         expect(result.current.tagsFor('e2')).toEqual(['family']);
         unmount();
     });
+
+    it('labels every picked entry through one hook call', async () => {
+        const { result, unmount } = renderHook(() => useEntryTags());
+        await waitFor(() => expect(result.current.tagsByEntry).toEqual({}));
+        await act(async () => { await result.current.addTagMany(['a', 'b', 'c'], 'trip'); });
+        await waitFor(() => expect(result.current.tagsFor('a')).toEqual(['trip']));
+        expect(result.current.tagsFor('b')).toEqual(['trip']);
+        expect(result.current.tagsFor('c')).toEqual(['trip']);
+        unmount();
+    });
 });

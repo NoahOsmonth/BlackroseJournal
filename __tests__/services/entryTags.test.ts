@@ -3,6 +3,7 @@ import type { AccountStorageAdapter } from '../../services/account/accountScoped
 import { activateAccount, clearActiveAccount } from '../../services/account/accountRuntime';
 import {
     addEntryTag,
+    addEntryTagToMany,
     clearAllEntryTags,
     deleteEntryTag,
     ENTRY_TAGS_KEY,
@@ -243,4 +244,78 @@ describe('deleting a label for good', () => {
         await deleteEntryTag('  WORK  ');
         expect(await getEntryTags('e1')).toEqual([]);
     });
+
+describe('addEntryTagToMany', () => {
+    beforeEach(async () => {
+        await clearActiveAccount();
+        setAccountStorageAdapter(memoryAdapter().adapter);
+        await activateAccount('labels-many');
+    });
+    afterEach(async () => { await clearActiveAccount(); });
+
+    it('adds the label to every picked entry', async () => {
+        await addEntryTagToMany(['a', 'b', 'c'], 'Trip');
+        expect(await getEntryTags('a')).toEqual(['trip']);
+        expect(await getEntryTags('b')).toEqual(['trip']);
+        expect(await getEntryTags('c')).toEqual(['trip']);
+    });
+
+    it('writes once for many entries, not once per entry', async () => {
+        const { rows, adapter } = memoryAdapter();
+        let writes = 0;
+        setAccountStorageAdapter({
+            ...adapter,
+            setItem: (k, v) => { writes += 1; return adapter.setItem(k, v); },
+        });
+        await activateAccount('labels-many');
+        await addEntryTagToMany(['a', 'b', 'c', 'd'], 'trip');
+        expect(writes).toBe(1);
+        expect(rows.size).toBe(1);
+    });
+
+    it('leaves entries that already carry the label untouched', async () => {
+        await addEntryTag('a', 'trip');
+        await addEntryTagToMany(['a', 'b'], 'trip');
+        expect(await getEntryTags('a')).toEqual(['trip']);
+        expect(await getEntryTags('b')).toEqual(['trip']);
+    });
+
+    it('ignores the same id twice in one call', async () => {
+        await addEntryTagToMany(['a', 'a', 'a'], 'trip');
+        expect(await getEntryTags('a')).toEqual(['trip']);
+    });
+
+    it('does not push an entry past its label limit', async () => {
+        for (let index = 0; index < 12; index += 1) {
+            await addEntryTag('full', `label${index}`);
+        }
+        await addEntryTagToMany(['full', 'roomy'], 'trip');
+        expect(await getEntryTags('full')).toHaveLength(12);
+        expect(await getEntryTags('full')).not.toContain('trip');
+        expect(await getEntryTags('roomy')).toEqual(['trip']);
+    });
+
+    it('refuses an empty label and an empty id list', async () => {
+        await addEntryTagToMany(['a'], '   ');
+        await addEntryTagToMany([], 'trip');
+        expect(await listEntryTags()).toEqual({});
+    });
+
+    it('does not notify when nothing changed', async () => {
+        await addEntryTag('a', 'trip');
+        const seen: unknown[] = [];
+        const unsubscribe = subscribeEntryTagChanges((map) => { seen.push(map); });
+        await addEntryTagToMany(['a'], 'trip');
+        unsubscribe();
+        expect(seen).toHaveLength(0);
+    });
+
+    it('notifies once for a batch that changes something', async () => {
+        const seen: unknown[] = [];
+        const unsubscribe = subscribeEntryTagChanges((map) => { seen.push(map); });
+        await addEntryTagToMany(['a', 'b', 'c'], 'trip');
+        unsubscribe();
+        expect(seen).toHaveLength(1);
+    });
+});
 });
