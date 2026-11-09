@@ -29,6 +29,7 @@ const SCHEMES = ['light', 'dark'];
 const STATIC_ROUTES = [
     '/today', '/insights', '/explore', '/entries', '/settings',
     '/goals', '/prompt-shelf', '/on-this-day', '/streak-view', '/drafts',
+    '/photos',
 ];
 const asJson = process.argv.includes('--json');
 
@@ -157,16 +158,79 @@ const ROUTES = [
 if (!asJson) console.log('entry id: ' + (entryId || 'none found - entry detail skipped'));
 else console.error('entry id: ' + (entryId || 'none found - entry detail skipped'));
 
+/**
+ * Give one entry a photo before sweeping (Kaneo #110).
+ *
+ * Without this the photo controls never exist: the Remove button only renders on
+ * an entry that has a photo, so an empty-state sweep reports the screen clean and
+ * measures none of it. The same photo also lets the viewer be opened and measured.
+ */
+const seedPhoto = async (id) => {
+    await page.evaluate((entryId) => {
+        const key = Object.keys(localStorage).find(
+            (k) => k.includes(':journal_entries') && !k.includes('_shard'),
+        );
+        if (!key) return;
+        const prefix = key.slice(0, key.lastIndexOf(':') + 1);
+        const canvas = document.createElement('canvas');
+        canvas.width = 1200;
+        canvas.height = 800;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.fillStyle = 'rgb(90, 110, 150)';
+        ctx.fillRect(0, 0, 1200, 800);
+        localStorage.setItem(
+            prefix + 'blackrose_entry_photo:' + entryId,
+            JSON.stringify({
+                schemaVersion: 1,
+                dataUrl: canvas.toDataURL('image/jpeg', 0.9),
+                width: 1200,
+                height: 800,
+                updatedAt: Date.now(),
+            }),
+        );
+        localStorage.setItem(
+            prefix + 'blackrose_entry_photo_index',
+            JSON.stringify({ schemaVersion: 1, rows: [{ entryId, updatedAt: Date.now() }] }),
+        );
+    }, id);
+};
+
 const results = [];
 for (const scheme of SCHEMES) {
     await page.goto(BASE + '/today', { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(6000);
     await page.evaluate((s) => localStorage.setItem('user-theme-preference', s), scheme);
+    if (entryId) await seedPhoto(entryId);
     for (const route of ROUTES) {
         await page.goto(BASE + route, { waitUntil: 'domcontentloaded' });
         await page.waitForTimeout(5000);
         const r = await page.evaluate(PROBE);
         results.push({ scheme, route, ...r });
+
+        // The viewer is an overlay on the entry, not a route: open it and measure
+        // what a thumb can actually reach while it is up (Kaneo #110).
+        if (entryId && route.startsWith('/entry-detail')) {
+            await page.evaluate(() => {
+                const open = document.querySelector('[data-testid=entry-photo-open]');
+                if (open) open.click();
+            });
+            await page.waitForTimeout(1500);
+            const viewer = await page.evaluate(PROBE);
+            results.push({ scheme, route: route + ' + viewer', ...viewer });
+            await page.evaluate(() => {
+                const close = document.querySelector('[data-testid=photo-viewer-close]');
+                if (close) close.click();
+            });
+            await page.waitForTimeout(800);
+        }
+    }
+    if (entryId) {
+        await page.evaluate(() => {
+            for (const k of Object.keys(localStorage)) {
+                if (k.includes('blackrose_entry_photo')) localStorage.removeItem(k);
+            }
+        });
     }
 }
 await browser.close();

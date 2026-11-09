@@ -49,13 +49,16 @@ export function EntryPhoto({
                     }}
                 />
             </Pressable>
+            {/* min-h-11 keeps this a 44px target: at py-1 the row measured 85x23, a
+                third of the minimum, and the audit only caught it once the sweep
+                stopped running against an entry with no photo (Kaneo #110). */}
             <Pressable
                 onPress={onRemove}
                 disabled={isBusy}
                 accessibilityRole="button"
                 accessibilityLabel="Remove the photo from this entry"
                 testID="entry-photo-remove"
-                className="self-start py-1"
+                className="min-h-11 self-start justify-center"
             >
                 <Text className={removeLabel}>Remove photo</Text>
             </Pressable>
