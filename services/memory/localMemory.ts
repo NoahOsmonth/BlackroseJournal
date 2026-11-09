@@ -1,5 +1,5 @@
 import { accountScopedStorage as AsyncStorage } from '@/services/account/accountScopedStorage';
-import { runAccountBoundOperation } from '@/services/account/accountRuntime';
+import { getActiveAccountId, runAccountBoundOperation } from '@/services/account/accountRuntime';
 import type { Message } from '@/services/ai';
 import type { JournalEntry } from '@/services/journal/journalStorage.types';
 import type { IntentionCheckIn } from '@/services/intentions/intentionsStorage.types';
@@ -56,10 +56,13 @@ let memoryStorageAdapter: LocalMemoryStorageAdapter = AsyncStorage;
 
 export function setMemoryStorageAdapter(adapter: LocalMemoryStorageAdapter): void {
     memoryStorageAdapter = adapter;
+    // A different backing store cannot answer for the cached one.
+    invalidateLocalMemoryCache();
 }
 
 export function resetMemoryStorageAdapter(): void {
     memoryStorageAdapter = AsyncStorage;
+    invalidateLocalMemoryCache();
 }
 
 // All read-modify-write cycles must run through this queue. AsyncStorage has no
@@ -254,15 +257,62 @@ async function readAtomsFromPayload(
     }
 }
 
-async function loadMemoryStore(): Promise<LocalMemoryStore> {
+/**
+ * One load per mount, not sixteen (Kaneo #101).
+ *
+ * A cold boot called this sixteen times, and each call reads the header plus all
+ * eight shards: 128 of the ~193 storage reads a cold mount costs. Nothing about
+ * a read-modify-write needs a second copy of a store it just read, so the parsed
+ * store is kept until something writes it.
+ *
+ * The cache is keyed by the active account and dropped by every save in this
+ * module, so it can never serve another account's atoms or a pre-write snapshot.
+ * Direct writers that bypass this module (backup restore) must call
+ * `invalidateLocalMemoryCache()`; that is the only way to go stale.
+ */
+let storeCache: { accountId: string | null; indexPayload: string | null; store: LocalMemoryStore } | null = null;
+
+export function invalidateLocalMemoryCache(): void {
+    storeCache = null;
+}
+
+/**
+ * The sixteen loads at mount are concurrent, not sequential (measured: all
+ * within ~50 ms, 1-6 ms apart), so a settled cache alone cannot collapse them -
+ * they all miss before the first one returns. One promise is shared instead.
+ */
+let inFlightStore: Promise<LocalMemoryStore> | null = null;
+
+function loadMemoryStore(): Promise<LocalMemoryStore> {
+    if (inFlightStore) return inFlightStore;
+    const pending = loadMemoryStoreUncached().finally(() => {
+        if (inFlightStore === pending) inFlightStore = null;
+    });
+    inFlightStore = pending;
+    return pending;
+}
+
+async function loadMemoryStoreUncached(): Promise<LocalMemoryStore> {
+    const accountId = getActiveAccountId();
+    // Always read the header first: it is the cheap freshness check that lets a
+    // cached store be trusted without reading eight shards again. Anything that
+    // rewrites the store - a save, a backup restore, a corrupted payload - moves
+    // this value, so the cache cannot outlive the data it describes.
+    const indexPayload = await memoryStorageAdapter.getItem(LOCAL_MEMORY_STORAGE_KEY);
+    if (
+        storeCache
+        && storeCache.accountId === accountId
+        && storeCache.indexPayload === indexPayload
+    ) {
+        return storeCache.store;
+    }
     const shardKeys = Array.from(
         { length: LOCAL_MEMORY_SHARD_COUNT },
         (_, index) => shardStorageKey(index),
     );
-    const [indexPayload, ...shardPayloads] = await Promise.all([
-        memoryStorageAdapter.getItem(LOCAL_MEMORY_STORAGE_KEY),
-        ...shardKeys.map((key) => memoryStorageAdapter.getItem(key)),
-    ]);
+    const shardPayloads = await Promise.all(
+        shardKeys.map((key) => memoryStorageAdapter.getItem(key)),
+    );
 
     const map: Record<string, LocalMemoryAtom> = {};
     const shardExists: boolean[] = [];
@@ -284,12 +334,14 @@ async function loadMemoryStore(): Promise<LocalMemoryStore> {
         if (atoms) Object.assign(map, atoms);
     }
 
-    return {
+    const store: LocalMemoryStore = {
         map,
         indexPayload,
         shardExists,
         shardCanonical: bucketAtoms(map).map(serializeBucket),
     };
+    storeCache = { accountId, indexPayload, store };
+    return store;
 }
 
 function bucketAtoms(
@@ -318,6 +370,8 @@ async function saveMemoryStore(
     store: LocalMemoryStore,
     map: Record<string, LocalMemoryAtom>,
 ): Promise<void> {
+    // The store just changed underneath any cached copy.
+    invalidateLocalMemoryCache();
     const next = bucketAtoms(map).map(serializeBucket);
     // Compared against the canonical form of what was loaded, not the raw bytes:
     // loading backfills atom provenance, so raw bytes differ from the stored
