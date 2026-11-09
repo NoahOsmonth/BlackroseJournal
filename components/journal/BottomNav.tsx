@@ -119,7 +119,7 @@ function DockTab({
                 accessibilityRole="tab"
                 accessibilityState={{ selected: isActive }}
                 style={[animStyle, { alignItems: 'center', justifyContent: 'center' }]}
-                hitSlop={6}
+                hitSlop={8}
             >
                 <View
                     style={{

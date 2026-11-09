@@ -124,7 +124,8 @@ export function MemoryLedgerRow({
                         disabled={!canOpen}
                         accessibilityRole={canOpen ? 'button' : undefined}
                         accessibilityLabel={canOpen ? `Open memory ${atom.title}` : undefined}
-                        className="min-w-0 flex-1"
+                        className="min-w-0 flex-1 justify-center"
+                        style={{ minHeight: 44 }}
                     >
                         <Text
                             className="text-[18px] leading-6 text-text-light dark:text-text-dark"
@@ -139,7 +140,7 @@ export function MemoryLedgerRow({
                         className="h-8 w-8 items-center justify-center"
                         accessibilityRole="button"
                         accessibilityLabel={`Delete memory ${atom.title}`}
-                        hitSlop={6}
+                        hitSlop={8}
                     >
                         <MaterialIcons name="more-vert" size={18} color={inkColor} />
                     </Pressable>
@@ -180,7 +181,8 @@ export function MemoryLedgerRow({
                                 onPress={() => onThemePress(tag)}
                                 accessibilityRole="button"
                                 accessibilityLabel={`Filter memory by ${tag}`}
-                                hitSlop={4}
+                                hitSlop={8}
+                                className="min-h-11 justify-center"
                             >
                                 <Text className="text-[11px] text-text-secondary-light dark:text-text-secondary-dark">
                                     {tag}

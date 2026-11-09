@@ -334,7 +334,8 @@ export function MemoryHubScreen() {
                                             onPress={handleOpenGraph}
                                             accessibilityRole="button"
                                             accessibilityLabel="Open the memory map"
-                                            hitSlop={6}
+                                            hitSlop={8}
+                                            className="min-h-11 justify-center"
                                             style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
                                         >
                                             <Text

@@ -168,7 +168,7 @@ export function GoalsSection({
                             onPress={onManage}
                             accessibilityRole="button"
                             accessibilityLabel={`See ${overflow} more ${overflow === 1 ? 'goal' : 'goals'}`}
-                            className="pt-3"
+                            className="min-h-11 justify-center pt-3"
                         >
                             <Text className="text-[13px] text-text-secondary-light dark:text-text-secondary-dark">
                                 +{overflow} more

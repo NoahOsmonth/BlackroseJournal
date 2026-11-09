@@ -271,7 +271,8 @@ export function ThemeDriftStrip({ themes, onThemePress }: ThemeDriftStripProps) 
                                         // The label carries the raw tag the filter
                                         // uses, never the display-cased word.
                                         accessibilityLabel={`Filter memory by ${theme}`}
-                                        hitSlop={6}
+                                        hitSlop={8}
+                                        className="min-h-11 justify-center"
                                     >
                                         <Text
                                             className="text-base italic text-text-light dark:text-text-dark"
