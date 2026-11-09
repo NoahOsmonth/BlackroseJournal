@@ -9,6 +9,7 @@ import React from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { SCREEN_PADDING_X } from '@/constants/spacing';
+import { useDayMoodInsight } from '@/hooks/insights/useDayMoodInsight';
 import { useDayMood } from '@/hooks/today/useDayMood';
 import { DAY_FACTORS, DAY_MOODS, MAX_DAY_FACTORS } from '@/utils/dayMood';
 
@@ -21,6 +22,7 @@ const heading = 'text-[13px] tracking-[0.4px] text-text-secondary-light dark:tex
 
 export function DayMoodRow() {
     const { moodId, factorIds, setFeeling, toggleFactor } = useDayMood();
+    const insight = useDayMoodInsight();
     const atCap = factorIds.length >= MAX_DAY_FACTORS;
 
     return (
@@ -91,6 +93,18 @@ export function DayMoodRow() {
                         </Text>
                     ) : null}
                 </View>
+            ) : null}
+
+            {/* The same sentence Insights shows, where the day is recorded. Sits
+                below the chips so a line appearing can never move one under the
+                finger that just tapped it. */}
+            {insight.leanLine ? (
+                <Text
+                    testID="day-mood-lean-line"
+                    className="px-6 pt-1 text-[12px] leading-5 text-text-secondary-light dark:text-text-secondary-dark"
+                >
+                    {insight.leanLine}
+                </Text>
             ) : null}
         </View>
     );
