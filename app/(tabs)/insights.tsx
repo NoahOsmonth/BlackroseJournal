@@ -154,6 +154,18 @@ export default function InsightsScreen() {
                                 </Text>
                             </Pressable>
                             <Pressable
+                                onPress={() => router.push('/photos')}
+                                accessibilityRole="button"
+                                accessibilityLabel="Browse your photos"
+                                testID="see-photos"
+                                className="mt-3 min-h-11 flex-row items-center justify-center gap-2 rounded-control border border-hairline-light bg-surface-light px-4 dark:border-hairline-dark dark:bg-surface-dark"
+                            >
+                                <MaterialIcons name="photo-library" size={18} color={iconColor} />
+                                <Text className="text-[15px] text-text-light dark:text-text-dark">
+                                    Browse your photos
+                                </Text>
+                            </Pressable>
+                            <Pressable
                                 onPress={() => router.push('/on-this-day')}
                                 accessibilityRole="button"
                                 accessibilityLabel="Look back on this day"

@@ -100,6 +100,21 @@ export function createAccountScopedStorageAdapter(
             await adapter.removeItem(scopedKey);
             notifyCollectionChanged(key);
         },
+        // Owner keys only, never another account's. Used by stores that need to
+        // notice a key that exists without a record of it (Kaneo #109: a photo
+        // whose index row was lost must still be found, not hidden forever).
+        getAllKeys: async () => {
+            if (!adapter.getAllKeys) return [];
+            const scoped = await adapter.getAllKeys();
+            // The helper refuses an empty owner key, so probe with a sentinel and
+            // keep only the part before it: that is this account's prefix.
+            const probe = '__owner_key_probe__';
+            const scopedProbe = getAccountScopedStorageKeyForAccount(probe, accountId);
+            const prefix = scopedProbe.slice(0, scopedProbe.length - probe.length);
+            return scoped
+                .filter((key) => key.startsWith(prefix))
+                .map((key) => key.slice(prefix.length));
+        },
     };
 }
 
