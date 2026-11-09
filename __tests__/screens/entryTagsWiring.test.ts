@@ -230,4 +230,11 @@ describe('picking several entries and labelling them (Kaneo #91)', () => {
         expect(sheet).toContain('mode === \'add\' ?');
         expect(archive).toContain('mode={bulkMode}');
     });
+
+    it('explains a hidden Remove instead of leaving an empty gap', () => {
+        expect(bar).toContain('noSharedLabel');
+        expect(bar).toContain('selection-no-shared');
+        expect(bar).toContain('do not share a label');
+        expect(archive).toContain('noSharedLabel={picked.length > 1 && shared.length === 0}');
+    });
 });

@@ -109,7 +109,6 @@ export default function EntriesScreen() {
     const showBanner = activeSession !== null
         && activeSession.conversationId !== dismissedId;
 
-    // The narrowing chain lives in the hook: the order is behaviour, so it is tested there.
     const {
         beforeTopicSections,
         afterTopicSections,
@@ -168,7 +167,7 @@ export default function EntriesScreen() {
     }, [picking, router]);
 
     const pickedSet = useMemo(() => new Set(picked), [picked]);
-    // Only labels the whole selection shares can be taken off.
+    // Only labels the whole selection shares can be taken off (sharedLabels).
     const shared = useMemo(() => sharedLabels(picked, tagsByEntry), [picked, tagsByEntry]);
     const openBulkSheet = (mode: BulkLabelMode) => { setBulkMode(mode); setLabelSheetOpen(true); };
     const hasAnyItems = sections.length > 0;
@@ -417,6 +416,7 @@ export default function EntriesScreen() {
                     count={picked.length}
                     onLabel={() => openBulkSheet('add')}
                     onRemoveLabel={shared.length > 0 ? () => openBulkSheet('remove') : undefined}
+                    noSharedLabel={picked.length > 1 && shared.length === 0}
                     onDone={() => {
                         setPicking(false);
                         setPicked([]);

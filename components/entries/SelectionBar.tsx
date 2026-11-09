@@ -14,16 +14,28 @@ interface SelectionBarProps {
     readonly onLabel: () => void;
     /** Undefined when the picked entries share no label, so there is nothing to take off. */
     readonly onRemoveLabel?: () => void;
+    /**
+     * True when 2+ entries are picked and they share no label. The action is
+     * hidden, so without a line here one entry short of a match looks like a
+     * broken button.
+     */
+    readonly noSharedLabel?: boolean;
     readonly onDone: () => void;
 }
 
-export function SelectionBar({ count, onLabel, onRemoveLabel, onDone }: SelectionBarProps) {
+export function SelectionBar({ count, onLabel, onRemoveLabel, onDone, noSharedLabel = false }: SelectionBarProps) {
     const picked = count === 1 ? '1 picked' : `${count} picked`;
     return (
         <View
-            className={`flex-row items-center gap-2 border-t ${HAIRLINE} bg-surface-light px-6 py-3 dark:bg-surface-dark`}
+            className={`gap-1 border-t ${HAIRLINE} bg-surface-light px-6 py-3 dark:bg-surface-dark`}
             testID="selection-bar"
         >
+            {noSharedLabel ? (
+                <Text className="text-[13px] text-text-secondary-light dark:text-text-secondary-dark" testID="selection-no-shared">
+                    These entries do not share a label, so there is nothing to take off.
+                </Text>
+            ) : null}
+            <View className="flex-row items-center gap-2">
             <Text className={`flex-1 text-[15px] ${INK}`} testID="selection-count">
                 {picked}
             </Text>
@@ -56,6 +68,7 @@ export function SelectionBar({ count, onLabel, onRemoveLabel, onDone }: Selectio
             >
                 <Text className="text-[14px] text-white dark:text-white">Done</Text>
             </Pressable>
+            </View>
         </View>
     );
 }
