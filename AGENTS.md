@@ -50,6 +50,7 @@ Rules:
 - **Verify a card by `get-task --id`, not by the list.** `list-tasks` is paginated to 50 without warning; `get-task` always returns the row.
 - `list-tasks` returns tasks nested at `data.columns[].tasks` (pick the column whose `slug` matches the `--status` you passed). Parsing the response as a flat array yields a confident **0 cards** — read the shape before counting the board.
 - Task and epic descriptions cap at ~20,000 characters. **Appending** a round note to a full epic silently truncates the new text away while `update-task-description` still exits 0. **Prepend** the newest round, then `get-task --id` and assert the new marker string is present.
+- **`get-task --id` returns the task object itself**, not `{task: {...}}`. A defensive `d.get('task') or d` is correct; a bare `d.get('task') or {}` reads an EMPTY description, and prepending to that **overwrites the whole epic with one round's note** — it happened on 2026-11-09 to epic #17, and the older narrative had to be rebuilt from `docs/qa/results/`. Before any description write: assert the read length is what you expect, and abort if it is 0 while the card is known to have content.
 - Put the plan, findings, and blockers in the card description, not only in chat.
 - **Images in descriptions.** Visual work attaches a screenshot to the card:
   1. `create-task-image-upload --id <taskId> --filename x.png --content-type image/png --size <bytes> --surface description` returns `{key, uploadUrl, headers}`.
