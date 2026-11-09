@@ -2,7 +2,7 @@
  * The card against the real store, not a mocked hook: the whole point is that
  * the writer's own days turn into a sentence, and only when the counts allow it.
  */
-import { render, screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import { DayMoodCard } from '@/components/insights/DayMoodCard';
 import { setAccountStorageAdapter } from '../../services/account/accountScopedStorage';
@@ -67,6 +67,41 @@ describe('DayMoodCard', () => {
         await waitFor(() => expect(screen.getByTestId('day-mood-lean')).toBeTruthy());
         expect(screen.getByText('On 3 of your 4 lighter days, People was in the mix.')).toBeTruthy();
         expect(screen.getByTestId('day-mood-lighter')).toBeTruthy();
+    });
+
+    it('says which stretch of time it is looking at', async () => {
+        await seed(0, 'light', ['people']);
+        render(<DayMoodCard />);
+        await waitFor(() => expect(screen.getByTestId('day-mood-card')).toBeTruthy());
+        expect(screen.getByTestId('day-mood-period').props.children).toEqual([
+            'Looking at ',
+            'the last four weeks',
+        ]);
+    });
+
+    it('widens to three months without becoming more confident', async () => {
+        // A pattern that only exists 40 days back: invisible at four weeks.
+        await seed(40, 'light', ['movement']);
+        await seed(41, 'light', ['movement']);
+        await seed(42, 'light', ['movement']);
+        await seed(43, 'calm');
+        await seed(0, 'heavy', ['work']);
+        await seed(1, 'heavy', ['work']);
+        await seed(2, 'heavy', ['work']);
+        await seed(3, 'restless');
+        render(<DayMoodCard />);
+        await waitFor(() => expect(screen.getByTestId('day-mood-card')).toBeTruthy());
+        // Four weeks: only the recent heavy days exist, so no lean.
+        expect(screen.queryByTestId('day-mood-lean')).toBeNull();
+
+        fireEvent.press(screen.getByTestId('day-mood-lens-90'));
+        await waitFor(() => expect(screen.getByTestId('day-mood-period').props.children).toEqual([
+            'Looking at ',
+            'the last three months',
+        ]));
+        // Three months: both sides now have four days, so the lean can be named.
+        await waitFor(() => expect(screen.getByTestId('day-mood-lean')).toBeTruthy());
+        expect(screen.getByTestId('day-mood-lighter').props.children).toBe('4 days: Movement');
     });
 
     it('shows both sides in plain words', async () => {

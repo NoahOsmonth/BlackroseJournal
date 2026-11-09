@@ -16,6 +16,19 @@ import { DAY_FACTORS, factorLabelFor, moodLabelFor } from '@/utils/dayMood';
 import { getLocalDateKey, parseLocalDateKey } from '@/utils/date';
 
 export const INSIGHT_WINDOW_DAYS = 28;
+
+/**
+ * The two lenses the card offers (Kaneo #103). A month is the default; a season
+ * is there for a pattern that only shows up across a few months.
+ */
+export const INSIGHT_WINDOWS = [
+    { days: 28, label: 'Four weeks', sentence: 'the last four weeks' },
+    { days: 90, label: 'Three months', sentence: 'the last three months' },
+] as const;
+
+export function insightWindow(days: number): (typeof INSIGHT_WINDOWS)[number] {
+    return INSIGHT_WINDOWS.find((window) => window.days === days) ?? INSIGHT_WINDOWS[0];
+}
 export const MIN_DAYS_FOR_LEAN = 4;
 const LEAN_SHARE = 0.6;
 const OTHER_SHARE_MAX = 0.34;

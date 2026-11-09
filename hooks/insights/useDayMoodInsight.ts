@@ -9,9 +9,9 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { DayMood, listDayMoods, subscribeDayMoods } from '@/services/journal/dayMood';
 import { getLocalDateKey } from '@/utils/date';
-import { buildDayMoodInsight, DayMoodInsight } from '@/utils/dayMoodInsights';
+import { buildDayMoodInsight, DayMoodInsight, INSIGHT_WINDOW_DAYS } from '@/utils/dayMoodInsights';
 
-export function useDayMoodInsight(): DayMoodInsight {
+export function useDayMoodInsight(windowDays: number = INSIGHT_WINDOW_DAYS): DayMoodInsight {
     const [days, setDays] = useState<Record<string, DayMood>>({});
     const todayKey = getLocalDateKey();
 
@@ -28,5 +28,8 @@ export function useDayMoodInsight(): DayMoodInsight {
         return () => { active = false; unsubscribe(); };
     }, []);
 
-    return useMemo(() => buildDayMoodInsight(days, todayKey), [days, todayKey]);
+    return useMemo(
+        () => buildDayMoodInsight(days, todayKey, windowDays),
+        [days, todayKey, windowDays],
+    );
 }
