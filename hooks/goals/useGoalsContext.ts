@@ -1,7 +1,6 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useGoals } from './useGoals';
 import { buildGoalsContext } from '@/services/goals/goalsPrompt';
-import { subscribeGoalsChanges } from '@/services/goals/goalsStorage';
 
 interface UseGoalsContextOptions {
     intentionId?: string;
@@ -23,11 +22,9 @@ export function useGoalsContext(options: UseGoalsContextOptions = {}): UseGoalsC
         return buildGoalsContext(goals, { intentionId: options.intentionId });
     }, [goals, options.intentionId]);
 
-    useEffect(() => {
-        return subscribeGoalsChanges(() => {
-            refresh().catch(() => undefined);
-        });
-    }, [refresh]);
-
+    // No second subscription here on purpose (Kaneo #101). useGoals already
+    // refreshes through useCollectionRefresh on the adapter's change bus, so a
+    // goals write used to cost two listGoals() reads: one from that hook and one
+    // from a duplicate subscriber in this wrapper.
     return { goalsContext, isLoading, refresh };
 }
