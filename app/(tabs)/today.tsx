@@ -27,6 +27,7 @@ import {
 } from '@/components/today';
 import { useGoals } from '@/hooks/goals/useGoals';
 import { GuidedPromptShelf } from '@/components/today/GuidedPromptShelf';
+import { DayMoodRow } from '@/components/today/DayMoodRow';
 import { RecurringThemesCard } from '@/components/today/RecurringThemesCard';
 import { useRecurringThemes } from '@/hooks/memory/useRecurringThemes';
 import { useGuidedPrompts } from '@/hooks/journal/useGuidedPrompts';
@@ -265,6 +266,12 @@ export default function TodayScreen() {
 
                                 <RevealItem scrollY={scrollY}>
                                     <TodayWritingCard onPress={handleWritePress} />
+                                </RevealItem>
+
+                                {/* Optional, one tap either way: how the day felt
+                                    and what shaped it. Never blocks writing. */}
+                                <RevealItem scrollY={scrollY}>
+                                    <DayMoodRow />
                                 </RevealItem>
 
                                 <RevealItem scrollY={scrollY}>
