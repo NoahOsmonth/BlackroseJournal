@@ -10,6 +10,7 @@ import { useNavBack } from '@/hooks/navigation/useNavBack';
 import { useWritingYear } from '@/hooks/insights/useWritingYear';
 import { WriteOnDayButton } from '@/components/insights/WriteOnDayButton';
 import { canWriteOnDay, formatWritingDay } from '@/utils/writingDay';
+import { clampDayKey, shiftDayKey } from '@/utils/dayStep';
 import { getLocalDateKey } from '@/utils/date';
 import type { WritingDay, WritingLevel } from '@/utils/writingYear';
 
@@ -83,6 +84,18 @@ export default function WritingYearScreen() {
     const selected = selectedDay ? daysByKey.get(selectedDay) : undefined;
     const todayKey = getLocalDateKey();
 
+    // Stepping is the way a day gets chosen (Kaneo #111): 44px controls, one day
+    // at a time, clamped to the range the grid draws. Picking from the grid itself
+    // is gone because a 14px square cannot be a target.
+    const firstKey = grid.startDateKey;
+    const lastKey = grid.endDateKey;
+    const stepBase = selectedDay ?? lastKey;
+    const canStepBack = stepBase > firstKey;
+    const canStepForward = stepBase < lastKey;
+    const stepDay = (delta: number) => {
+        setSelectedDay(clampDayKey(shiftDayKey(stepBase, delta), firstKey, lastKey));
+    };
+
     return (
         <ScreenContainer edges="top">
             <View className="mx-auto w-full max-w-md flex-1 px-5 pt-4">
@@ -145,10 +158,12 @@ export default function WritingYearScreen() {
                                         {grid.weeks.map((week, weekIndex) => (
                                             <View key={'week-' + weekIndex} className="gap-[3px]">
                                                 {week.map((day) => (
-                                                    <Pressable
+                                                    // A picture, not a button: 371 cells at 14px are
+                                                    // narrower than a fingertip, so the day is chosen
+                                                    // with the 44px stepper below (Kaneo #111).
+                                                    <View
                                                         key={day.dateKey}
-                                                        onPress={() => { if (!day.isPadding) setSelectedDay(day.dateKey); }}
-                                                        accessibilityRole="button"
+                                                        accessibilityRole="image"
                                                         accessibilityLabel={dayAccessibilityLabel(day)}
                                                         className={dayClass(day)}
                                                         style={{ width: CELL, height: CELL }}
@@ -160,6 +175,43 @@ export default function WritingYearScreen() {
                                     </View>
                                 </View>
                             </ScrollView>
+
+                            {/* The year is a picture; a day is chosen here, one at a
+                                time, with targets a fingertip can actually hit. */}
+                            <View className="mt-4 flex-row items-center justify-between gap-3">
+                                <Pressable
+                                    onPress={() => stepDay(-1)}
+                                    disabled={!canStepBack}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Earlier day"
+                                    testID="writing-year-prev-day"
+                                    className={
+                                        'h-11 w-11 items-center justify-center rounded-control border border-hairline-light dark:border-hairline-dark' +
+                                        (canStepBack ? '' : ' opacity-40')
+                                    }
+                                >
+                                    <MaterialIcons name="chevron-left" size={22} color={ink} />
+                                </Pressable>
+                                <Text
+                                    testID="writing-year-stepped-day"
+                                    className={'flex-1 text-center text-[14px] ' + SECONDARY}
+                                >
+                                    {selectedDay ? formatWritingDay(selectedDay) : 'Choose a day'}
+                                </Text>
+                                <Pressable
+                                    onPress={() => stepDay(1)}
+                                    disabled={!canStepForward}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Later day"
+                                    testID="writing-year-next-day"
+                                    className={
+                                        'h-11 w-11 items-center justify-center rounded-control border border-hairline-light dark:border-hairline-dark' +
+                                        (canStepForward ? '' : ' opacity-40')
+                                    }
+                                >
+                                    <MaterialIcons name="chevron-right" size={22} color={ink} />
+                                </Pressable>
+                            </View>
 
                             <View className="mt-3 flex-row items-center justify-between">
                                 <Text className={'text-[12px] ' + SECONDARY}>

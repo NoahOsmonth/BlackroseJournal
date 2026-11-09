@@ -71,9 +71,14 @@ describe('writing-year feature wiring', () => {
         expect(screen).not.toContain('(month.weekIndex / grid.weeksCount) * 100');
     });
 
-    it('tapping a day opens that day through the hook map, not another read', () => {
+    it('choosing a day reads it from the hook map, not another read', () => {
+        // Round 70 (#111): the 14px squares stopped being buttons - a fingertip is
+        // wider than three cells - so the day is chosen with the 44px stepper. The
+        // invariant that matters survives: the day comes from daysByKey, never a
+        // second storage read.
         expect(screen).toContain('daysByKey');
-        expect(screen).toContain('setSelectedDay(day.dateKey)');
+        expect(screen).toContain('setSelectedDay(clampDayKey(shiftDayKey(');
+        expect(screen).not.toContain('setSelectedDay(day.dateKey)');
         expect(screen).toContain('writing-day-item-');
         expect(screen).toContain("pathname: item.kind === 'entry' ? '/entry-detail' : '/checkin-detail'");
         // Round 43: day rows moved to one shared pure builder for both grids.

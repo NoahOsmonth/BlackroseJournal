@@ -30,6 +30,10 @@ const STATIC_ROUTES = [
     '/today', '/insights', '/explore', '/entries', '/settings',
     '/goals', '/prompt-shelf', '/on-this-day', '/streak-view', '/drafts',
     '/photos',
+    // Added in round 70: eleven screens existed that the sweep had never opened
+    // (Kaneo #111). They are static routes, so they cost nothing but a page load.
+    '/ask-rosebud', '/happiness-recipe', '/letters', '/monthly-review', '/rewards',
+    '/saved-insights', '/streak-haiku', '/suggestions', '/writing-goal', '/writing-year',
 ];
 const asJson = process.argv.includes('--json');
 

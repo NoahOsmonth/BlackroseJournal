@@ -30,8 +30,12 @@ describe('icon-only controls reach 44px through slop (Kaneo #97)', () => {
         expect(photo).toHaveLength(1);
         expect(voice).toHaveLength(1);
         for (const tag of [...photo, ...voice]) {
+            // Round 70 (#111): a real 44x44 box beats slop, which only extends the
+            // touch area invisibly and can overlap a neighbour. Either satisfies
+            // the rule; slop is no longer required once the box itself is 44px.
             const slop = Number((tag.match(/hitSlop=\{(\d+)\}/) || [])[1]);
-            expect(slop).toBeGreaterThanOrEqual(12);
+            const boxIs44 = /h-11 w-11/.test(tag) || /w-11 h-11/.test(tag);
+            expect(boxIs44 || slop >= 12).toBe(true);
         }
     });
 

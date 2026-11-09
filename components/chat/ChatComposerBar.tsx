@@ -81,8 +81,10 @@ export function ChatComposerBar({
                             accessibilityRole="button"
                             accessibilityLabel="Attach a photo"
                             accessibilityState={{ disabled: photoDisabled }}
-                            hitSlop={12}
-                            className={photoDisabled ? 'opacity-40' : ''}
+                            className={
+                                'h-11 w-11 items-center justify-center' +
+                                (photoDisabled ? ' opacity-40' : '')
+                            }
                         >
                             {isPickingImage ? (
                                 <ActivityIndicator size="small" color={iconColor} />
@@ -120,8 +122,10 @@ export function ChatComposerBar({
                         accessibilityRole="button"
                         accessibilityLabel={voice.label}
                         accessibilityState={{ disabled: voiceDisabled }}
-                        hitSlop={12}
-                        className={voiceDisabled ? 'opacity-40' : ''}
+                        className={
+                            'h-11 w-11 items-center justify-center' +
+                            (voiceDisabled ? ' opacity-40' : '')
+                        }
                     >
                         {/* Always a speaker, never a slashed one: a slashed glyph
                             at rest reads as "microphone, muted". Colour carries
